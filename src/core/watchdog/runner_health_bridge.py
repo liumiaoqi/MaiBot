@@ -250,10 +250,17 @@ class RunnerHealthBridge:
             )
             return
 
+        # blocker 追踪（ZG-3 补强 S4）：按检测来源填充阻塞源标识
+        blocker_info = {
+            DetectionSource.HEARTBEAT: "heartbeat_timeout",
+            DetectionSource.PROCESS_POLL: "process_unresponsive",
+            DetectionSource.REGISTRY: "registry_connection_failed",
+        }.get(source, source.value)
         detail = (
             f"runner_id={runner_id}, source={source.value}, "
             f"consecutive_failures={consecutive_failures}, "
-            f"check_period={status.total_report_count}"
+            f"check_period={status.total_report_count}, "
+            f"blocker_info={blocker_info}"
         )
         event = FaultReportEvent(
             component_id=status.component_id,
@@ -261,6 +268,7 @@ class RunnerHealthBridge:
             detail=detail,
             report_time=now,
             check_period_no=status.total_report_count,
+            blocker_info=blocker_info,
         )
 
         sm_port = get_service_manager_port()

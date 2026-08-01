@@ -49,11 +49,30 @@ class EventLoopMonitor:
         self._total_severe_report_count: int = 0
         self._check_period_no: int = 0
 
-    def touch(self) -> None:
-        """刷新事件循环存活时间戳（由主循环协程以 ≤1s 间隔调用）。"""
+        # ZG-3 补强 S1：延迟报告生效的检测周期号（0 = 不生效）
+        self._delay_report_until: int = 0
+
+        # ZG-3 补强 S2：检测线程自身 touch 时间戳（简化版 buddy 互检）
+        self._detect_thread_touch_time: float = 0.0
+        self._detect_thread_lock = threading.Lock()
+
+    def touch(self, delay: bool = False) -> None:
+        """刷新事件循环存活时间戳（由主循环协程以 ≤1s 间隔调用）。
+
+        Args:
+            delay: 是否标记延迟报告（ZG-3 补强 S1，对标 Linux
+                SOFTLOCKUP_DELAY_REPORT）。True 时下一检测周期跳过严重阻塞
+                上报（不触发 report_external_fault），但仍刷新时间戳。
+                默认 False，与补强前语义一致（向后兼容）。
+        """
         now = time.monotonic()
         with self._touch_lock:
             self._last_touch_time = now
+            if delay:
+                # 周期号方案：仅对下一个周期生效，连续 delay 不会永久屏蔽
+                # （design 2.4.1；_check_period_no 由检测线程更新，
+                # CPython 下 int 读原子，无需额外同步）
+                self._delay_report_until = self._check_period_no + 1
 
     def start(self) -> None:
         """启动检测线程。"""
@@ -88,27 +107,52 @@ class EventLoopMonitor:
 
     def _detect_once(self) -> None:
         """单次检测判定逻辑。"""
+        try:
+            with self._touch_lock:
+                last_touch = self._last_touch_time
+
+            now = time.monotonic()
+            elapsed = now - last_touch
+
+            if elapsed < 0:
+                logger.warning(
+                    "touch 时间戳回跳（elapsed=%.3fs），已忽略本次判定", elapsed
+                )
+                return
+
+            self._check_period_no += 1
+            self._last_check_time = now
+
+            # 延迟报告检查（ZG-3 补强 S1）：本周期是否命中 delay 标志
+            delay_active = self._consume_delay_report()
+
+            if elapsed < self._config.mild_threshold_s:
+                self._handle_normal()
+            elif elapsed < self._config.severe_threshold_s:
+                self._handle_mild_lag(elapsed)
+            else:
+                self._handle_severe_block(elapsed, delay_active)
+        finally:
+            # 检测线程自身 touch（ZG-3 补强 S2）：无论判定路径如何都刷新
+            with self._detect_thread_lock:
+                self._detect_thread_touch_time = time.monotonic()
+
+    def _consume_delay_report(self) -> bool:
+        """检查并消费延迟报告标志（ZG-3 补强 S1，对标 SOFTLOCKUP_DELAY_REPORT）。
+
+        仅当 _check_period_no == _delay_report_until 时生效：清除标志并返回
+        True，表示本周期跳过严重阻塞上报（spec 5.3.3-1：非严重路径也消费）。
+        非命中时返回 False。周期号方案保证 delay 仅屏蔽紧接的 1 个报告周期。
+        """
         with self._touch_lock:
-            last_touch = self._last_touch_time
-
-        now = time.monotonic()
-        elapsed = now - last_touch
-
-        if elapsed < 0:
-            logger.warning(
-                "touch 时间戳回跳（elapsed=%.3fs），已忽略本次判定", elapsed
-            )
-            return
-
-        self._check_period_no += 1
-        self._last_check_time = now
-
-        if elapsed < self._config.mild_threshold_s:
-            self._handle_normal()
-        elif elapsed < self._config.severe_threshold_s:
-            self._handle_mild_lag(elapsed)
-        else:
-            self._handle_severe_block(elapsed)
+            if self._check_period_no == self._delay_report_until:
+                self._delay_report_until = 0
+                logger.info(
+                    "延迟报告生效（check_period=%d），本周期跳过严重阻塞上报",
+                    self._check_period_no,
+                )
+                return True
+        return False
 
     def _handle_normal(self) -> None:
         """正常判定：重置连续计数，检测恢复。"""
@@ -135,8 +179,12 @@ class EventLoopMonitor:
             self._check_period_no,
         )
 
-    def _handle_severe_block(self, elapsed: float) -> None:
-        """严重阻塞判定：连续计数，达阈值且不在冷却则上报。"""
+    def _handle_severe_block(self, elapsed: float, delay_active: bool = False) -> None:
+        """严重阻塞判定：连续计数，达阈值且不在冷却则上报。
+
+        delay_active（ZG-3 补强 S1）：本周期延迟报告生效——跳过上报但
+        保持连续计数（下一周期无 delay 时按计数立即上报，不会推迟 N 周期）。
+        """
         self._block_severity = BlockSeverity.SEVERE_BLOCK
         self._consecutive_severe_count += 1
 
@@ -147,6 +195,10 @@ class EventLoopMonitor:
                 self._consecutive_severe_count,
                 self._check_period_no,
             )
+            return
+
+        if delay_active:
+            # 延迟报告生效（已在 _consume_delay_report 记录日志）：跳过上报
             return
 
         if self._consecutive_severe_count >= self._config.consecutive_report_threshold:
@@ -161,10 +213,15 @@ class EventLoopMonitor:
             )
 
     def _report_severe_block(self, elapsed: float) -> None:
-        """构造故障事件并上报，进入冷却窗口。"""
+        """构造故障事件并上报，进入冷却窗口。
+
+        blocker_info 当前为 None（ZG-3 补强 S4）：事件循环阻塞的根因在检测时
+        无法确定，需由上层 touch 标注（未来可扩展，design 2.4.4）。
+        """
         detail = (
             f"elapsed={elapsed:.3f}s, check_period={self._check_period_no}, "
-            f"consecutive={self._consecutive_severe_count}"
+            f"consecutive={self._consecutive_severe_count}, "
+            f"blocker_info=None"
         )
         event = FaultReportEvent(
             component_id="event_loop",
@@ -172,6 +229,7 @@ class EventLoopMonitor:
             detail=detail,
             report_time=time.monotonic(),
             check_period_no=self._check_period_no,
+            blocker_info=None,
         )
         self._report_callback(event)
         self._cooldown_until = time.monotonic() + self._config.cooldown_s
@@ -188,10 +246,39 @@ class EventLoopMonitor:
         """是否在冷却窗口内。"""
         return time.monotonic() < self._cooldown_until
 
+    def check_detect_thread_health(self) -> None:
+        """检查检测线程是否仍在刷新 touch 时间戳（ZG-3 补强 S2）。
+
+        简化版 buddy 互检：由主循环侧周期性调用（WatchdogAdapter.touch
+        顺带）。检测线程自身卡住时无法自检，需外部观测。
+        仅输出 WARNING 日志，不触发故障上报、不执行恢复动作（FR-S2-03）。
+        """
+        if self._detect_thread is None or not self._detect_thread.is_alive():
+            return  # 未启动/已停止（FR-S2-04）
+        with self._detect_thread_lock:
+            touch_time = self._detect_thread_touch_time
+        if touch_time <= 0.0:
+            return  # 尚未首次刷新
+        elapsed = time.monotonic() - touch_time
+        if elapsed < 0:
+            logger.warning(
+                "检测线程 touch 时间戳回跳（elapsed=%.3fs），已忽略本次检查", elapsed
+            )
+            return
+        timeout_s = 3 * self._config.check_interval_s
+        if elapsed > timeout_s:
+            logger.warning(
+                "检测线程疑似卡住（距上次 touch %.3fs，阈值 %.1fs）",
+                elapsed,
+                timeout_s,
+            )
+
     def get_status(self) -> WatchdogStatus:
         """返回当前状态快照（纯内存聚合无 I/O）。"""
         with self._touch_lock:
             last_touch = self._last_touch_time
+        with self._detect_thread_lock:
+            detect_touch = self._detect_thread_touch_time
         return WatchdogStatus(
             block_severity=self._block_severity,
             last_touch_time=last_touch,
@@ -201,4 +288,5 @@ class EventLoopMonitor:
             total_mild_lag_count=self._total_mild_lag_count,
             total_severe_report_count=self._total_severe_report_count,
             check_period_no=self._check_period_no,
+            detect_thread_touch_time=detect_touch,
         )

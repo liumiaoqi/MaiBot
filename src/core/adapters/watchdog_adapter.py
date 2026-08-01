@@ -71,10 +71,18 @@ class WatchdogAdapter(WatchdogPort):
         self._running = False
         logger.info("看门狗已停止")
 
-    def touch(self) -> None:
-        """刷新事件循环存活时间戳。"""
+    def touch(self, delay: bool = False) -> None:
+        """刷新事件循环存活时间戳。
+
+        Args:
+            delay: 是否标记延迟报告（ZG-3 补强 S1），透传至 EventLoopMonitor。
+
+        顺带执行检测线程健康检查（ZG-3 补强 S2）：主循环侧每 touch 间隔
+        （≤1s）检查一次，频率足够且不额外起协程。
+        """
         if self._event_loop_monitor is not None:
-            self._event_loop_monitor.touch()
+            self._event_loop_monitor.touch(delay)
+            self._event_loop_monitor.check_detect_thread_health()
 
     def _sync_report_callback(self, event: FaultReportEvent) -> None:
         """供 EventLoopMonitor 检测线程调用，提交回主循环。"""

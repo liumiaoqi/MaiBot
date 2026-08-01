@@ -1346,8 +1346,13 @@ class WatchdogPort(Protocol):
         后置条件：全部检测任务停止，状态保留供最后查询。
         """
 
-    def touch(self) -> None:
+    def touch(self, delay: bool = False) -> None:
         """刷新事件循环存活时间戳（由主事件循环内协程周期调用）。
+
+        Args:
+            delay: 是否标记延迟报告（ZG-3 补强 S1，对标 Linux
+                SOFTLOCKUP_DELAY_REPORT）。True 时下一检测周期跳过严重阻塞
+                上报，但仍刷新时间戳。默认 False（向后兼容）。
 
         后置条件：last_touch 更新为 time.monotonic()。
         """
