@@ -47,13 +47,6 @@ class TransitionReason(str, Enum):
     SHUTDOWN_SIGNAL = "shutdown_signal"
 
 
-class TransitionVote(IntEnum):
-    """订阅者投票 — 对标 Linux NOTIFY_DONE / NOTIFY_STOP_MASK。"""
-
-    DONE = 0
-    STOP = 1
-
-
 @dataclass(frozen=True)
 class TransitionRecord:
     """单次迁移历史记录。"""

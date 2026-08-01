@@ -41,6 +41,7 @@ from .official_configs import (
     PluginRuntimeConfig,
     PluginRuntimeV2Config,
     PythonRuntimeSectionConfig,
+    EventBusConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
     SystemStateSectionConfig,
@@ -66,7 +67,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 
 
 MMC_VERSION: str = read_project_version(PROJECT_ROOT)
-CONFIG_VERSION: str = "8.27.0"
+CONFIG_VERSION: str = "8.28.0"
 MODEL_CONFIG_VERSION: str = "1.17.6"
 
 logger = get_logger("config")
@@ -140,6 +141,9 @@ class Config(ConfigBase):
 
     system_state: SystemStateSectionConfig = Field(default_factory=SystemStateSectionConfig)
     """系统生命周期状态机配置类（ZG-6）"""
+
+    event_bus: EventBusConfig = Field(default_factory=EventBusConfig)
+    """事件总线配置类（ZG-4）"""
 
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     """MCP 配置类"""

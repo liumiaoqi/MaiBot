@@ -19,6 +19,7 @@ from src.core.system_state.types import (
     TransitionReason,
     TransitionRecord,
 )
+from src.core.vote import Vote
 
 logger = get_logger(__name__)
 
@@ -157,10 +158,20 @@ class SystemStateMachine:
             )
 
         if target == SystemLifecycleState.SHUTTING_DOWN:
-            # robust 模式：STOP 否决 + 逆序回滚（机制 2）
-            ok = await self._notifier.notify_robust(old, target, reason)
-            if not ok:
-                logger.warning("→SHUTTING_DOWN 被订阅者否决，状态保持 %s", old.snake_case)
+            # robust 模式：STOP 干净中止 / BAD 否决+回滚（机制 2，
+            # 偏离 Linux：只在 BAD 时回滚，见 design.md §2.2）
+            result = await self._notifier.notify_robust(old, target, reason)
+            if result.final_vote is Vote.STOP:
+                logger.info(
+                    "→SHUTTING_DOWN 被订阅者 STOP 中止（干净中止），状态保持 %s",
+                    old.snake_case,
+                )
+                return
+            if result.final_vote is Vote.BAD:
+                logger.warning(
+                    "→SHUTTING_DOWN 被订阅者 BAD 否决（已回滚），状态保持 %s，否决者=%s，原因=%s",
+                    old.snake_case, result.vetoer, result.serialize_reason(),
+                )
                 return
         else:
             # 普通模式：健康降级不可否决（AC-ADAPT-01-3）

@@ -426,6 +426,10 @@ v2_diff_interval_s = 5.0 # V2 状态 diff 轮询间隔（秒）。
 history_capacity = 100 # 迁移历史环形缓冲容量（条）。
 notify_timeout = 5.0 # 通知链超时（秒），订阅者超时记告警并视为放行。
 
+[event_bus]
+rollback_timeout = 5.0 # robust 回滚单个 on_rollback 超时（秒）。
+vote_history_capacity = 100 # 内省投票历史环形缓冲容量（条）。
+
 [mcp]
 enable = true # 是否启用 MCP 工具接入能力。
 servers = []

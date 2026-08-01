@@ -307,6 +307,15 @@ class MainSystem:
             history_capacity=sys_state_cfg.history_capacity,
             notify_timeout=sys_state_cfg.notify_timeout,
         )
+
+        # ZG-4: EventBus 装配注入（配置已加载后；configure 幂等，未注入项保持默认）
+        from src.core.event_bus import event_bus as _core_event_bus
+
+        event_bus_cfg = _cm.get_global_config().event_bus
+        _core_event_bus.configure(
+            rollback_timeout=event_bus_cfg.rollback_timeout,
+            vote_history_capacity=event_bus_cfg.vote_history_capacity,
+        )
         self._lifecycle_adapter = SystemLifecycleAdapter(
             state_machine=self._lifecycle_sm,
             core_readiness_port=CoreReadinessPortAdapter(orchestrator.get_core_readiness()),

@@ -6852,3 +6852,17 @@ class SystemStateSectionConfig(ConfigBase):
 
     notify_timeout: float = Field(default=5.0)
     """通知链超时（秒），订阅者超时记告警并视为放行。"""
+
+
+class EventBusConfig(ConfigBase):
+    """事件总线配置（ZG-4）— robust 回滚 + 内省。
+
+    与核心层 EventBus.configure 注入参数一一对应，全部带默认值；
+    经 main.py 装配点注入，核心不碰 config_manager。
+    """
+
+    rollback_timeout: float = Field(default=5.0)
+    """robust 回滚单个 on_rollback 超时（秒）。"""
+
+    vote_history_capacity: int = Field(default=100)
+    """内省投票历史环形缓冲容量（条）。"""
