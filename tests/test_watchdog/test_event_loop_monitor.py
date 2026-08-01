@@ -142,6 +142,11 @@ def test_severe_block_reports_after_consecutive(fast_config, event_loop, reporte
 
 
 def test_cooldown_prevents_repeat_report(fast_config, event_loop, reported):
+    """冷却窗口内不重复上报（加固 2026-08-02）。
+
+    原实现用真实检测线程 + sleep 赌容器调度，elapsed 擦边阈值导致 flaky；
+    改为手动推进 _detect_once，确定性验证。
+    """
     config = WatchdogConfig(
         touch_interval_s=0.05,
         check_interval_s=0.05,
@@ -155,19 +160,24 @@ def test_cooldown_prevents_repeat_report(fast_config, event_loop, reported):
         reported.append(event)
 
     m = EventLoopMonitor(config, event_loop, cb)
-    m.start()
-    try:
-        m.touch()
-        time.sleep(0.2)
-        first_count = len(reported)
-        assert first_count >= 1
-        time.sleep(0.2)
-        assert len(reported) == first_count
-    finally:
-        m.stop()
+    m._last_touch_time = time.monotonic() - 10.0  # 模拟严重阻塞
+
+    m._detect_once()  # 周期 1：severe，达阈值 → 上报 + 进入冷却
+    assert len(reported) == 1
+
+    m._detect_once()  # 周期 2：冷却中 → 不重复上报
+    assert len(reported) == 1
+
+    m._cooldown_until = time.monotonic() - 1.0  # 冷却过期
+    m._detect_once()  # 周期 3：冷却已过 → 再次上报
+    assert len(reported) == 2
 
 
 def test_recovery_detection(fast_config, event_loop, reported):
+    """上报后 touch 恢复 → 状态 NORMAL + 冷却重置（加固 2026-08-02）。
+
+    原实现用真实检测线程 + sleep 赌调度导致 flaky；改为手动推进。
+    """
     config = WatchdogConfig(
         touch_interval_s=0.05,
         check_interval_s=0.05,
@@ -181,18 +191,15 @@ def test_recovery_detection(fast_config, event_loop, reported):
         reported.append(event)
 
     m = EventLoopMonitor(config, event_loop, cb)
-    m.start()
-    try:
-        m.touch()
-        time.sleep(0.2)
-        assert len(reported) >= 1
-        m.touch()
-        time.sleep(0.1)
-        status = m.get_status()
-        assert status.block_severity == BlockSeverity.NORMAL
-        assert status.cooldown_until == 0.0
-    finally:
-        m.stop()
+    m._last_touch_time = time.monotonic() - 10.0  # 模拟严重阻塞
+    m._detect_once()  # 上报 + 进入冷却
+    assert len(reported) == 1
+
+    m.touch()  # 恢复：刷新存活时间戳
+    m._detect_once()  # 正常判定 → 恢复检测 + 重置冷却
+    status = m.get_status()
+    assert status.block_severity == BlockSeverity.NORMAL
+    assert status.cooldown_until == 0.0
 
 
 def test_detail_length_limit(monitor, reported):
