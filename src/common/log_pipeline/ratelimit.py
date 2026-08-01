@@ -47,7 +47,7 @@ class RateLimiter:
         self._apply_levels = apply_levels
         self._whitelist = whitelist
         self._summary_interval_s = summary_interval_s
-        self._windows: dict[tuple[str, int], WindowState] = {}
+        self._windows: dict[tuple[str, int] | tuple[str, str], WindowState] = {}
         self._lock = threading.RLock()
         self._total_suppressed = 0
         self._last_summary_flush = 0.0
@@ -130,13 +130,21 @@ class RateLimiter:
     # ── 内部 ──────────────────────────────────────────────
 
     @staticmethod
-    def _source_key(record: logging.LogRecord) -> tuple[str, int]:
+    def _source_key(record: logging.LogRecord) -> tuple[str, int] | tuple[str, str]:
         """来源键：调用点（pathname + lineno），对标 printk __ratelimit 每调用点。
 
         ZG-2-L3 修正：原 (logger_name, event) 粒度导致同 logger 不同调用点
         合并计数（误抑制真实日志）；printk 是每调用点一个 ratelimit_state。
         logging 的 LogRecord 在创建时已由 findCaller 填充调用点字段。
+
+        合成 record 回退（CX 审查 P2）：Runner 桥接等重建的 record 用占位符
+        pathname/lineno=0（logger_bridge.py:33-41），若仍按调用点计数，
+        所有 Runner 日志会塌缩进一个桶（误抑制复现）。占位符/空 pathname 或
+        lineno==0 时回退到 (logger_name, event)，保持既有语义。
         """
+        if record.pathname in ("<runner>", "<string>", "") or record.lineno == 0:
+            event = (record.getMessage() or "")[:80]
+            return (record.name, event)
         return (record.pathname, record.lineno)
 
     @staticmethod

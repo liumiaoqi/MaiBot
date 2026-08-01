@@ -63,6 +63,20 @@ def test_same_logger_diff_call_sites_independent():
     assert len(rl._windows) == 2
 
 
+def test_synthetic_record_fallback_logger_event():
+    """CX P2 回归: 合成 record（占位符 pathname/lineno=0）回退到 logger+event 键，
+    不塌缩进一个桶（Runner 桥接日志场景）。"""
+    rl = RateLimiter(window_s=1.0, max_events=5, apply_levels=APPLY_LEVELS, whitelist=(), summary_interval_s=1.0)
+    # 两个不同 Runner logger 的合成 record（同占位符调用点）
+    rec_a = logging.LogRecord("runner.a", logging.WARNING, "<runner>", 0, "msg a", (), None)
+    rec_b = logging.LogRecord("runner.b", logging.WARNING, "<runner>", 0, "msg b", (), None)
+    allowed_a = sum(1 for _ in range(100) if rl.check(rec_a))
+    allowed_b = sum(1 for _ in range(100) if rl.check(rec_b))
+    assert allowed_a == 5  # 各自独立计数
+    assert allowed_b == 5
+    assert len(rl._windows) == 2  # 两个键，非 1 个
+
+
 def test_call_site_in_summary():
     """ZG-2-L3: 摘要含 call_site 字段（pathname:lineno 可读）。"""
     rl = RateLimiter(window_s=1.0, max_events=2, apply_levels=APPLY_LEVELS, whitelist=(), summary_interval_s=1.0)
