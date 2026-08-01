@@ -61,24 +61,25 @@ async def test_v2_registration_on_connection(fast_config, event_loop):
     assert any(s.runner_id == "runner-test-1" for s in statuses)
 
 
-def test_v2_registration_degrade_on_failure(fast_config, event_loop, monkeypatch, caplog):
-    """tasks 5.4.3: 注册失败不阻断（servicer 侧 except Exception 降级）。"""
-    bridge = RunnerHealthBridge(fast_config, event_loop, lambda e: None)
+def test_v2_registration_degrade_on_failure(fast_config, event_loop):
+    """tasks 5.4.3: 注册失败不阻断（真实路径：未启动的 adapter 抛 RuntimeError）。
+
+    CX 审查修正：驱动 WatchdogAdapter 未启动的真实降级路径
+    （adapter 抛 RuntimeError"看门狗未启动"→ servicer 侧 except Exception 捕获）。
+    """
+    from src.core.adapters.watchdog_adapter import WatchdogAdapter
+
+    adapter = WatchdogAdapter(config=fast_config)  # 未 start()，_runner_bridge 为 None
     supervisor = _FakeSupervisor()
-
-    def boom(*args, **kwargs):
-        raise RuntimeError("看门狗未启动")
-
-    monkeypatch.setattr(bridge, "register_v2_supervisor", boom)
 
     # servicer.py 的降级模式：捕获异常记录日志，不向外抛
     try:
-        bridge.register_v2_supervisor(
+        adapter.register_v2_supervisor(
             "runner-bad", supervisor, None, "plugin_runtime_v2",
         )
-        raise AssertionError("应抛出异常由 servicer 侧降级捕获")
-    except RuntimeError:
-        pass  # servicer 侧 except Exception 捕获并降级
+        raise AssertionError("未启动的 adapter 应抛 RuntimeError")
+    except RuntimeError as e:
+        assert "看门狗未启动" in str(e)  # servicer 侧 except Exception 捕获并降级
 
 
 async def test_v2_registration_idempotent(fast_config, event_loop):
