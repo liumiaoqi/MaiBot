@@ -6,8 +6,6 @@
 
 import threading
 
-import pytest
-
 from src.common.log_pipeline.ring_buffer import BufferEntry, RingBuffer
 
 
@@ -61,6 +59,51 @@ def test_error_priority_preserved():
     # 无保护策略下 FIFO 会淘汰最早 20 条（含前 10 条 ERROR 中部分）
     # 有保护策略下 ERROR 全部保留（10 条）
     assert len(errors) == 10, f"ERROR 应全保留，实际 {len(errors)}"
+
+
+def test_error_count_maintained_mixed():
+    """ZG-2-L2 修复: error_count 在混合写入/淘汰/覆盖下保持正确。"""
+    buf = RingBuffer(capacity=10, max_bytes=10**9, entry_max_bytes=32768)
+    for i in range(10):
+        buf.append(_entry(i, "INFO"))  # 10 条 INFO，error_count=0
+    assert buf._error_count == 0
+
+    for i in range(5):
+        buf.append(_entry(100 + i, "ERROR"))  # 淘汰 5 条 INFO，写入 5 ERROR
+    assert buf._error_count == 5
+    snap = buf.snapshot()
+    assert len([e for e in snap if e.level == "ERROR"]) == 5
+
+
+def test_error_count_all_error_eviction_fast_path():
+    """ZG-2-L2 修复: 全 ERROR 满缓冲时 error_count 快速判定（行为不变，无全量扫描）。"""
+    buf = RingBuffer(capacity=10, max_bytes=10**9, entry_max_bytes=32768)
+    for i in range(10):
+        buf.append(_entry(i, "ERROR"))  # 全 ERROR 满
+    assert buf._error_count == 10
+
+    # 再写 ERROR：兜底覆盖最旧，error_count 保持 10
+    buf.append(_entry(100, "ERROR"))
+    assert buf._error_count == 10
+    assert buf.size == 10
+    # 最旧被覆盖（内部 sequence=0 消失，新条目内部序号 10 存在）
+    seqs = [e.sequence for e in buf.snapshot()]
+    assert 0 not in seqs and 10 in seqs
+
+    # 混入 INFO：error_count 正确下降（全 ERROR 时兜底覆盖掉 ERROR 换 INFO）
+    buf.append(_entry(200, "INFO"))
+    assert buf._error_count == 9
+    assert buf.size == 10
+
+
+def test_error_count_reset_on_drain():
+    """ZG-2-L2 修复: drain 清空后 error_count 归零。"""
+    buf = RingBuffer(capacity=10, max_bytes=10**9, entry_max_bytes=32768)
+    for i in range(5):
+        buf.append(_entry(i, "ERROR"))
+    assert buf._error_count == 5
+    buf.drain()
+    assert buf._error_count == 0
 
 
 def test_memory_cap_stable():
