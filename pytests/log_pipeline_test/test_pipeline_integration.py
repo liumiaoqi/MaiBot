@@ -6,7 +6,6 @@
 
 import json
 import logging
-import sys
 from pathlib import Path
 
 import pytest
@@ -61,6 +60,40 @@ def test_ratelimit_summary_goes_through_pipeline():
     snap = L.get_ring_buffer_snapshot(50)
     summaries = [e for e in snap if e["rate_limit"]]
     assert len(summaries) >= 1
+
+
+def test_summary_schedule_deferred_without_loop(monkeypatch):
+    """ZG-2-L1: 无运行事件循环时摘要调度静默延迟（不同步阻塞写线程）。"""
+    emitted: list[int] = []
+
+    class FakeRL:
+        def emit_summaries(self, output):
+            emitted.append(1)
+
+    monkeypatch.setattr(L, "_rate_limiter", FakeRL())
+    # 无 running loop：_schedule_summary_output 应静默返回，不阻塞不同步输出
+    L._schedule_summary_output()
+    assert emitted == []  # 摘要留窗口，延迟至恢复后补发
+
+
+def test_summary_schedule_scheduled_with_loop(monkeypatch):
+    """ZG-2-L1: 事件循环可用时摘要经 call_soon_threadsafe 调度输出。"""
+    import asyncio
+
+    emitted: list[int] = []
+
+    class FakeRL:
+        def emit_summaries(self, output):
+            emitted.append(1)
+
+    monkeypatch.setattr(L, "_rate_limiter", FakeRL())
+
+    async def main():
+        L._schedule_summary_output()
+        await asyncio.sleep(0.01)  # 让 call_soon_threadsafe 回调执行
+
+    asyncio.run(main())
+    assert emitted == [1]
 
 
 def test_filter_exception_does_not_break_pipeline():
@@ -130,7 +163,6 @@ def test_jsonl_format_preserved():
 
     assert hasattr(L2, "TimestampedFileHandler")
     # 缓冲条目字段与 JSONL 命名一致（spec 6.1）
-    buf = L._ring_buffer
     entry = L.BufferEntry(
         sequence=1, timestamp="2026-08-01T00:00:00", level="INFO",
         logger_name="test", module="m", event="e",
