@@ -1,8 +1,12 @@
 """日志频率抑制（ZG-2 RTL 域）。
 
-固定计数窗口（window_s / max_events），source_key = (logger_name, event_signature)，
+固定计数窗口（window_s / max_events），source_key = 调用点（pathname:lineno），
 ERROR/CRITICAL 默认豁免（apply_levels 不含），白名单前缀逐条放行，
 窗口过期输出摘要（rate_limit=true）。
+
+ZG-2-L3 修正（2026-08-02）：source_key 从 (logger_name, event_signature)
+改为调用点 (pathname, lineno)——对标 printk 每调用点 __ratelimit 宏。
+原粒度导致同 logger 不同调用点被合并计数（误抑制真实日志）。
 """
 
 import logging
@@ -23,6 +27,7 @@ class WindowState:
     last_ts: float = 0.0
     event: str = ""
     logger_name: str = ""
+    call_site: str = ""  # 调用点 "path.py:lineno"（L3）
     summary_pending: bool = False
 
 
@@ -42,7 +47,7 @@ class RateLimiter:
         self._apply_levels = apply_levels
         self._whitelist = whitelist
         self._summary_interval_s = summary_interval_s
-        self._windows: dict[tuple[str, str], WindowState] = {}
+        self._windows: dict[tuple[str, int] | tuple[str, str], WindowState] = {}
         self._lock = threading.RLock()
         self._total_suppressed = 0
         self._last_summary_flush = 0.0
@@ -72,6 +77,7 @@ class RateLimiter:
                 window = WindowState(window_start=now, first_ts=now, last_ts=now)
                 window.event = self._event_text(record)
                 window.logger_name = record.name
+                window.call_site = f"{record.pathname}:{record.lineno}"
                 self._windows[key] = window
 
             window.last_ts = now
@@ -102,7 +108,8 @@ class RateLimiter:
                 window = self._windows.pop(key)
                 if window.suppressed_count > 0:
                     output({
-                        "source": key[0],
+                        "source": window.logger_name,
+                        "call_site": window.call_site,
                         "event": window.event,
                         "actual_count": window.count,
                         "suppressed_count": window.suppressed_count,
@@ -123,10 +130,22 @@ class RateLimiter:
     # ── 内部 ──────────────────────────────────────────────
 
     @staticmethod
-    def _source_key(record: logging.LogRecord) -> tuple[str, str]:
-        """来源键：logger_name + 事件签名（消息文本截断前 80 字符）。"""
-        event = (record.getMessage() or "")[:80]
-        return (record.name, event)
+    def _source_key(record: logging.LogRecord) -> tuple[str, int] | tuple[str, str]:
+        """来源键：调用点（pathname + lineno），对标 printk __ratelimit 每调用点。
+
+        ZG-2-L3 修正：原 (logger_name, event) 粒度导致同 logger 不同调用点
+        合并计数（误抑制真实日志）；printk 是每调用点一个 ratelimit_state。
+        logging 的 LogRecord 在创建时已由 findCaller 填充调用点字段。
+
+        合成 record 回退（CX 审查 P2）：Runner 桥接等重建的 record 用占位符
+        pathname/lineno=0（logger_bridge.py:33-41），若仍按调用点计数，
+        所有 Runner 日志会塌缩进一个桶（误抑制复现）。占位符/空 pathname 或
+        lineno==0 时回退到 (logger_name, event)，保持既有语义。
+        """
+        if record.pathname in ("<runner>", "<string>", "") or record.lineno == 0:
+            event = (record.getMessage() or "")[:80]
+            return (record.name, event)
+        return (record.pathname, record.lineno)
 
     @staticmethod
     def _event_text(record: logging.LogRecord) -> str:
