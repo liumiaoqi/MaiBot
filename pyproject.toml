@@ -140,6 +140,7 @@ ignore = ["E711", "E501", "TID252"]
 "src/plugin_runtime/protocol/envelope.py" = ["TID251", "TID253"]
 "src/A_memorix/scripts/migrate_maibot_memory.py" = ["TID251", "TID253"]  # 仅 bootstrap fallback 受控用途
 "src/common/log_pipeline/*" = ["TID251", "TID253"]  # 操作 stdlib LogRecord 的受控用途
+"pytests/log_pipeline_test/*" = ["TID251"]  # 测试构造 stdlib LogRecord 的受控用途
 
 [tool.ruff.format]
 docstring-code-format = true

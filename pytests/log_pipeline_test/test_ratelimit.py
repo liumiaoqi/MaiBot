@@ -8,15 +8,19 @@ monotonic 时钟回拨不锁定。
 import logging
 import time
 
-import pytest
-
 from src.common.log_pipeline.ratelimit import RateLimiter
 
 APPLY_LEVELS = {logging.DEBUG, logging.INFO, logging.WARNING}
 
 
-def _record(name: str = "test.module", level: int = logging.WARNING, msg: str = "boom") -> logging.LogRecord:
-    return logging.LogRecord(name, level, "path.py", 10, msg, (), None)
+def _record(
+    name: str = "test.module",
+    level: int = logging.WARNING,
+    msg: str = "boom",
+    path: str = "path.py",
+    line: int = 10,
+) -> logging.LogRecord:
+    return logging.LogRecord(name, level, path, line, msg, (), None)
 
 
 def test_same_source_high_frequency_limited():
@@ -37,12 +41,39 @@ def test_same_source_high_frequency_limited():
 
 
 def test_multiple_sources_independent():
-    """AC-RTL-01-2: 两个不同来源各自高频，抑制按来源独立。"""
+    """AC-RTL-01-2: 两个不同来源各自高频，抑制按来源独立。
+
+    ZG-2-L3 修正：来源 = 调用点（pathname:lineno），不同调用点独立计数。
+    """
     rl = RateLimiter(window_s=1.0, max_events=10, apply_levels=APPLY_LEVELS, whitelist=(), summary_interval_s=1.0)
-    allowed_a = sum(1 for _ in range(100) if rl.check(_record(name="mod.a")))
-    allowed_b = sum(1 for _ in range(100) if rl.check(_record(name="mod.b")))
+    allowed_a = sum(1 for _ in range(100) if rl.check(_record(name="mod.a", path="a.py", line=10)))
+    allowed_b = sum(1 for _ in range(100) if rl.check(_record(name="mod.b", path="b.py", line=10)))
     assert allowed_a == 10
     assert allowed_b == 10
+
+
+def test_same_logger_diff_call_sites_independent():
+    """ZG-2-L3: 同 logger 不同调用点独立计数（修正误抑制）。"""
+    rl = RateLimiter(window_s=1.0, max_events=5, apply_levels=APPLY_LEVELS, whitelist=(), summary_interval_s=1.0)
+    # 同一 logger 的两个不同调用点各 100 条
+    allowed_1 = sum(1 for _ in range(100) if rl.check(_record(name="mod", path="mod.py", line=100)))
+    allowed_2 = sum(1 for _ in range(100) if rl.check(_record(name="mod", path="mod.py", line=200)))
+    assert allowed_1 == 5  # 调用点 1 独立抑制
+    assert allowed_2 == 5  # 调用点 2 不被调用点 1 的抑制波及
+    assert len(rl._windows) == 2
+
+
+def test_call_site_in_summary():
+    """ZG-2-L3: 摘要含 call_site 字段（pathname:lineno 可读）。"""
+    rl = RateLimiter(window_s=1.0, max_events=2, apply_levels=APPLY_LEVELS, whitelist=(), summary_interval_s=1.0)
+    for _ in range(5):
+        rl.check(_record(msg="same", path="mod.py", line=42))
+    for w in rl._windows.values():
+        w.window_start = time.monotonic() - 5.0
+    summaries: list[dict] = []
+    rl.emit_summaries(summaries.append)
+    assert len(summaries) == 1
+    assert summaries[0]["call_site"] == "mod.py:42"
 
 
 def test_whitelist_passthrough():
@@ -79,6 +110,7 @@ def test_summary_fields_match_counts():
     assert s["actual_count"] == 12
     assert s["suppressed_count"] == 7
     assert s["source"] == "test.module"
+    assert s["call_site"] == "path.py:10"
     assert s["event"] == "same event"
     assert s["rate_limit"] is True
 
@@ -92,7 +124,7 @@ def test_monotonic_clock_no_lockup():
     assert rl.check(_record()) is False  # 抑制
 
     # 模拟窗口过期：直接操作内部状态（window_start 改为过去）
-    for key, w in list(rl._windows.items()):
+    for w in list(rl._windows.values()):
         w.window_start = time.monotonic() - 5.0
 
     # 新窗口：放行
