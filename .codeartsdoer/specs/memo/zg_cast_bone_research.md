@@ -272,10 +272,10 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 
 | # | 严重度 | 位置 | 问题 | 当前影响 | 后续处理 |
 |---|--------|------|------|---------|---------|
-| 1 | 中 | `runner_health_bridge.py:50-80` | `register_v2_supervisor` 未将 `_on_v2_timeout` 注入到 `heartbeat_manager` 的 `timeout_callback` | V2 心跳超时回调桥接未连接，仅 V2 状态 diff 轮询工作 | 需了解 HeartbeatManager.start 的调用时机，在注册时注入包装回调 |
-| 2 | 低 | `main.py:305` | `WatchdogConfig()` 使用默认配置，未从配置 Port 读取 | 无法通过配置文件自定义看门狗参数 | 在 AppConfigPort 新增配置项后接入 |
-| 3 | 低 | `main.py` | Runner 注册（tasks 7.2）未实现 | 桥接部分空转，事件循环检测完整工作 | 需了解 V2 HostEndpoint 的 runner 列表访问方式 |
-| 4 | 低 | `watchdog_adapter.py:85` | `_notify_subscribers` 在检测线程中调用 | 订阅者回调需线程安全 | 风险低，可改为 run_coroutine_threadsafe 提交 |
+| 1 | 中 | `runner_health_bridge.py:50-80` | `register_v2_supervisor` 未将 `_on_v2_timeout` 注入到 `heartbeat_manager` 的 `timeout_callback` | V2 心跳超时回调桥接未连接，仅 V2 状态 diff 轮询工作 | ✅ **已修复**（2026-08-02 核实：`:84` add_timeout_listener 已注入） |
+| 2 | 低 | `main.py:305` | `WatchdogConfig()` 使用默认配置，未从配置 Port 读取 | 无法通过配置文件自定义看门狗参数 | ✅ **已修复**（2026-08-02 核实：`:339` get_app_config_port().get_watchdog_config()） |
+| 3 | 低 | `main.py` | Runner 注册（tasks 7.2）未实现 | 桥接部分空转，事件循环检测完整工作 | V1 ✅ 已实现（`:351` 批量注册 plugin_runtime supervisors）；**V2 待补**（register_v2_supervisor 方法已存在未调用） |
+| 4 | 低 | `watchdog_adapter.py:85` | `_notify_subscribers` 在检测线程中调用 | 订阅者回调需线程安全 | ✅ **已正确处理**（2026-08-02 核实：run_coroutine_threadsafe 调度到主循环） |
 
 ## ZG-2 统一日志管线遗留标记（2026-08-01，以后再改）
 
