@@ -19,12 +19,12 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 ### 高价值（4 项）— 解决"全生命周期管理"
 
-| Linux 机制 | 核心设计 | MaiBot 借鉴点 |
-|------------|---------|--------------|
-| **initcall 分级启动** | 8 级链接器段 + `_sync` 屏障 + `__init` 回收 | StartupOrchestrator 增加显式依赖声明 + 启动后一次性数据清理 |
-| **watchdog/hung_task** | 双层检测（hard+soft） + buddy 互检 + touch 机制 | asyncio 心跳检测 + Runner 子进程健康检查 |
-| **panic/oops** | notifier chain + tainted_mask + warn_limit | PanicNotifierChain + 系统污染标记 + 降级通知 |
-| **notifier chain** | 4 种并发变体 + priority + STOP/BAD + robust 回滚 | EventBus 增加 BAD 否决语义 + 补偿回滚 |
+| Linux 机制　　　　　　 | 核心设计　　　　　　　　　　　　　　　　　　　　 | MaiBot 借鉴点　　　　　　　　　　　　　　　　　　　　　　　 |
+| ------------------------| --------------------------------------------------| -------------------------------------------------------------|
+| **initcall 分级启动**　| 8 级链接器段 + `_sync` 屏障 + `__init` 回收　　　| StartupOrchestrator 增加显式依赖声明 + 启动后一次性数据清理 |
+| **watchdog/hung_task** | 双层检测（hard+soft） + buddy 互检 + touch 机制　| asyncio 心跳检测 + Runner 子进程健康检查　　　　　　　　　　|
+| **panic/oops**　　　　 | notifier chain + tainted_mask + warn_limit　　　 | PanicNotifierChain + 系统污染标记 + 降级通知　　　　　　　　|
+| **notifier chain**　　 | 4 种并发变体 + priority + STOP/BAD + robust 回滚 | EventBus 增加 BAD 否决语义 + 补偿回滚　　　　　　　　　　　 |
 
 ### 中价值（3 项）— 解决"资源约束下运行时管理"
 
@@ -286,5 +286,5 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 | #       | 项　　　　　　　　　　　| 内容　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 触发时机　　　　　　　　　　　　　　　　　　　　　 |
 | ---------| -------------------------| --------------------------------------------------------------------------------------------------------------| ----------------------------------------------------|
 | ZG-2-L1 | 摘要输出完全异步化　　　| 当前事件循环不可用时同步 fallback；对标 printk deferred output，改为排队而非同步阻塞　　　　　　　　　　　　 | 日志风暴期间摘要输出阻塞写线程的实测证据出现时　　 |
-| ZG-2-L2 | RingBuffer 无锁方案评估 | 当前 RLock 保护；printk 是 lockless ring buffer（写路径永不当机哲学）。Python 单线程场景收益待测　　　　　　 | 多线程日志并发成为瓶颈（基准实测 >1ms/条）时　　　 |
+| ZG-2-L2 | RingBuffer 无锁方案评估 | ✅ **已完成**（2026-08-02）：实测完整 emit 单条 0.0094ms（触发线 1ms 的 106 倍余量），锁非瓶颈（占 2%），**维持 RLock 不改**。报告 `.shared/decisions/zg2_l2_lockfree_ringbuffer_0802.md`。**顺带发现真实缺陷**：全 ERROR 满缓冲 `_evict_oldest_non_error` O(capacity) 扫描 223µs/条（正常 127 倍，逼近触发线）——另立任务修复 | 已完成（实测否决）；新缺陷修复待排期 |
 | ZG-2-L3 | 按调用点 ratelimit　　　| ✅ **已完成**（2026-08-02）：source_key 改调用点 (pathname, lineno) + call_site 摘要；合成 record（Runner 桥接占位符）回退 logger+event 键（CX P2）；31 passed | 已完成（主动修正，未等实证） |
