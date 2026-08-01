@@ -43,6 +43,9 @@ class RingBuffer:
         self._total_bytes = 0   # 当前字节占用（估算：event + logger_name 等）
         self._seq = 0           # 单调序号
         self._lock = threading.RLock()
+        # ERROR/CRITICAL 条数（ZG-2-L2 修复：全 ERROR 快速判定，避免
+        # _evict_oldest_non_error 每次 append 全量扫描 O(capacity) 的病态路径）
+        self._error_count = 0
 
     @property
     def size(self) -> int:
@@ -73,6 +76,13 @@ class RingBuffer:
             while self._total_bytes + entry_bytes > self._max_bytes and self._size > 0:
                 if not self._evict_oldest_non_error():
                     break
+
+            # 写入（维护 error_count：被覆盖槽位的旧 ERROR 扣减，新 ERROR 累加）
+            old_entry = self._slots[self._head]
+            if old_entry is not None and _LEVEL_ORDER.get(old_entry.level, 30) >= 40:
+                self._error_count -= 1
+            if _LEVEL_ORDER.get(entry.level, 30) >= 40:
+                self._error_count += 1
 
             # 写入
             seq = self._seq
@@ -119,6 +129,7 @@ class RingBuffer:
             self._head = 0
             self._size = 0
             self._total_bytes = 0
+            self._error_count = 0
             return entries
 
     # ── 内部 ──────────────────────────────────────────────
@@ -147,13 +158,19 @@ class RingBuffer:
         )
 
     def _evict_oldest_non_error(self) -> bool:
-        """淘汰最旧的非 ERROR/CRITICAL 条目。返回是否成功淘汰。"""
+        """淘汰最旧的非 ERROR/CRITICAL 条目。返回是否成功淘汰。
+
+        ZG-2-L2 修复：全 ERROR 时 O(1) 快速返回（error_count == size），
+        不再每次 append 全量扫描 O(capacity)（L2 实测病态路径 223µs/条）。
+        """
+        if self._error_count >= self._size:
+            return False  # 全 ERROR，调用方兜底覆盖最旧
         start = (self._head - self._size) % self._capacity
         for i in range(self._size):
             idx = (start + i) % self._capacity
             entry = self._slots[idx]
             if entry is not None and _LEVEL_ORDER.get(entry.level, 30) < 40:
-                # 淘汰该条目
+                # 淘汰该条目（非 ERROR：error_count 不变）
                 self._slots[idx] = None
                 self._total_bytes -= self._entry_bytes(entry)
                 self._size -= 1

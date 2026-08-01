@@ -8,8 +8,6 @@
 import logging
 import time
 
-import pytest
-
 from src.common.log_pipeline.suppressor import (
     Suppressor,
     _get_current_health_level,

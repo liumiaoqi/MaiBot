@@ -538,12 +538,21 @@ def _log_summary(summary: dict) -> None:
 
 
 def _schedule_summary_output() -> None:
-    """摘要输出调度：事件循环可用时 call_soon_threadsafe，否则回退同步（低频单条）。"""
+    """摘要输出调度：事件循环可用时 call_soon_threadsafe，否则延迟输出（L1 修正）。
+
+    原实现事件循环不可用时同步回退——日志风暴期间（事件循环不可用的最常见
+    场景）会在写线程同步走完整日志链路（RingBuffer append + 落盘/WS I/O），
+    阻塞写线程本身。
+    修正：不可用时静默返回，摘要保留在 RateLimiter 窗口内不丢失，事件循环
+    恢复后的下一个刷新周期（≤1s）由 _emit_ratelimit_summaries 补输出——
+    对标 printk deferred output（延迟打印而非同步阻塞）。
+    """
     try:
         loop = asyncio.get_running_loop()
         loop.call_soon_threadsafe(_emit_ratelimit_summaries)
     except RuntimeError:
-        _emit_ratelimit_summaries()
+        # 事件循环不可用：延迟输出（摘要留窗口，恢复后补发，不阻塞写线程）
+        return
 
 
 def init_log_pipeline() -> None:
