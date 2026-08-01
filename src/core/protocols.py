@@ -37,6 +37,19 @@ if TYPE_CHECKING:
         SystemHealthView,
     )
     from src.core.startup.types import CoreReadiness, StartupResult
+    from src.core.resource_limit.types import (
+        ChargeResult,
+        LimitDecision,
+        OOMAction,
+        OOMDecision,
+        OOMDecisionRecord,
+        PressureHistoryEntry,
+        PressureLevel,
+        ResourceDimension,
+        ResourceLimitConfigData,
+        ResourceTreeView,
+        ResourceUsageSnapshot,
+    )
     from src.core.watchdog.config import WatchdogConfig
     from src.core.watchdog.types import RunnerBridgeStatus, WatchdogStatus
     from src.maisaka.agent.config import AgentConfig
@@ -1203,6 +1216,34 @@ class AppConfigPort(Protocol):
         """
         ...
 
+    # === Resource Limit 域 ===
+
+    def get_resource_limit_global_enabled(self) -> bool:
+        """资源限制全局开关（默认 false，渐进启用）。"""
+        ...
+
+    def get_resource_limit_plugin_config(
+        self, plugin_id: str
+    ) -> Optional["ResourceLimitConfigData"]:
+        """获取插件资源配置（四档阈值 + oom_group + events_local）。"""
+        ...
+
+    def get_resource_limit_pressure_window_size(self) -> int:
+        """压力检测窗口大小（默认 512）。"""
+        ...
+
+    def get_resource_limit_oom_lock_timeout(self) -> float:
+        """OOM 锁超时秒数（默认 5.0）。"""
+        ...
+
+    def get_resource_limit_event_dedup_window_ms(self) -> int:
+        """事件去重窗口毫秒（默认 1000）。"""
+        ...
+
+    def get_resource_limit_event_max_depth(self) -> int:
+        """事件传播最大深度（默认 32）。"""
+        ...
+
 
 @runtime_checkable
 class AutonomyEventBusPort(Protocol):
@@ -1446,3 +1487,126 @@ class WatchdogPort(Protocol):
         Raises:
             UnknownRunnerError: runner_id 未注册
         """
+
+    def list_blocked_runners(self) -> list["RunnerBridgeStatus"]:
+        """查询当前所有阻塞 Runner（ZG-5 OOM 受害者选择消费）。
+
+        判定条件：cooldown_until > now。
+
+        Returns:
+            阻塞中的 RunnerBridgeStatus 列表
+        """
+
+
+@runtime_checkable
+class ResourceLimitPort(Protocol):
+    """资源限制接口 — 插件资源计量、四档限制、压力分级、OOM 处理、事件传播。
+
+    核心通过此接口管理插件资源，不直接依赖具体实现。
+    适配器层（ResourceLimitAdapter）是唯一允许导入资源限制引擎类的地方。
+
+    对标 Linux cgroup memory controller v2 + vmpressure + OOM killer。
+    """
+
+    def charge(
+        self, plugin_id: str, dimension: "ResourceDimension", amount: int
+    ) -> "ChargeResult":
+        """投机充值（同步，热路径纯内存无 I/O）。
+
+        沿父链逐级投机累加，任一级超该级 max 则回滚已充级别。
+
+        Args:
+            plugin_id: 插件标识
+            dimension: 资源维度
+            amount: 充值量（正整数）
+
+        Returns:
+            ChargeResult，accepted=True 时父链已全部累加
+
+        Raises:
+            KeyError: plugin_id 未注册
+            ValueError: dimension 非法或 amount 非正
+        """
+
+    def uncharge(
+        self, plugin_id: str, dimension: "ResourceDimension", amount: int
+    ) -> None:
+        """递减计量（同步，热路径纯内存无 I/O）。
+
+        沿父链向上递减，用 max(0, current - amount) 保证非负。
+
+        Args:
+            plugin_id: 插件标识
+            dimension: 资源维度
+            amount: 递减量（正整数）
+        """
+
+    def get_usage_snapshot(
+        self, plugin_id: str
+    ) -> Optional["ResourceUsageSnapshot"]:
+        """查询单插件资源计量快照（同步，内存）。"""
+
+    async def register_plugin(
+        self, plugin_id: str, parent_id: Optional[str] = None
+    ) -> None:
+        """注册插件到资源计量树。
+
+        Args:
+            plugin_id: 插件标识
+            parent_id: 父插件标识，None 则挂根
+        """
+
+    async def unregister_plugin(self, plugin_id: str) -> None:
+        """注销插件，孤儿子节点挂根。"""
+
+    async def reload_config(self) -> None:
+        """热更新配置，≤5s 生效。"""
+
+    def record_pressure_sample(
+        self, scanned: int, reclaimed: int, scan_priority: int = 12
+    ) -> Optional["PressureLevel"]:
+        """记录压力采样（同步，热路径）。
+
+        窗口累计 + 三重判定（窗口累计 + 比率算法 + 优先级兜底）。
+        等级变更时通过 emit_sync 发布 resource.pressure.{level} 事件。
+
+        Args:
+            scanned: 窗口内请求量增量（charge 拒绝时 +1）
+            reclaimed: 窗口内成功量增量（charge 成功时 +1）
+            scan_priority: 扫描优先级，≤3 强制 CRITICAL
+
+        Returns:
+            等级变更时返回新等级，未变更或窗口未满时返回 None
+        """
+
+    async def trigger_oom(
+        self,
+        trigger_plugin_id: str,
+        dimension: "ResourceDimension",
+        usage: int,
+        limit: int,
+    ) -> Optional["OOMDecision"]:
+        """触发 OOM 处理（单锁串行 + 异步处置）。
+
+        Args:
+            trigger_plugin_id: 触发插件标识
+            dimension: 触发维度
+            usage: 触发时用量
+            limit: 触发时限值
+
+        Returns:
+            OOMDecision，无可用受害者时返回 None
+        """
+
+    def get_resource_tree_view(self) -> "ResourceTreeView":
+        """查询资源计量树全貌快照（内存，≤100ms）。"""
+
+    def get_pressure_history(
+        self, limit: int = 100
+    ) -> list["PressureHistoryEntry"]:
+        """查询压力等级历史（环形缓冲，最近 limit 条）。"""
+
+    def get_oom_history(
+        self, limit: int = 100
+    ) -> list["OOMDecisionRecord"]:
+        """查询 OOM 决策历史（环形缓冲，最近 limit 条）。"""
