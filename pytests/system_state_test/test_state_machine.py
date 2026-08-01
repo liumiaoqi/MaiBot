@@ -14,8 +14,8 @@ from src.core.system_state.types import (
     IllegalTransitionError,
     SystemLifecycleState,
     TransitionReason,
-    TransitionVote,
 )
+from src.core.vote import Vote
 
 # 7 条合法迁移（含 W1 BOOTING→DEGRADING）
 LEGAL_TRANSITIONS: list[tuple[SystemLifecycleState, TransitionReason, SystemLifecycleState]] = [
@@ -132,7 +132,7 @@ async def test_transition_atomicity():
         events.append(f"enter:{reason.value}")
         await asyncio.sleep(0.05)
         events.append(f"exit:{reason.value}")
-        return TransitionVote.DONE
+        return Vote.DONE
 
     sm.subscribe(sub)
     results = await asyncio.gather(
@@ -158,7 +158,7 @@ async def test_query_during_transition_returns_old_state():
 
     async def sub(old, new, reason):
         observed.append(sm.get_state())
-        return TransitionVote.DONE
+        return Vote.DONE
 
     sm.subscribe(sub)
     await sm.trigger_startup_complete()
@@ -205,7 +205,7 @@ async def test_idempotent_shutdown():
 
     async def sub(old, new, reason):
         reasons.append(reason.value)
-        return TransitionVote.DONE
+        return Vote.DONE
 
     sm.subscribe(sub)
     await sm.trigger_startup_complete()  # 通知 1 次（startup_complete）

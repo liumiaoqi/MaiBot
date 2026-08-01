@@ -213,7 +213,9 @@ class NotifierChain:
                 # 异常视为 DONE 但记录失败（nofail 不静默吞没，spec 5.5.1-2）
                 failures.append((name, cb_reason))
         result = VoteResult(
-            final_vote=Vote.BAD if failures else Vote.DONE,
+            # 聚合规则（spec 5.5.2-1）：最后一个 BAD 或 DONE（无 BAD 时），
+            # 异常计入 failures 但不改变 final_vote
+            final_vote=Vote.BAD if last_bad is not None else Vote.DONE,
             vetoer=last_bad,
             failures=failures,
         )
