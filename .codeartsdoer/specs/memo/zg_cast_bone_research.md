@@ -79,7 +79,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | EEVDF 调度器调参　　　　　　　　　| P99 延迟降 20-30%　　　　　　| 低　　　　　　　　 | ⚠️ 需 Kernel 7.0，WSL2 暂不可用 |
 | cgroup latency 隔离　　　　　　　 | 容器独占低延迟域　　　　　　 | 低　　　　　　　　 | ⚠️ 需 Kernel 7.0，WSL2 暂不可用 |
 | OOM score 分层　　　　　　　　　　| 关键进程豁免，非关键优先被杀 | 低　　　　　　　　 | ✅ 3 行代码　　　　　　　　　　 |
-| PSI 压力监控　　　　　　　　　　　| 提前预警　　　　　　　　　　 | 无　　　　　　　　 | ✅　　　　　　　　　　　　　　　|
+| PSI 压力监控　　　　　　　　　　　| 提前预警　　　　　　　　　　 | 无　　　　　　　　 | ⏳ **未实现（移交 ZG-5）**：ZG-9 只有 systemd slice 配置（50-psi.conf），无应用层读取；CA 已交 ZG-5 读 /proc/pressure/* |
 | /tmp tmpfs 挂载　　　　　　　　　 | 临时 I/O 降为 0　　　　　　　| RAM 占用　　　　　 | ✅ 内存>4G 时　　　　　　　　　 |
 | swappiness=0　　　　　　　　　　　| 容器内 swap 禁用　　　　　　 | OOM 概率↑　　　　　| ✅ 有 GPU 时必选　　　　　　　　|
 | I/O weight 隔离　　　　　　　　　 | 日志不阻塞数据写入　　　　　 | 低　　　　　　　　 | ⚠️ 仅争抢时生效　　　　　　　　 |
