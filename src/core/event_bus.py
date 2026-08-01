@@ -216,6 +216,13 @@ class EventBus:
                             await self._rollback_one(done)
                     break
                 if vote is Vote.STOP:
+                    if nofail:
+                        # nofail：STOP 记录告警，继续遍历到底
+                        # （与 NotifierChain.notify_nofail 行为一致，CX 审查 P2）
+                        logger.warning(
+                            "nofail: 拦截型 handler %s 返回 STOP，继续遍历", entry.name
+                        )
+                        continue
                     # 干净中止：不回滚（design.md §2.2 偏离）
                     final_vote = Vote.STOP
                     vetoer = entry.name
@@ -240,9 +247,10 @@ class EventBus:
         continue_flag, current_message = await self._bridge_to_ipc_runtime(
             event_type, continue_flag, current_message
         )
-        if bridge_ran and not continue_flag:
+        if bridge_ran and not continue_flag and final_vote is Vote.OK:
             # 桥接中断（桥接实际执行且返回 False）：final_vote 降级 STOP
-            # （vetoer=ipc_bridge，P1 决策；链内 STOP/BAD 的 vetoer 不被覆盖）
+            # （vetoer=ipc_bridge，P1 决策）。
+            # 仅链本身未否决时生效（CX 审查 P2）：nofail 的 BAD 聚合不被覆盖。
             final_vote = Vote.STOP
             vetoer = "ipc_bridge"
             reason = None
