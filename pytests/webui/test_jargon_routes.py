@@ -58,6 +58,18 @@ def client_fixture(app: FastAPI, session: Session, monkeypatch):
 
     monkeypatch.setattr("src.webui.routers.jargon.get_db_session", mock_get_db_session)
 
+    def mock_get_existing_session_info(session_id: str):
+        from src.common.database.database_model import ChatSession
+        from sqlmodel import select
+
+        row = session.exec(select(ChatSession).where(ChatSession.session_id == session_id)).first()
+        if row is not None:
+            return row
+        # 测试虚构 ID（如 update 用例的 new_session_id）宽松放行
+        return type("FakeSession", (), {"session_id": session_id})()
+
+    monkeypatch.setattr("src.webui.routers.jargon.get_existing_session_info", mock_get_existing_session_info)
+
     with TestClient(app) as client:
         yield client
 

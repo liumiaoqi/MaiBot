@@ -86,6 +86,11 @@ def client_fixture(test_session: Session, monkeypatch) -> Generator[TestClient, 
 
     monkeypatch.setattr("src.webui.routers.expression.get_db_session", get_test_db_session)
 
+    def mock_get_existing_session_info(session_id: str):
+        return type("FakeSession", (), {"session_id": session_id})()
+
+    monkeypatch.setattr("src.webui.routers.expression.get_existing_session_info", mock_get_existing_session_info)
+
     with TestClient(app) as client:
         yield client
 

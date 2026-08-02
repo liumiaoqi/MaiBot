@@ -6814,6 +6814,10 @@ class WatchdogSectionConfig(ConfigBase):
     8 项字段与核心层 WatchdogConfig 一一对应，全部带默认值；
     非法值校验由核心层 WatchdogConfig.__post_init__ 兜底（此处不加 validator）。
     """
+    __ui_label__ = "看门狗"
+    __ui_order__ = 90
+    __ui_parent__ = "system_state"
+
 
     touch_interval_s: float = Field(default=1.0)
     """touch 刷新间隔（秒），事件循环正常时刷新存活时间戳的周期。"""
@@ -6847,6 +6851,10 @@ class ControlMessageSectionConfig(ConfigBase):
     渐进启用：global_enabled 默认 false，未配置的会话保持原有行为。
     不可屏蔽白名单由配置锁定（编号 1-3），配置冲突时引擎拒绝该配置项保持默认。
     """
+    __ui_label__ = "控制消息"
+    __ui_order__ = 91
+    __ui_parent__ = "system_state"
+
 
     version: int = Field(default=1)
     """配置版本号（版本化升级，只改模板 + 新增版本号，不改动 legacy_migration）。"""
@@ -6892,6 +6900,10 @@ class TaintedMaskSectionConfig(ConfigBase):
     对标 Linux tainted_mask（不可逆污染位图，只增不减）；3 项配置与 ZG-7
     TaintedMask 引擎构造参数一一对应，全部带默认值。
     """
+    __ui_label__ = "污染标记"
+    __ui_order__ = 92
+    __ui_parent__ = "system_state"
+
 
     on_taint: dict[str, str] = Field(default_factory=dict)
     """污染动作映射（如 {"TAINT_PORT_BYPASS": "trigger_degrade"}）。"""
@@ -6909,6 +6921,10 @@ class SystemStateSectionConfig(ConfigBase):
     与核心层 SystemStateMachine 构造参数一一对应，全部带默认值；
     非法值由核心层 __init__ 兜底（此处不加 validator）。
     """
+    __ui_label__ = "系统状态"
+    __ui_order__ = 89
+    __ui_parent__ = "system_state"
+
 
     history_capacity: int = Field(default=100)
     """迁移历史环形缓冲容量（条）。"""
@@ -6923,6 +6939,10 @@ class EventBusConfig(ConfigBase):
     与核心层 EventBus.configure 注入参数一一对应，全部带默认值；
     经 main.py 装配点注入，核心不碰 config_manager。
     """
+    __ui_label__ = "事件总线"
+    __ui_order__ = 88
+    __ui_parent__ = "system_state"
+
 
     rollback_timeout: float = Field(default=5.0)
     """robust 回滚单个 on_rollback 超时（秒）。"""
