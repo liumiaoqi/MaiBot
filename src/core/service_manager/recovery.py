@@ -137,13 +137,17 @@ class RecoveryEngine:
             # 委托启动
             await lifecycle_manager.start(component_id)
 
-            # OOM 重应用
+            # OOM 重应用（ZG-9 OS 级 OOM 保护的兼容回退路径 = TAINT_COMPAT_FALLBACK）
             if (
                 oom_hook is not None
                 and descriptor is not None
                 and descriptor.oom_protected
             ):
                 try:
+                    from src.core.tainted_mask.mark import mark_taint
+                    from src.core.tainted_mask.taint_flag import TaintFlag
+
+                    mark_taint(TaintFlag.TAINT_COMPAT_FALLBACK)
                     await oom_hook(component_id)
                 except Exception:
                     logger.warning(

@@ -5,6 +5,7 @@
 污染是历史烙记，只增不减，与"当前状态"正交。
 """
 
+from src.core.tainted_mask.mark import mark_exception_swallowed, mark_taint
 from src.core.tainted_mask.taint_action import TaintAction
 from src.core.tainted_mask.taint_action_mapper import TaintActionMapper
 from src.core.tainted_mask.taint_flag import TAINT_FLAGS_COUNT, TAINT_FLAGS_MAX, TaintFlag
@@ -15,6 +16,8 @@ __all__ = [
     "TAINT_FLAGS_COUNT",
     "TAINT_FLAGS_MAX",
     "TaintAction",
+    "mark_exception_swallowed",
+    "mark_taint",
     "TaintActionMapper",
     "TaintFlag",
     "TaintNotifyEvent",

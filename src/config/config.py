@@ -458,6 +458,15 @@ class ConfigManager:
             self.global_config = global_config_new
             self.model_config = model_config_new
             self.reload_revision += 1
+
+            # ZG-7 接线：配置热更新覆盖运行时值 = TAINT_CONFIG_OVERRIDE
+            try:
+                from src.core.tainted_mask.mark import mark_taint
+                from src.core.tainted_mask.taint_flag import TaintFlag
+
+                mark_taint(TaintFlag.TAINT_CONFIG_OVERRIDE)
+            except Exception:
+                pass
             logger.info(t("config.hot_reload_completed"))
 
             for callback in list(self._reload_callbacks):
