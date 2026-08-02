@@ -10,13 +10,20 @@
 import time
 from dataclasses import dataclass, field
 
+
 from src.core.control_message.types import (
+
     UNMASKABLE_MASK,
     ControlMessageEffectiveMask,
     ControlMessageKind,
     MaskOperation,
     MaskScope,
 )
+
+
+from src.common.logger import get_logger
+
+logger = get_logger("core.control_message.mask_manager")
 
 
 @dataclass
@@ -48,12 +55,12 @@ class ControlMessageMaskManager:
                 blocked = app_config_port.get_control_message_system_blocked_kinds()
                 self._system_mask.blocked_bits = self._kinds_to_bits(blocked)
             except Exception:
-                pass
+                logger.warning("系统级屏蔽集配置读取失败，使用默认空集", exc_info=True)
             try:
                 ignored = app_config_port.get_control_message_system_ignored_kinds()
                 self._system_mask.ignored_bits = self._kinds_to_bits(ignored)
             except Exception:
-                pass
+                logger.warning("系统级忽略集配置读取失败，使用默认空集", exc_info=True)
             self._system_mask.blocked_bits &= ~UNMASKABLE_MASK
             self._system_mask.ignored_bits &= ~UNMASKABLE_MASK
 

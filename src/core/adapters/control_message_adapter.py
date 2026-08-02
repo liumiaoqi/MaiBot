@@ -6,6 +6,7 @@
 
 import time
 import uuid
+
 from collections import deque
 from typing import Any, Optional
 
@@ -31,7 +32,12 @@ from src.core.control_message.types import (
 from src.core.control_message.unkillable_guard import UnkillableGuard
 from src.core.protocols import ControlMessagePort
 
+
 # 决策历史环形缓冲上限（spec §9.2 配置项）
+from src.common.logger import get_logger
+
+logger = get_logger("control_message_adapter")
+
 _DEFAULT_DELIVERY_HISTORY_LIMIT = 100
 
 # 故障上报 reason（spec §7.3 衔接约束）
@@ -72,7 +78,7 @@ class ControlMessageAdapter(ControlMessagePort):
             try:
                 history_limit = app_config_port.get_control_message_delivery_history_limit()
             except Exception:
-                pass
+                logger.warning("投递历史上限配置读取失败，使用默认 %s", _DEFAULT_DELIVERY_HISTORY_LIMIT, exc_info=True)
 
         # 1. 类别注册表
         self._kind_registry = ControlMessageKindRegistry(app_config_port)
@@ -352,14 +358,14 @@ class ControlMessageAdapter(ControlMessagePort):
             try:
                 await self._event_bus.emit(event_type, data)
             except Exception:
-                pass
+                logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
 
     def _emit_sync(self, event_type: str, data: dict[str, Any]) -> None:
         if self._event_bus is not None:
             try:
                 self._event_bus.emit_sync(event_type, data)
             except Exception:
-                pass
+                logger.warning("control 事件同步发布失败: %s", event_type, exc_info=True)
 
     async def _report_fault(self, detail: str) -> None:
         if self._service_manager is not None:
@@ -368,7 +374,7 @@ class ControlMessageAdapter(ControlMessagePort):
                     "control_message", _FAULT_REASON, detail
                 )
             except Exception:
-                pass
+                logger.warning("故障上报失败: %s", detail, exc_info=True)
 
     # ── 健康探针（T19 使用）────────────────────────────────────────
 

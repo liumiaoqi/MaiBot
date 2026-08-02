@@ -10,15 +10,21 @@
 import asyncio
 from typing import Optional
 
+
 from src.core.control_message.kind_registry import ControlMessageKindRegistry
 from src.core.control_message.mask_manager import ControlMessageMaskManager
 from src.core.control_message.pending_queue import ControlMessagePending
 from src.core.control_message.priority_dispatcher import PriorityDispatcher
 from src.core.control_message.types import (
+
     ControlMessageKind,
     ControlMessagePendingNode,
     EnqueueResult,
 )
+
+from src.common.logger import get_logger
+
+logger = get_logger("two_level_pending")
 
 # 默认队列上限（spec §5.8.1 规则 5）
 _DEFAULT_PRIVATE_LIMIT = 256
@@ -52,11 +58,11 @@ class TwoLevelPendingManager:
             try:
                 private_limit = app_config_port.get_control_message_private_queue_limit()
             except Exception:
-                pass
+                logger.warning("私有队列上限配置读取失败，使用默认 %s", _DEFAULT_PRIVATE_LIMIT, exc_info=True)
             try:
                 shared_limit = app_config_port.get_control_message_shared_queue_limit()
             except Exception:
-                pass
+                logger.warning("共享队列上限配置读取失败，使用默认 %s", _DEFAULT_SHARED_LIMIT, exc_info=True)
         self._private_limit = max(1, private_limit)
         self._shared_limit = max(1, shared_limit)
         self._shared_pending = ControlMessagePending(

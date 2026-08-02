@@ -7,7 +7,9 @@
 - 不可屏蔽白名单默认 [1,2,3]，运行时不可修改（spec §5.5.1 规则 2）
 """
 
+
 from src.core.control_message.types import (
+
     REALTIME_MASK,
     STANDARD_MASK,
     SYNCHRONOUS_MASK,
@@ -15,6 +17,10 @@ from src.core.control_message.types import (
     ControlMessageCategory,
     ControlMessageKind,
 )
+
+from src.common.logger import get_logger
+
+logger = get_logger("kind_registry")
 
 # 默认不可屏蔽白名单（系统级强制，编号 1-3）
 _DEFAULT_UNMASKABLE_WHITELIST = frozenset(
@@ -46,6 +52,7 @@ class ControlMessageKindRegistry:
                 configured = app_config_port.get_control_message_unmaskable_whitelist()
                 parsed = frozenset(ControlMessageKind(k) for k in configured)
             except Exception:
+                logger.warning("不可屏蔽白名单配置读取失败，使用默认 {1,2,3}", exc_info=True)
                 parsed = frozenset()
             # 配置必须恰好覆盖默认白名单，否则拒绝该配置项保持默认（spec §5.1.2）
             if parsed == _DEFAULT_UNMASKABLE_WHITELIST:

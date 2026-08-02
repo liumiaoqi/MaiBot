@@ -9,6 +9,7 @@
 
 import time
 
+
 from src.core.control_message.mask_manager import ControlMessageMaskManager
 from src.core.control_message.two_level_pending import TwoLevelPendingManager
 from src.core.control_message.types import (
@@ -19,7 +20,12 @@ from src.core.control_message.types import (
 )
 from src.core.control_message.unkillable_guard import UnkillableGuard
 
+
 # force 通道默认白名单（spec §5.7.1 规则 2：系统核心层）
+from src.common.logger import get_logger
+
+logger = get_logger("force_channel")
+
 _DEFAULT_FORCE_WHITELIST = frozenset({"watchdog", "service_manager", "system_state_machine"})
 
 
@@ -53,7 +59,7 @@ class ForceChannel:
                 configured = app_config_port.get_control_message_force_caller_whitelist()
                 whitelist = frozenset(configured) or whitelist
             except Exception:
-                pass
+                logger.warning("force 白名单配置读取失败，使用默认", exc_info=True)
         self._caller_whitelist = whitelist
 
     async def _emit(self, event_type: str, data: dict) -> None:
@@ -61,7 +67,7 @@ class ForceChannel:
             try:
                 await self._event_bus.emit(event_type, data)
             except Exception:
-                pass
+                logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
 
     async def force_send(
         self,

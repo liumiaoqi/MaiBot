@@ -10,13 +10,19 @@
 import time
 from typing import Optional
 
+
 from src.core.control_message.types import (
+
     ControlMessageKind,
     ProtectionAction,
     ProtectionResult,
     UnkillableDeclaration,
 )
 
+
+from src.common.logger import get_logger
+
+logger = get_logger("unkillable_guard")
 
 class UnkillableGuard:
     """UNKILLABLE 保护引擎 — 声明 / 保护判定 / force 清除。"""
@@ -34,6 +40,7 @@ class UnkillableGuard:
             try:
                 entities = app_config_port.get_control_message_unkillable_entities()
             except Exception:
+                logger.warning("UNKILLABLE 实体清单配置读取失败，使用空清单", exc_info=True)
                 entities = []
             now = time.monotonic()
             for entity_id in entities or ():

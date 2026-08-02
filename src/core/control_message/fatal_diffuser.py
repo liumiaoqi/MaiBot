@@ -11,10 +11,16 @@ import time
 from collections import deque
 from typing import Any, Optional
 
+
 from src.core.control_message.types import (
+
     ControlMessageKind,
     FatalDiffuseRecord,
 )
+
+from src.common.logger import get_logger
+
+logger = get_logger("fatal_diffuser")
 
 # 扩散历史环形缓冲上限（spec §6.7 内省）
 _DIFFUSE_HISTORY_LIMIT = 100
@@ -45,7 +51,7 @@ class FatalDiffuser:
             try:
                 timeout = app_config_port.get_control_message_diffuse_timeout_sec()
             except Exception:
-                pass
+                logger.warning("扩散超时配置读取失败，使用默认 %s", _DEFAULT_DIFFUSE_TIMEOUT_SEC, exc_info=True)
         self._diffuse_timeout = max(0.1, float(timeout))
         self._diffuse_history: deque[FatalDiffuseRecord] = deque(
             maxlen=_DIFFUSE_HISTORY_LIMIT
@@ -56,7 +62,7 @@ class FatalDiffuser:
             try:
                 await self._event_bus.emit(event_type, data)
             except Exception:
-                pass
+                logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
 
     async def diffuse(
         self, session_id: str, kind: ControlMessageKind
@@ -81,6 +87,7 @@ class FatalDiffuser:
         try:
             tasks = await self._session_lifecycle_port.list_session_async_tasks(session_id)
         except Exception:
+            logger.warning("CONTROL_ZAP_QUERY_FAILED: 关联任务查询失败 session=%s", session_id, exc_info=True)
             return None  # 查询失败跳过扩散（spec §5.9.2 异常场景 1）
 
         total = len(tasks)
@@ -115,6 +122,7 @@ class FatalDiffuser:
                 cancelled += 1
             except Exception:
                 failed += 1  # 部分失败继续扩散（spec §5.9.2 异常场景 2）
+                logger.warning("CONTROL_ZAP_TASK_CANCEL_FAILED: 任务取消失败 session=%s", session_id, exc_info=True)
 
         # 4. 记录扩散结果（spec §5.9.1 规则 5）
         record = FatalDiffuseRecord(

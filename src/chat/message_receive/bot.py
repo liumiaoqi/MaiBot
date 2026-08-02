@@ -239,10 +239,12 @@ class ChatBot:
         return hook_result, mutated_message
 
     def _consume_control_messages(self, session_id: str) -> None:
-        """T15 ZG-8 衔接：消息处理路径消费 pending 控制消息。
+        """T15 ZG-8 衔接：消息处理路径检查 pending 控制消息（peek，不出队）。
 
         消费点 = 用户消息处理路径（bot.py receive_message，design 裁决）；
         控制消息的处理动作路由（停止会话/暂停回复等）随实际投递方接入。
+        动作路由实现前只 peek 不 dequeue——出队即从 pending 永久移除，
+        无动作消费会导致控制消息不可逆丢失（CX P2）。
         global_enabled=false 或 Port 未注册时透明跳过（渐进启用，spec §4.5）。
         """
         try:
@@ -254,16 +256,14 @@ class ChatBot:
             port = get_control_message_port()
         except Exception:
             return
-        while True:
-            try:
-                msg = port.dequeue_next(session_id)
-            except Exception:
-                return
-            if msg is None:
-                break
+        try:
+            view = port.get_pending_view(session_id)
+        except Exception:
+            return
+        if view.total_count > 0:
             logger.info(
-                f"消费控制消息: kind={msg.kind.name} session={session_id} "
-                f"source={msg.source} trace={msg.trace_id}"
+                f"检测到 pending 控制消息 {view.total_count} 条（session={session_id}，"
+                f"动作路由待接入，暂不出队）"
             )
 
     async def _process_commands(self, message: SessionMessage) -> tuple[bool, Optional[str], bool]:
