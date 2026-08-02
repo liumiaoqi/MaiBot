@@ -422,6 +422,20 @@ cooldown_s = 30.0 # 冷却窗口（秒），同一异常源在冷却内不重复
 v1_poll_interval_s = 10.0 # V1 旁路轮询间隔（秒）。
 v2_diff_interval_s = 5.0 # V2 状态 diff 轮询间隔（秒）。
 
+[control_message]
+# ZG-8 控制消息优先级 — 对标 Linux 信号机制（带优先级、可屏蔽、有不可捕获特权通道的事件投递系统）。
+version = 1 # 配置版本号（版本化升级：只改模板 + 新增版本号，不改动 legacy_migration）。
+global_enabled = false # 全局开关（渐进启用；false 时控制消息按原有逻辑处理，ZG-8 透明运行）。
+unmaskable_whitelist = [1, 2, 3] # 不可屏蔽类别白名单（系统级强制编号 1-3，运行时不可修改）。
+private_queue_limit = 256 # 会话私有 pending 队列节点数上限（防控制消息风暴）。
+shared_queue_limit = 1024 # 系统共享 pending 队列节点数上限。
+unkillable_entities = ["agent:primary", "component:orchestrator", "component:message_port"] # UNKILLABLE 实体清单（Orchestrator 运行时声明的补充）。
+system_blocked_kinds = [] # 系统级屏蔽集（默认空；编号 1-3 会被引擎强制剔除）。
+system_ignored_kinds = [] # 系统级忽略集（默认空；编号 1-3 会被引擎强制剔除）。
+delivery_history_limit = 100 # 投递决策历史环形缓冲上限。
+diffuse_timeout_sec = 5.0 # 致命扩散超时（秒）。
+force_caller_whitelist = ["watchdog", "service_manager", "system_state_machine"] # force 通道调用方白名单（系统核心层；插件和 WebUI 普通接口不可调用）。
+
 [system_state]
 history_capacity = 100 # 迁移历史环形缓冲容量（条）。
 notify_timeout = 5.0 # 通知链超时（秒），订阅者超时记告警并视为放行。
