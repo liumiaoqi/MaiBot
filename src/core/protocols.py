@@ -1196,6 +1196,48 @@ class AppConfigPort(Protocol):
         """
         ...
 
+    # === Control Message 域（ZG-8）===
+
+    def get_control_message_global_enabled(self) -> bool:
+        """获取控制消息优先级全局开关（渐进启用，默认 false）。"""
+        ...
+
+    def get_control_message_unmaskable_whitelist(self) -> set[int]:
+        """获取不可屏蔽类别白名单（默认 {1,2,3}，运行时不可修改）。"""
+        ...
+
+    def get_control_message_private_queue_limit(self) -> int:
+        """获取会话私有 pending 队列节点数上限（默认 256）。"""
+        ...
+
+    def get_control_message_shared_queue_limit(self) -> int:
+        """获取系统共享 pending 队列节点数上限（默认 1024）。"""
+        ...
+
+    def get_control_message_unkillable_entities(self) -> list[str]:
+        """获取 UNKILLABLE 实体清单（Orchestrator 运行时声明的补充）。"""
+        ...
+
+    def get_control_message_system_blocked_kinds(self) -> set[int]:
+        """获取系统级屏蔽集类别（默认空）。"""
+        ...
+
+    def get_control_message_system_ignored_kinds(self) -> set[int]:
+        """获取系统级忽略集类别（默认空）。"""
+        ...
+
+    def get_control_message_delivery_history_limit(self) -> int:
+        """获取投递决策历史环形缓冲上限（默认 100）。"""
+        ...
+
+    def get_control_message_diffuse_timeout_sec(self) -> float:
+        """获取致命扩散超时秒数（默认 5.0）。"""
+        ...
+
+    def get_control_message_force_caller_whitelist(self) -> set[str]:
+        """获取 force 通道调用方白名单（系统核心层）。"""
+        ...
+
     def register_reload_callback(self, callback: object) -> None:
         """注册全局配置热重载回调。
 

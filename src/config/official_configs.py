@@ -6840,6 +6840,52 @@ class WatchdogSectionConfig(ConfigBase):
     """V2 状态 diff 轮询间隔（秒）。"""
 
 
+class ControlMessageSectionConfig(ConfigBase):
+    """控制消息优先级配置类（ZG-8）。
+
+    对标 Linux 信号机制；10 项配置与 ZG-8 引擎构造参数一一对应，全部带默认值。
+    渐进启用：global_enabled 默认 false，未配置的会话保持原有行为。
+    不可屏蔽白名单由配置锁定（编号 1-3），配置冲突时引擎拒绝该配置项保持默认。
+    """
+
+    version: int = Field(default=1)
+    """配置版本号（版本化升级，只改模板 + 新增版本号，不改动 legacy_migration）。"""
+
+    global_enabled: bool = Field(default=False)
+    """全局开关（渐进启用；false 时控制消息按原有逻辑处理，ZG-8 透明运行）。"""
+
+    unmaskable_whitelist: list[int] = Field(default_factory=lambda: [1, 2, 3])
+    """不可屏蔽类别白名单（系统级强制编号 1-3，运行时不可修改）。"""
+
+    private_queue_limit: int = Field(default=256)
+    """会话私有 pending 队列节点数上限。"""
+
+    shared_queue_limit: int = Field(default=1024)
+    """系统共享 pending 队列节点数上限。"""
+
+    unkillable_entities: list[str] = Field(
+        default_factory=lambda: ["agent:primary", "component:orchestrator", "component:message_port"]
+    )
+    """UNKILLABLE 实体清单（Orchestrator 运行时声明的补充，启动时注册为受保护）。"""
+
+    system_blocked_kinds: list[int] = Field(default_factory=list)
+    """系统级屏蔽集（默认空；编号 1-3 会被引擎强制剔除）。"""
+
+    system_ignored_kinds: list[int] = Field(default_factory=list)
+    """系统级忽略集（默认空；编号 1-3 会被引擎强制剔除）。"""
+
+    delivery_history_limit: int = Field(default=100)
+    """投递决策历史环形缓冲上限。"""
+
+    diffuse_timeout_sec: float = Field(default=5.0)
+    """致命扩散超时（秒）。"""
+
+    force_caller_whitelist: list[str] = Field(
+        default_factory=lambda: ["watchdog", "service_manager", "system_state_machine"]
+    )
+    """force 通道调用方白名单（系统核心层；插件和 WebUI 普通接口不可调用）。"""
+
+
 class SystemStateSectionConfig(ConfigBase):
     """系统生命周期状态机配置（ZG-6）。
 
