@@ -81,6 +81,7 @@ class DeliveryResult(Enum):
 
     DELIVERED = "delivered"
     QUEUED = "queued"
+    REJECTED = "rejected"
     REJECTED_BLOCKED = "rejected_blocked"
     REJECTED_IGNORED = "rejected_ignored"
     REJECTED_UNKILLABLE = "rejected_unkillable"

@@ -29,14 +29,15 @@ class PriorityDispatcher:
 
     def next_control_message(
         self,
-        private_pending: ControlMessagePending,
+        private_pending: Optional[ControlMessagePending],
         shared_pending: ControlMessagePending,
         session_id: str,
     ) -> Optional[ControlMessagePendingNode]:
         """优先级出队 — 先私后共（spec §5.8.1 规则 2/3）。
 
         Args:
-            private_pending: 会话私有 pending 队列
+            private_pending: 会话私有 pending 队列，None 表示该会话无私
+                有队列（直接扫描共享队列）
             shared_pending: 系统共享 pending 队列
             session_id: 出队会话 ID
 
@@ -49,9 +50,10 @@ class PriorityDispatcher:
         ignored = effective_mask.ignored_bits
 
         # 先私后共：私有队列有可投递消息优先出队
-        node = private_pending.dequeue(blocked, ignored)
-        if node is not None:
-            return node
+        if private_pending is not None:
+            node = private_pending.dequeue(blocked, ignored)
+            if node is not None:
+                return node
 
-        # 私有队列空或全被屏蔽，扫描系统共享队列
+        # 私有队列空/不存在/全被屏蔽，扫描系统共享队列
         return shared_pending.dequeue(blocked, ignored)
