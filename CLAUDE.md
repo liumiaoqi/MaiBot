@@ -103,6 +103,9 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 6. **不要本地镜像类型** — 在 A_memorix 内创建核心类型的副本注定不同步，正确方案是下放到 common 层
 7. **merge 必须在主仓库执行** — worktree 内 `git merge` 会 "Already up to date"（merge 的是自己分支，新提交永远合不进来）。犯过 3 次。惯例：`cd /mnt/e/Users/lmq/MaiBot && git merge <branch>`，合并前先 `git worktree list` 确认 cwd 不在 worktree 里
 8. **worktree 删除后 shell cwd 会失效** — `git worktree remove` 后当前 shell 若还在该目录，后续 git 命令可能落到错误仓库；删 worktree 前先 `cd` 回主仓库
+9. **删除/重构模块必须同步测试** — 测试债务主源（2026-08-02 测试卫生批次根因）：删模块后 behavior_* 测试残留、`_chat_manager` 删除后 monkeypatch 字符串目标失效、`chat_prompts` 移入 `reply_style` 后 setattr 目标没跟、f63ca9bf1 删 monologue 漏 bootstrap.py import（启动路径 ImportError）。规则：**删/改任何模块时，grep 其 import 引用 + monkeypatch 字符串引用（"src.x.y" 形式），同步更新或删除测试**；explore agent 核查"零引用"必须含 import 语句级检查
+10. **.py 文件必须 UTF-8 无 BOM** — Windows 编辑器保存事故：tests/webui/__init__.py 变 UTF-16 导致整个目录无法收集（SyntaxError: null bytes）。提交前 `file xxx.py` 抽查；跨平台编辑后留意编码
+11. **pytests/ 与 tests/ 双目录并存** — 同模块名（webui.conftest）引发 ImportPathMismatchError；已配 `import-mode = "importlib"`（pyproject），不要再手动删其中一个目录，两目录内容不同都有用
 
 ## .shared/ 写新文件规则
 
