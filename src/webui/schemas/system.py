@@ -242,3 +242,5 @@ class SystemLifecycleResponse(BaseModel):
     core_readiness: dict[str, bool] = Field(default_factory=dict, description="核心就绪三标志")
     transition_history: list[TransitionRecordResponse] = Field(default_factory=list, description="迁移历史")
     generated_at: float = Field(0.0, description="生成时间戳")
+    tainted_mask: int = Field(0, description="污染位图值（ZG-7，对标 Linux tainted_mask）")
+    tainted_verbose: list[str] = Field(default_factory=list, description="污染 verbose 输出（ZG-7）")

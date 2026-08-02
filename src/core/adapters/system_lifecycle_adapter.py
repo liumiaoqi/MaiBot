@@ -108,6 +108,17 @@ class SystemLifecycleAdapter:
         """WebUI 内省视图：状态 + 健康等级 + 核心就绪三标志 + 迁移历史。"""
         health_level = self._health_level_provider()
         cr = self._crp.get_core_readiness()
+        # ZG-7（T22）：注入污染状态（Port 未注册时保持默认 0/空，spec §4.1 规则 4）
+        tainted_mask = 0
+        tainted_verbose: list[str] = []
+        try:
+            from src.core.taint_mask_port_registry import get_taint_mask_port
+
+            port = get_taint_mask_port()
+            tainted_mask = port.get_taint()
+            tainted_verbose = port.print_tainted_verbose()
+        except Exception:
+            pass
         return self._sm.get_view(
             health_level=health_level.value if health_level is not None else "healthy",
             core_readiness=(
@@ -115,6 +126,8 @@ class SystemLifecycleAdapter:
                 cr.agent_thinking_ready,
                 cr.reply_capability_ready,
             ),
+            tainted_mask=tainted_mask,
+            tainted_verbose=tainted_verbose,
         )
 
     def is_booting(self) -> bool:

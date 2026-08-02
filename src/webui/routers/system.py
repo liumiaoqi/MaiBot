@@ -1477,5 +1477,7 @@ async def get_system_lifecycle():
                 for r in view.transition_history
             ],
             generated_at=view.generated_at,
+            tainted_mask=view.tainted_mask,
+            tainted_verbose=view.tainted_verbose,
         )
     )

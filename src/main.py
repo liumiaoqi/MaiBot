@@ -48,6 +48,7 @@ class MainSystem:
         self._watchdog: Any | None = None
         self._watchdog_touch_task: asyncio.Task | None = None
         self._control_message: Any | None = None
+        self._taint_mask: Any | None = None
 
     def _ensure_message_server(self) -> None:
         """按需初始化消息 API，避免阻塞主启动链路的早期阶段。"""
@@ -369,8 +370,46 @@ class MainSystem:
         # ZG-8: 控制消息优先级接线（适配器实例化 + 订阅 + force 触发 + 状态联动）
         await self._init_control_message()
 
+        # ZG-7: 污染标记接线（适配器实例化 + 注册 + CrashDump 注入）
+        await self._init_tainted_mask()
+
         init_time = int(1000 * (time.time() - self._init_start_time))
         logger.info(t("startup.initialization_completed_cycles", init_time=init_time))
+
+    async def _init_tainted_mask(self) -> None:
+        """ZG-7: 污染标记接线。
+
+        实例化 TaintMaskAdapter（组装 TaintedMask + TaintActionMapper）并注册
+        TaintedMaskPort；注入 CrashDump 污染状态查询接口。
+        依赖：app_config / SystemStateMachine（self._lifecycle_sm）均已就绪
+        （orchestrator.run() 之后、ZG-8 接线后）。照 ZG-8 模式定死实例化点，
+        不重蹈 ZG-5 零接线教训。
+        """
+        try:
+            from src.core.adapters.taint_mask_adapter import TaintMaskAdapter
+            from src.core.app_config_port_registry import get_app_config_port
+            from src.core.taint_mask_port_registry import set_taint_mask_port
+        except Exception:
+            logger.warning("ZG-7 接线依赖导入失败，已降级跳过", exc_info=True)
+            return
+
+        adapter = TaintMaskAdapter(
+            state_machine_port=self._lifecycle_sm,
+            app_config_port=get_app_config_port(),
+        )
+        self._taint_mask = adapter
+        set_taint_mask_port(adapter)
+
+        # T17: CrashDump 污染状态注入（模块级单例 setter）
+        try:
+            from src.common.logger import _crash_dump
+
+            if _crash_dump is not None:
+                _crash_dump.set_taint_mask_port(adapter)
+        except Exception:
+            logger.warning("ZG-7 CrashDump 注入失败，污染行跳过", exc_info=True)
+
+        logger.info("ZG-7 污染标记已接线")
 
     async def _init_control_message(self) -> None:
         """ZG-8: 控制消息优先级接线。
