@@ -414,48 +414,6 @@ def _add_agent_section_config(data: dict[str, Any]) -> list[str]:
     return ["agent"] if changed else []
 
 
-def _add_subagent_section_config(data: dict[str, Any]) -> list[str]:
-    """8.17.0: 添加子智能体配置段（subagent section）。"""
-    if "subagent" in data:
-        return []
-    changed = set_nested_config_value(
-        data,
-        True,
-        force=False,
-    )
-    changed |= set_nested_config_value(
-        data,
-        7,
-        force=False,
-    )
-    changed |= set_nested_config_value(
-        data,
-        True,
-        force=False,
-    )
-    changed |= set_nested_config_value(
-        data,
-        100,
-        force=False,
-    )
-    changed |= set_nested_config_value(
-        data,
-        200,
-        force=False,
-    )
-    changed |= set_nested_config_value(
-        data,
-        400,
-        force=False,
-    )
-    changed |= set_nested_config_value(
-        data,
-        False,
-        force=False,
-    )
-    return ["subagent"] if changed else []
-
-
 BOT_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = (
     ConfigUpgradeHook(
         target_version="8.10.11",
@@ -496,11 +454,6 @@ BOT_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = (
         target_version="8.15.0",
         config_names=("bot_config.toml",),
         migrate=_add_agent_section_config,
-    ),
-    ConfigUpgradeHook(
-        target_version="8.17.0",
-        config_names=("bot_config.toml",),
-        migrate=_add_subagent_section_config,
     ),
 )
 MODEL_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = ()

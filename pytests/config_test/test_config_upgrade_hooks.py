@@ -46,3 +46,26 @@ def test_split_chat_config_sections_upgrade_hook():
     assert chat_config["reply_style"]["chat_prompts"] == []
     assert "talk_value" not in chat_config
     assert "group_chat_prompt" not in chat_config
+
+
+def test_no_dead_subagent_hook():
+    """8.17.0 subagent 升级钩子已移除（subagent 功能整体删除于 f63ca9bf1，
+    配置模型从未存在；死钩子会在任何版本升级路径抛 TypeError——B 类 T1 修复）。"""
+    from src.config.config_upgrade_hooks import BOT_CONFIG_UPGRADE_HOOKS
+
+    for hook in BOT_CONFIG_UPGRADE_HOOKS:
+        assert hook.target_version != "8.17.0", "死钩子 _add_subagent_section_config 未移除"
+
+
+def test_upgrade_hooks_no_typeerror_on_empty():
+    """升级钩子链对空配置不抛 TypeError（死钩子移除后升级路径畅通）。"""
+    from src.config.config_upgrade_hooks import apply_config_upgrade_hooks
+
+    result = apply_config_upgrade_hooks(
+        {},
+        config_name="bot_config.toml",
+        old_ver="8.16.0",
+        new_ver="8.18.0",
+    )
+    # 不抛异常即通过；subagent 钩子已删，不应产生 subagent 节
+    assert "subagent" not in result.data
