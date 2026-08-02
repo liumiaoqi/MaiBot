@@ -36,7 +36,7 @@ router = APIRouter()
 
 
 def _read_manifest_plugin_id(manifest: Dict[str, Any]) -> str:
-    return str(manifest.get("id")).strip()
+    return str(manifest.get("id") or "").strip()
 
 
 def _require_manifest_plugin_id(manifest: Dict[str, Any]) -> str:
@@ -407,6 +407,9 @@ async def install_plugin(request: InstallPluginRequest, maibot_session: Optional
             manifest_plugin_id = _read_manifest_plugin_id(manifest)
             if not manifest_plugin_id:
                 manifest_plugin_id = plugin_id  # 缺 id 时回填请求 id（backfill 语义）
+                manifest["id"] = plugin_id
+                with open(manifest_path, "w", encoding="utf-8") as file_obj:
+                    json.dump(manifest, file_obj, ensure_ascii=False, indent=2)
             # manifest 声明 id 优先（保留声明 id，即使与请求安装 key 不同）
         except Exception as e:
             remove_tree(target_path)

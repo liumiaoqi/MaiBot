@@ -109,6 +109,7 @@ def test_resolve_static_path_ignores_dashboard_dist_when_package_is_unavailable(
     (dashboard_dist / "index.html").write_text("<html></html>", encoding="utf-8")
 
     monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
+    monkeypatch.setattr(webui_app, "_is_local_dashboard_enabled", lambda: False)
 
     with patch.object(webui_app, "import_module", side_effect=ImportError):
         resolved_path = webui_app._resolve_static_path()
