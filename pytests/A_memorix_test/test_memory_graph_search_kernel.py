@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from src.A_memorix.core.runtime.admin.graph import GraphAdminHandler
 from src.A_memorix.core.retrieval import RetrievalResult
 from src.A_memorix.core.runtime.sdk_memory_kernel import KernelSearchRequest
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
+from src.A_memorix.core.runtime.services.graph_ops import GraphOpsService
+from src.A_memorix.core.runtime.services.hit_filter import HitFilterService
+from src.A_memorix.core.runtime.services.search import SearchService
 
 
 class _DummyMetadataStore:
@@ -229,6 +234,14 @@ class _RetrievalTypeFilterSearchRetriever:
         ]
 
 
+class _FakeSessionInfoPort:
+    def __init__(self, resolver) -> None:
+        self._resolver = resolver
+
+    def get_session_info(self, stream_id: str):
+        return self._resolver(stream_id)
+
+
 def _build_kernel(*, entities: list[dict[str, Any]], relations: list[dict[str, Any]]) -> SDKMemoryKernel:
     kernel = SDKMemoryKernel(plugin_root=Path.cwd(), config={})
 
@@ -238,6 +251,13 @@ def _build_kernel(*, entities: list[dict[str, Any]], relations: list[dict[str, A
     kernel.initialize = _fake_initialize  # type: ignore[method-assign]
     kernel.metadata_store = _DummyMetadataStore(entities=entities, relations=relations)
     kernel.graph_store = object()  # type: ignore[assignment]
+    kernel._graph_ops_service = GraphOpsService(
+        metadata_store=kernel.metadata_store,
+        graph_store=kernel.graph_store,
+        load_paragraph_stale_marks=lambda *args: ({}, {}),
+        persist_callback=lambda: None,
+        rebuild_graph_callback=lambda: {"node_count": 0, "edge_count": 0},
+    )
     return kernel
 
 
@@ -268,12 +288,16 @@ def _build_scoped_search_kernel(tmp_path) -> tuple[SDKMemoryKernel, _ScopedSearc
     kernel.episode_retriever = object()  # type: ignore[assignment]
     kernel.aggregate_query_service = object()  # type: ignore[assignment]
     kernel.threshold_filter = None
+    kernel._vector_pool_manager = SimpleNamespace(dual_pools_enabled=False)  # type: ignore[assignment]
+    kernel._hit_filter_service = _build_hit_filter_service(kernel)
+    kernel._search_service = _build_search_service(kernel)
     return kernel, retriever
 
 
-def _build_retrieval_filter_kernel(config: dict[str, Any]) -> SDKMemoryKernel:
+def _build_retrieval_filter_kernel(config: dict[str, Any], session_info_port: Any = None) -> SDKMemoryKernel:
     kernel = SDKMemoryKernel(plugin_root=Path.cwd(), config=config)
     kernel.metadata_store = _RetrievalTypeFilterMetadataStore()  # type: ignore[assignment]
+    kernel._hit_filter_service = _build_hit_filter_service(kernel, session_info_port=session_info_port)
     return kernel
 
 
@@ -293,7 +317,37 @@ def _build_retrieval_filter_search_kernel(tmp_path, config: dict[str, Any]) -> S
     kernel.episode_retriever = object()  # type: ignore[assignment]
     kernel.aggregate_query_service = object()  # type: ignore[assignment]
     kernel.threshold_filter = None
+    kernel._vector_pool_manager = SimpleNamespace(dual_pools_enabled=False)  # type: ignore[assignment]
+    kernel._hit_filter_service = _build_hit_filter_service(kernel)
+    kernel._search_service = _build_search_service(kernel)
     return kernel
+
+
+def _build_hit_filter_service(kernel: SDKMemoryKernel, session_info_port: Any = None) -> HitFilterService:
+    return HitFilterService(
+        metadata_store=kernel.metadata_store,
+        cfg=kernel._cfg,
+        optional_float=kernel._optional_float,
+        tokens=kernel._tokens,
+        chat_source=kernel._chat_source,
+        chat_filter_config_allows=kernel._chat_filter_config_allows,
+        session_info_port=session_info_port,
+        current_effective_filter_cache=lambda: kernel._current_effective_filter_cache,
+        update_effective_filter_cache=lambda value: setattr(kernel, "_current_effective_filter_cache", value),
+    )
+
+
+def _build_search_service(kernel: SDKMemoryKernel) -> SearchService:
+    return SearchService(
+        hit_filter_service=kernel._hit_filter_service,
+        get_retriever=lambda: kernel.retriever,
+        get_episode_retriever=lambda: kernel.episode_retriever,
+        get_aggregate_query_service=lambda: kernel.aggregate_query_service,
+        get_threshold_filter=lambda: kernel.threshold_filter,
+        build_runtime_config=kernel._build_runtime_config,
+        is_chat_filtered=kernel._is_chat_filtered,
+        get_config_value=kernel._cfg,
+    )
 
 
 @pytest.mark.asyncio
@@ -317,7 +371,7 @@ async def test_memory_graph_admin_search_orders_and_dedupes_results() -> None:
         ],
     )
 
-    payload = await kernel.memory_graph_admin(action="search", query="alice", limit=20)
+    payload = await GraphAdminHandler(kernel).handle(action="search", query="alice", limit=20)
 
     assert payload["success"] is True
     assert payload["count"] == len(payload["items"])
@@ -349,7 +403,7 @@ async def test_memory_graph_admin_search_filters_deleted_and_inactive_records() 
         ],
     )
 
-    payload = await kernel.memory_graph_admin(action="search", query="ghost", limit=50)
+    payload = await GraphAdminHandler(kernel).handle(action="search", query="ghost", limit=50)
 
     assert payload["success"] is True
     assert payload["items"] == []
@@ -425,7 +479,7 @@ def test_retrieval_type_filter_is_disabled_by_default() -> None:
         }
     ]
 
-    assert kernel._filter_hits_by_retrieval_type_scope(hits) == hits
+    assert kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(hits) == hits
 
 
 def test_chat_scope_filter_accepts_chat_ids_metadata() -> None:
@@ -460,7 +514,7 @@ def test_chat_scope_filter_accepts_chat_ids_metadata() -> None:
         kernel.metadata_store.paragraphs["para-rebound-relation"]
     ]
 
-    filtered = kernel._filter_hits_by_chat_scope(hits, chat_id="session-current")
+    filtered = kernel._hit_filter_service.filter_hits_by_chat_scope(hits, chat_id="session-current")
 
     assert [item["hash"] for item in filtered] == ["para-rebound", "rel-rebound"]
 
@@ -503,7 +557,7 @@ def test_chat_scope_filter_defers_stale_metadata_to_store_for_rebound_records() 
         kernel.metadata_store.paragraphs["para-rebound-relation"]
     ]
 
-    filtered = kernel._filter_hits_by_chat_scope(hits, chat_id="session-current")
+    filtered = kernel._hit_filter_service.filter_hits_by_chat_scope(hits, chat_id="session-current")
 
     assert [item["hash"] for item in filtered] == ["para-rebound", "rel-rebound"]
 
@@ -535,10 +589,10 @@ def test_retrieval_type_filter_requires_enabled_flag() -> None:
         }
     ]
 
-    assert kernel._filter_hits_by_retrieval_type_scope(hits) == hits
+    assert kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(hits) == hits
 
 
-def test_retrieval_type_filter_matches_group_blacklist(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_retrieval_type_filter_matches_group_blacklist() -> None:
     kernel = _build_retrieval_filter_kernel(
         config={
             "filter": {
@@ -550,19 +604,13 @@ def test_retrieval_type_filter_matches_group_blacklist(monkeypatch: pytest.Monke
                     }
                 }
             }
-        }
-    )
-
-    monkeypatch.setattr(
-        "src.A_memorix.core.runtime.sdk_memory_kernel.chat_manager.get_existing_session_by_session_id",
-        lambda session_id: type(
-            "Session",
-            (),
-            {
-                "group_id": "group-other" if session_id == "session-other" else "group-current",
-                "user_id": "",
-            },
-        )(),
+        },
+        session_info_port=_FakeSessionInfoPort(
+            lambda session_id: SimpleNamespace(
+                group_id="group-other" if session_id == "session-other" else "group-current",
+                user_id="",
+            )
+        ),
     )
     hits = [
         {
@@ -579,14 +627,12 @@ def test_retrieval_type_filter_matches_group_blacklist(monkeypatch: pytest.Monke
         },
     ]
 
-    filtered = kernel._filter_hits_by_retrieval_type_scope(hits)
+    filtered = kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(hits)
 
     assert [item["hash"] for item in filtered] == ["para-summary-current"]
 
 
-def test_retrieval_type_filter_keeps_current_group_when_source_is_blacklisted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_retrieval_type_filter_keeps_current_group_when_source_is_blacklisted() -> None:
     kernel = _build_retrieval_filter_kernel(
         config={
             "filter": {
@@ -598,19 +644,13 @@ def test_retrieval_type_filter_keeps_current_group_when_source_is_blacklisted(
                     }
                 }
             }
-        }
-    )
-
-    monkeypatch.setattr(
-        "src.A_memorix.core.runtime.sdk_memory_kernel.chat_manager.get_existing_session_by_session_id",
-        lambda session_id: type(
-            "Session",
-            (),
-            {
-                "group_id": "group-current" if session_id == "session-current" else "group-other",
-                "user_id": "",
-            },
-        )(),
+        },
+        session_info_port=_FakeSessionInfoPort(
+            lambda session_id: SimpleNamespace(
+                group_id="group-current" if session_id == "session-current" else "group-other",
+                user_id="",
+            )
+        ),
     )
     hits = [
         {
@@ -627,7 +667,7 @@ def test_retrieval_type_filter_keeps_current_group_when_source_is_blacklisted(
         },
     ]
 
-    filtered = kernel._filter_hits_by_retrieval_type_scope(
+    filtered = kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(
         hits,
         current_stream_id="session-current",
         current_group_id="group-current",
@@ -636,9 +676,7 @@ def test_retrieval_type_filter_keeps_current_group_when_source_is_blacklisted(
     assert [item["hash"] for item in filtered] == ["para-summary-current", "para-summary-other"]
 
 
-def test_retrieval_type_filter_matches_stream_when_session_unresolved(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_retrieval_type_filter_matches_stream_when_session_unresolved() -> None:
     kernel = _build_retrieval_filter_kernel(
         config={
             "filter": {
@@ -650,12 +688,8 @@ def test_retrieval_type_filter_matches_stream_when_session_unresolved(
                     }
                 }
             }
-        }
-    )
-
-    monkeypatch.setattr(
-        "src.A_memorix.core.runtime.sdk_memory_kernel.chat_manager.get_existing_session_by_session_id",
-        lambda session_id: None,
+        },
+        session_info_port=_FakeSessionInfoPort(lambda session_id: None),
     )
     hits = [
         {
@@ -672,14 +706,12 @@ def test_retrieval_type_filter_matches_stream_when_session_unresolved(
         },
     ]
 
-    filtered = kernel._filter_hits_by_retrieval_type_scope(hits)
+    filtered = kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(hits)
 
     assert [item["episode_id"] for item in filtered] == ["episode-current"]
 
 
-def test_retrieval_type_filter_keeps_non_chat_sources_when_chat_stream_whitelisted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_retrieval_type_filter_keeps_non_chat_sources_when_chat_stream_whitelisted() -> None:
     kernel = _build_retrieval_filter_kernel(
         config={
             "filter": {
@@ -691,12 +723,8 @@ def test_retrieval_type_filter_keeps_non_chat_sources_when_chat_stream_whitelist
                     }
                 }
             }
-        }
-    )
-
-    monkeypatch.setattr(
-        "src.A_memorix.core.runtime.sdk_memory_kernel.chat_manager.get_existing_session_by_session_id",
-        lambda session_id: None,
+        },
+        session_info_port=_FakeSessionInfoPort(lambda session_id: None),
     )
     hits = [
         {
@@ -707,7 +735,7 @@ def test_retrieval_type_filter_keeps_non_chat_sources_when_chat_stream_whitelist
         }
     ]
 
-    assert kernel._filter_hits_by_retrieval_type_scope(hits) == hits
+    assert kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(hits) == hits
 
 
 @pytest.mark.asyncio
@@ -783,9 +811,7 @@ async def test_search_memory_retrieval_type_filter_keeps_current_chat_even_when_
     assert [item["hash"] for item in payload["hits"]] == ["para-stream-other", "para-stream-current"]
 
 
-def test_retrieval_type_filter_applies_to_relation_source_paragraph(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_retrieval_type_filter_applies_to_relation_source_paragraph() -> None:
     kernel = _build_retrieval_filter_kernel(
         config={
             "filter": {
@@ -797,12 +823,8 @@ def test_retrieval_type_filter_applies_to_relation_source_paragraph(
                     }
                 }
             }
-        }
-    )
-
-    monkeypatch.setattr(
-        "src.A_memorix.core.runtime.sdk_memory_kernel.chat_manager.get_existing_session_by_session_id",
-        lambda session_id: None,
+        },
+        session_info_port=_FakeSessionInfoPort(lambda session_id: None),
     )
     hits = [
         {
@@ -819,6 +841,6 @@ def test_retrieval_type_filter_applies_to_relation_source_paragraph(
         },
     ]
 
-    filtered = kernel._filter_hits_by_retrieval_type_scope(hits)
+    filtered = kernel._hit_filter_service.filter_hits_by_retrieval_type_scope(hits)
 
     assert [item["hash"] for item in filtered] == ["rel-stream-current"]

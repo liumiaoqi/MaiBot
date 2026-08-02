@@ -91,6 +91,13 @@ class _KernelBackedRuntimeManager:
     ) -> Any:
         del timeout_ms
         payload = args or {}
+        if component_name == "metadata_get_paragraphs_by_source":
+            return self.kernel.metadata_store.get_paragraphs_by_source(str(payload.get("source", "")))
+        if component_name == "metadata_query":
+            return self.kernel.metadata_store.query(
+                str(payload.get("sql", "")),
+                tuple(payload.get("params") or []),
+            )
         handler = getattr(self.kernel, component_name)
         result = handler(**payload)
         return await result if inspect.isawaitable(result) else result
@@ -258,13 +265,11 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
         )
 
     monkeypatch.setattr(
-        kernel_module,
-        "create_embedding_api_adapter",
+        "src.A_memorix.core.embedding.create_embedding_api_adapter",
         lambda **kwargs: fake_embedding_manager,
     )
     monkeypatch.setattr(
-        kernel_module,
-        "run_embedding_runtime_self_check",
+        "src.A_memorix.core.utils.runtime_self_check.run_embedding_runtime_self_check",
         _fake_runtime_self_check,
     )
     monkeypatch.setattr(
@@ -272,23 +277,39 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
         "run_embedding_runtime_self_check",
         _fake_runtime_self_check,
     )
-    monkeypatch.setattr(
-        summary_importer_module.llm_api,
-        "get_available_models",
-        lambda: {"utils": TaskConfig(model_list=["fake-summary-model"])},
-    )
-    monkeypatch.setattr(
-        summary_importer_module.llm_api,
-        "resolve_task_name_from_model_config",
-        lambda model_config: "utils",
-    )
-    monkeypatch.setattr(
-        summary_importer_module.llm_api,
-        "generate",
-        _fake_generate,
-    )
     monkeypatch.setattr(send_service.time, "time", lambda: fixed_send_timestamp)
     monkeypatch.setattr(summary_importer_module.time, "time", lambda: fixed_send_timestamp)
+
+    class _FakeLLMServiceRequest:
+        def __init__(
+            self,
+            *,
+            task_name: str,
+            request_type: str,
+            prompt: str,
+            temperature: float | None = None,
+            max_tokens: int | None = None,
+        ) -> None:
+            self.task_name = task_name
+            self.request_type = request_type
+            self.prompt = prompt
+            self.temperature = temperature
+            self.max_tokens = max_tokens
+
+    class _FakeLLMService:
+        LLMServiceRequest = _FakeLLMServiceRequest
+
+        def get_available_models(self) -> Dict[str, Any]:
+            return {"utils": TaskConfig(model_list=["fake-summary-model"])}
+
+        def resolve_task_name_from_model_config(self, model_config: Any) -> str:
+            del model_config
+            return "utils"
+
+        async def generate(self, request: Any) -> Any:
+            return await _fake_generate(request)
+
+    fake_llm_service = _FakeLLMService()
 
     kernel = SDKMemoryKernel(
         plugin_root=tmp_path / "plugin_root",
@@ -300,6 +321,16 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
             "person_profile": {"refresh_interval_minutes": 5},
             "summarization": {"model_name": ["utils"]},
         },
+    )
+    kernel._ports = SimpleNamespace(
+        model_config_port=None,
+        llm_models_client_registry=None,
+        llm_models_base_client=None,
+        llm_models_exceptions=None,
+        session_info_port=None,
+        config_manager=None,
+        build_profile_injection_text=None,
+        require_llm_service=lambda: fake_llm_service,
     )
 
     service = memory_flow_service_module.MemoryAutomationService()
@@ -314,10 +345,19 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
         }
 
     monkeypatch.setattr(kernel, "rebuild_episodes_for_sources", _fake_rebuild_episodes_for_sources)
+    kernel_backed_runtime_manager = _KernelBackedRuntimeManager(kernel)
     monkeypatch.setattr(
-        memory_service_module,
-        "a_memorix_host_service",
-        _KernelBackedRuntimeManager(kernel),
+        "src.A_memorix.host_service.a_memorix_host_service",
+        kernel_backed_runtime_manager,
+    )
+    real_memory_service = memory_service_module.memory_service
+    monkeypatch.setattr(
+        memory_flow_service_module,
+        "get_memory_service_port",
+        lambda: SimpleNamespace(
+            ingest_summary=lambda **kwargs: real_memory_service.ingest_summary(**kwargs),
+            get_paragraphs_by_source=lambda source: real_memory_service.get_paragraphs_by_source(source),
+        ),
     )
     monkeypatch.setattr(memory_flow_service_module, "memory_automation_service", service)
     monkeypatch.setattr(send_service, "_get_runtime_manager", lambda: _NoopRuntimeManager())
@@ -352,7 +392,10 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
 
     register_session_info_port(_MockSessionInfoPort())
     register_session_query_port(_MockSessionQueryPort())
-    integration_config = memory_flow_service_module.global_config.a_memorix.integration
+    integration_config = SimpleNamespace()
+    monkeypatch.setattr(memory_flow_service_module, "get_app_config_port", lambda: SimpleNamespace(
+        get_a_memorix_integration_config=lambda: integration_config,
+    ))
     monkeypatch.setattr(integration_config, "chat_summary_writeback_enabled", True, raising=False)
     monkeypatch.setattr(integration_config, "chat_summary_writeback_message_threshold", 2, raising=False)
     monkeypatch.setattr(integration_config, "chat_summary_writeback_context_length", 10, raising=False)
@@ -370,9 +413,15 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
         with database_module.get_db_session() as session:
             session.add(incoming_message.to_db_instance())
 
-        sent_message = await send_service.text_to_stream_with_message(
+        sent_message = _build_incoming_message(
+            session_id="test-session",
+            user_id="bot-qq",
             text="好的，我会记住你最近买了绿色围巾。",
-            stream_id="test-session",
+            timestamp=datetime.fromtimestamp(fixed_send_timestamp),
+        )
+        sent_message.message_id = "sent-message-id"
+        sent_message = await send_service.send_session_message_with_message(
+            sent_message,
             storage_message=True,
         )
 

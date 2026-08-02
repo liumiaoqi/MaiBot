@@ -401,12 +401,13 @@ async def install_plugin(request: InstallPluginRequest, maibot_session: Optional
         try:
             with open(manifest_path, "r", encoding="utf-8") as file_obj:
                 manifest = json.load(file_obj)
-            for field in ["manifest_version", "id", "name", "version", "author"]:
+            for field in ["manifest_version", "name", "version", "author"]:
                 if field not in manifest:
                     raise ValueError(f"缺少必需字段: {field}")
             manifest_plugin_id = _read_manifest_plugin_id(manifest)
-            if manifest_plugin_id != plugin_id:
-                raise ValueError(f"插件 ID 不匹配：期望 {plugin_id}，实际 {manifest_plugin_id}")
+            if not manifest_plugin_id:
+                manifest_plugin_id = plugin_id  # 缺 id 时回填请求 id（backfill 语义）
+            # manifest 声明 id 优先（保留声明 id，即使与请求安装 key 不同）
         except Exception as e:
             remove_tree(target_path)
             await update_progress(

@@ -940,7 +940,7 @@ def normalize_chat_images(raw_images: Any) -> List[Dict[str, str]]:
         if not mime_type.startswith("image/"):
             continue
 
-        raw_base64 = str(raw_image.get("base64")).strip()
+        raw_base64 = str(raw_image.get("base64") or "").strip()
         data_url = str(raw_image.get("data_url") or raw_image.get("dataUrl") or "").strip()
         if not raw_base64 and data_url.startswith("data:image/") and "," in data_url:
             raw_base64 = data_url.split(",", maxsplit=1)[1].strip()

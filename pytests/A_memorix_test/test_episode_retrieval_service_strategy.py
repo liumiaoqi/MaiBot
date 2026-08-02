@@ -43,7 +43,7 @@ class _FakeRetriever:
 
 
 @pytest.mark.asyncio
-async def test_episode_retrieval_uses_smaller_default_candidate_k() -> None:
+async def test_episode_retrieval_uses_default_candidate_k() -> None:
     metadata_store = _FakeMetadataStore(
         [{"episode_id": "e-1", "updated_at": 1.0}],
     )
@@ -52,12 +52,12 @@ async def test_episode_retrieval_uses_smaller_default_candidate_k() -> None:
 
     await service.query(query="普通聊天回忆", top_k=5)
 
-    assert metadata_store.query_episode_limits == [20]
-    assert retriever.top_k_values == [20]
+    assert metadata_store.query_episode_limits == [30]
+    assert retriever.top_k_values == [30]
 
 
 @pytest.mark.asyncio
-async def test_episode_relation_evidence_is_conditionally_projected() -> None:
+async def test_episode_relation_evidence_is_projected_when_relation_hits_exist() -> None:
     metadata_store = _FakeMetadataStore(
         [{"episode_id": "e-1", "updated_at": 1.0}],
     )
@@ -66,8 +66,11 @@ async def test_episode_relation_evidence_is_conditionally_projected() -> None:
 
     await service.query(query="普通聊天回忆", top_k=1)
 
-    assert metadata_store.relation_evidence_requests == []
+    assert metadata_store.relation_evidence_requests == [(["r-1"], {"source": None})]
 
     await service.query(query="艾宝和稀疏检索有什么关系", top_k=1)
 
-    assert metadata_store.relation_evidence_requests == [(["r-1"], {"source": None})]
+    assert metadata_store.relation_evidence_requests == [
+        (["r-1"], {"source": None}),
+        (["r-1"], {"source": None}),
+    ]

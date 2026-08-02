@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from src.A_memorix.core.runtime import sdk_memory_kernel as kernel_module
+from src.A_memorix.core.runtime.admin.runtime import RuntimeAdminHandler
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
 from src.A_memorix.core.utils.person_profile_service import PersonProfileService
 from src.A_memorix.core.utils.runtime_self_check import run_embedding_runtime_self_check
@@ -212,7 +212,10 @@ async def test_runtime_admin_config_exposes_vector_pool_status(
     tmp_path: Path,
 ) -> None:
     fake_embedding_manager = _DummyEmbeddingManager(dimension=4)
-    monkeypatch.setattr(kernel_module, "create_embedding_api_adapter", lambda **kwargs: fake_embedding_manager)
+    monkeypatch.setattr(
+        "src.A_memorix.core.embedding.create_embedding_api_adapter",
+        lambda **kwargs: fake_embedding_manager,
+    )
 
     data_dir = tmp_path / "a_memorix_data"
     kernel = SDKMemoryKernel(
@@ -234,7 +237,7 @@ async def test_runtime_admin_config_exposes_vector_pool_status(
     )
 
     try:
-        config = await kernel.memory_runtime_admin(action="get_config")
+        config = await RuntimeAdminHandler(kernel).handle(action="get_config")
 
         assert config["vector_pools_ready"] is False
         assert config["vector_pools_effective_mode"] == "single"

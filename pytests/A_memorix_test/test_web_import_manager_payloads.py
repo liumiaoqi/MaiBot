@@ -157,6 +157,9 @@ def _build_manager(
         get_config=lambda key, default=None: config.get(key, default),
         _is_embedding_degraded=lambda: False,
         _allow_metadata_only_write=lambda: True,
+        _dual_vector_pools_enabled=lambda: vector_pool_mode == "dual",
+        is_embedding_degraded=lambda: False,
+        enqueue_paragraph_vector_backfill=lambda paragraph_hash, *, error="": None,
     )
     manager = ImportTaskManager(plugin)
     return manager, metadata_store

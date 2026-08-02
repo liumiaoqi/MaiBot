@@ -3,6 +3,8 @@ from typing import Any, Dict, List
 import pytest
 
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
+from src.A_memorix.core.runtime.services.hit_filter import HitFilterService
+from src.A_memorix.core.runtime.services.ingest import IngestService
 from src.A_memorix.core.utils.episode_service import EpisodeService
 from src.A_memorix.core.utils.summary_importer import SummaryImportResult
 
@@ -103,6 +105,33 @@ class _FakeSegmentationService:
         }
 
 
+def _build_ingest_service(kernel: SDKMemoryKernel, *, persist) -> IngestService:
+    return IngestService(
+        get_metadata_store=lambda: kernel.metadata_store,
+        get_vector_store=lambda: kernel.vector_store,
+        get_graph_store=lambda: kernel.graph_store,
+        get_embedding_manager=lambda: kernel.embedding_manager,
+        get_relation_write_service=lambda: kernel.relation_write_service,
+        get_summary_importer=lambda: kernel.summary_importer,
+        get_episode_service=lambda: None,
+        is_chat_filtered=lambda **kwargs: False,
+        cfg=kernel._cfg,
+        tokens=kernel._tokens,
+        merge_tokens=kernel._merge_tokens,
+        time_meta=kernel._time_meta,
+        resolve_knowledge_type=HitFilterService.resolve_knowledge_type,
+        write_paragraph_vector_or_enqueue=lambda **kwargs: {},
+        ensure_entity_vector=lambda **kwargs: True,
+        should_auto_enqueue_episode=lambda *, source_type: source_type == "chat_summary",
+        persist=persist,
+        mark_person_active=lambda person_id: None,
+        enqueue_person_profile_refresh=lambda person_id, reason="": False,
+        optional_int=kernel._optional_int,
+        background_scheduler=None,
+        argument_tokens=kernel._argument_tokens,
+    )
+
+
 @pytest.mark.asyncio
 async def test_auto_chat_summary_enqueues_new_paragraph_without_source_rebuild(
     monkeypatch: pytest.MonkeyPatch,
@@ -129,6 +158,7 @@ async def test_auto_chat_summary_enqueues_new_paragraph_without_source_rebuild(
     monkeypatch.setattr(kernel, "_persist", fake_persist)
     kernel.summary_importer = _FakeSummaryImporter()
     kernel.metadata_store = metadata_store
+    kernel._ingest_service = _build_ingest_service(kernel, persist=fake_persist)
 
     result = await kernel.summarize_chat_stream(chat_id="session-1")
 
@@ -159,6 +189,7 @@ async def test_auto_chat_summary_requires_paragraph_hash(
     monkeypatch.setattr(kernel, "initialize", fake_initialize)
     kernel.summary_importer = _MissingHashSummaryImporter()
     kernel.metadata_store = _PendingMetadataStore()
+    kernel._ingest_service = _build_ingest_service(kernel, persist=lambda: None)
 
     with pytest.raises(RuntimeError, match="paragraph_hash"):
         await kernel.summarize_chat_stream(chat_id="session-1")

@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from A_memorix.core.embedding import api_adapter as api_adapter_module
 from A_memorix.core.embedding.api_adapter import EmbeddingAPIAdapter
 from A_memorix.core.utils.runtime_self_check import run_embedding_runtime_self_check
 
@@ -24,6 +23,13 @@ class _FakeEmbeddingClient:
         return SimpleNamespace(embedding=[1.0] * dimension)
 
 
+class _FakeEmbeddingRequest:
+    def __init__(self, *, model_info, embedding_input, extra_params):
+        self.model_info = model_info
+        self.embedding_input = embedding_input
+        self.extra_params = extra_params
+
+
 def _build_adapter(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -33,15 +39,19 @@ def _build_adapter(
     dimension_request_mode: str = "explicit",
     model_extra_params: dict | None = None,
 ):
+    fake_client = _FakeEmbeddingClient()
     adapter = EmbeddingAPIAdapter(
         default_dimension=configured_dimension,
         dimension_request_mode=dimension_request_mode,
+        client_registry=SimpleNamespace(
+            get_client_class_instance=lambda api_provider, force_new=True: fake_client
+        ),
+        embedding_request_cls=_FakeEmbeddingRequest,
     )
     if effective_dimension is not None:
         adapter._dimension = int(effective_dimension)
         adapter._dimension_detected = True
 
-    fake_client = _FakeEmbeddingClient()
     model_info = SimpleNamespace(
         name="embedding-model",
         api_provider="provider-1",
@@ -53,11 +63,6 @@ def _build_adapter(
     monkeypatch.setattr(adapter, "_resolve_candidate_model_names", lambda: ["embedding-model"])
     monkeypatch.setattr(adapter, "_find_model_info", lambda model_name: model_info)
     monkeypatch.setattr(adapter, "_find_provider", lambda provider_name: provider)
-    monkeypatch.setattr(
-        api_adapter_module.client_registry,
-        "get_client_class_instance",
-        lambda api_provider, force_new=True: fake_client,
-    )
     return adapter, fake_client
 
 

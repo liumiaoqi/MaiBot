@@ -1,8 +1,10 @@
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 import pytest
 
+from src.A_memorix.core.runtime.admin.delete import DeleteAdminHandler
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
 
 
@@ -29,14 +31,20 @@ async def test_memory_delete_admin_execute_invalidates_import_manifest(monkeypat
         assert kwargs["selector"] == {"sources": ["web_import:demo.txt"]}
         return {"success": True, "sources": ["web_import:demo.txt"], "deleted_source_count": 1}
 
-    monkeypatch.setattr(kernel, "initialize", fake_initialize)
-    monkeypatch.setattr(kernel, "_execute_delete_action", fake_execute_delete_action)
+    async def fake_invalidate_import_manifest_for_sources(result):
+        await manager.invalidate_manifest_for_sources(result["sources"])
 
-    result = await kernel.memory_delete_admin(
+    monkeypatch.setattr(kernel, "initialize", fake_initialize)
+    kernel._delete_service = SimpleNamespace(
+        execute_delete_action=fake_execute_delete_action,
+        invalidate_import_manifest_for_sources=fake_invalidate_import_manifest_for_sources,
+    )
+
+    result = await DeleteAdminHandler(kernel).handle(
         action="execute",
         mode="source",
         selector={"sources": ["web_import:demo.txt"]},
     )
 
     assert manager.sources == ["web_import:demo.txt"]
-    assert result["manifest_invalidation"]["removed_count"] == 1
+    assert result["success"] is True

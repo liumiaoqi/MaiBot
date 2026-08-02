@@ -3,6 +3,9 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
+from src.A_memorix.core.runtime.services.hit_filter import HitFilterService
+from src.A_memorix.core.runtime.services.ingest import IngestService
+from src.A_memorix.core.runtime.services.person_profile_facade import PersonProfileFacade
 from src.A_memorix.core.storage.metadata_store import MetadataStore
 
 
@@ -85,19 +88,51 @@ def _build_kernel(tmp_path, config: Dict[str, Any]) -> tuple[SDKMemoryKernel, _F
         del args, kwargs
         return True
 
-    async def fail_episode_processing(**kwargs: Any) -> Dict[str, Any]:
-        del kwargs
-        raise AssertionError("ingest_text must not process episode pending synchronously")
-
-    async def fail_profile_refresh(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-        del args, kwargs
-        raise AssertionError("ingest_text must enqueue profile refresh instead of refreshing immediately")
-
-    kernel._write_paragraph_vector_or_enqueue = fake_vector_write  # type: ignore[method-assign]
-    kernel._ensure_entity_vector = fake_entity_vector  # type: ignore[method-assign]
-    kernel.process_episode_pending_batch = fail_episode_processing  # type: ignore[method-assign]
-    kernel.refresh_person_profile = fail_profile_refresh  # type: ignore[method-assign]
+    kernel._ingest_service = IngestService(
+        get_metadata_store=lambda: kernel.metadata_store,
+        get_vector_store=lambda: kernel.vector_store,
+        get_graph_store=lambda: kernel.graph_store,
+        get_embedding_manager=lambda: kernel.embedding_manager,
+        get_relation_write_service=lambda: kernel.relation_write_service,
+        get_summary_importer=lambda: None,
+        get_episode_service=lambda: None,
+        is_chat_filtered=lambda **kwargs: False,
+        cfg=kernel._cfg,
+        tokens=kernel._tokens,
+        merge_tokens=kernel._merge_tokens,
+        time_meta=kernel._time_meta,
+        resolve_knowledge_type=HitFilterService.resolve_knowledge_type,
+        write_paragraph_vector_or_enqueue=fake_vector_write,
+        ensure_entity_vector=fake_entity_vector,
+        should_auto_enqueue_episode=lambda *, source_type: _should_auto_enqueue_episode(kernel, source_type),
+        persist=lambda: None,
+        mark_person_active=lambda person_id: None,
+        enqueue_person_profile_refresh=lambda person_id, reason="": metadata_store.enqueue_person_profile_refresh(
+            person_id=person_id, reason=reason
+        ),
+        optional_int=kernel._optional_int,
+        background_scheduler=None,
+        argument_tokens=kernel._argument_tokens,
+    )
+    kernel._person_profile_facade = PersonProfileFacade(
+        cfg=kernel._cfg,
+        metadata_store_getter=lambda: kernel.metadata_store,
+        person_profile_service_getter=lambda: None,
+        hit_filter_service_getter=lambda: None,
+        active_person_timestamps=kernel._active_person_timestamps,
+        background_scheduler=None,
+        initialize=lambda: None,
+    )
     return kernel, metadata_store
+
+
+def _should_auto_enqueue_episode(kernel: SDKMemoryKernel, source_type: str) -> bool:
+    if not bool(kernel._cfg("episode.enabled", True)):
+        return False
+    if not bool(kernel._cfg("episode.generation_enabled", True)):
+        return False
+    disabled_types = kernel._argument_tokens(kernel._cfg("episode.disabled_source_types", ["person_fact"]))
+    return str(source_type or "").strip().lower() not in disabled_types
 
 
 @pytest.mark.asyncio

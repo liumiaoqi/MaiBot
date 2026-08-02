@@ -9,11 +9,11 @@ from src.webui.utils import network_security
 
 
 def _install_webui_url_check_config(monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:
-    config_module = ModuleType("src.config.config")
-    config_module.global_config = SimpleNamespace(
-        webui=SimpleNamespace(enforce_public_outbound_url=enabled),
-    )
-    monkeypatch.setitem(sys.modules, "src.config.config", config_module)
+    class _FakeConfigPort:
+        def get_webui_enforce_public_outbound_url(self) -> bool:
+            return enabled
+
+    monkeypatch.setattr("src.core.app_config_port_registry.get_app_config_port", lambda: _FakeConfigPort())
 
 
 def test_validate_public_url_allows_localhost_when_public_check_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

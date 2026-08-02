@@ -24,6 +24,9 @@ def client_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClien
     app = FastAPI()
     app.include_router(config_router_module.router, prefix="/api/webui")
     app.dependency_overrides[require_auth] = lambda: "test-token"
+    from src.webui.app import _register_exception_handlers
+
+    _register_exception_handlers(app)
     return TestClient(app)
 
 
@@ -35,16 +38,16 @@ def test_update_prompt_file_saves_custom_version(client: TestClient) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["content"] == "Hi {name}"
-    assert payload["customized"] is True
-    assert payload["active_version_id"]
-    assert payload["validation"]["valid"] is True
-    assert payload["versions"][0]["label"] == "测试版本"
-    assert payload["versions"][0]["active"] is True
+    assert payload["data"]["content"] == "Hi {name}"
+    assert payload["data"]["customized"] is True
+    assert payload["data"]["active_version_id"]
+    assert payload["data"]["validation"]["valid"] is True
+    assert payload["data"]["versions"][0]["label"] == "测试版本"
+    assert payload["data"]["versions"][0]["active"] is True
 
     catalog_response = client.get("/api/webui/config/prompts")
     assert catalog_response.status_code == 200
-    [file_info] = catalog_response.json()["files"]["zh-CN"]
+    [file_info] = catalog_response.json()["data"]["files"]["zh-CN"]
     assert file_info["customized"] is True
     assert file_info["custom_version_count"] == 1
 
@@ -56,8 +59,8 @@ def test_update_prompt_file_rejects_placeholder_mismatch(client: TestClient) -> 
     )
 
     assert response.status_code == 400
-    assert "缺少参数: name" in response.json()["detail"]
-    assert "多余参数: other" in response.json()["detail"]
+    assert "缺少参数: name" in response.json()["error_message"]
+    assert "多余参数: other" in response.json()["error_message"]
 
 
 def test_activate_prompt_version_rejects_placeholder_mismatch(client: TestClient) -> None:
@@ -65,7 +68,7 @@ def test_activate_prompt_version_rejects_placeholder_mismatch(client: TestClient
         "/api/webui/config/prompts/zh-CN/replyer.prompt",
         json={"content": "Hi {name}", "create_version": True, "label": "有效版本"},
     )
-    version_id = save_response.json()["active_version_id"]
+    version_id = save_response.json()["data"]["active_version_id"]
 
     custom_root = config_router_module.CUSTOM_PROMPTS_DIR
     version_path = custom_root / "zh-CN" / ".versions" / "replyer" / f"{version_id}.prompt"
@@ -74,5 +77,5 @@ def test_activate_prompt_version_rejects_placeholder_mismatch(client: TestClient
     response = client.post(f"/api/webui/config/prompts/zh-CN/replyer.prompt/versions/{version_id}/activate")
 
     assert response.status_code == 400
-    assert "缺少参数: name" in response.json()["detail"]
-    assert "多余参数: other" in response.json()["detail"]
+    assert "缺少参数: name" in response.json()["error_message"]
+    assert "多余参数: other" in response.json()["error_message"]
