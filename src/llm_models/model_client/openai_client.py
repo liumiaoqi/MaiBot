@@ -672,7 +672,7 @@ def _extract_xml_tool_calls(
         if normalized_value.startswith(("{", "[")):
             try:
                 return repair_json(normalized_value, return_objects=True, logging=False)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in openai_client.py", exc_info=True)
                 return normalized_value
         return normalized_value

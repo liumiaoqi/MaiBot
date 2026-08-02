@@ -248,7 +248,7 @@ class ParameterEvolutionEngine:
             try:
                 allocation = self._budget_manager.get_budget(agent_id, 128000)
                 return getattr(allocation, segment, 0.05)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in evolution.py", exc_info=True)
         return 0.05
 

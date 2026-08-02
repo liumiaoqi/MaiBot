@@ -2,8 +2,7 @@ import time
 
 from src.common.logger import get_logger
 
-from ..connectionist.enums import Valence
-from ..connectionist.models import DecayResult, MemoryPersonalityV2, Trace
+from ..connectionist.models import DecayResult, Trace
 from ..connectionist.trace_store import TraceStore
 from ..personality.personality_registry import PersonalityRegistry
 

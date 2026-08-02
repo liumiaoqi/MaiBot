@@ -1,6 +1,5 @@
-import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig, MemoryPersonalityV2
@@ -90,7 +89,7 @@ class InnerWorld:
         if self._emotion_manager is not None:
             try:
                 emotion_text = self._emotion_manager.state.to_prompt_text()
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 emotion_text = "心情平静"
 
@@ -105,7 +104,7 @@ class InnerWorld:
                     desire_summary = "、".join(
                         f"{n.description}" for n in needs[:3] if n.description
                     )
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 
@@ -193,7 +192,7 @@ class InnerWorld:
                     desire_summary = "、".join(
                         f"{n.description}" for n in needs[:3] if n.description
                     )
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 

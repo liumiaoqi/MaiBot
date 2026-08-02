@@ -68,7 +68,7 @@ class DeepSeekOptimizer:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.enabled
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in optimizer.py", exc_info=True)
         return False
 
@@ -92,7 +92,7 @@ class DeepSeekOptimizer:
             if registry.has_agent(agent_id):
                 config = registry.get_agent(agent_id).deepseek
                 return config.injection_strategy
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in optimizer.py", exc_info=True)
 
         if model_context_window >= _FULL_STRATEGY_THRESHOLD:
@@ -220,7 +220,7 @@ class DeepSeekOptimizer:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.injection_priority
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in optimizer.py", exc_info=True)
         return ["identity", "anti_mechanization", "profile", "mid_term", "heuristic"]
 

@@ -66,7 +66,7 @@ class BuiltinToolRuntimeContext:
         if not agent_id and self.runtime is not None:
             try:
                 agent_id = self.runtime._chat_loop_service.agent_id
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in context.py", exc_info=True)
         is_multi = self.is_multi_agent_active
         if not is_multi and self.runtime is not None:
@@ -74,7 +74,7 @@ class BuiltinToolRuntimeContext:
                 session_info = self.runtime._session_info
                 if session_info.cohabitant_agent_ids:
                     is_multi = True
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in context.py", exc_info=True)
         return agent_id, is_multi
 

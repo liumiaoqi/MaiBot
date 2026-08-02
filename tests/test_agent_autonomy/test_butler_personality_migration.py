@@ -1,6 +1,5 @@
 """ZG 人格迁移测试 — 管家性格加载从 expression_layer 读取"""
 
-from unittest.mock import MagicMock
 
 from src.maisaka.agent.config import AgentConfig, LayeredPersonality
 

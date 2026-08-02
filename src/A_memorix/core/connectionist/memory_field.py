@@ -16,7 +16,6 @@ from .models import (
     InnerVoice,
     LifecycleResult,
     MemoryPersonalityV2,
-    ObserveResult,
     ProfileView,
     RecallItem,
     ReflectResult,

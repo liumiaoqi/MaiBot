@@ -76,13 +76,13 @@ def _structured_prompt_content_to_text(content: Any) -> str:
                 continue
             try:
                 parts.append(json.dumps(item, ensure_ascii=False, indent=2, default=str))
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in reasoning_process", exc_info=True)
                 parts.append(str(item))
         return "\n".join(part for part in parts if part).strip()
     try:
         return json.dumps(content, ensure_ascii=False, indent=2, default=str)
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in reasoning_process", exc_info=True)
         return str(content)
 

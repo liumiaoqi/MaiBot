@@ -11,14 +11,12 @@ from src.core.service_manager.lifecycle import ComponentActions
 from src.core.service_manager.types import (
     DependencyKind,
     DependencyRelation,
-    HealthCheckMode,
     ServiceDescriptor,
     ServiceState,
     SystemHealthLevel,
 )
 from src.core.startup.types import (
     ComponentStatus,
-    CoreReadiness,
     StartupComponent,
     StartupPhase,
     PhaseResult,

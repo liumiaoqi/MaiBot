@@ -82,7 +82,7 @@ def _load_stats(raw_stats: Any) -> dict[str, int]:
         }
     try:
         stats = loads(raw_stats)
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in image_path_maintenance_service.py", exc_info=True)
         return {
             "scanned_records": 0,

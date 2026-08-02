@@ -3,7 +3,7 @@
 
 import asyncio
 import time
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
 
 from src.common.logger import get_logger

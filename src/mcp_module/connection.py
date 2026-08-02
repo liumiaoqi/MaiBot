@@ -642,7 +642,7 @@ class MCPConnection:
 
         try:
             await self._exit_stack.aclose()
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in connection", exc_info=True)
 
         self.session = None

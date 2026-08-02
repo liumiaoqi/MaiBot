@@ -2,7 +2,7 @@ import time
 
 from ..connectionist.concept_index import ConceptIndex
 from ..connectionist.enums import Valence
-from ..connectionist.models import MemoryPersonalityV2, RecallItem, Trace
+from ..connectionist.models import MemoryPersonalityV2, RecallItem
 from ..connectionist.trace_store import TraceStore
 from ..connectionist.models import _relative_time_from_timestamp
 

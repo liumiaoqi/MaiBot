@@ -1,13 +1,13 @@
 """DeepSeek 优化面板 API 路由"""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from src.common.logger import get_logger
 from src.core.adapters.agent_config_port import get_agent_config_provider
-from src.maisaka.deepseek.batch_scheduler import BatchScheduler, BatchTaskStatus
+from src.maisaka.deepseek.batch_scheduler import BatchScheduler
 from src.maisaka.deepseek.budget import TokenBudgetManager
 from src.maisaka.deepseek.cost_tracker import CostTracker
 from src.maisaka.deepseek.prefix_cache import PrefixCacheManager

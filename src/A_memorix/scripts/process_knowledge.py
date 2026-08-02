@@ -12,17 +12,14 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import argparse
 import asyncio
 import hashlib
 import json
-import os
-import random
 import sys
 import time
 import tomlkit

@@ -1,37 +1,27 @@
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Sequence
 
 import asyncio
-import numpy as np
 import time
 
 from src.common.logger import get_logger
-from src.common.prompt_i18n import load_prompt
 from ...paths import default_data_dir, resolve_repo_path
-from ..embedding import create_embedding_api_adapter
-from ..retrieval import RetrievalResult, SparseBM25Config, SparseBM25Index
-from ..storage import GraphStore, MetadataStore, QuantizationType, SparseMatrixFormat, VectorStore
+from ..retrieval import SparseBM25Index
+from ..storage import GraphStore, MetadataStore, VectorStore
 from ..utils.aggregate_query_service import AggregateQueryService
 from ..utils.episode_retrieval_service import EpisodeRetrievalService
 from ..utils.episode_segmentation_service import EpisodeSegmentationService
 from ..utils.episode_service import EpisodeService
-from ..utils.hash import compute_hash, normalize_text
-from ..utils.metadata import coerce_metadata_dict
 from ..utils.person_profile_service import PersonProfileService
 from ..utils.relation_write_service import RelationWriteService
 from ..utils.retrieval_tuning_manager import RetrievalTuningManager
 
-from ..utils.search_execution_service import SearchExecutionRequest, SearchExecutionResult, SearchExecutionService
 from ..utils.summary_importer import SummaryImporter
-from ..utils.time_parser import format_timestamp, parse_query_datetime_to_timestamp
 from ..utils.web_import_manager import ImportTaskManager
-from .search_runtime_initializer import SearchRuntimeBundle, build_search_runtime
-from .services.graph_ops import GraphOpsService
+from .search_runtime_initializer import SearchRuntimeBundle
 from .services.hit_filter import HitFilterService
 from .services.kernel_initializer import KernelInitializer
-from .services.profile_evidence import ProfileEvidenceService
-from .services.types import KernelSearchRequest, NormalizedSearchTimeWindow as _NormalizedSearchTimeWindow
+from .services.types import KernelSearchRequest
 
 logger = get_logger("A_Memorix.SDKMemoryKernel")
 
@@ -150,7 +140,6 @@ class SDKMemoryKernel:
         user_id: str = "",
         default_when_empty: bool = True,
     ) -> bool:
-        from .services.hit_filter import HitFilterService
         return HitFilterService.chat_filter_config_allows(
             filter_config, stream_id=stream_id, group_id=group_id, user_id=user_id, default_when_empty=default_when_empty,
         )

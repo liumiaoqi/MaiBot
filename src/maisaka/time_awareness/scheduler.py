@@ -8,7 +8,6 @@
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 from src.maisaka.agent.config import TimeTriggerRule
 

@@ -637,7 +637,7 @@ class MaisakaChatLoopService:
                 if registry.has_agent(self._agent_id):
                     agent_config = registry.get_agent(self._agent_id)
                     return agent_config.identity_prompt
-            except Exception as exc:
+            except Exception:
                 logger.warning("更新情感状态文本失败", exc_info=True)
 
         try:
@@ -656,7 +656,7 @@ class MaisakaChatLoopService:
             if alias_names:
                 prompt_lines.append(f"{bot_name}的昵称还有{','.join(alias_names)}")
             return "\n".join(prompt_lines)
-        except Exception as exc:
+        except Exception:
             logger.warning("读取 personality_prompt 失败，使用默认值", exc_info=True)
             return "麦麦是人类。"
 
@@ -674,7 +674,7 @@ class MaisakaChatLoopService:
 
         try:
             return load_prompt(self._get_chat_prompt_name(), **self.build_prompt_template_context(tools_section))
-        except Exception as exc:
+        except Exception:
             logger.warning("构建 chat_prompt 失败，使用默认值", exc_info=True)
             return f"{self.personality_prompt}\n\nYou are a helpful AI assistant."
 
@@ -725,7 +725,7 @@ class MaisakaChatLoopService:
                     agent_interaction_memory = self._build_agent_interaction_memory(
                         self._agent_id, agent_config
                     )
-            except Exception as exc:
+            except Exception:
                 logger.warning("保存交互记录失败", exc_info=True)
 
         if self._emotion_state_text:
@@ -795,7 +795,7 @@ class MaisakaChatLoopService:
             if not results:
                 return ""
             return "## 最近的交互动态\n" + "\n".join(results)
-        except Exception as exc:
+        except Exception:
             logger.warning("获取记忆预览失败", exc_info=True)
             return ""
 

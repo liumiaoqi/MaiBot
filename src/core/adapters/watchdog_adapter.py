@@ -38,6 +38,7 @@ class WatchdogAdapter(WatchdogPort):
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
         self._running: bool = False
         self._status_subscribers: list[Callable[[WatchdogStatus], None]] = []
+        self._timeout_subscribers: list[Callable[[FaultReportEvent], None]] = []
 
     async def start(self, main_loop: asyncio.AbstractEventLoop) -> None:
         """启动看门狗。"""
@@ -101,7 +102,8 @@ class WatchdogAdapter(WatchdogPort):
         await self._notify_subscribers_async()
 
     async def _do_report(self, event: FaultReportEvent) -> None:
-        """经 ServiceManagerPort 上报故障。"""
+        """经 ServiceManagerPort 上报故障 + 通知超时订阅者（ZG-8 force 触发）。"""
+        self._notify_timeout_subscribers(event)
         sm_port = get_service_manager_port()
         if sm_port is None:
             logger.warning("ServiceManagerPort 未注册，跳过上报")
@@ -152,6 +154,32 @@ class WatchdogAdapter(WatchdogPort):
         if self._runner_bridge is None:
             return []
         return self._runner_bridge.list_runner_bridge_status()
+
+    def subscribe_timeout(
+        self, callback: Callable[[FaultReportEvent], None]
+    ) -> None:
+        """订阅组件无响应超时事件（ZG-8 消费触发 force 通道）。
+
+        故障上报路径（_do_report）在收到 FaultReportEvent 时同步通知已注册回调。
+        """
+        self._timeout_subscribers.append(callback)
+
+    def unsubscribe_timeout(
+        self, callback: Callable[[FaultReportEvent], None]
+    ) -> None:
+        """取消订阅。"""
+        try:
+            self._timeout_subscribers.remove(callback)
+        except ValueError:
+            pass
+
+    def _notify_timeout_subscribers(self, event: FaultReportEvent) -> None:
+        """通知超时订阅者（组件无响应类故障）。"""
+        for callback in self._timeout_subscribers:
+            try:
+                callback(event)
+            except Exception:
+                logger.warning("超时订阅回调异常", exc_info=True)
 
     def subscribe_status_change(
         self, callback: Callable[[WatchdogStatus], None]

@@ -17,16 +17,7 @@ if "structlog" not in sys.modules:
 
 import pytest
 
-from src.core.resource_limit.oom_handler import OOMHandler
 from src.core.resource_limit.resource_counter import ResourceCounter
-from src.core.resource_limit.resource_event_propagator import (
-    ResourceEventPropagator,
-)
-from src.core.resource_limit.resource_limit_config import (
-    FourTierLimit,
-    ResourceLimitConfig,
-    ResourceLimitConfigManager,
-)
 from src.core.resource_limit.types import ResourceDimension
 
 _SRC_CORE = Path(__file__).resolve().parents[3] / "src" / "core"

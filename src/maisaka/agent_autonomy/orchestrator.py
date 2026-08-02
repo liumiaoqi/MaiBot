@@ -7,7 +7,7 @@ from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.event_bus_port_registry import get_event_bus_port
 from src.core.protocols import AgentRoutingService, NoticeClassifier, ThinkingOrganFactory
-from src.core.types import CoreMessage, NoticeKind, ThinkAction, ThinkContext, ThinkResult
+from src.core.types import CoreMessage, NoticeKind, ThinkAction, ThinkContext
 from src.maisaka.agent_autonomy.agent import AutonomousAgent
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger, AutonomyEventSubscriber
@@ -28,7 +28,6 @@ from src.maisaka.agent_autonomy.butler import Butler
 from src.maisaka.agent_autonomy.log_utils import fmt_butler, fmt_transfer
 from src.maisaka.agent_autonomy.speaker_transfer import (
     SpeakerTransferType,
-    TransferDecision,
     TransferDecisionSource,
 )
 
@@ -59,7 +58,6 @@ class AgentOrchestrator:
 
     @staticmethod
     def _get_default_thinking_organ_factory() -> ThinkingOrganFactory:
-        from src.maisaka.agent_autonomy.thinking_organ_factory import ThinkingOrganFactory
         raise ValueError(
             "AgentOrchestrator 必须显式传入 thinking_organ_factory，"
             "简化模式已废除，默认工厂不再可用"
@@ -354,7 +352,7 @@ class AgentOrchestrator:
                 self._experience_writer.write_experience(
                     result, self._session_id, agent_id, emotion_state,
                 )
-            except Exception as exc:
+            except Exception:
                 logger.warning(
                     "体验写入发起失败: agent=%s", agent_id, exc_info=True,
                 )
@@ -378,7 +376,7 @@ class AgentOrchestrator:
                     activity.thought_summary = thought_summary[:500]
                     activity.last_think_at = datetime.now()
                     db.commit()
-        except Exception as exc:
+        except Exception:
             logger.debug("thought_summary 持久化跳过: agent=%s", agent_id, exc_info=True)
 
     async def _load_thought_summary(self, agent_id: str) -> tuple[str, float]:
@@ -399,7 +397,7 @@ class AgentOrchestrator:
                     if activity.last_think_at:
                         elapsed = (datetime.now() - activity.last_think_at).total_seconds()
                     return activity.thought_summary, elapsed
-        except Exception as exc:
+        except Exception:
             logger.debug("thought_summary 读取跳过: agent=%s", agent_id, exc_info=True)
         return "", 0.0
 
@@ -1516,7 +1514,7 @@ class AgentOrchestrator:
                 if isinstance(items, list) and items:
                     memory_snippets = self._format_layered_memory_snippets(items)
                 intuition_context = getattr(recall_result, "intuition", None)
-        except Exception as exc:
+        except Exception:
             logger.warning("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
 
         # LS-0: 读取上次思考摘要

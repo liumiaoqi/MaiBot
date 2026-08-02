@@ -1024,7 +1024,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).talk_value_modifier
-        except Exception as exc:
+        except Exception:
             logger.warning("读取 agent talk_value_modifier 失败: agent_id=%s", agent_id, exc_info=True)
             return 1.0
 
@@ -1454,7 +1454,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 agent_config = registry.get_agent(agent_id)
                 self._emotion_manager = EmotionManager(agent_config)
                 self._sync_emotion_to_prompt()
-        except Exception as exc:
+        except Exception:
             logger.warning(
                 "%s EmotionManager 初始化失败: agent_id=%s",
                 self.log_prefix, agent_id, exc_info=True,
@@ -1472,7 +1472,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if self._emotion_manager is not None:
                 rel_mgr.set_emotion_trigger_callback(self.trigger_emotion)
             self._relationship_manager = rel_mgr
-        except Exception as exc:
+        except Exception:
             logger.warning(
                 "%s RelationshipManager 初始化失败",
                 self.log_prefix, exc_info=True,
@@ -2099,7 +2099,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         async def run_expression_learning() -> bool:
             try:
                 return await self._expression_learner.learn_from_context_messages(context_messages)
-            except Exception as exc:
+            except Exception:
                 logger.exception(f"{self.log_prefix} 裁切历史表达学习异常")
                 return False
 
@@ -2109,14 +2109,14 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                     context_messages,
                     self._jargon_miner,
                 )
-            except Exception as exc:
+            except Exception:
                 logger.exception(f"{self.log_prefix} 裁切历史黑话学习异常")
                 return False
 
         async def run_high_frequency_learning() -> bool:
             try:
                 updated_count = update_high_frequency_terms_from_context_messages(context_messages)
-            except Exception as exc:
+            except Exception:
                 logger.exception(f"{self.log_prefix} 裁切历史高频词学习异常")
                 return False
             if updated_count <= 0:

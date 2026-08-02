@@ -4,7 +4,6 @@
 from typing import Optional
 
 from src.common.logger import get_logger
-from src.core.protocols import AgentRoutingService
 from src.maisaka.agent.config import AgentConfig
 
 logger = get_logger("core.adapters.routing_adapter")

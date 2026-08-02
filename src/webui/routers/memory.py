@@ -116,7 +116,7 @@ def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[st
         name = _get_session_name_via_port(chat_id)
         if name != chat_id:
             return name
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in memory", exc_info=True)
     if name := _get_chat_name_from_latest_message(latest_messages.get(chat_id)):
         return name
@@ -161,7 +161,7 @@ def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
         if get_existing_session_info(chat_id) is not None:
             normalized["chat_id"] = chat_id
             return normalized
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in memory", exc_info=True)
     with get_db_session() as session:
         chat_session = session.exec(select(ChatSession).where(col(ChatSession.session_id) == chat_id)).first()
@@ -179,7 +179,7 @@ def _find_real_chat_session(chat_id: str) -> Optional[ChatSession]:
         if managed_session is not None:
             with get_db_session() as session:
                 return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in memory", exc_info=True)
     with get_db_session() as session:
         return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
@@ -264,7 +264,7 @@ def _timeline_chat_from_session(chat_session: ChatSession) -> MemoryTimelineChat
     try:
         with get_db_session() as session:
             latest_messages = _prefetch_latest_messages_by_session(session, [chat_id])
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in memory", exc_info=True)
         latest_messages = {}
     return MemoryTimelineChat(
@@ -310,13 +310,13 @@ def _decode_metadata_payload(raw: Any) -> dict[str, Any]:
         try:
             decoded = json.loads(raw.decode("utf-8"))
             return dict(decoded) if isinstance(decoded, dict) else {}
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory", exc_info=True)
     if isinstance(raw, str) and raw.strip():
         try:
             decoded = json.loads(raw)
             return dict(decoded) if isinstance(decoded, dict) else {}
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory", exc_info=True)
     return {}
 
@@ -326,7 +326,7 @@ def _decode_json_payload(raw: Any, fallback: Any) -> Any:
     if isinstance(raw, str) and raw.strip():
         try:
             return json.loads(raw)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory", exc_info=True)
             return fallback
     return fallback
@@ -1424,7 +1424,7 @@ def _get_person_name_for_person_id(person_id: str) -> str:
             statement = select(PersonInfo.person_name).where(col(PersonInfo.person_id) == clean_person_id).limit(1)
             person_name = session.exec(statement).first()
             return str(person_name or "").strip()
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in memory", exc_info=True)
 
 def _enrich_episode_person_name(item: dict) -> dict:
@@ -2216,7 +2216,7 @@ async def create_memory_import_upload(
     try:
         try:
             payload = json.loads(payload_json or "{}")
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory", exc_info=True)
             payload = {}
         if not isinstance(payload, dict):

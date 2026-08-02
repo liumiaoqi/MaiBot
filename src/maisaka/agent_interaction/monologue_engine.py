@@ -97,7 +97,7 @@ class MonologueEngine:
         # 获取智能体配置
         try:
             config = self._config_registry.get_agent(agent_id)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in monologue_engine.py", exc_info=True)
             return MonologueResult(error=f"无法获取智能体配置: {agent_id}")
 
@@ -165,7 +165,7 @@ class MonologueEngine:
                 )
                 if result.success and result.hits:
                     memory_context = result.hits[0].content[:100]
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in monologue_engine.py", exc_info=True)
 
         # 使用模板生成（LLM生成可后续扩展）

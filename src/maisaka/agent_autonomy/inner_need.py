@@ -2,7 +2,7 @@
 
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from src.common.logger import get_logger
@@ -81,7 +81,6 @@ class EmotionNeedCalculator(BaseNeedCalculator):
             ))
 
         if dominant == "calm" and intensity < 20:
-            import time
             needs.append(InnerNeed(
                 need_type="boredom",
                 strength=30.0,

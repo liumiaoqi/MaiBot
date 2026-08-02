@@ -6,6 +6,7 @@
 
 from src.core.adapters.agent_config_port import get_agent_config_provider, reset_agent_config_provider  # noqa: F401
 from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
+from src.core.adapters.control_message_adapter import ControlMessageAdapter
 from src.core.adapters.core_readiness_port import CoreReadinessPortAdapter
 from src.core.adapters.llm_service_port import get_llm_service, reset_llm_service  # noqa: F401
 from src.core.adapters.memory_service import get_memory_service_port, reset_memory_service_port  # noqa: F401
@@ -24,6 +25,7 @@ from src.core.app_config_port_registry import get_app_config_port  # noqa: F401
 __all__ = [
     "AMemorixMemoryServicePort",
     "ChatManagerAdapter",
+    "ControlMessageAdapter",
     "CoreReadinessPortAdapter",
     "ChatManagerRoutingAdapter",
     "HeartflowRuntimeRegistry",

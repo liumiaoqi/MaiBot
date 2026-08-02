@@ -96,7 +96,7 @@ class TokenBudgetManager:
                 registry = get_agent_config_provider()
                 if registry.has_agent(agent_id):
                     budget_ratio = registry.get_agent(agent_id).deepseek.token_budget_ratio
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in budget.py", exc_info=True)
 
             scaled = {k: v * budget_ratio for k, v in alloc_dict.items()}
@@ -104,7 +104,7 @@ class TokenBudgetManager:
             normalized = {k: v / total for k, v in scaled.items()}
 
             allocation = TokenBudgetAllocation(**normalized)
-        except Exception as exc:
+        except Exception:
             logger.warning(f"Token预算分配失败: {agent_id}，使用默认分配")
             allocation = TokenBudgetAllocation()
 

@@ -1,7 +1,6 @@
 """智能体自主性日志工具 — 统一的日志格式辅助。"""
 
 
-from typing import Optional
 
 from src.common.logger import get_logger
 logger = get_logger("agent_autonomy.log_utils")

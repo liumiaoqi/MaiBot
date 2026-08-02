@@ -583,7 +583,7 @@ async def _default_stream_response_handler(
             _process_stream_chunk(chunk, content_buffer, tool_calls_buffer, api_response)
             usage_record = _extract_usage_record(chunk) or usage_record
         return _build_stream_api_response(content_buffer, tool_calls_buffer, last_response, api_response), usage_record
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in gemini_client.py", exc_info=True)
         if not content_buffer.closed:
             content_buffer.close()

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from src.common.logger import get_logger
 
@@ -75,7 +75,6 @@ class MaintenanceService:
 
     async def memory_maintenance_loop(self) -> None:
         import asyncio
-        import time
         try:
             while not self._background_scheduler.stopping:
                 interval_hours = max(1.0 / 60.0, float(self._cfg("memory.base_decay_interval_hours", 1.0) or 1.0))

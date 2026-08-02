@@ -1,6 +1,5 @@
 """ZG 人格迁移测试 — identity_prompt 属性 + get_identity_summary 迁移验证"""
 
-import pytest
 
 from src.maisaka.agent.config import AgentConfig, LayeredPersonality
 

@@ -4,7 +4,7 @@
 import pytest
 
 from src.core.resource_limit.resource_counter import ResourceCounter
-from src.core.resource_limit.types import ChargeResult, ResourceDimension
+from src.core.resource_limit.types import ResourceDimension
 
 
 class TestResourceCounter:

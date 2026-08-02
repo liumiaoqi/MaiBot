@@ -43,7 +43,7 @@ def _guess_image_format(image_bytes: bytes) -> Optional[str]:
     try:
         with PILImage.open(BytesIO(image_bytes)) as image:
             return image.format.lower() if image.format else None
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in messages", exc_info=True)
 
 

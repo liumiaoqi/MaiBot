@@ -238,6 +238,34 @@ class ChatBot:
                 logger.warning(f"Hook {hook_name} 返回的 message 无法反序列化，已忽略: {exc}")
         return hook_result, mutated_message
 
+    def _consume_control_messages(self, session_id: str) -> None:
+        """T15 ZG-8 衔接：消息处理路径消费 pending 控制消息。
+
+        消费点 = 用户消息处理路径（bot.py receive_message，design 裁决）；
+        控制消息的处理动作路由（停止会话/暂停回复等）随实际投递方接入。
+        global_enabled=false 或 Port 未注册时透明跳过（渐进启用，spec §4.5）。
+        """
+        try:
+            from src.core.app_config_port_registry import get_app_config_port
+            from src.core.control_message_port_registry import get_control_message_port
+
+            if not get_app_config_port().get_control_message_global_enabled():
+                return
+            port = get_control_message_port()
+        except Exception:
+            return
+        while True:
+            try:
+                msg = port.dequeue_next(session_id)
+            except Exception:
+                return
+            if msg is None:
+                break
+            logger.info(
+                f"消费控制消息: kind={msg.kind.name} session={session_id} "
+                f"source={msg.source} trace={msg.trace_id}"
+            )
+
     async def _process_commands(self, message: SessionMessage) -> tuple[bool, Optional[str], bool]:
         """使用统一组件注册表处理命令。
 
@@ -537,6 +565,10 @@ class ChatBot:
                     f"消息 {message.message_id} 入站过大图片处理完成: "
                     f"{'；'.join(image_process_details)}"
                 )
+
+            # T15 ZG-8 衔接：用户消息处理路径消费 pending 控制消息
+            # （消费点 = 消息处理路径，spec §5.3.1 规则 5；未启用时透明跳过）
+            self._consume_control_messages(session_id)
 
             before_process_result, message = await self._invoke_message_hook(
                 "chat.receive.before_process",

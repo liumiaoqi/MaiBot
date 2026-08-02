@@ -288,7 +288,7 @@ def _resolve_static_path() -> Path | None:
             package_path = get_dist_path()
             if isinstance(package_path, Path) and package_path.exists():
                 return package_path
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in app.py", exc_info=True)
 
     return None

@@ -9,7 +9,6 @@ from src.common.logger import get_logger
 from .session_types import BotChatSession
 
 if TYPE_CHECKING:
-    from .message import SessionMessage
     from .message_registry import MessageRegistry
 
 logger = get_logger("session_store")

@@ -1,6 +1,5 @@
 import re
 
-import jieba
 import jieba.posseg as pseg
 
 from src.common.logger import get_logger

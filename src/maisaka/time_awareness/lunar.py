@@ -138,7 +138,7 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
                         date=target_date,
                         is_today=True,
                     )
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in lunar.py", exc_info=True)
 
     except ImportError:
@@ -181,7 +181,7 @@ def get_solar_terms_near(target_date: date | None = None, days: int = 7) -> list
                             date=check_date,
                             is_today=delta == 0,
                         ))
-            except Exception as exc:
+            except Exception:
                 continue
 
     except ImportError:

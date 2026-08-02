@@ -37,10 +37,20 @@ if TYPE_CHECKING:
         SystemHealthView,
     )
     from src.core.startup.types import CoreReadiness, StartupResult
+    from src.core.control_message.types import (
+        ControlMessage,
+        ControlMessageDeliveryResult,
+        ControlMessageEffectiveMask,
+        ControlMessageKind,
+        ControlMessagePendingView,
+        DeliveryDecisionRecord,
+        FatalDiffuseRecord,
+        MaskOperation,
+        MaskScope,
+        UnkillableDeclaration,
+    )
     from src.core.resource_limit.types import (
         ChargeResult,
-        LimitDecision,
-        OOMAction,
         OOMDecision,
         OOMDecisionRecord,
         PressureHistoryEntry,
@@ -51,7 +61,7 @@ if TYPE_CHECKING:
         ResourceUsageSnapshot,
     )
     from src.core.watchdog.config import WatchdogConfig
-    from src.core.watchdog.types import RunnerBridgeStatus, WatchdogStatus
+    from src.core.watchdog.types import FaultReportEvent, RunnerBridgeStatus, WatchdogStatus
     from src.maisaka.agent.config import AgentConfig
     from src.core.types import (
         AgentAutonomySnapshot,
@@ -653,6 +663,34 @@ class SessionLifecyclePort(Protocol):
             interval_seconds: 保存间隔（秒）
         """
 
+    def subscribe_session_created(
+        self, callback: Callable[[str], None]
+    ) -> None:
+        """订阅会话创建事件（ZG-8 维护私有 pending 队列）。
+
+        Args:
+            callback: 会话创建回调（参数为 session_id）
+        """
+
+    def subscribe_session_destroyed(
+        self, callback: Callable[[str], None]
+    ) -> None:
+        """订阅会话销毁事件（ZG-8 清理私有队列 + 致命扩散）。
+
+        Args:
+            callback: 会话销毁回调（参数为 session_id）
+        """
+
+    async def list_session_async_tasks(self, session_id: str) -> list:
+        """查询会话关联的异步任务列表（致命扩散使用）。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            会话关联的 asyncio.Task 列表；查询失败抛异常（由调用方跳过扩散）
+        """
+
 
 @runtime_checkable
 class SessionQueryPort(Protocol):
@@ -1186,6 +1224,48 @@ class AppConfigPort(Protocol):
         """
         ...
 
+    # === Control Message 域（ZG-8）===
+
+    def get_control_message_global_enabled(self) -> bool:
+        """获取控制消息优先级全局开关（渐进启用，默认 false）。"""
+        ...
+
+    def get_control_message_unmaskable_whitelist(self) -> set[int]:
+        """获取不可屏蔽类别白名单（默认 {1,2,3}，运行时不可修改）。"""
+        ...
+
+    def get_control_message_private_queue_limit(self) -> int:
+        """获取会话私有 pending 队列节点数上限（默认 256）。"""
+        ...
+
+    def get_control_message_shared_queue_limit(self) -> int:
+        """获取系统共享 pending 队列节点数上限（默认 1024）。"""
+        ...
+
+    def get_control_message_unkillable_entities(self) -> list[str]:
+        """获取 UNKILLABLE 实体清单（Orchestrator 运行时声明的补充）。"""
+        ...
+
+    def get_control_message_system_blocked_kinds(self) -> set[int]:
+        """获取系统级屏蔽集类别（默认空）。"""
+        ...
+
+    def get_control_message_system_ignored_kinds(self) -> set[int]:
+        """获取系统级忽略集类别（默认空）。"""
+        ...
+
+    def get_control_message_delivery_history_limit(self) -> int:
+        """获取投递决策历史环形缓冲上限（默认 100）。"""
+        ...
+
+    def get_control_message_diffuse_timeout_sec(self) -> float:
+        """获取致命扩散超时秒数（默认 5.0）。"""
+        ...
+
+    def get_control_message_force_caller_whitelist(self) -> set[str]:
+        """获取 force 通道调用方白名单（系统核心层）。"""
+        ...
+
     def register_reload_callback(self, callback: object) -> None:
         """注册全局配置热重载回调。
 
@@ -1422,6 +1502,24 @@ class WatchdogPort(Protocol):
             RunnerBridgeStatus 列表
         """
 
+    def subscribe_timeout(self, callback: Callable[["FaultReportEvent"], None]) -> None:
+        """订阅组件无响应超时事件（ZG-8 消费触发 force 通道）。
+
+        看门狗检测到组件无响应超时时调用已注册回调（FaultReportEvent 含
+        component_id / reason / detail）；ZG-8 收到通知后通过 force 通道
+        投递 EMERGENCY_STOP 到超时组件。
+
+        Args:
+            callback: 超时事件回调函数
+        """
+
+    def unsubscribe_timeout(self, callback: Callable[["FaultReportEvent"], None]) -> None:
+        """取消订阅。
+
+        Args:
+            callback: 先前注册过的回调函数
+        """
+
     def subscribe_status_change(self, callback: Callable[["WatchdogStatus"], None]) -> None:
         """订阅检测状态变更事件（供 WebUI 内省）。
 
@@ -1610,3 +1708,226 @@ class ResourceLimitPort(Protocol):
         self, limit: int = 100
     ) -> list["OOMDecisionRecord"]:
         """查询 OOM 决策历史（环形缓冲，最近 limit 条）。"""
+
+
+@runtime_checkable
+class ControlMessagePort(Protocol):
+    """控制消息优先级接口 — 控制消息的优先级投递、屏蔽、UNKILLABLE 保护、force 强制投递。
+
+    核心通过此接口管理控制消息优先级，不直接依赖 ZG-8 具体实现。
+    适配器层（ControlMessageAdapter）是唯一允许导入控制消息引擎类的地方。
+
+    对标 Linux 内核信号机制（signal.c）：带优先级、可屏蔽、有不可捕获特权通道的事件投递系统。
+
+    接口分类：
+    - 投递类（热路径）：send / force_send / dequeue_next
+    - 屏蔽管理类：set_blocked / set_ignored / get_effective_mask
+    - UNKILLABLE 管理类：declare_unkillable / clear_unkillable / list_unkillable_entities
+    - 会话生命周期类：on_session_created / on_session_destroyed
+    - 内省查询类：get_pending_view / get_delivery_history / get_diffuse_history
+    """
+
+    # === 投递类（热路径）===
+
+    async def send(
+        self,
+        kind: "ControlMessageKind",
+        payload: dict[str, Any],
+        target_session_id: str = "",
+        target_entity: str = "",
+        source: str = "",
+        trace_id: str = "",
+    ) -> "ControlMessageDeliveryResult":
+        """投递控制消息（非 force，走完整优先级链）。
+
+        前置：kind 在 1-16 范围内（越界抛 ValueError）；target_session_id 非空时
+        会话必须存在（不存在返回 TARGET_GONE）。
+        后置：被忽略的消息不入队（REJECTED_IGNORED）；被 UNKILLABLE 保护拒绝
+        （REJECTED_UNKILLABLE）；其余入队（QUEUED），类别为致命时触发异步扩散。
+
+        Args:
+            kind: 控制消息类别
+            payload: 类别特定数据（如 error 描述、配置路径）
+            target_session_id: 目标会话 ID，空表示系统级
+            target_entity: 目标实体标识，如 "agent:primary"、"component:orchestrator"
+            source: 投递来源标识，如 "watchdog"、"service_manager"、"webui"
+            trace_id: 链路追踪 ID
+
+        Returns:
+            投递结果（已入队/被忽略/被保护拒绝/目标不存在）
+
+        Raises:
+            ValueError: kind 编号越界（CONTROL_KIND_UNKNOWN）
+        """
+
+    async def force_send(
+        self,
+        kind: "ControlMessageKind",
+        target_session_id: str = "",
+        target_entity: str = "",
+        reason: str = "",
+        caller: str = "",
+    ) -> "ControlMessageDeliveryResult":
+        """force 强制投递（绕过屏蔽/忽略/UNKILLABLE 保护）。
+
+        前置：caller 必须在 force_caller_whitelist 中（系统核心层）；
+        kind 必须为系统级强制类别（编号 1-3）。
+        后置：清除目标该类别屏蔽/忽略位与 UNKILLABLE 标志（若为致命），
+        直接入队并记录审计。
+
+        Args:
+            kind: 控制消息类别（必须 1-3）
+            target_session_id: 目标会话 ID
+            target_entity: 目标实体标识
+            reason: 强制投递原因（审计）
+            caller: 调用方标识（白名单校验）
+
+        Returns:
+            投递结果（FORCE_DELIVERED / 权限拒绝 / 类别非法 / 目标不存在）
+
+        Raises:
+            ValueError: kind 编号越界或非系统级强制类别
+        """
+
+    def dequeue_next(self, session_id: str) -> Optional["ControlMessage"]:
+        """出队下一个可投递控制消息（同步，热路径）。
+
+        前置：无。后置：按固定优先级链（系统级强制 → 引擎致命 → 会话控制 →
+        调试 → 普通 → 实时）先私后共出队；无可投递消息返回 None（放行用户消息）。
+        被屏蔽/忽略的消息不出队，留在 pending 队列。
+
+        Args:
+            session_id: 出队会话 ID
+
+        Returns:
+            ControlMessage，无可投递控制消息时返回 None
+        """
+
+    # === 屏蔽管理类 ===
+
+    async def set_blocked(
+        self,
+        how: "MaskOperation",
+        kinds: set["ControlMessageKind"],
+        scope: "MaskScope",
+        session_id: str = "",
+    ) -> set["ControlMessageKind"]:
+        """设置屏蔽集（BLOCK 并集 / UNBLOCK 差集 / SETMASK 直接设置）。
+
+        前置：scope=SESSION 时 session_id 必填。
+        后置：不可屏蔽类别（编号 1-3）被强制剔除（第一道防线）；
+        返回操作后的屏蔽集。屏蔽 ≠ 丢弃：被屏蔽消息留 pending 队列。
+
+        Args:
+            how: 操作类型
+            kinds: 涉及的类别集合
+            scope: 作用域（SYSTEM 全局 / SESSION 会话级）
+            session_id: 会话 ID（SESSION 作用域必填）
+
+        Returns:
+            操作后该作用域屏蔽集
+
+        Raises:
+            ValueError: SESSION 作用域缺 session_id
+        """
+
+    async def set_ignored(
+        self,
+        kinds: set["ControlMessageKind"],
+        scope: "MaskScope",
+        session_id: str = "",
+    ) -> set["ControlMessageKind"]:
+        """设置忽略集（覆盖式）。
+
+        前置：scope=SESSION 时 session_id 必填。
+        后置：不可屏蔽类别（编号 1-3）被强制剔除（第二道防线拒绝）；
+        被忽略类别的消息直接丢弃不入队（忽略 = 永久丢弃）。
+
+        Args:
+            kinds: 涉及的类别集合
+            scope: 作用域
+            session_id: 会话 ID（SESSION 作用域必填）
+
+        Returns:
+            操作后该作用域忽略集
+
+        Raises:
+            ValueError: SESSION 作用域缺 session_id
+        """
+
+    def get_effective_mask(
+        self, session_id: str
+    ) -> "ControlMessageEffectiveMask":
+        """查询有效屏蔽集（系统级 ∪ 会话级，同步）。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            有效屏蔽/忽略位图快照（不可变）
+        """
+
+    # === UNKILLABLE 管理类 ===
+
+    async def declare_unkillable(
+        self, entity_id: str, entity_type: str = "agent"
+    ) -> None:
+        """声明实体为 UNKILLABLE（受保护，不可被普通致命控制消息淘汰）。
+
+        前置：仅 Orchestrator 调用（约定受信，组件不可自行声明）。
+        后置：实体保护标志置位；force 通道可清除（软保护，ADR-05）。
+
+        Args:
+            entity_id: 实体标识，如 "agent:primary"、"component:orchestrator"
+            entity_type: 实体类型（agent / component）
+
+        Raises:
+            ValueError: entity_id 已声明
+        """
+
+    async def clear_unkillable(self, entity_id: str) -> None:
+        """清除实体的 UNKILLABLE 标志（force 通道使用）。
+
+        后置：声明保留（is_active=False，审计记录不销毁）。
+        """
+
+    def list_unkillable_entities(self) -> list["UnkillableDeclaration"]:
+        """查询全部 UNKILLABLE 声明（同步，含已清除的审计记录）。"""
+
+    # === 会话生命周期类 ===
+
+    async def on_session_created(self, session_id: str) -> None:
+        """会话创建通知：创建该会话的私有 pending 队列。
+
+        后置：定向控制消息可入私有队列；内存不足时降级共享队列。
+        """
+
+    async def on_session_destroyed(self, session_id: str) -> None:
+        """会话销毁通知：清理私有 pending 队列并触发致命扩散。
+
+        后置：私有队列节点清零（防内存泄漏）；向关联异步任务扩散取消信号。
+        """
+
+    # === 内省查询类（WebUI）===
+
+    def get_pending_view(
+        self, session_id: str = ""
+    ) -> "ControlMessagePendingView":
+        """查询待处理队列快照（同步；session_id 空时查询共享队列）。
+
+        Args:
+            session_id: 会话 ID，空表示系统共享队列
+
+        Returns:
+            pending 队列快照（节点元组 + 类别位图 + 节点数）
+        """
+
+    def get_delivery_history(
+        self, limit: int = 100
+    ) -> list["DeliveryDecisionRecord"]:
+        """查询投递决策历史（环形缓冲，最近 limit 条，同步）。"""
+
+    def get_diffuse_history(
+        self, limit: int = 100
+    ) -> list["FatalDiffuseRecord"]:
+        """查询致命扩散历史（环形缓冲，最近 limit 条，同步）。"""

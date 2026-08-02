@@ -123,7 +123,7 @@ def _load_bootstrap_config_dict(config_path: Path = BOT_CONFIG_PATH) -> Dict[str
     try:
         with open(config_path, "r", encoding="utf-8") as file_obj:
             config_data = tomlkit.load(file_obj).unwrap()
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in startup_bindings", exc_info=True)
 
     if not isinstance(config_data, dict):

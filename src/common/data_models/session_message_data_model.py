@@ -313,7 +313,7 @@ class SessionMessage(MaiMessage):
                 image_bytes=component.binary_data,
                 wait_for_build=enable_heavy_media_analysis,
             )
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in session_message_data_model.py", exc_info=True)
             desc = None  # 失败置空
 
@@ -352,7 +352,7 @@ class SessionMessage(MaiMessage):
                 session_id=self.session_id,
                 wait_for_build=enable_heavy_media_analysis,
             )
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in session_message_data_model.py", exc_info=True)
             tuple_content = None  # 失败置空
 

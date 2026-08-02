@@ -6,9 +6,6 @@ from ..connectionist.concept_index import ConceptIndex
 from ..connectionist.enums import Valence
 from ..connectionist.models import (
     AgentMemoryResult,
-    ExtractionResult,
-    InnerVoice,
-    MemoryPersonalityV2,
     ObserveResult,
     Trace,
     _time_of_day_from_timestamp,

@@ -78,6 +78,6 @@ class ModelScheduler:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.model_scheduling_preference
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in model_scheduler.py", exc_info=True)
         return "auto"

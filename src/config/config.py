@@ -26,6 +26,7 @@ from .official_configs import (
     BotConfig,
     ChatConfig,
     ChineseTypoConfig,
+    ControlMessageSectionConfig,
     DebugConfig,
     EmojiConfig,
     ExperimentalConfig,
@@ -138,6 +139,9 @@ class Config(ConfigBase):
 
     watchdog: WatchdogSectionConfig = Field(default_factory=WatchdogSectionConfig)
     """看门狗配置类"""
+
+    control_message: ControlMessageSectionConfig = Field(default_factory=ControlMessageSectionConfig)
+    """控制消息优先级配置类（ZG-8）"""
 
     system_state: SystemStateSectionConfig = Field(default_factory=SystemStateSectionConfig)
     """系统生命周期状态机配置类（ZG-6）"""

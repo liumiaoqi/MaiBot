@@ -5,10 +5,8 @@
 """
 
 
-from datetime import datetime
-from typing import Optional
 
-from src.maisaka.agent.config import AgentConfig, TimeTriggerRule
+from src.maisaka.agent.config import AgentConfig
 
 from .context_builder import TimeContext, TimeContextBuilder
 from .scheduler import TimeTriggerScheduler, TriggerEvent

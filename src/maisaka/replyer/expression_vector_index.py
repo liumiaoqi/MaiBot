@@ -1185,7 +1185,7 @@ class ExpressionVectorIndex:
             return
         try:
             task.result()
-        except Exception as exc:
+        except Exception:
             logger.exception("表达向量历史补建任务异常退出")
 
     @staticmethod

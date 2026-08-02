@@ -356,6 +356,36 @@ class GlobalConfigAppConfigPort:
             v2_diff_interval_s=float(cfg.v2_diff_interval_s),
         )
 
+    def get_control_message_global_enabled(self) -> bool:
+        return bool(self._get_cfg().control_message.global_enabled)
+
+    def get_control_message_unmaskable_whitelist(self) -> set[int]:
+        return set(self._get_cfg().control_message.unmaskable_whitelist)
+
+    def get_control_message_private_queue_limit(self) -> int:
+        return int(self._get_cfg().control_message.private_queue_limit)
+
+    def get_control_message_shared_queue_limit(self) -> int:
+        return int(self._get_cfg().control_message.shared_queue_limit)
+
+    def get_control_message_unkillable_entities(self) -> list[str]:
+        return list(self._get_cfg().control_message.unkillable_entities)
+
+    def get_control_message_system_blocked_kinds(self) -> set[int]:
+        return set(self._get_cfg().control_message.system_blocked_kinds)
+
+    def get_control_message_system_ignored_kinds(self) -> set[int]:
+        return set(self._get_cfg().control_message.system_ignored_kinds)
+
+    def get_control_message_delivery_history_limit(self) -> int:
+        return int(self._get_cfg().control_message.delivery_history_limit)
+
+    def get_control_message_diffuse_timeout_sec(self) -> float:
+        return float(self._get_cfg().control_message.diffuse_timeout_sec)
+
+    def get_control_message_force_caller_whitelist(self) -> set[str]:
+        return set(self._get_cfg().control_message.force_caller_whitelist)
+
     def register_reload_callback(self, callback: object) -> None:
         from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
         config_manager.register_reload_callback(callback)

@@ -13,7 +13,6 @@ import tomlkit
 
 from src.core.runtime_port_registry import get_chat_runtime_registry
 from src.common.database.database import get_db_session
-from src.core.session_port_registry import get_session_name as _get_session_name_via_port
 from src.common.database.database_model import (
     ChatSession,
     Expression,
@@ -267,11 +266,11 @@ def _build_agent_info_map(chat_sessions: List[ChatSession]) -> Dict[str, Dict[st
             try:
                 config = registry.get_agent(aid)
                 result[aid] = {"display_name": config.display_name, "color": config.color}
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in routes.py", exc_info=True)
                 result[aid] = {"display_name": "银狼", "color": "#9b59b6"}
         return result
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in routes.py", exc_info=True)
         return {aid: {"display_name": "银狼", "color": "#9b59b6"} for aid in unique_agent_ids}
 

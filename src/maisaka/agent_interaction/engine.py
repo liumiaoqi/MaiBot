@@ -170,7 +170,7 @@ class InteractionEngine:
                     event_id=event_id,
                 )
                 get_event_bus_port().emit_sync("interaction_signal", signal)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in engine.py", exc_info=True)
 
             return result

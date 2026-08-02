@@ -2,7 +2,6 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional, Sequence
 
 from ...utils.hash import compute_hash, normalize_text
 from ...utils.metadata import coerce_metadata_dict
-from .types import KernelSearchRequest
 
 from src.common.logger import get_logger
 

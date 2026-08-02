@@ -821,7 +821,7 @@ class JargonMiner:
     def _parse_result(self, response: str) -> Optional[Dict[str, str]]:
         try:
             result = json.loads(response.strip())
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in jargon_miner.py", exc_info=True)
             try:
                 repaired = repair_json(response.strip())

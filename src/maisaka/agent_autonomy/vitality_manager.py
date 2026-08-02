@@ -343,7 +343,7 @@ class VitalityManager:
             active_count = len(self._orchestrator._active_agents)
             standby_count = len(self._registry.get_by_session(session_id))
             bound_count = active_count + standby_count
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in vitality_manager.py", exc_info=True)
             bound_count = 1
 

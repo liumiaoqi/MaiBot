@@ -265,7 +265,7 @@ async def _update_non_git_plugin(
             "update_mode": "reinstall_from_backup",
             "backup_path": str(backup_path),
         }
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in management.py", exc_info=True)
         if candidate_path.exists():
             _remove_path(candidate_path)

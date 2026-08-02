@@ -47,6 +47,7 @@ class MainSystem:
         self._service_manager: Any | None = None
         self._watchdog: Any | None = None
         self._watchdog_touch_task: asyncio.Task | None = None
+        self._control_message: Any | None = None
 
     def _ensure_message_server(self) -> None:
         """按需初始化消息 API，避免阻塞主启动链路的早期阶段。"""
@@ -365,8 +366,106 @@ class MainSystem:
             _watchdog_touch_loop(), name="watchdog-touch"
         )
 
+        # ZG-8: 控制消息优先级接线（适配器实例化 + 订阅 + force 触发 + 状态联动）
+        await self._init_control_message()
+
         init_time = int(1000 * (time.time() - self._init_start_time))
         logger.info(t("startup.initialization_completed_cycles", init_time=init_time))
+
+    async def _init_control_message(self) -> None:
+        """ZG-8: 控制消息优先级接线。
+
+        实例化 ControlMessageAdapter（组装 8 引擎）并注册 ControlMessagePort；
+        订阅 ZG-3 看门狗超时（T16）、ZG-6 状态机联动（T17）、
+        会话生命周期回调（T18）；声明核心组件 UNKILLABLE（T20）。
+        依赖：app_config / event_bus / service_manager / watchdog / session_lifecycle
+        均已就绪（orchestrator.run() 之后）。
+        """
+        try:
+            from src.core.adapters.control_message_adapter import ControlMessageAdapter
+            from src.core.app_config_port_registry import get_app_config_port
+            from src.core.control_message_port_registry import set_control_message_port
+            from src.core.event_bus_port_registry import get_event_bus_port
+            from src.core.service_manager_port_registry import get_service_manager_port
+            from src.core.session_port_registry import get_session_lifecycle_port
+            from src.core.watchdog_port_registry import get_watchdog_port
+        except Exception:
+            logger.warning("ZG-8 接线依赖导入失败，已降级跳过", exc_info=True)
+            return
+
+        adapter = ControlMessageAdapter(
+            event_bus_port=get_event_bus_port(),
+            service_manager_port=get_service_manager_port(),
+            app_config_port=get_app_config_port(),
+            watchdog_port=get_watchdog_port(),
+            session_lifecycle_port=get_session_lifecycle_port(),
+        )
+        self._control_message = adapter
+        set_control_message_port(adapter)
+
+        global_enabled = get_app_config_port().get_control_message_global_enabled()
+
+        # T16: ZG-3 看门狗超时 → force 投递 EMERGENCY_STOP（spec §5.7.1 规则 3）
+        async def _force_on_timeout(event: object) -> None:
+            try:
+                await adapter.force_send(
+                    1,  # ControlMessageKind.EMERGENCY_STOP（系统级强制，IntEnum 值）
+                    target_session_id="",
+                    target_entity=getattr(event, "component_id", ""),
+                    reason=f"watchdog timeout: {getattr(event, 'reason', '')}",
+                    caller="watchdog",
+                )
+            except Exception:
+                logger.warning("ZG-8 force 投递失败（watchdog 超时）", exc_info=True)
+
+        def _watchdog_timeout_handler(event: object) -> None:
+            asyncio.create_task(_force_on_timeout(event), name="zg8-force-timeout")
+
+        watchdog = get_watchdog_port()
+        if watchdog is not None:
+            watchdog.subscribe_timeout(_watchdog_timeout_handler)
+
+        # T17: ZG-6 系统状态机联动（DEGRADING 屏蔽调试/追踪，SHUTTING_DOWN 收紧类别）
+        if self._lifecycle_sm is not None:
+            self._lifecycle_sm.subscribe(self._on_system_state_change, priority=10)
+
+        # T18: 会话生命周期回调（私有队列创建/清理 + 致命扩散）
+        lifecycle = get_session_lifecycle_port()
+        if lifecycle is not None:
+            lifecycle.subscribe_session_created(
+                lambda sid: asyncio.create_task(adapter.on_session_created(sid))
+            )
+            lifecycle.subscribe_session_destroyed(
+                lambda sid: asyncio.create_task(adapter.on_session_destroyed(sid))
+            )
+
+        # T20: 声明核心组件 UNKILLABLE（Orchestrator 角色 = 启动编排）
+        try:
+            for entity in ("agent:primary", "component:orchestrator", "component:message_port"):
+                await adapter.declare_unkillable(entity)
+        except Exception:
+            logger.warning("ZG-8 UNKILLABLE 声明失败", exc_info=True)
+
+        logger.info(
+            "ZG-8 控制消息优先级已接线（global_enabled=%s）", global_enabled
+        )
+
+    async def _on_system_state_change(
+        self, from_state: object, to_state: object, reason: object
+    ) -> object:
+        """T17: ZG-6 状态迁移联动 — 委托适配器 apply_system_state。
+
+        ZG-8 不维护系统状态，只订阅 ZG-6 状态变更（spec §7.6 规则 2）。
+        """
+        from src.core.vote import Vote
+
+        try:
+            adapter = self._control_message
+            if adapter is not None:
+                await adapter.apply_system_state(getattr(to_state, "name", str(to_state)))
+        except Exception:
+            logger.warning("ZG-8 状态联动失败", exc_info=True)
+        return Vote.OK
 
     # ── 阶段 0 闭包 ───────────────────────────────────────────
 

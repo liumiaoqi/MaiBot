@@ -136,7 +136,7 @@ class RunnerIPCLogHandler(logging.Handler):
                 exception_text=record.exc_text or "",
             )
             self._buffer.append(entry)
-        except Exception as exc:
+        except Exception:
             self.handleError(record)
 
     def _serialize_message(self, record: logging.LogRecord) -> str:
@@ -189,7 +189,7 @@ class RunnerIPCLogHandler(logging.Handler):
                 await self._flush_batch(self.FLUSH_BATCH_SIZE)
             except asyncio.CancelledError:
                 break
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in log_handler", exc_info=True)
                 # 任何发送侧错误都静默忽略，避免向 logging 写入导致嵌套循环
                 pass
@@ -227,7 +227,7 @@ class RunnerIPCLogHandler(logging.Handler):
                 "runner.log_batch",
                 payload=LogBatchPayload(entries=entries).model_dump(),
             )
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in log_handler", exc_info=True)
             import sys
 

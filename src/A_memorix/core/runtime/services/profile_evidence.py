@@ -1,4 +1,4 @@
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Sequence
+from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from ...storage import MetadataStore
 from ...utils.metadata import coerce_metadata_dict

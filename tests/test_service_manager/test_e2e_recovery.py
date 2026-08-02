@@ -8,12 +8,8 @@ import pytest
 from src.core.adapters.service_manager_adapter import ServiceManagerAdapter
 from src.core.service_manager.lifecycle import ComponentActions
 from src.core.service_manager.types import (
-    DependencyKind,
-    DependencyRelation,
-    HealthCheckResult,
     ServiceDescriptor,
     ServiceState,
-    SystemHealthLevel,
 )
 from src.core.startup.types import (
     ComponentStatus,

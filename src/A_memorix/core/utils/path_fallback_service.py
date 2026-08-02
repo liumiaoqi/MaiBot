@@ -2,7 +2,7 @@
 
 
 import hashlib
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 from ..retrieval.dual_path import RetrievalResult
 from src.common.logger import get_logger
