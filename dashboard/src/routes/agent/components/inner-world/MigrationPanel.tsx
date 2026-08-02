@@ -10,12 +10,12 @@ import { useToast } from '@/hooks/use-toast'
 import { advanceMigration, getMigrationStates } from '@/lib/migration-api'
 import type { MigrationState } from '@/lib/migration-api'
 
+// 后端阶段体系（MigrationCoordinator 插件迁移）：NOT_STARTED→COEXISTENCE→REPLACEMENT→COMPLETED
 const PHASE_LABELS: Record<string, { label: string; color: string }> = {
-  LEGACY_ONLY: { label: '仅分类学', color: 'bg-slate-500' },
-  DUAL_WRITE: { label: '双写', color: 'bg-amber-500' },
-  DUAL_READ: { label: '双读', color: 'bg-blue-500' },
-  DATA_MIGRATION: { label: '数据迁移', color: 'bg-purple-500' },
-  NEW_INDEPENDENT: { label: '连接主义独立', color: 'bg-emerald-500' },
+  not_started: { label: '未开始', color: 'bg-slate-500' },
+  coexistence: { label: '共存', color: 'bg-amber-500' },
+  replacement: { label: '替换', color: 'bg-blue-500' },
+  completed: { label: '已完成', color: 'bg-emerald-500' },
 }
 
 function PhaseBadge({ phase }: { phase: string }) {
@@ -49,7 +49,7 @@ function MigrationStateRow({ state }: { state: MigrationState }) {
     },
   })
 
-  const isLast = state.current_phase === 'NEW_INDEPENDENT'
+  const isLast = state.current_phase === 'completed'
 
   return (
     <div className="flex items-center gap-3 rounded-md border px-3 py-2">
