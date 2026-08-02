@@ -242,17 +242,21 @@ class TaintedMask:
                     return
                 try:
                     loop = asyncio.get_running_loop()
+                    loop.create_task(self._trigger_degrade_async(flag))
                 except RuntimeError:
-                    # 无事件循环（如 import hook 早期）：跳过异步操作，
-                    # 污染位已正确置位（design §3.1.3 无事件循环降级）
+                    # 无事件循环（如 import hook 早期）或循环已关闭（shutdown 路径）：
+                    # 跳过异步操作，污染位已正确置位（design §3.1.3 无事件循环降级；
+                    # CX P2：create_task 也可能抛 RuntimeError，动作失败不阻断调用方）
                     logger.warning(
-                        "TAINT_ASYNC_SKIP: 无事件循环，TRIGGER_DEGRADE 跳过（flag=%s）",
+                        "TAINT_ASYNC_SKIP: 无事件循环或已关闭，TRIGGER_DEGRADE 跳过（flag=%s）",
                         flag.name,
                     )
-                    return
-                loop.create_task(
-                    self._trigger_degrade_async(flag)
-                )
+                except Exception:
+                    logger.error(
+                        "TAINT_ACTION_FAILED: 污染位 %s 的 TRIGGER_DEGRADE 调度失败",
+                        flag.name,
+                        exc_info=True,
+                    )
 
     async def _trigger_degrade_async(self, flag: TaintFlag) -> None:
         """TRIGGER_DEGRADE 异步执行：驱动 READY→DEGRADING（spec §2.3.1 规则 4）。"""
