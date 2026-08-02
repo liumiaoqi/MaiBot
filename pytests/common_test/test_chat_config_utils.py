@@ -1,4 +1,4 @@
-﻿from types import SimpleNamespace
+from types import SimpleNamespace
 
 from src.common.utils import utils_config
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
@@ -7,6 +7,24 @@ from src.config.config import global_config
 from src.config.official_configs import ExperimentalConfig
 from src.chat.message_receive.chat_manager import ChatManager
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _init_config():
+    """config_manager 显式初始化 + utils_config 端口注入（测试环境不经过 main()）。"""
+    from src.config.config import initialize_config
+    from src.core.adapters.chat_config_port import GlobalConfigChatConfigPort
+    from src.common.utils.utils_config import set_utils_config_ports
+
+    initialize_config()
+    set_utils_config_ports(
+        app_config_port=object(),
+        chat_config_port=GlobalConfigChatConfigPort(),
+    )
+    yield
+
+
 # 全局单例已移除（SSD-3），测试用裸实例（仅 monkeypatch 方法，不触发 __init__）
 chat_manager = ChatManager.__new__(ChatManager)
 
@@ -14,7 +32,7 @@ chat_manager = ChatManager.__new__(ChatManager)
 def test_get_chat_prompt_for_chat_merges_multiple_matching_prompts(monkeypatch):
     session_id = SessionUtils.calculate_session_id("qq", group_id="1036092828")
     monkeypatch.setattr(
-        global_config.chat,
+        global_config.chat.reply_style,
         "chat_prompts",
         [
             {"platform": "qq", "item_id": "1036092828", "rule_type": "group", "prompt": "你也是群管理员，可以适当进行管理"},
@@ -23,6 +41,11 @@ def test_get_chat_prompt_for_chat_merges_multiple_matching_prompts(monkeypatch):
         ],
     )
     monkeypatch.setattr(chat_manager, "get_session_by_session_id", lambda _session_id: None)
+    monkeypatch.setattr(
+        ChatConfigUtils,
+        "resolve_existing_session_ids",
+        lambda _p, item_id, _r: {session_id} if item_id == "1036092828" else set(),
+    )
 
     result = ChatConfigUtils.get_chat_prompt_for_chat(session_id, True)
 
@@ -32,7 +55,7 @@ def test_get_chat_prompt_for_chat_merges_multiple_matching_prompts(monkeypatch):
 def test_get_chat_prompt_for_chat_matches_routed_session_by_chat_stream(monkeypatch):
     session_id = SessionUtils.calculate_session_id("qq", group_id="1036092828", account_id="bot-a")
     monkeypatch.setattr(
-        global_config.chat,
+        global_config.chat.reply_style,
         "chat_prompts",
         [
             {"platform": "qq", "item_id": "1036092828", "rule_type": "group", "prompt": "路由会话也应该生效"},

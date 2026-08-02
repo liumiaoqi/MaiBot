@@ -98,15 +98,6 @@ def mock_auth_fixture():
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(autouse=True)
-def mock_existing_chat_stream(monkeypatch):
-    """Mock chat manager lookups so resource ownership checks can pass in route tests."""
-    monkeypatch.setattr(
-        "src.webui.routers.expression._chat_manager.get_existing_session_by_session_id",
-        lambda chat_id: SimpleNamespace(session_id=chat_id),
-    )
-
-
 @pytest.fixture(name="sample_expression")
 def sample_expression_fixture(test_session: Session) -> Expression:
     """Insert a sample expression into test database"""

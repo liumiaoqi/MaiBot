@@ -57,10 +57,6 @@ def client_fixture(app: FastAPI, session: Session, monkeypatch):
             session.commit()
 
     monkeypatch.setattr("src.webui.routers.jargon.get_db_session", mock_get_db_session)
-    monkeypatch.setattr(
-        "src.webui.routers.jargon._chat_manager.get_existing_session_by_session_id",
-        lambda chat_id: SimpleNamespace(session_id=chat_id),
-    )
 
     with TestClient(app) as client:
         yield client
