@@ -49,6 +49,8 @@ if TYPE_CHECKING:
         MaskScope,
         UnkillableDeclaration,
     )
+    from src.core.tainted_mask.taint_flag import TaintFlag
+    from src.core.tainted_mask.types import TaintRecord
     from src.core.resource_limit.types import (
         ChargeResult,
         OOMDecision,
@@ -1931,3 +1933,40 @@ class ControlMessagePort(Protocol):
         self, limit: int = 100
     ) -> list["FatalDiffuseRecord"]:
         """查询致命扩散历史（环形缓冲，最近 limit 条，同步）。"""
+
+
+@runtime_checkable
+class TaintedMaskPort(Protocol):
+    """污染标记接口 — 不可逆污染位图，对标 Linux tainted_mask。
+
+    核心通过此接口查询/置位污染状态，不直接依赖 ZG-7 具体实现。
+    适配器层（TaintMaskAdapter）是唯一允许导入具体类的地方。
+    """
+
+    def add_taint(self, flag: "TaintFlag") -> None:
+        """置位污染标志（幂等，只增不减）。
+
+        前置条件：flag 为 TaintFlag 枚举成员
+        后置条件：位图对应位置 1；首次置位时记录时间戳/调用栈/触发动作/广播通知
+        异常映射：
+            ValueError — flag 不在 TaintFlag 枚举中
+        """
+
+    def test_taint(self, flag: "TaintFlag") -> bool:
+        """测试污染标志是否置位（O(1) 位运算）。"""
+
+    def get_taint(self) -> int:
+        """查询污染位图值（只增不减的历史烙记）。"""
+
+    def print_tainted(self) -> str:
+        """输出污染状态单行字符串（全干净 → "Not tainted"）。"""
+
+    def print_tainted_verbose(self) -> list[str]:
+        """仅列置位项，格式 "[c_true]=[标志名]"。"""
+
+    def get_taint_records(self) -> dict[int, "TaintRecord"]:
+        """查询全部首次置位记录（副本）。"""
+
+    @property
+    def warn_count(self) -> int:
+        """WARN 累计计数（只读，对标 /sys/kernel/warn_count）。"""
