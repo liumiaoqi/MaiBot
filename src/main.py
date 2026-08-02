@@ -455,6 +455,13 @@ class MainSystem:
         self._control_message = adapter
         set_control_message_port(adapter)
 
+        # T19: 健康探针动态注册到 ServiceManager（control_message 晚于 service_manager 实例化）
+        try:
+            if self._service_manager is not None:
+                self._service_manager.register_probe("control_message", adapter.health_probe)
+        except Exception:
+            logger.warning("ZG-8 health_probe 注册失败，跳过", exc_info=True)
+
         global_enabled = get_app_config_port().get_control_message_global_enabled()
 
         # T16: ZG-3 看门狗超时 → force 投递 EMERGENCY_STOP（spec §5.7.1 规则 3）

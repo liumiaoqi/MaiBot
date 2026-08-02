@@ -78,6 +78,13 @@ class ServiceManagerAdapter:
         # 状态
         self._adopted = False
 
+    def register_probe(self, component_id: str, probe_fn: Callable[[], Awaitable[HealthCheckResult]]) -> None:
+        """运行时注册健康探针（T19 ZG-8：control_message 在接管后实例化，需动态注册）。
+
+        HealthCheckEngine 持有同一 probe_functions dict 引用，注册后下轮健康检查即生效。
+        """
+        self._probe_functions[component_id] = probe_fn
+
     def _ensure_adopted(self) -> None:
         """检查是否已完成接管。"""
         if not self._adopted:

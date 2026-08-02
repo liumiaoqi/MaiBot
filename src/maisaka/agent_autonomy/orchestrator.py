@@ -611,6 +611,16 @@ class AgentOrchestrator:
             agent = AutonomousAgent(agent_id, thinking_organ_factory=self._thinking_organ_factory)
             self._active_agents[agent_id] = agent
 
+            # T20 ZG-8：agent 运行时声明 UNKILLABLE（普通控制消息不杀活跃 agent，force 通道可绕过）
+            try:
+                from src.core.control_message_port_registry import get_control_message_port
+
+                control_port = get_control_message_port()
+                if control_port is not None:
+                    await control_port.declare_unkillable(agent_id, "agent")
+            except Exception:
+                pass
+
             # 注入共居状态摘要生成器到 PromptBuilder
             if self._config.state_awareness_enabled:
                 agent._prompt_builder.set_summary_generator(self._summary_generator)
@@ -709,6 +719,16 @@ class AgentOrchestrator:
         del self._active_agents[agent_id]
         self._pending_intents.pop(agent_id, None)
         self._activity_store.deactivate(self._session_id, agent_id, reason)
+
+        # T20 ZG-8：agent 退场清除 UNKILLABLE 声明
+        try:
+            from src.core.control_message_port_registry import get_control_message_port
+
+            control_port = get_control_message_port()
+            if control_port is not None:
+                await control_port.clear_unkillable(agent_id)
+        except Exception:
+            pass
 
         self._lifecycle_manager.transition(
             agent_id, self._session_id, AgentLifecycleState.DESTROYED, reason
