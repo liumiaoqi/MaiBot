@@ -288,7 +288,20 @@ class MainSystem:
         if self._replyer_adapter is not None:
             probe_functions["replyer_port"] = self._replyer_adapter.health_probe
 
-        self._service_manager = ServiceManagerAdapter(probe_functions=probe_functions)
+        # ZG-6 衔接 5：系统关闭谓词注入（恢复引擎关闭中不自动拉起组件）
+        def _system_shutting_down() -> bool:
+            try:
+                from src.core.system_state_port_registry import get_system_lifecycle_adapter
+
+                adapter = get_system_lifecycle_adapter()
+                return bool(adapter and adapter.is_shutting_down())
+            except Exception:
+                return False
+
+        self._service_manager = ServiceManagerAdapter(
+            probe_functions=probe_functions,
+            lifecycle_state_getter=_system_shutting_down,
+        )
         await self._service_manager.adopt_from_startup(
             self._startup_result,
             get_service_descriptors(),

@@ -49,6 +49,7 @@ class ServiceManagerAdapter:
         ] = None,
         component_actions: Optional[dict[str, ComponentActions]] = None,
         oom_hook: Optional[Callable[[str], Awaitable[None]]] = None,
+        lifecycle_state_getter: Optional[Callable[[], bool]] = None,
     ) -> None:
         # 数据结构
         self._registry: dict[str, ServiceStateSnapshot] = {}
@@ -60,6 +61,8 @@ class ServiceManagerAdapter:
         self._probe_functions = probe_functions or {}
         self._component_actions = component_actions or {}
         self._oom_hook = oom_hook
+        # ZG-6 衔接 5：系统关闭谓词（true=关闭中，恢复引擎跳过自动拉起）
+        self._is_shutting_down = lifecycle_state_getter or (lambda: False)
 
         # 引擎（adopt 后创建）
         self._state_aggregator: Optional[StateAggregator] = None
@@ -381,6 +384,11 @@ class ServiceManagerAdapter:
         """执行恢复流程（后台任务）。"""
         assert self._state_aggregator is not None
         assert self._lifecycle_manager is not None
+
+        # ZG-6 衔接 5：系统关闭中不自动恢复组件（避免关闭过程被恢复拉起）
+        if self._is_shutting_down():
+            logger.info(f"系统关闭中，跳过组件 {component_id} 的自动恢复")
+            return
 
         try:
             descriptor = self._descriptors.get(component_id)

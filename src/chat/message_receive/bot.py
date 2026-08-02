@@ -182,6 +182,28 @@ class ChatBot:
             self._started = True
 
     @staticmethod
+    def _reject_due_to_lifecycle(session_id: str) -> bool:
+        """ZG-6 衔接 5：消息管道按系统状态自适应（BOOTING 未就绪 / SHUTTING_DOWN 拒收）。
+
+        经 SystemLifecycleAdapter 查询当前态；适配器未注册时放行（自决默认值）。
+        """
+        try:
+            from src.core.system_state_port_registry import get_system_lifecycle_adapter
+
+            adapter = get_system_lifecycle_adapter()
+            if adapter is None:
+                return False
+            if adapter.is_shutting_down():
+                logger.info(f"系统关闭中（SHUTTING_DOWN），拒绝入站消息: session={session_id}")
+                return True
+            if adapter.is_booting():
+                logger.info(f"系统启动中（BOOTING，消息管道未就绪），拒绝入站消息: session={session_id}")
+                return True
+        except Exception:
+            return False
+        return False
+
+    @staticmethod
     def _get_runtime_manager() -> Any:
         """获取插件运行时管理器。
 
@@ -611,6 +633,10 @@ class ChatBot:
             )
 
             message.session_id = session_id  # 正确初始化session_id
+
+            # ZG-6 衔接 5：消息管道按系统状态自适应（BOOTING 未就绪/SHUTTING_DOWN 拒收）
+            if self._reject_due_to_lifecycle(session_id):
+                return
 
             # T15 ZG-8：被控制消息停止的会话不再处理消息（SESSION_STOP/EMERGENCY_STOP 等）
             control_state = self._session_control.get(session_id)
