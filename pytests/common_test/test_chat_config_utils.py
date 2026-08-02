@@ -4,7 +4,6 @@ from src.common.utils import utils_config
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
-from src.config.official_configs import ExperimentalConfig
 from src.chat.message_receive.chat_manager import ChatManager
 
 import pytest
@@ -14,12 +13,13 @@ import pytest
 def _init_config():
     """config_manager 显式初始化 + utils_config 端口注入（测试环境不经过 main()）。"""
     from src.config.config import initialize_config
+    from src.core.adapters.app_config_port import GlobalConfigAppConfigPort
     from src.core.adapters.chat_config_port import GlobalConfigChatConfigPort
     from src.common.utils.utils_config import set_utils_config_ports
 
     initialize_config()
     set_utils_config_ports(
-        app_config_port=object(),
+        app_config_port=GlobalConfigAppConfigPort(),
         chat_config_port=GlobalConfigChatConfigPort(),
     )
     yield
@@ -40,7 +40,7 @@ def test_get_chat_prompt_for_chat_merges_multiple_matching_prompts(monkeypatch):
             {"platform": "qq", "item_id": "other", "rule_type": "group", "prompt": "不应该生效"},
         ],
     )
-    monkeypatch.setattr(chat_manager, "get_session_by_session_id", lambda _session_id: None)
+    monkeypatch.setattr("src.core.session_port_registry.get_session_info", lambda _session_id: None)
     monkeypatch.setattr(
         ChatConfigUtils,
         "resolve_existing_session_ids",
@@ -62,8 +62,7 @@ def test_get_chat_prompt_for_chat_matches_routed_session_by_chat_stream(monkeypa
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
     )
 
@@ -88,8 +87,7 @@ def test_expression_learning_list_matches_routed_session_by_chat_stream(monkeypa
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
     )
 
@@ -126,8 +124,7 @@ def test_expression_learning_list_wildcard_takes_priority_over_exact(monkeypatch
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
     )
 
@@ -164,8 +161,7 @@ def test_expression_learning_list_exact_takes_priority_when_no_wildcard_matches(
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
     )
 
@@ -193,8 +189,7 @@ def test_jargon_learning_list_matches_routed_session_by_chat_stream(monkeypatch)
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None, is_group_session=True),
     )
 
@@ -222,8 +217,7 @@ def test_jargon_learning_list_wildcard_takes_priority_over_exact(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None, is_group_session=True),
     )
 
@@ -245,8 +239,7 @@ def test_jargon_learning_list_supports_platform_wildcard(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None, is_group_session=True),
     )
 
@@ -291,8 +284,11 @@ def test_jargon_group_scope_supports_item_id_wildcard(monkeypatch):
             is_group_session=False,
         ),
     }
-    monkeypatch.setattr(chat_manager, "sessions", sessions)
-    monkeypatch.setattr(chat_manager, "get_session_by_session_id", lambda target_session_id: sessions.get(target_session_id))
+    monkeypatch.setattr("src.core.session_port_registry.get_session_info", lambda target_session_id: sessions.get(target_session_id))
+    monkeypatch.setattr(
+        "src.core.session_port_registry.get_session_query_port",
+        lambda: type("Q", (), {"list_sessions": lambda self: list(sessions.values())})(),
+    )
 
     related_session_ids, has_global_share = JargonConfigUtils.resolve_jargon_group_scope(session_id)
 
@@ -313,8 +309,7 @@ def test_talk_value_rules_match_routed_session_by_chat_stream(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
     )
 
@@ -372,8 +367,7 @@ def test_talk_value_rule_platform_only_is_platform_default(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="10001", user_id=None),
     )
 
@@ -394,8 +388,7 @@ def test_talk_value_rule_item_only_is_item_default(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="telegram", group_id="10001", user_id=None),
     )
 
@@ -416,8 +409,7 @@ def test_talk_value_rule_exact_target_overrides_partial_default(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="10001", user_id=None),
     )
 
@@ -438,8 +430,7 @@ def test_talk_value_rule_wildcard_target_overrides_partial_default(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
+        "src.core.session_port_registry.get_session_info",
         lambda _session_id: SimpleNamespace(platform="qq", group_id="10001", user_id=None),
     )
 

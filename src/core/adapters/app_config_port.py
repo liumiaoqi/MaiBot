@@ -19,7 +19,7 @@ class GlobalConfigAppConfigPort:
         return global_config
 
     def get_expression_learning_list(self) -> list[str]:
-        return list(self._get_cfg().expression.expression_learning_list)
+        return list(self._get_cfg().expression.learning_list)
 
     def get_expression_checked_only(self) -> bool:
         return self._get_cfg().expression.expression_checked_only

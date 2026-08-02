@@ -242,7 +242,7 @@ class ChatConfigUtils:
 
             if chat_stream is not None:
                 chat_stream_platform = str(chat_stream.platform or "").strip()
-                chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
+                chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
                 if chat_stream_platform == platform and chat_stream_target_id == item_id:
                     yield prompt_content
                     continue
@@ -367,7 +367,7 @@ class ChatConfigUtils:
             if query_port is not None:
                 for chat_stream in query_port.list_sessions():
                     chat_stream_platform = str(chat_stream.platform or "").strip()
-                    chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
+                    chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
                     if not chat_stream_target_id:
                         continue
                     if (platform == "*" or chat_stream_platform == platform) and (
@@ -424,7 +424,7 @@ class ChatConfigUtils:
         chat_stream = ChatConfigUtils._get_chat_stream(session_id)
         if chat_stream is not None:
             chat_stream_platform = str(chat_stream.platform or "").strip()
-            chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
+            chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
             return chat_stream_platform == platform and chat_stream_target_id == item_id
 
         return session_id in ChatConfigUtils.resolve_existing_session_ids(platform, item_id, rule_type)
@@ -510,7 +510,7 @@ class ChatConfigUtils:
             return ChatConfigUtils.target_matches_session(target_item, session_id, is_group_chat)
 
         chat_stream_platform = str(chat_stream.platform or "").strip()
-        chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
+        chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
         if not chat_stream_target_id:
             return False
 
@@ -548,7 +548,7 @@ class ChatConfigUtils:
         if is_group_chat is None:
             is_group_chat = ChatConfigUtils._resolve_is_group_chat(session_id)
 
-        rt = get_chat_config_port().get_reply_timing_config()
+        rt = _get_chat_port().get_reply_timing_config()
         result = (
             rt.talk_value
             if is_group_chat is not False
@@ -602,7 +602,7 @@ class ChatConfigUtils:
             return None
 
         chat_stream_platform = str(chat_stream.platform or "").strip()
-        chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
+        chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
         if not chat_stream_target_id:
             return None
 
