@@ -42,6 +42,7 @@ class ResourceLimitAdapter(ResourceLimitPort):
         watchdog_port: Any = None,
         plugin_runtime_port: Any = None,
         kill_callback: Optional[Any] = None,
+        kill_exempt_plugin_ids: frozenset[str] = frozenset(),
     ):
         self._event_bus = event_bus_port
         self._service_manager = service_manager_port
@@ -49,6 +50,8 @@ class ResourceLimitAdapter(ResourceLimitPort):
         self._watchdog = watchdog_port
         self._plugin_runtime = plugin_runtime_port
         self._kill_callback = kill_callback
+        # OOM 处置豁免名单（如 napcat adapter——用户交流通道，永不杀）
+        self._kill_exempt_plugin_ids = kill_exempt_plugin_ids
 
         # 配置管理器
         self._config_manager = ResourceLimitConfigManager()
@@ -62,13 +65,13 @@ class ResourceLimitAdapter(ResourceLimitPort):
             pressure_sample_callback=self._on_pressure_sample,
         )
 
-        # OOM 处理器
+        # OOM 处理器（kill 回调带豁免包装——豁免插件永不杀，如 napcat adapter）
         self._oom_handler = OOMHandler(
             resource_counter=self._counter,
             config_manager=self._config_manager,
             event_bus=event_bus_port,
             service_manager=service_manager_port,
-            kill_callback=kill_callback,
+            kill_callback=self._wrap_kill_callback(kill_callback),
         )
 
         # 事件传播器
@@ -76,6 +79,21 @@ class ResourceLimitAdapter(ResourceLimitPort):
             event_bus=event_bus_port,
             config_manager=self._config_manager,
         )
+
+    def _wrap_kill_callback(self, kill_callback: Optional[Any]) -> Optional[Any]:
+        """包装 kill 回调：豁免名单内插件永不杀（用户交流通道），返回 False 交回 OOM 处置。"""
+        if kill_callback is None:
+            return None
+
+        def _kill(plugin_id: str) -> bool:
+            if plugin_id in self._kill_exempt_plugin_ids:
+                logging.getLogger("resource_limit").warning(
+                    "OOM 处置跳过豁免插件 %s（用户交流通道，永不杀）", plugin_id
+                )
+                return False
+            return bool(kill_callback(plugin_id))
+
+        return _kill
 
         # 压力历史
         self._pressure_history: list[PressureHistoryEntry] = []

@@ -386,8 +386,60 @@ class MainSystem:
         # ZG-7: 污染标记接线（适配器实例化 + 注册 + CrashDump 注入）
         await self._init_tainted_mask()
 
+        # ZG-5: 资源限制接线（引擎 75 测试零接线收尾——registry + 实例化 + kill 回调）
+        await self._init_resource_limit()
+
         init_time = int(1000 * (time.time() - self._init_start_time))
         logger.info(t("startup.initialization_completed_cycles", init_time=init_time))
+
+    async def _init_resource_limit(self) -> None:
+        """ZG-5: 资源限制接线。
+
+        实例化 ResourceLimitAdapter（组装 5 引擎）并注册 ResourceLimitPort；
+        kill_callback 两段式终止 v2 Runner（SIGTERM→5s→SIGKILL），
+        豁免名单内插件（napcat adapter——用户交流通道）永不杀。
+        依赖：event_bus / service_manager / app_config / watchdog / v2 插件运行时均已就绪。
+        """
+        try:
+            from src.core.adapters.resource_limit_adapter import ResourceLimitAdapter
+            from src.core.app_config_port_registry import get_app_config_port
+            from src.core.event_bus_port_registry import get_event_bus_port
+            from src.core.resource_limit_port_registry import (
+                reset_resource_limit_port,
+                set_resource_limit_port,
+            )
+            from src.core.service_manager_port_registry import get_service_manager_port
+            from src.core.watchdog_port_registry import get_watchdog_port
+
+            async def _kill_v2_runner(plugin_id: str) -> bool:
+                """两段式终止 v2 Runner：SIGTERM → 5s → SIGKILL。"""
+                try:
+                    endpoint = getattr(self, "_v2_host_endpoint", None)
+                    supervisor = endpoint.get_supervisor() if endpoint is not None else None
+                    if supervisor is None:
+                        logger.warning("ZG-5 OOM 处置: v2 插件运行时未就绪，无法杀除 %s", plugin_id)
+                        return False
+                    return await supervisor.kill_runner(f"runner-{plugin_id}")
+                except Exception as exc:
+                    logger.warning("ZG-5 OOM 杀除失败: %s error=%s", plugin_id, exc, exc_info=True)
+                    return False
+
+            # napcat adapter 是用户交流通道——OOM 处置豁免，永不杀
+            kill_exempt = frozenset({"maibot-team.napcat-adapter"})
+
+            adapter = ResourceLimitAdapter(
+                event_bus_port=get_event_bus_port(),
+                service_manager_port=get_service_manager_port(),
+                app_config_port=get_app_config_port(),
+                watchdog_port=get_watchdog_port(),
+                kill_callback=_kill_v2_runner,
+                kill_exempt_plugin_ids=kill_exempt,
+            )
+            reset_resource_limit_port()
+            set_resource_limit_port(adapter)
+            logger.info("ZG-5 资源限制已接线（豁免插件: %s）", ", ".join(sorted(kill_exempt)))
+        except Exception as exc:
+            logger.warning("ZG-5 资源限制接线失败，已降级跳过: %s", exc, exc_info=True)
 
     async def _init_tainted_mask(self) -> None:
         """ZG-7: 污染标记接线。

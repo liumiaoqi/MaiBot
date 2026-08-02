@@ -91,6 +91,21 @@ class RunnerSpawner:
             await self.spawn(rid, plugin_dir)
             logger.info("Restarted Runner: %s (attempt %d)", rid, self._restart_counts[rid])
 
+    async def kill_runner(self, runner_id: str, timeout_sec: float = 5.0) -> bool:
+        """两段式终止单个 Runner：SIGTERM 优雅 → 超时 → SIGKILL 强制（ZG-5 OOM 处置用）。"""
+        proc = self._processes.get(runner_id)
+        if proc is None or proc.poll() is not None:
+            return False
+        proc.terminate()
+        try:
+            proc.wait(timeout=timeout_sec)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=timeout_sec)
+        self._processes.pop(runner_id, None)
+        logger.info("Runner 已终止: %s", runner_id)
+        return True
+
     async def stop_all(self) -> None:
         """停止所有 Runner 进程。"""
         for proc in self._processes.values():

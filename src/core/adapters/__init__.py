@@ -14,6 +14,7 @@ from src.core.adapters.message_ingestion_port import get_message_ingestion_port,
 from src.core.adapters.notice_classifier import NapCatNoticeClassifier
 from src.core.adapters.person_info_port import PersonInfoPortAdapter  # noqa: F401
 from src.core.person_info_port_registry import get_person_info_port, reset_person_info_port  # noqa: F401
+from src.core.adapters.resource_limit_adapter import ResourceLimitAdapter  # noqa: F401
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
 from src.core.adapters.service_manager_adapter import ServiceManagerAdapter

@@ -111,6 +111,10 @@ class RunnerSupervisor:
         await self._spawner.stop_all()
         logger.info("RunnerSupervisor 已停止")
 
+    async def kill_runner(self, runner_id: str, timeout_sec: float = 5.0) -> bool:
+        """两段式终止单个 Runner（ZG-5 OOM 处置入口）。"""
+        return await self._spawner.kill_runner(runner_id, timeout_sec=timeout_sec)
+
     # ── Spawn ─────────────────────────────────────────────────
 
     async def spawn(self, runner_id: str, plugin_dir: str) -> SpawnResult:

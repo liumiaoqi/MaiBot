@@ -170,6 +170,10 @@ class HostEndpoint:
         if hasattr(self, "_servicer") and self._servicer is not None:
             self._servicer._supervisor = supervisor
 
+    def get_supervisor(self):
+        """返回 RunnerSupervisor（未设置时 None）。"""
+        return getattr(self, "_supervisor", None)
+
     async def reload_runners(self, drain_ms: int = 0) -> dict:
         """热重载所有 Runner。"""
         supervisor = getattr(self, "_supervisor", None)
