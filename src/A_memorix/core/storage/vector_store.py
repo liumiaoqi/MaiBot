@@ -32,7 +32,7 @@ class VectorStore:
     向量存储类 (HNSW + Append-Only Disk)
 
     特性：
-    - 索引: IndexHNSWFlat (M=32, ef_construction=200)
+    - 索引: IndexIDMap2(IndexHNSWFlat) (M=32, ef_construction=200) — IDMap2 包装以支持 add_with_ids（faiss>=1.13 裸 HNSWFlat 不支持）
     - 搜索: ef_search=50
     - 存储: float16 on-disk binary (vectors.bin)
     - 内存: 索引常驻 RAM
@@ -70,7 +70,7 @@ class VectorStore:
         self.buffer_size = buffer_size
         self.min_train_threshold = self.DEFAULT_MIN_TRAIN
 
-        self._index: Optional[faiss.IndexHNSWFlat] = None
+        self._index: Optional[faiss.IndexIDMap2] = None
         self._init_index()
 
         self._vector_norm = "l2"
@@ -91,14 +91,15 @@ class VectorStore:
         logger.info(f"向量存储初始化: dim={dimension}, mode=HNSW")
 
     def _init_index(self):
-        """初始化空的 HNSW Faiss 索引"""
-        self._index = faiss.IndexHNSWFlat(
+        """初始化空的 HNSW Faiss 索引（IndexIDMap2 包装）"""
+        hnsw_index = faiss.IndexHNSWFlat(
             self.dimension,
             self.HNSW_M,
             faiss.METRIC_INNER_PRODUCT,
         )
-        self._index.hnsw.efConstruction = self.HNSW_EF_CONSTRUCTION
-        self._index.hnsw.efSearch = self.HNSW_EF_SEARCH
+        hnsw_index.hnsw.efConstruction = self.HNSW_EF_CONSTRUCTION
+        hnsw_index.hnsw.efSearch = self.HNSW_EF_SEARCH
+        self._index = faiss.IndexIDMap2(hnsw_index)
 
     @staticmethod
     def _generate_id(key: str) -> int:

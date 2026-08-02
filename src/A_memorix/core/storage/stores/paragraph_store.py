@@ -673,8 +673,8 @@ class ParagraphStore:
         tokens.extend(self._paragraph_phrase_tokens(source))
         return " ".join(dict.fromkeys(token for token in tokens if token))
 
-    def _refresh_paragraph_tokenized_fts_meta(self) -> None:
-        cur = self._conn.cursor()
+    def _refresh_paragraph_tokenized_fts_meta(self, conn: Optional[sqlite3.Connection] = None) -> None:
+        cur = (conn or self._conn).cursor()
         cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='paragraph_tokenized_fts_meta'"
         )
@@ -783,8 +783,12 @@ class ParagraphStore:
             self._conn.rollback()
             return False
 
-    def fts_upsert_tokenized_paragraph(self, paragraph_hash: str) -> bool:
-        cur = self._conn.cursor()
+    def fts_upsert_tokenized_paragraph(
+        self, paragraph_hash: str, conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
+        conn = conn or self._conn
+        owns_conn = conn is self._conn
+        cur = conn.cursor()
         try:
             cur.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='paragraphs_tokenized_fts'"
@@ -811,16 +815,24 @@ class ParagraphStore:
                         self._tokenize_paragraph_for_fts(str(row["content"] or "")),
                     ),
                 )
-            self._refresh_paragraph_tokenized_fts_meta()
-            self._conn.commit()
+            self._refresh_paragraph_tokenized_fts_meta(conn)
+            if not owns_conn:
+                # 外部传入连接（如 sparse_bm25 独立连接）：操作独立生效需显式提交；
+                # 自身主连接：不提交，由调用方事务管理
+                conn.commit()
             return True
         except sqlite3.OperationalError as e:
-            self._conn.rollback()
+            if not owns_conn:
+                conn.rollback()
             logger.warning(f"paragraph tokenized FTS upsert 失败: {e}")
             return False
 
-    def fts_delete_tokenized_paragraph(self, paragraph_hash: str) -> bool:
-        cur = self._conn.cursor()
+    def fts_delete_tokenized_paragraph(
+        self, paragraph_hash: str, conn: Optional[sqlite3.Connection] = None
+    ) -> bool:
+        conn = conn or self._conn
+        owns_conn = conn is self._conn
+        cur = conn.cursor()
         try:
             cur.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='paragraphs_tokenized_fts'"
@@ -831,11 +843,15 @@ class ParagraphStore:
                 "DELETE FROM paragraphs_tokenized_fts WHERE paragraph_hash = ?",
                 (paragraph_hash,),
             )
-            self._refresh_paragraph_tokenized_fts_meta()
-            self._conn.commit()
+            self._refresh_paragraph_tokenized_fts_meta(conn)
+            if not owns_conn:
+                # 外部传入连接（如 sparse_bm25 独立连接）：操作独立生效需显式提交；
+                # 自身主连接：不提交，由调用方事务管理
+                conn.commit()
             return True
         except sqlite3.OperationalError as e:
-            self._conn.rollback()
+            if not owns_conn:
+                conn.rollback()
             logger.warning(f"paragraph tokenized FTS delete 失败: {e}")
             return False
 

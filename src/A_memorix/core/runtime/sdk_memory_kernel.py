@@ -190,10 +190,18 @@ class SDKMemoryKernel:
         return self._dual_vector_migration_service.write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
 
     def _clear_legacy_single_vector_files_after_dual_ready(self) -> None:
-        return self._dual_vector_migration_service.clear_legacy_single_vector_files_after_dual_ready()
+        result = self._dual_vector_migration_service.clear_legacy_single_vector_files_after_dual_ready()
+        # manager 已把 legacy store 替换为空 store，kernel 引用需同步，否则旧对象内存残留
+        # 会在下次 add/save 时重建已删除的 legacy 文件（破坏 dual ready 状态）
+        self.vector_store = self._vector_pool_manager.vector_store
+        return result
 
     def _reload_dual_vector_stores_from_disk(self) -> bool:
-        return self._dual_vector_migration_service.reload_dual_vector_stores_from_disk()
+        result = self._dual_vector_migration_service.reload_dual_vector_stores_from_disk()
+        self.vector_store = self._vector_pool_manager.vector_store
+        self.paragraph_vector_store = self._vector_pool_manager.paragraph_vector_store
+        self.graph_vector_store = self._vector_pool_manager.graph_vector_store
+        return result
 
     def _refresh_relation_write_service(self) -> None:
         KernelInitializer.refresh_relation_write_service(self)

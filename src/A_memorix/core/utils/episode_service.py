@@ -73,6 +73,7 @@ class EpisodeService:
             num = float(value)
         except Exception as exc:
             logger.warning("操作异常: %s", exc)
+            return default
         if num < 0.0:
             return 0.0
         if num > 1.0:
@@ -163,7 +164,7 @@ class EpisodeService:
             current_chars = 0
             last_anchor: Optional[float] = None
 
-            def flush() -> None:
+            def flush(source: str) -> None:
                 nonlocal current, current_chars, last_anchor
                 if not current:
                     return
@@ -192,13 +193,13 @@ class EpisodeService:
                         need_flush = True
 
                 if need_flush:
-                    flush()
+                    flush(source)
 
                 current.append(paragraph)
                 current_chars += content_len
                 last_anchor = anchor
 
-            flush()
+            flush(source)
 
         groups.sort(
             key=lambda g: self._paragraph_anchor(g["paragraphs"][0]) if g.get("paragraphs") else 0.0

@@ -139,7 +139,7 @@ async def test_profile_classification_uses_llm_buckets_and_guards_uncertain_stab
     )
 
     async def fake_generate_with_resolved_model(*args, **kwargs):
-        model, request_type, prompt = args
+        model, request_type, prompt, _llm_api = args
         assert model.task_name == "memory"
         assert request_type == PROFILE_CLASSIFICATION_REQUEST_TYPE
         assert "测试用户喜欢直接沟通" in prompt

@@ -241,6 +241,15 @@ def test_has_pending_person_profile_refresh_ignores_failed_after_max_retry(tmp_p
         plugin_root=tmp_path,
         config={"person_profile": {"max_retry": 3}},
     )
+    kernel._person_profile_facade = PersonProfileFacade(
+        cfg=kernel._cfg,
+        metadata_store_getter=lambda: kernel.metadata_store,
+        person_profile_service_getter=lambda: None,
+        hit_filter_service_getter=lambda: None,
+        active_person_timestamps={},
+        background_scheduler=None,
+        initialize=lambda: None,
+    )
 
     kernel.metadata_store = _FakeProfileRefreshRequestStore(  # type: ignore[assignment]
         {"person_id": "person-1", "status": "pending", "retry_count": 0}

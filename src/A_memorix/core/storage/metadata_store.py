@@ -798,12 +798,12 @@ class MetadataStore:
     def fts_upsert_tokenized_paragraph(
         self, paragraph_hash: str, conn: Optional[sqlite3.Connection] = None
     ) -> bool:
-        return self.paragraphs.fts_upsert_tokenized_paragraph(paragraph_hash)
+        return self.paragraphs.fts_upsert_tokenized_paragraph(paragraph_hash, conn=conn)
 
     def fts_delete_tokenized_paragraph(
         self, paragraph_hash: str, conn: Optional[sqlite3.Connection] = None
     ) -> bool:
-        return self.paragraphs.fts_delete_tokenized_paragraph(paragraph_hash)
+        return self.paragraphs.fts_delete_tokenized_paragraph(paragraph_hash, conn=conn)
 
     def fts_search_tokenized_paragraphs_bm25(
         self,

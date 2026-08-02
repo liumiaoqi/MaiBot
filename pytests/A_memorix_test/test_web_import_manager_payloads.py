@@ -8,7 +8,6 @@ import pytest
 from src.A_memorix.core.strategies.base import ChunkContext, KnowledgeType, ProcessedChunk, SourceInfo
 from src.A_memorix.core.strategies.factual import FactualStrategy
 from src.A_memorix.core.strategies.narrative import NarrativeStrategy
-from src.A_memorix.core.strategies.base import KnowledgeType
 from src.A_memorix.core.utils.web_import_manager import (
     ImportChunkRecord,
     ImportFileRecord,
@@ -334,7 +333,7 @@ async def test_invalidate_manifest_for_sources_matches_recorded_imported_sources
 @pytest.mark.asyncio
 async def test_persist_processed_chunk_rejects_non_object_before_paragraph_write() -> None:
     manager, metadata_store = _build_manager()
-    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt")
+    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt", imported_sources=None)
 
     with pytest.raises(ValueError, match="分块抽取结果 必须返回 JSON 对象"):
         await manager._persist_processed_chunk(file_record, _build_chunk(["bad"]))
@@ -390,7 +389,7 @@ async def test_cancelled_chunks_do_not_increase_file_progress() -> None:
 @pytest.mark.asyncio
 async def test_persist_processed_chunk_skips_invalid_nested_items() -> None:
     manager, metadata_store = _build_manager()
-    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt")
+    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt", imported_sources=None)
 
     await manager._persist_processed_chunk(
         file_record,
@@ -411,7 +410,7 @@ async def test_persist_processed_chunk_skips_invalid_nested_items() -> None:
 @pytest.mark.asyncio
 async def test_persist_processed_chunk_writes_chat_id_metadata() -> None:
     manager, metadata_store = _build_manager()
-    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt")
+    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt", imported_sources=None)
 
     await manager._persist_processed_chunk(
         file_record,
@@ -427,7 +426,7 @@ async def test_persist_processed_chunk_writes_chat_id_metadata() -> None:
 async def test_persist_processed_chunk_does_not_hold_storage_lock_during_embedding() -> None:
     embedding_manager = _DummyEmbeddingManager(delay=0.05)
     manager, metadata_store = _build_manager(embedding_manager=embedding_manager)
-    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt")
+    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt", imported_sources=None)
 
     await asyncio.gather(
         manager._persist_processed_chunk(
@@ -531,7 +530,7 @@ async def test_dual_pool_import_writes_graph_vectors_to_graph_store() -> None:
         relation_vectorization_enabled=True,
         vector_pool_mode="dual",
     )
-    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt")
+    file_record = SimpleNamespace(source_path="", source_kind="paste", name="demo.txt", imported_sources=None)
 
     await manager._persist_processed_chunk(
         file_record,
@@ -568,7 +567,7 @@ async def test_high_concurrency_persist_processed_chunks_keep_all_writes_consist
         embedding_manager=embedding_manager,
         relation_vectorization_enabled=True,
     )
-    file_record = SimpleNamespace(source_path="", source_kind="paste", name="stress.txt")
+    file_record = SimpleNamespace(source_path="", source_kind="paste", name="stress.txt", imported_sources=None)
 
     async def persist(index: int) -> None:
         await manager._persist_processed_chunk(

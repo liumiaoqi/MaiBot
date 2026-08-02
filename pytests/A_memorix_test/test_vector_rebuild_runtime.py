@@ -1290,10 +1290,6 @@ async def test_initialize_defers_real_embedding_self_check(
         report = kernel._embedding_recovery_service._runtime_self_check_report
         assert report["code"] == "startup_self_check_deferred"
 
-        async def _health_refresh_self_check(sample_text: str = "A_Memorix runtime self check") -> dict[str, Any]:
-            return await kernel._embedding_recovery_service.refresh_runtime_self_check(sample_text=sample_text)
-
-        monkeypatch.setattr(kernel._embedding_health_service, "refresh_self_check", _health_refresh_self_check)
         result = await RuntimeAdminHandler(kernel).handle(action="self_check")
         assert result["success"] is True
         assert len(self_check_calls) == 1
@@ -1334,12 +1330,8 @@ async def test_deferred_self_check_marks_dimension_mismatch(
     try:
         assert kernel.vector_store is not None
         assert kernel.vector_store.dimension == 8
-        assert kernel._is_embedding_degraded() is False
+        assert kernel.is_embedding_degraded() is False
 
-        async def _health_refresh_self_check(sample_text: str = "A_Memorix runtime self check") -> dict[str, Any]:
-            return await kernel._embedding_recovery_service.refresh_runtime_self_check(sample_text=sample_text)
-
-        monkeypatch.setattr(kernel._embedding_health_service, "refresh_self_check", _health_refresh_self_check)
         result = await RuntimeAdminHandler(kernel).handle(action="self_check")
         assert result["success"] is False
 

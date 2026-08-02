@@ -31,6 +31,7 @@ try:
     from src.config.model_configs import TaskConfig
     from src.services import memory_flow_service as memory_flow_service_module
     from src.services import memory_service as memory_service_module
+    from src.services import message_service as message_service_module
     from src.services import send_service
 except SystemExit as exc:
     IMPORT_ERROR = f"config initialization exited during import: {exc}"
@@ -49,6 +50,7 @@ except SystemExit as exc:
     TaskConfig = None  # type: ignore[assignment]
     memory_flow_service_module = None  # type: ignore[assignment]
     memory_service_module = None  # type: ignore[assignment]
+    message_service_module = None  # type: ignore[assignment]
     send_service = None  # type: ignore[assignment]
 
 
@@ -331,9 +333,18 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
         config_manager=None,
         build_profile_injection_text=None,
         require_llm_service=lambda: fake_llm_service,
+        require_message_service=lambda: SimpleNamespace(
+            get_messages_by_time_in_chat=message_service_module.get_messages_by_time_in_chat,
+            build_readable_messages=message_service_module.build_readable_messages,
+        ),
+        require_config_manager=lambda: None,
+        llm_service=None,
+        db_session_factory=None,
+        db_person_info_model=None,
     )
 
     service = memory_flow_service_module.MemoryAutomationService()
+    await service.start()
     fake_platform_io_manager = _FakePlatformIOManager()
 
     async def _fake_rebuild_episodes_for_sources(sources: List[str]) -> Dict[str, Any]:
@@ -360,6 +371,11 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
         ),
     )
     monkeypatch.setattr(memory_flow_service_module, "memory_automation_service", service)
+    monkeypatch.setattr(
+        message_service_module,
+        "get_bot_config_port",
+        lambda: SimpleNamespace(get_bot_nickname=lambda: "bot-qq"),
+    )
     monkeypatch.setattr(send_service, "_get_runtime_manager", lambda: _NoopRuntimeManager())
     monkeypatch.setattr(send_service, "get_platform_io_manager", lambda: fake_platform_io_manager)
     monkeypatch.setattr(send_service, "get_bot_account", lambda platform: "bot-qq")

@@ -101,8 +101,6 @@ class DualVectorMigrationService:
         self._vpm.graph_vector_store = self._get_graph_vector_store()
         self._vpm.metadata_store = self._get_metadata_store()
         self._vpm.refresh_dual_vector_ready_manifest_from_stores()
-
-    def clear_legacy_single_vector_files_after_dual_ready_v2(self) -> None:
         self._vpm.vector_store = self._get_vector_store()
         return self._vpm.clear_legacy_single_vector_files_after_dual_ready()
 

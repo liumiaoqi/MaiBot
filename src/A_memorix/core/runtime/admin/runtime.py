@@ -59,7 +59,7 @@ class RuntimeAdminHandler(BaseAdminHandler):
             return self._kernel._vector_pools_status()
 
         if act in {"self_check", "refresh_self_check"}:
-            report = await self._kernel._embedding_health_service.refresh_self_check(
+            report = await self._kernel._embedding_recovery_service.refresh_runtime_self_check(
                 sample_text=str(kwargs.get("sample_text", "") or "A_Memorix runtime self check")
             )
             checked_at = float(report.get("checked_at") or time.time())
