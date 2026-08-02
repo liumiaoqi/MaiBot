@@ -24,7 +24,7 @@ class TestOnRunnerRegistered:
 
     def test_registered_creates_provider(self):
         registry = ToolRegistry()
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(get_message_port=MagicMock())
         person_port = MagicMock()
         bridge = MCPHostBridge(registry, dispatcher, person_port)
 
@@ -35,7 +35,7 @@ class TestOnRunnerRegistered:
     @pytest.mark.asyncio
     async def test_duplicate_registration_skipped(self):
         registry = ToolRegistry()
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(get_message_port=MagicMock())
         person_port = MagicMock()
         bridge = MCPHostBridge(registry, dispatcher, person_port)
 
@@ -45,7 +45,7 @@ class TestOnRunnerRegistered:
 
     def test_empty_tools_events_skipped(self):
         registry = ToolRegistry()
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(get_message_port=MagicMock())
         person_port = MagicMock()
         bridge = MCPHostBridge(registry, dispatcher, person_port)
 
@@ -57,7 +57,7 @@ class TestInjectCommandContext:
 
     def test_injects_context_fields(self):
         registry = ToolRegistry()
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(get_message_port=MagicMock())
         person_port = MagicMock()
         person_port.get_person_info.return_value = MagicMock(person_name="Alice")
         bridge = MCPHostBridge(registry, dispatcher, person_port)
@@ -74,7 +74,7 @@ class TestInjectCommandContext:
         assert inv.arguments["is_group_chat"] is True
 
     def test_no_pattern_skips_injection(self):
-        bridge = MCPHostBridge(ToolRegistry(), EventDispatcher(), MagicMock())
+        bridge = MCPHostBridge(ToolRegistry(), EventDispatcher(get_message_port=MagicMock()), MagicMock())
         inv = ToolInvocation(tool_name="t1", arguments={}, call_id="c1", session_id="")
         ctx = ToolExecutionContext(session_id="s", user_id="u", is_group_chat=False)
         bridge._inject_command_context(inv, ctx, {})

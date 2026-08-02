@@ -7,6 +7,9 @@ import importlib.util
 
 
 class DummyLogger:
+    def debug(self, *a, **k):
+        pass
+
     def info(self, *a, **k):
         pass
 
@@ -14,6 +17,9 @@ class DummyLogger:
         pass
 
     def error(self, *a, **k):
+        pass
+
+    def exception(self, *a, **k):
         pass
 
 
@@ -155,6 +161,28 @@ class DetachedRecordSession(DummySession):
 
 @pytest.fixture(autouse=True)
 def patch_external_dependencies(monkeypatch):
+    # Patch model config port + LLM service port（VLM 描述生成走 Port 注册点）。
+    # 必须在 sys.modules 假模块替换之前 import——port 模块的 import 链需要真实
+    # database_model（session_message_data_model.Messages），替换后会 ImportError
+    from src.core.adapters.llm_service_port import (
+        reset_llm_service,
+        set_llm_service,
+    )
+    from src.core.model_config_port_registry import (
+        register_model_config_port,
+        reset_model_config_port,
+    )
+
+    class _AsyncLLMService:
+        async def generate_response_for_image(self, *args, **kwargs):
+            return types.SimpleNamespace(response="dummy description")
+
+    model_config_port = types.SimpleNamespace(
+        get_task_config=lambda _task_name: types.SimpleNamespace(model_list=["vlm-model"]),
+    )
+    register_model_config_port(model_config_port)
+    set_llm_service(_AsyncLLMService())
+
     # Provide dummy implementations as modules so that importing image_manager is safe
     # Patch LLMRequest
     llm_mod = types.SimpleNamespace(LLMRequest=DummyLLMRequest)
@@ -197,12 +225,10 @@ def patch_external_dependencies(monkeypatch):
     llm_options_mod = types.SimpleNamespace(LLMImageOptions=lambda **kwargs: types.SimpleNamespace(**kwargs))
     monkeypatch.setitem(sys.modules, "src.common.data_models.llm_service_data_models", llm_options_mod)
 
-    # If module already imported, reload it to apply patches
-    mod_name = "src.chat.image_system.image_manager"
-    if mod_name in sys.modules:
-        importlib.reload(sys.modules[mod_name])
-
     yield
+
+    reset_model_config_port()
+    reset_llm_service()
 
 
 def _load_image_manager_module(tmp_path=None):
@@ -224,7 +250,7 @@ def _load_image_manager_module(tmp_path=None):
 
 
 @pytest.mark.asyncio
-async def test_get_image_description_generates(tmp_path):
+async def test_get_image_description_generates(tmp_path, patch_external_dependencies):
     image_manager = _load_image_manager_module(tmp_path)
 
     mgr = image_manager.ImageManager()
@@ -239,7 +265,7 @@ def test_get_image_from_db_none(tmp_path):
     assert mgr.get_image_from_db("nohash") is None
 
 
-def test_register_image_to_db(tmp_path):
+def test_register_image_to_db(tmp_path, patch_external_dependencies):
     image_manager = _load_image_manager_module(tmp_path)
 
     mgr = image_manager.ImageManager()
@@ -270,7 +296,7 @@ def test_delete_image_not_found(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_save_image_and_process_and_cleanup(tmp_path):
+async def test_save_image_and_process_and_cleanup(tmp_path, patch_external_dependencies):
     image_manager = _load_image_manager_module(tmp_path)
 
     mgr = image_manager.ImageManager()

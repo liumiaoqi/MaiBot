@@ -2,8 +2,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.config.config import global_config
-
 import src.maisaka.focus.manager as focus_manager_module
 import src.maisaka.focus.runtime_mixin as focus_runtime_mixin_module
 import src.maisaka.runtime as maisaka_runtime_module
@@ -12,12 +10,22 @@ from src.maisaka.runtime import MaisakaHeartFlowChatting
 
 
 @pytest.fixture
-def focus_manager(monkeypatch) -> FocusModeManager:
-    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
-    monkeypatch.setattr(global_config.experimental, "focus_chat_whitelist", [])
-    monkeypatch.setattr(global_config.experimental, "focus_groups", [])
-    monkeypatch.setattr(global_config.experimental, "focus_cool_time", 120)
-    return FocusModeManager()
+def focus_manager() -> FocusModeManager:
+    from src.core.app_config_port_registry import (
+        reset_app_config_port,
+        set_app_config_port,
+    )
+
+    app_config_port = SimpleNamespace(
+        get_experimental_focus_mode=lambda: True,
+        get_experimental_focus_on_private=lambda: True,
+        get_experimental_focus_chat_whitelist=lambda: [],
+        get_experimental_focus_groups=lambda: [],
+        get_experimental_focus_cool_time=lambda: 120.0,
+    )
+    set_app_config_port(app_config_port)
+    yield FocusModeManager()
+    reset_app_config_port()
 
 
 @pytest.fixture
@@ -30,7 +38,7 @@ def gate_focus_manager(focus_manager, monkeypatch) -> FocusModeManager:
 def _build_gate_runtime(session_id: str = "group-a") -> MaisakaHeartFlowChatting:
     runtime = MaisakaHeartFlowChatting.__new__(MaisakaHeartFlowChatting)
     runtime.session_id = session_id
-    runtime.chat_stream = SimpleNamespace(is_group_session=True)
+    runtime._session_info = SimpleNamespace(is_group_session=True)
     runtime.log_prefix = "[test]"
     runtime._maybe_schedule_focus_at_wakeup = lambda **kwargs: None
     runtime._maybe_schedule_focus_cooldown_wakeup = lambda **kwargs: None

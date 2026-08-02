@@ -146,22 +146,31 @@ async def test_upsert_expression_creates_new_record_when_style_is_different(
     assert expressions[1].count == 1
 
 
-def test_get_session_display_name_uses_chat_manager(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_session_display_name_uses_session_port(monkeypatch: pytest.MonkeyPatch) -> None:
     """表达学习日志应优先展示聊天流名称。"""
 
-    from src.chat.message_receive.chat_manager import ChatManager
+    from types import SimpleNamespace
 
-    chat_manager = ChatManager.__new__(ChatManager)
+    import src.core.session_port_registry as session_port_registry
 
     learner = ExpressionLearner(session_id="session-a")
 
     def fake_get_session_name(session_id: str) -> str | None:
         if session_id == "session-a":
             return "测试群"
+        return session_id
+
+    def fake_get_existing_session_info(session_id: str) -> SimpleNamespace | None:
+        if session_id == "session-a":
+            return SimpleNamespace(session_name="测试群")
         return None
 
-    monkeypatch.setattr(chat_manager, "get_session_name", fake_get_session_name)
-    monkeypatch.setattr(chat_manager, "get_existing_session_by_session_id", lambda session_id: None)
+    monkeypatch.setattr(session_port_registry, "get_session_name", fake_get_session_name)
+    monkeypatch.setattr(
+        session_port_registry,
+        "get_existing_session_info",
+        fake_get_existing_session_info,
+    )
 
     assert learner._get_session_display_name("session-a") == "测试群"
     assert learner._get_session_display_name("unknown-session") == "unknown-session"
@@ -225,14 +234,23 @@ async def test_ai_self_reflect_expression_stays_unchecked(
 
     monkeypatch.setattr(expression_learner_module, "get_db_session", fake_get_db_session)
     monkeypatch.setattr(expression_learner_module, "prompt_manager", FakePromptManager())
-    monkeypatch.setattr(
-        expression_learner_module,
-        "global_config",
-        SimpleNamespace(
-            bot=SimpleNamespace(nickname="麦麦", alias_names=[]),
-            expression=SimpleNamespace(expression_self_reflect=True),
-        ),
-    )
+    def fake_get_bot_config_port() -> SimpleNamespace:
+        return SimpleNamespace(get_bot_nickname=lambda: "麦麦")
+
+    def fake_get_app_config_port() -> SimpleNamespace:
+        return SimpleNamespace(
+            get_expression_self_reflect=lambda: True,
+            get_expression_selection_mode=lambda: "disabled",
+        )
+
+    class FakeLLMService:
+        async def generate_response_with_messages(self, *args, **kwargs):
+            del args, kwargs
+            return SimpleNamespace(response="dummy response")
+
+    monkeypatch.setattr(expression_learner_module, "get_bot_config_port", fake_get_bot_config_port)
+    monkeypatch.setattr(expression_learner_module, "get_app_config_port", fake_get_app_config_port)
+    monkeypatch.setattr(expression_learner_module, "get_llm_service", lambda: FakeLLMService())
     monkeypatch.setattr(expression_learner_module, "parse_expression_response", lambda response: ([("情景", "风格", "1")], []))
     monkeypatch.setattr(ExpressionLearner, "_get_runtime_manager", staticmethod(lambda: FakeRuntimeManager()))
     monkeypatch.setattr(ExpressionLearner, "_build_multi_learning_messages", fake_build_multi_learning_messages)
@@ -250,4 +268,3 @@ async def test_ai_self_reflect_expression_stays_unchecked(
 
     assert expression.checked is False
     assert expression.modified_by == ModifiedBy.AI
-

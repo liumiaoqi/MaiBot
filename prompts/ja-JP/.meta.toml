@@ -13,6 +13,11 @@ display_name = "Planner"
 advanced = false
 description = "Maisaka のメイン計画テンプレート。身份、時刻、ツール説明、チャット文脈を統合し、思考・判断・ツール呼び出しを進める。"
 
+[maisaka_chat_embodied]
+display_name = "没入型Planner"
+advanced = false
+description = "Maisaka の没入型メイン計画テンプレート。キャラクターの内なる視点で身份、共居状態、チャット文脈を統合し、思考・判断・ツール呼び出しを進める。"
+
 [maisaka_chat_merged_timing]
 display_name = "Planner（タイミング統合）"
 advanced = false

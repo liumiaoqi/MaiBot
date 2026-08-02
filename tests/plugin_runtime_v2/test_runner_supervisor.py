@@ -78,7 +78,7 @@ class TestHealthCheck:
         mock_proc = MagicMock()
         mock_proc.returncode = None
         mock_proc.pid = 123
-        sv._spawner._processes["r1"] = mock_proc
+        sv._log_forwarders["r1"] = MagicMock(_process=mock_proc)
         mock_conn = MagicMock()
         mock_conn.state.value = "ready"
         sv._registry.get.return_value = mock_conn
@@ -94,7 +94,7 @@ class TestHealthCheck:
         mock_proc = MagicMock()
         mock_proc.returncode = None
         mock_proc.pid = 123
-        sv._spawner._processes["r1"] = mock_proc
+        sv._log_forwarders["r1"] = MagicMock(_process=mock_proc)
         sv._registry.get.return_value = None
         sv._health_status["r1"] = RunnerHealthStatus(runner_id="r1")
 
@@ -108,7 +108,7 @@ class TestHealthCheck:
         mock_proc = MagicMock()
         mock_proc.returncode = 1
         mock_proc.pid = 123
-        sv._spawner._processes["r1"] = mock_proc
+        sv._log_forwarders["r1"] = MagicMock(_process=mock_proc)
         sv._health_status["r1"] = RunnerHealthStatus(runner_id="r1")
 
         sv._on_runner_failed = AsyncMock()
@@ -148,15 +148,14 @@ class TestShouldRestart:
 class TestReload:
     @pytest.mark.asyncio
     async def test_reload_one_success(self):
-        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
-        sv._spawner.spawn = AsyncMock()
-        sv._spawner.spawn.return_value = MagicMock(pid=123)
+        sv = RunnerSupervisor(RunnerSupervisorConfig(drain_ms=0), MagicMock(), host_listen_address="localhost:0")
+        sv._spawner.restart_failed = AsyncMock()
         sv._log_forwarders["r1"] = MagicMock()
         sv._log_forwarders["r1"].stop = AsyncMock()
-        sv._plugin_dirs["r1"] = "plugins"
         mock_conn = MagicMock()
         mock_conn.state.value = "ready"
         sv._registry.get.return_value = mock_conn
+        sv._registry.unregister = AsyncMock()
 
         result = await sv.reload_one("r1")
         assert result.success

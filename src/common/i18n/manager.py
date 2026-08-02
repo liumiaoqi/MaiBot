@@ -43,7 +43,6 @@ class I18nManager:
             except InvalidLocaleError:
                 self._log_once(
                     ("invalid_env_locale", "env", env_locale),
-                    logging.WARNING,
                     f"检测到非法 MAIBOT_LOCALE={env_locale}，已回退到默认 locale {self._default_locale}",
                 )
         return self._default_locale
@@ -79,7 +78,6 @@ class I18nManager:
         if not isinstance(translation_value, dict):
             self._log_once(
                 ("non_plural_key", translation_locale, key),
-                logging.WARNING,
                 f"翻译 key '{key}' 不是 plural 节点，已回退到普通 t()",
             )
             return self.t(key, locale=translation_locale, count=count, **kwargs)
@@ -94,7 +92,6 @@ class I18nManager:
         if template is None:
             self._log_once(
                 ("plural_missing_template", translation_locale, key),
-                logging.WARNING,
                 f"翻译 key '{key}' 缺少 plural 模板，已回退到 key 本身",
             )
             return key
@@ -118,7 +115,6 @@ class I18nManager:
         if template is None:
             self._log_once(
                 ("plural_missing_other", translation_locale, key),
-                logging.WARNING,
                 f"翻译 key '{key}' 缺少 other plural category，已回退到 key 本身",
             )
         return template
@@ -141,7 +137,6 @@ class I18nManager:
             if key in default_catalog:
                 self._log_once(
                     ("missing_key_fallback", target_locale, key),
-                    logging.WARNING,
                     f"翻译 key '{key}' 在 locale '{target_locale}' 中缺失，"
                     f"已回退到默认 locale '{self._default_locale}'",
                 )
@@ -149,7 +144,6 @@ class I18nManager:
 
         self._log_once(
             ("missing_key", target_locale, key),
-            logging.WARNING,
             f"翻译 key '{key}' 缺失，locale='{target_locale}'，默认 locale='{self._default_locale}'",
         )
         return None, target_locale
@@ -164,7 +158,6 @@ class I18nManager:
             current_locale = self.get_locale()
             self._log_once(
                 ("invalid_locale", "explicit", locale),
-                logging.WARNING,
                 f"检测到非法 locale='{locale}'，已回退到当前默认 locale {current_locale}",
             )
             return current_locale
@@ -180,7 +173,6 @@ class I18nManager:
         except I18nError as exc:
             self._log_once(
                 ("load_failed", normalized_locale, exc.__class__.__name__),
-                logging.WARNING,
                 f"加载 locale '{normalized_locale}' 失败: {exc}",
             )
             return {}
@@ -191,9 +183,9 @@ class I18nManager:
             self._catalog_cache[normalized_locale] = catalog
             return catalog
 
-    def _log_once(self, cache_key: tuple[str, str, str], level: int, message: str, *args: object) -> None:
+    def _log_once(self, cache_key: tuple[str, str, str], message: str, *args: object) -> None:
         with self._warning_lock:
             if cache_key in self._warning_cache:
                 return
             self._warning_cache.add(cache_key)
-        logger.log(level, message, *args)
+        logger.warning(message, *args)

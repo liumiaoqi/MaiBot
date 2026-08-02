@@ -62,12 +62,6 @@ class TestAutonomyEventBus:
         self.bus.subscribe("sync_event", self._handler)
         self.bus.emit_sync("sync_event", {"key": "value"})
 
-    def test_singleton(self) -> None:
-        inst1 = AutonomyEventBus.get_instance()
-        inst2 = AutonomyEventBus.get_instance()
-        assert inst1 is inst2
-
-
 class TestInteractionSignalEvent:
     """测试交互信号事件数据结构。"""
 
@@ -105,7 +99,9 @@ class TestInteractionSignalToBehaviorIntent:
     async def test_signal_triggers_intent_production(self) -> None:
         from src.maisaka.agent_autonomy.agent import AutonomousAgent
 
-        agent = AutonomousAgent("march_7th")
+        from unittest.mock import MagicMock
+
+        agent = AutonomousAgent("march_7th", thinking_organ_factory=MagicMock())
 
         signal = InteractionSignalEvent(
             initiator_agent_id="silver_wolf",
@@ -128,7 +124,9 @@ class TestInteractionSignalToBehaviorIntent:
     async def test_signal_not_for_agent_produces_no_signal_intent(self) -> None:
         from src.maisaka.agent_autonomy.agent import AutonomousAgent
 
-        agent = AutonomousAgent("silver_wolf")
+        from unittest.mock import MagicMock
+
+        agent = AutonomousAgent("silver_wolf", thinking_organ_factory=MagicMock())
 
         signal = InteractionSignalEvent(
             initiator_agent_id="march_7th",
@@ -150,7 +148,14 @@ class TestBehaviorIntentPersistence:
     """测试行为意图持久化。"""
 
     def test_save_and_retrieve(self) -> None:
+        from src.common.database.database import get_db_session
+        from src.common.database.database_model import AgentAutonomyBehaviorIntent
         from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+        # 清理上次运行残留（真实 db 无测试隔离，重复运行会 UNIQUE 冲突）
+        with get_db_session() as session:
+            session.query(AgentAutonomyBehaviorIntent).filter_by(intent_id="bi:test:abc:123").delete()
+            session.commit()
 
         store = AgentActivityStore()
         intent_id = store.save_behavior_intent(
@@ -169,7 +174,7 @@ class TestOrchestratorRegistry:
     """测试编排器注册表。"""
 
     @pytest.mark.asyncio
-    async def test_registry_lookup(self) -> None:
+    async def test_registry_lookup(self, agent_autonomy_ports) -> None:
         from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
         from unittest.mock import MagicMock
 
@@ -180,6 +185,7 @@ class TestOrchestratorRegistry:
             session_id="test_registry_session",
             session_name="测试会话",
             chat_loop_adapter=adapter,
+            thinking_organ_factory=MagicMock(),
         )
 
         found = AgentOrchestrator.get_by_session("test_registry_session")
@@ -196,9 +202,11 @@ class TestStructuredLogging:
     """测试结构化日志格式。"""
 
     @pytest.mark.asyncio
-    async def test_activate_log_format(self, caplog: pytest.LogCaptureFixture) -> None:
-        import logging
-
+    async def test_activate_log_format(
+        self,
+        agent_autonomy_ports,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
         from unittest.mock import MagicMock
 
@@ -209,9 +217,10 @@ class TestStructuredLogging:
             session_id="test_log_session",
             session_name="日志测试",
             chat_loop_adapter=adapter,
+            thinking_organ_factory=MagicMock(),
         )
 
-        with caplog.at_level(logging.INFO, logger="agent_autonomy.orchestrator"):
+        with caplog.at_level("INFO", logger="agent_autonomy.orchestrator"):
             await orchestrator.activate_agent("silver_wolf", "test")
 
         log_messages = [r.message for r in caplog.records]
@@ -223,9 +232,11 @@ class TestStructuredLogging:
         AgentOrchestrator._registry.pop("test_log_session", None)
 
     @pytest.mark.asyncio
-    async def test_speaker_change_log_format(self, caplog: pytest.LogCaptureFixture) -> None:
-        import logging
-
+    async def test_speaker_change_log_format(
+        self,
+        agent_autonomy_ports,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
         from unittest.mock import MagicMock
 
@@ -236,15 +247,16 @@ class TestStructuredLogging:
             session_id="test_sc_log_session",
             session_name="发言权日志测试",
             chat_loop_adapter=adapter,
+            thinking_organ_factory=MagicMock(),
         )
 
-        with caplog.at_level(logging.INFO, logger="agent_autonomy.orchestrator"):
+        with caplog.at_level("INFO", logger="agent_autonomy.orchestrator"):
             await orchestrator.activate_agent("silver_wolf", "test")
             await orchestrator.activate_agent("march_7th", "test")
             await orchestrator.switch_primary_speaker("march_7th", "test_switch")
 
         log_messages = [r.message for r in caplog.records]
-        sc_logs = [m for m in log_messages if "speaker_change" in m]
+        sc_logs = [m for m in log_messages if "speaker_transfer" in m]
         assert len(sc_logs) > 0
         assert "from=" in sc_logs[0]
         assert "to=march_7th" in sc_logs[0]
@@ -271,7 +283,7 @@ class TestSignalLoopBreak:
     """测试交互信号与插话的循环打破（冷却机制）。"""
 
     @pytest.mark.asyncio
-    async def test_cooldown_prevents_repeated_interjection(self) -> None:
+    async def test_cooldown_prevents_repeated_interjection(self, agent_autonomy_ports) -> None:
         from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 
         manager = InterjectionCooldownManager()
@@ -289,15 +301,14 @@ class TestSignalLoopBreak:
         assert manager.can_interject("session_2", "silver_wolf") is True
 
     @pytest.mark.asyncio
-    async def test_frequency_limit(self) -> None:
+    async def test_frequency_limit(self, agent_autonomy_ports) -> None:
         from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
-        from src.config.config import global_config
 
         manager = InterjectionCooldownManager()
-        max_per_hour = global_config.agent_autonomy.max_interjections_per_hour
+        max_per_hour = agent_autonomy_ports.autonomy_config.max_interjections_per_hour
 
         # 模拟达到频率上限
-        for i in range(max_per_hour):
+        for _ in range(max_per_hour):
             manager.record_interjection("session_1", "silver_wolf")
 
         # 超过频率上限后应被阻止

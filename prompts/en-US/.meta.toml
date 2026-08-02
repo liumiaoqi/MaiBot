@@ -13,6 +13,11 @@ display_name = "Planner"
 advanced = false
 description = "Main Maisaka planning template that combines identity, time, tool instructions, and chat context to drive thinking, decisions, and tool calls."
 
+[maisaka_chat_embodied]
+display_name = "Embodied Planner"
+advanced = false
+description = "Embodied Maisaka planning template that thinks from the character's inner perspective, integrating identity, cohabitant states, and chat context."
+
 [maisaka_chat_merged_timing]
 display_name = "Planner (Timing merged)"
 advanced = false

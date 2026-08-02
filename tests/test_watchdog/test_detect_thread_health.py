@@ -35,13 +35,16 @@ def test_detect_thread_health_ok(monitor, caplog):
 
 def test_detect_thread_health_stuck(monitor, caplog):
     """tasks 5.3.3: 检测线程 touch 超时后输出 WARNING。"""
-    monitor.start()
+    from types import SimpleNamespace
+
+    # 用存活但不再刷新的伪检测线程模拟卡住，避免与真实检测线程的时间戳刷新竞争
+    monitor._detect_thread = SimpleNamespace(is_alive=lambda: True)
     try:
         monitor._detect_thread_touch_time = time.monotonic() - 60.0  # 模拟卡住
         monitor.check_detect_thread_health()
         assert "检测线程疑似卡住" in caplog.text
     finally:
-        monitor.stop()
+        monitor._detect_thread = None
 
 
 def test_detect_thread_health_not_started(monitor, caplog):
@@ -52,14 +55,17 @@ def test_detect_thread_health_not_started(monitor, caplog):
 
 def test_detect_thread_health_timestamp_rollback(monitor, caplog):
     """tasks 5.3.5: touch 时间戳回跳时忽略本次检查。"""
-    monitor.start()
+    from types import SimpleNamespace
+
+    # 用存活但不再刷新的伪检测线程模拟，避免与真实检测线程的时间戳刷新竞争
+    monitor._detect_thread = SimpleNamespace(is_alive=lambda: True)
     try:
         monitor._detect_thread_touch_time = time.monotonic() + 60.0  # 未来时间
         monitor.check_detect_thread_health()
         assert "时间戳回跳" in caplog.text
         assert "检测线程疑似卡住" not in caplog.text
     finally:
-        monitor.stop()
+        monitor._detect_thread = None
 
 
 def test_detect_thread_touch_in_status(monitor):

@@ -12,6 +12,7 @@ from sqlalchemy.engine import Connection
 from src.common.logger import get_logger
 
 from .models import MigrationExecutionContext
+from .schema import SQLiteSchemaInspector
 # === 以下为行为学习系统内联（激进档废弃，迁移语义保持原样）===
 # 来源: 行为学习系统通用标签模块（激进档废弃时内联，迁移语义保持原样）
 
@@ -536,7 +537,6 @@ def is_behavior_generic_tag(tag_kind: object, tag_value: object) -> bool:
     if len(normalized_value) <= 4 and any(marker == normalized_value for marker in SHORT_GENERIC_MARKERS):
         return True
     return False
-from .schema import SQLiteSchemaInspector
 
 logger = get_logger("database_migration")
 LOW_DOMAIN_SCENE_DELETE_RATES = {

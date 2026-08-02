@@ -153,7 +153,7 @@ class RunnerSupervisor:
                 runner_id,
                 RunnerHealthStatus(runner_id=runner_id),
             )
-            proc = lf._proc
+            proc = lf._process
 
             if proc.returncode is None:
                 conn = self._registry.get(runner_id)

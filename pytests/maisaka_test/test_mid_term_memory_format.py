@@ -2,7 +2,6 @@ from datetime import datetime
 
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.data_models.llm_service_data_models import LLMResponseResult
-from src.config.config import global_config
 from src.llm_models.payload_content.message import MessageBuilder, RoleType
 from src.maisaka.context.messages import SessionBackedMessage
 from src.maisaka.display.prompt_preview_logger import PromptPreviewLogger
@@ -78,7 +77,14 @@ def test_mid_term_memory_payload_does_not_write_removed_summary_fields() -> None
 
 
 def test_mid_term_memory_prompt_preview_saved_as_own_category(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(global_config.debug, "show_maisaka_thinking", True)
+    import src.maisaka.memory.mid_term as mid_term_module
+
+    from types import SimpleNamespace
+
+    app_config_port = SimpleNamespace(
+        get_debug_show_maisaka_thinking=lambda: True,
+    )
+    monkeypatch.setattr(mid_term_module, "get_app_config_port", lambda: app_config_port)
     monkeypatch.setattr(PromptPreviewLogger, "_BASE_DIR", tmp_path)
 
     _save_mid_term_memory_prompt_preview(

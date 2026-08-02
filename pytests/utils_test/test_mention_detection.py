@@ -4,9 +4,9 @@ from types import SimpleNamespace
 import pytest
 
 from src.chat.message_receive.message import SessionMessage
-from src.chat.utils import utils as chat_utils
 from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
-from src.maisaka import runtime as maisaka_runtime
+from src.common.data_models.message_component_data_model import MessageSequence
+from src.core.message_utils import is_mentioned_bot_in_message
 from src.maisaka.runtime import MaisakaHeartFlowChatting
 
 
@@ -20,12 +20,38 @@ def _message(text: str, *, additional_config: dict | None = None) -> SessionMess
         user_info=UserInfo(user_id="user-1", user_nickname="用户"),
         additional_config=additional_config or {},
     )
+    message.raw_message = MessageSequence([])
     message.processed_plain_text = text
     return message
 
 
 @pytest.fixture
-def mention_config(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+def mention_config() -> SimpleNamespace:
+    from src.core.bot_config_port_registry import (
+        reset_bot_config_port,
+        set_bot_config_port,
+    )
+    from src.core.chat_config_port_registry import (
+        reset_chat_config_port,
+        set_chat_config_port,
+    )
+
+    bot_config_port = SimpleNamespace(
+        get_bot_primary_account=lambda: "123456",
+        get_bot_nickname=lambda: "麦麦",
+        get_bot_alias_names=lambda: ["牢麦"],
+        get_bot_platforms=lambda: [],
+    )
+    reply_timing = SimpleNamespace(
+        inevitable_at_reply=False,
+        mentioned_bot_reply=False,
+    )
+    chat_config_port = SimpleNamespace(
+        get_reply_timing_config=lambda: reply_timing,
+    )
+    set_bot_config_port(bot_config_port)
+    set_chat_config_port(chat_config_port)
+
     fake_config = SimpleNamespace(
         bot=SimpleNamespace(
             qq_account="123456",
@@ -34,23 +60,22 @@ def mention_config(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
             platforms=[],
         ),
         chat=SimpleNamespace(
-            reply_timing=SimpleNamespace(
-                inevitable_at_reply=False,
-                mentioned_bot_reply=False,
-            ),
+            reply_timing=reply_timing,
             inevitable_at_reply=True,
             mentioned_bot_reply=True,
         ),
     )
-    monkeypatch.setattr(chat_utils, "global_config", fake_config)
-    monkeypatch.setattr(maisaka_runtime, "global_config", fake_config)
-    return fake_config
+
+    yield fake_config
+
+    reset_bot_config_port()
+    reset_chat_config_port()
 
 
 def test_mention_detection_uses_reply_timing_config_not_legacy_chat_keys(
     mention_config: SimpleNamespace,
 ) -> None:
-    mentioned, is_at, reply_probability = chat_utils.is_mentioned_bot_in_message(_message("@<麦麦:123456> 你好"))
+    mentioned, is_at, reply_probability = is_mentioned_bot_in_message(_message("@<麦麦:123456> 你好"))
 
     assert mentioned is True
     assert is_at is True
@@ -58,7 +83,7 @@ def test_mention_detection_uses_reply_timing_config_not_legacy_chat_keys(
 
 
 def test_boolean_mention_marker_does_not_become_probability_boost(mention_config: SimpleNamespace) -> None:
-    mentioned, is_at, reply_probability = chat_utils.is_mentioned_bot_in_message(
+    mentioned, is_at, reply_probability = is_mentioned_bot_in_message(
         _message("你好", additional_config={"is_mentioned": True})
     )
 
@@ -68,7 +93,7 @@ def test_boolean_mention_marker_does_not_become_probability_boost(mention_config
 
 
 def test_numeric_mention_marker_still_provides_explicit_probability_boost(mention_config: SimpleNamespace) -> None:
-    mentioned, is_at, reply_probability = chat_utils.is_mentioned_bot_in_message(
+    mentioned, is_at, reply_probability = is_mentioned_bot_in_message(
         _message("你好", additional_config={"is_mentioned": "0.6"})
     )
 

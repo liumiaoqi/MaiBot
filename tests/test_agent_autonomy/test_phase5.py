@@ -214,8 +214,12 @@ class TestParallelIntentCollection:
     @pytest.mark.asyncio
     async def test_parallel_collection_speed(self) -> None:
         from src.maisaka.agent_autonomy.agent import AutonomousAgent
+        from unittest.mock import MagicMock
 
-        agents = [AutonomousAgent(f"test_agent_{i}") for i in range(3)]
+        agents = [
+            AutonomousAgent(f"test_agent_{i}", thinking_organ_factory=MagicMock())
+            for i in range(3)
+        ]
 
         start = time.monotonic()
         tasks = [
@@ -271,7 +275,7 @@ class TestContextCache:
     """测试上下文切换缓存。"""
 
     @pytest.mark.asyncio
-    async def test_cache_operations(self) -> None:
+    async def test_cache_operations(self, agent_autonomy_ports) -> None:
         from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
         from unittest.mock import MagicMock
 
@@ -282,6 +286,7 @@ class TestContextCache:
             session_id="test_cache_session",
             session_name="缓存测试",
             chat_loop_adapter=adapter,
+            thinking_organ_factory=MagicMock(),
         )
 
         # 初始缓存为空
