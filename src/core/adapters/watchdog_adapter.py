@@ -5,6 +5,7 @@
 
 
 import asyncio
+import time
 from typing import Any, Callable, Optional
 
 from src.core.protocols import WatchdogPort
@@ -154,6 +155,21 @@ class WatchdogAdapter(WatchdogPort):
         if self._runner_bridge is None:
             return []
         return self._runner_bridge.list_runner_bridge_status()
+
+    def list_blocked_runners(self) -> list[RunnerBridgeStatus]:
+        """查询当前所有阻塞 Runner（ZG-5 OOM 受害者选择消费）。
+
+        判定条件：cooldown_until > now。
+        """
+
+        if self._runner_bridge is None:
+            return []
+        now = time.monotonic()
+        return [
+            s
+            for s in self._runner_bridge.list_runner_bridge_status()
+            if s.cooldown_until > now
+        ]
 
     def subscribe_timeout(
         self, callback: Callable[[FaultReportEvent], None]
