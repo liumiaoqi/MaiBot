@@ -1,10 +1,46 @@
 """WebUI 测试基础设施 — conftest.py"""
 
+from types import SimpleNamespace
+
 import pytest
 from starlette.testclient import TestClient
 
 from src.webui.app import create_app
 from src.webui.core import get_token_manager
+
+
+@pytest.fixture(autouse=True)
+def _register_webui_ports():
+    """注册 WebUI 所需 Port（anti_crawler 模块 import 时即读配置；agent/auth 路由按需读取）。"""
+    from src.core.adapters.agent_config_port import set_agent_config_provider
+    from src.core.app_config_port_registry import (
+        reset_app_config_port,
+        set_app_config_port,
+    )
+
+    set_app_config_port(
+        SimpleNamespace(
+            get_webui_anti_crawler_mode=lambda: "off",
+            get_webui_allowed_ips=lambda: [],
+            get_webui_trusted_proxies=lambda: [],
+            get_webui_trust_xff=lambda: False,
+            get_webui_secure_cookie=lambda: False,
+            get_webui_mode=lambda: "development",
+        )
+    )
+    set_agent_config_provider(
+        SimpleNamespace(
+            get_agent=lambda agent_id: None,
+            list_agents=lambda: [],
+            get_default_agent=lambda: None,
+            has_agent=lambda agent_id: False,
+            reload=lambda: None,
+            reload_agent=lambda agent_id: False,
+            load=lambda: None,
+        )
+    )
+    yield
+    reset_app_config_port()
 
 
 @pytest.fixture
