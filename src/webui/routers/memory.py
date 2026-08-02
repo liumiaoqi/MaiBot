@@ -101,9 +101,9 @@ def _unwrap_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
 def _get_chat_name_from_latest_message(message: Optional[dict[str, Any]]) -> Optional[str]:
     if not message:
         return None
-    group_id = str(message.get("group_id")).strip()
+    group_id = str(message.get("group_id") or "").strip()
     if group_id:
-        return str(message.get("group_name")).strip() or f"群聊{group_id}"
+        return str(message.get("group_name") or "").strip() or f"群聊{group_id}"
     user_id = str(message.get("user_id")).strip()
     private_name = str(
         message.get("user_cardname") or message.get("user_nickname") or (f"用户{user_id}" if user_id else "")
@@ -114,7 +114,7 @@ def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[st
     chat_id = str(chat_session.session_id or "").strip()
     try:
         name = _get_session_name_via_port(chat_id)
-        if name != chat_id:
+        if name and name != chat_id:
             return name
     except Exception:
         logger.warning("操作异常 in memory", exc_info=True)
@@ -1957,13 +1957,13 @@ async def get_memory_timeline(
     types: str = Query(""),
     limit: int = Query(100, ge=1, le=500),
 ):
-    return await _memory_timeline(
+    return ApiResponse(data=await _memory_timeline(
         chat_id=chat_id,
         time_start=time_start,
         time_end=time_end,
         types=types,
         limit=limit,
-    )
+    ))
 
 @router.get("/episodes")
 async def list_memory_episodes(
@@ -2197,7 +2197,7 @@ async def get_memory_import_path_aliases():
 
 @router.get("/import/chat-targets", response_model=ApiResponse[ImportChatTargetsResponse])
 async def get_memory_import_chat_targets():
-    return await _import_chat_targets()
+    return ApiResponse(data=await _import_chat_targets())
 
 @router.get("/import/guide")
 async def get_memory_import_guide():

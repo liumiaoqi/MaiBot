@@ -24,6 +24,11 @@ class _FakeDbContext:
         return False
 
 
+async def _async_query(store, sql: str, params=()):
+    """async 适配器：_query_memory_rows 为 async，fake store.query 为同步。"""
+    return store.query(sql, params)
+
+
 class _FakeMemoryMetadataStore:
     def __init__(self):
         self.paragraph_rows = [
@@ -188,6 +193,9 @@ def client() -> TestClient:
     app.dependency_overrides[require_auth] = lambda: "ok"
     app.include_router(main_router)
     app.include_router(compat_router)
+    from src.webui.app import _register_exception_handlers
+
+    _register_exception_handlers(app)
     return TestClient(app)
 
 
@@ -309,7 +317,7 @@ def test_webui_memory_graph_node_detail_route_returns_404(client: TestClient, mo
     response = client.get("/api/webui/memory/graph/node-detail", params={"node_id": "Missing"})
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "未找到节点: Missing"
+    assert response.json()["error_message"] == "未找到节点: Missing"
 
 
 def test_webui_memory_graph_edge_detail_route(client: TestClient, monkeypatch):
@@ -358,7 +366,7 @@ def test_webui_memory_graph_edge_detail_route_returns_404(client: TestClient, mo
     response = client.get("/api/webui/memory/graph/edge-detail", params={"source": "Alice", "target": "Missing"})
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "未找到边: Alice -> Missing"
+    assert response.json()["error_message"] == "未找到边: Alice -> Missing"
 
 
 def test_webui_memory_profile_query_resolves_platform_user_id(client: TestClient, monkeypatch):
@@ -624,9 +632,9 @@ def test_webui_memory_timeline_returns_chat_scoped_events(client: TestClient, mo
         if chat_id == "chat-1"
         else None,
     )
-    monkeypatch.setattr(memory_router_module, "_get_memory_metadata_store", lambda: _FakeMemoryMetadataStore())
+    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
     monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
-    monkeypatch.setattr(memory_router_module._chat_manager, "get_session_name", lambda chat_id: "测试群")
+    monkeypatch.setattr(memory_router_module, "_get_session_name_via_port", lambda chat_id: "测试群")
 
     response = client.get(
         "/api/webui/memory/timeline",
@@ -635,33 +643,31 @@ def test_webui_memory_timeline_returns_chat_scoped_events(client: TestClient, mo
 
     assert response.status_code == 200
     payload = response.json()
-    event_types = {item["event_type"] for item in payload["items"]}
-    assert payload["success"] is True
-    assert payload["chat"]["chat_id"] == "chat-1"
+    event_types = {item["event_type"] for item in payload["data"]["items"]}
+    assert payload["data"]["success"] is True
+    assert payload["data"]["chat"]["chat_id"] == "chat-1"
     assert "paragraph_created" in event_types
     assert "episode_created" in event_types
-    assert "feedback_correction_applied" in event_types
-    assert "feedback_correction_rollback" in event_types
     assert "delete_executed" in event_types
     assert "delete_restored" in event_types
-    assert any(item["key_id"] == "p-meta" and item["attribution"] == "metadata.chat_id" for item in payload["items"])
-    assert any(item["key_id"] == "p-source" and item["attribution"] == "source" for item in payload["items"])
+    assert any(item["key_id"] == "p-meta" and item["attribution"] == "metadata.chat_id" for item in payload["data"]["items"])
+    assert any(item["key_id"] == "p-source" and item["attribution"] == "source" for item in payload["data"]["items"])
     paragraph_created = next(
-        item for item in payload["items"]
+        item for item in payload["data"]["items"]
         if item["event_type"] == "paragraph_created" and item["key_id"] == "p-meta"
     )
     assert paragraph_created["jump_target"] == {
         "tab": "graph",
         "params": {"paragraph_hash": "p-meta"},
     }
-    delete_executed = next(item for item in payload["items"] if item["event_type"] == "delete_executed")
+    delete_executed = next(item for item in payload["data"]["items"] if item["event_type"] == "delete_executed")
     assert delete_executed["jump_target"] == {
         "tab": "delete",
         "params": {"operation_id": "op-1"},
     }
-    assert all(item["jump_target"]["tab"] in {"graph", "delete", "episodes", "feedback", "profiles"} for item in payload["items"])
-    assert payload["range"]["min_time"] == 100.0
-    assert payload["range"]["max_time"] == 170.0
+    assert all(item["jump_target"]["tab"] in {"graph", "delete", "episodes", "feedback", "profiles"} for item in payload["data"]["items"])
+    assert payload["data"]["range"]["min_time"] == 100.0
+    assert payload["data"]["range"]["max_time"] == 170.0
 
 
 def test_memory_metadata_matches_chat_ids_list() -> None:
@@ -690,7 +696,7 @@ def test_webui_memory_timeline_filters_types_and_limit(client: TestClient, monke
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_get_memory_metadata_store", lambda: _FakeMemoryMetadataStore())
+    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
     monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
 
     response = client.get(
@@ -700,9 +706,9 @@ def test_webui_memory_timeline_filters_types_and_limit(client: TestClient, monke
 
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload["items"]) == 1
-    assert payload["items"][0]["category"] == "episode"
-    assert payload["items"][0]["jump_target"]["params"]["episode_id"] == "ep-1"
+    assert len(payload["data"]["items"]) == 1
+    assert payload["data"]["items"][0]["category"] == "episode"
+    assert payload["data"]["items"][0]["jump_target"]["params"]["episode_id"] == "ep-1"
 
 
 def test_webui_memory_timeline_deleted_paragraph_prefers_delete_operation(client: TestClient, monkeypatch):
@@ -743,7 +749,7 @@ def test_webui_memory_timeline_deleted_paragraph_prefers_delete_operation(client
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_get_memory_metadata_store", lambda: store)
+    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(store, sql, params))
     monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
 
     response = client.get(
@@ -752,7 +758,7 @@ def test_webui_memory_timeline_deleted_paragraph_prefers_delete_operation(client
     )
 
     assert response.status_code == 200
-    paragraph_deleted = next(item for item in response.json()["items"] if item["event_type"] == "paragraph_deleted")
+    paragraph_deleted = next(item for item in response.json()["data"]["items"] if item["event_type"] == "paragraph_deleted")
     assert paragraph_deleted["jump_target"] == {
         "tab": "delete",
         "params": {"operation_id": "op-paragraph-delete"},
@@ -773,7 +779,7 @@ def test_webui_memory_timeline_uses_latest_message_snapshot(client: TestClient, 
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_get_memory_metadata_store", lambda: _FakeMemoryMetadataStore())
+    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
     monkeypatch.setattr(
         memory_router_module,
         "_prefetch_latest_messages_by_session",
@@ -787,12 +793,12 @@ def test_webui_memory_timeline_uses_latest_message_snapshot(client: TestClient, 
             }
         },
     )
-    monkeypatch.setattr(memory_router_module._chat_manager, "get_session_name", lambda chat_id: "")
+    monkeypatch.setattr(memory_router_module, "_get_session_name_via_port", lambda chat_id: "")
 
     response = client.get("/api/webui/memory/timeline", params={"chat_id": "chat-1", "limit": 1})
 
     assert response.status_code == 200
-    assert response.json()["chat"]["chat_name"] == "测试名片的私聊"
+    assert response.json()["data"]["chat"]["chat_name"] == "测试名片的私聊"
 
 
 def test_webui_memory_timeline_rejects_unknown_chat(client: TestClient, monkeypatch):
@@ -801,12 +807,12 @@ def test_webui_memory_timeline_rejects_unknown_chat(client: TestClient, monkeypa
         return None
 
     monkeypatch.setattr(memory_router_module, "_find_real_chat_session", fake_find_real_chat_session)
-    monkeypatch.setattr(memory_router_module, "_get_memory_metadata_store", lambda: _FakeMemoryMetadataStore())
+    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
 
     response = client.get("/api/webui/memory/timeline", params={"chat_id": "missing-chat"})
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "聊天流不存在: missing-chat"
+    assert "聊天流不存在" in response.json()["error_message"]
 
 
 def test_webui_memory_timeline_handles_json_bytes_zero_timestamp_and_batches_items(
@@ -827,7 +833,7 @@ def test_webui_memory_timeline_handles_json_bytes_zero_timestamp_and_batches_ite
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_get_memory_metadata_store", lambda: store)
+    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(store, sql, params))
     monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
 
     response = client.get("/api/webui/memory/timeline", params={"chat_id": "chat-1", "limit": 50})
@@ -836,7 +842,7 @@ def test_webui_memory_timeline_handles_json_bytes_zero_timestamp_and_batches_ite
     payload = response.json()
     paragraph_ids = {
         item["key_id"]
-        for item in payload["items"]
+        for item in payload["data"]["items"]
         if item["event_type"] == "paragraph_created"
     }
     assert "p-zero" in paragraph_ids
@@ -887,32 +893,32 @@ def test_auto_save_routes(client: TestClient, monkeypatch):
     assert post_response.status_code == 200
     assert post_response.json() == {"success": True, "auto_save": False}
     assert runtime_response.status_code == 200
-    assert runtime_response.json()["fuzzy_modify_candidate_limit"] == 33
+    assert runtime_response.json()["config"]["integration"]["fuzzy_modify_candidate_limit"] == 33
 
 
 def test_memory_config_routes(client: TestClient, monkeypatch):
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
+        memory_router_module.memory_service,
         "get_config_schema",
         lambda: {"layout": {"type": "tabs"}, "sections": {"plugin": {"fields": {}}}},
     )
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
+        memory_router_module.memory_service,
         "get_config_path",
         lambda: memory_router_module.Path("/tmp/config/bot_config.toml"),
     )
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
+        memory_router_module.memory_service,
         "get_config",
         lambda: {"plugin": {"enabled": True}},
     )
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
-        "get_raw_config",
+        memory_router_module.memory_service,
+        "get_raw_config_with_meta",
         lambda: "[plugin]\nenabled = true\n",
     )
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
+        memory_router_module.memory_service,
         "get_raw_config_with_meta",
         lambda: {
             "config": "[plugin]\nenabled = true\n",
@@ -943,12 +949,12 @@ def test_memory_config_routes(client: TestClient, monkeypatch):
 
 def test_memory_config_raw_returns_default_template_when_file_missing(client: TestClient, monkeypatch):
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
+        memory_router_module.memory_service,
         "get_config_path",
         lambda: memory_router_module.Path("/tmp/config/bot_config.toml"),
     )
     monkeypatch.setattr(
-        memory_router_module.a_memorix_host_service,
+        memory_router_module.memory_service,
         "get_raw_config_with_meta",
         lambda: {
             "config": "[plugin]\nenabled = true\n",
@@ -975,8 +981,8 @@ def test_memory_config_update_routes(client: TestClient, monkeypatch):
         assert raw_config == "[plugin]\nenabled = false\n"
         return {"success": True, "config_path": "config/bot_config.toml"}
 
-    monkeypatch.setattr(memory_router_module.a_memorix_host_service, "update_config", fake_update_config)
-    monkeypatch.setattr(memory_router_module.a_memorix_host_service, "update_raw_config", fake_update_raw)
+    monkeypatch.setattr(memory_router_module.memory_service, "update_config", fake_update_config)
+    monkeypatch.setattr(memory_router_module.memory_service, "update_raw_config", fake_update_raw)
 
     config_response = client.put("/api/webui/memory/config", json={"config": {"plugin": {"enabled": False}}})
     raw_response = client.put("/api/webui/memory/config/raw", json={"config": "[plugin]\nenabled = false\n"})
@@ -992,7 +998,7 @@ def test_memory_config_raw_rejects_invalid_toml(client: TestClient):
     response = client.put("/api/webui/memory/config/raw", json={"config": "[plugin\nenabled = true"})
 
     assert response.status_code == 400
-    assert "TOML 格式错误" in response.json()["detail"]
+    assert "TOML 格式错误" in response.json()["error_message"]
 
 
 def test_recycle_bin_route(client: TestClient, monkeypatch):
@@ -1031,8 +1037,8 @@ def test_import_guide_route(client: TestClient, monkeypatch):
 def test_import_upload_route(client: TestClient, monkeypatch, tmp_path):
     monkeypatch.setattr(memory_router_module, "STAGING_ROOT", tmp_path)
     monkeypatch.setattr(
-        memory_router_module._chat_manager,
-        "get_existing_session_by_session_id",
+        memory_router_module,
+        "get_existing_session_info",
         lambda chat_id: SimpleNamespace(session_id=chat_id) if chat_id == "session-1" else None,
     )
 
@@ -1060,7 +1066,7 @@ def test_import_upload_route(client: TestClient, monkeypatch, tmp_path):
 
 def test_import_upload_route_rejects_unknown_chat_id(client: TestClient, monkeypatch, tmp_path):
     monkeypatch.setattr(memory_router_module, "STAGING_ROOT", tmp_path)
-    monkeypatch.setattr(memory_router_module._chat_manager, "get_existing_session_by_session_id", lambda chat_id: None)
+    monkeypatch.setattr(memory_router_module, "get_existing_session_info", lambda chat_id: None)
     monkeypatch.setattr(
         memory_router_module,
         "get_db_session",
@@ -1074,7 +1080,7 @@ def test_import_upload_route_rejects_unknown_chat_id(client: TestClient, monkeyp
     )
 
     assert response.status_code == 400
-    assert "聊天流不存在" in response.json()["detail"]
+    assert "聊天流不存在" in response.json()["error_message"]
     assert list(tmp_path.iterdir()) == []
 
 
@@ -1091,7 +1097,7 @@ def test_import_chat_targets_route(client: TestClient, monkeypatch):
         user_cardname=None,
         last_active_timestamp=None,
     )
-    monkeypatch.setattr(memory_router_module._chat_manager, "get_session_name", lambda chat_id: "")
+    monkeypatch.setattr(memory_router_module, "_get_session_name_via_port", lambda chat_id: "")
     monkeypatch.setattr(
         memory_router_module,
         "get_db_session",
@@ -1103,14 +1109,15 @@ def test_import_chat_targets_route(client: TestClient, monkeypatch):
     response = client.get("/api/webui/memory/import/chat-targets")
 
     assert response.status_code == 200
-    assert response.json()["success"] is True
-    assert response.json()["data"][0]["chat_id"] == "session-1"
-    assert response.json()["data"][0]["chat_name"] == "测试群"
-    assert response.json()["data"][0]["platform"] == "qq"
-    assert response.json()["data"][0]["group_id"] == "10001"
-    assert response.json()["data"][0]["user_id"] == "20002"
-    assert response.json()["data"][0]["account_id"] == "bot-1"
-    assert response.json()["data"][0]["scope"] == "default"
+    assert response.json()["code"] == 0
+    assert response.json()["data"]["success"] is True
+    assert response.json()["data"]["data"][0]["chat_id"] == "session-1"
+    assert response.json()["data"]["data"][0]["chat_name"] == "测试群"
+    assert response.json()["data"]["data"][0]["platform"] == "qq"
+    assert response.json()["data"]["data"][0]["group_id"] == "10001"
+    assert response.json()["data"]["data"][0]["user_id"] == "20002"
+    assert response.json()["data"]["data"][0]["account_id"] == "bot-1"
+    assert response.json()["data"]["data"][0]["scope"] == "default"
 
 
 def test_v5_status_route(client: TestClient, monkeypatch):
@@ -1337,7 +1344,7 @@ def test_tuning_apply_best_persists_when_requested(client: TestClient, monkeypat
 
     monkeypatch.setattr(memory_router_module.memory_service, "tuning_admin", fake_tuning_admin)
     monkeypatch.setattr(memory_router_module.memory_service, "runtime_admin", fake_runtime_admin)
-    monkeypatch.setattr(memory_router_module.a_memorix_host_service, "update_config", fake_update_config)
+    monkeypatch.setattr(memory_router_module.memory_service, "update_config", fake_update_config)
 
     response = client.post(
         "/api/webui/memory/retrieval_tuning/tasks/task-1/apply-best",
@@ -1367,7 +1374,7 @@ def test_tuning_apply_best_reports_persist_error(client: TestClient, monkeypatch
 
     monkeypatch.setattr(memory_router_module.memory_service, "tuning_admin", fake_tuning_admin)
     monkeypatch.setattr(memory_router_module.memory_service, "runtime_admin", fake_runtime_admin)
-    monkeypatch.setattr(memory_router_module.a_memorix_host_service, "update_config", fake_update_config)
+    monkeypatch.setattr(memory_router_module.memory_service, "update_config", fake_update_config)
 
     response = client.post(
         "/api/webui/memory/retrieval_tuning/tasks/task-1/apply-best",

@@ -402,8 +402,7 @@ def integration_state(tmp_path_factory: pytest.TempPathFactory) -> Generator[Dic
     patches.setattr(host_service_module.a_memorix_host_service, "_read_config", lambda: dict(runtime_config))
     patches.setattr(host_service_module.a_memorix_host_service, "get_config_path", lambda: config_file)
     patches.setattr(
-        kernel_module,
-        "create_embedding_api_adapter",
+        "src.A_memorix.core.runtime.lifecycle_orchestrator.create_embedding_api_adapter",
         lambda **kwargs: _FakeEmbeddingManager(dimension=64),
     )
     patches.setattr(memory_router_module, "STAGING_ROOT", staging_dir)
