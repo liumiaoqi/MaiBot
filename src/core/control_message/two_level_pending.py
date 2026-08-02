@@ -93,10 +93,18 @@ class TwoLevelPendingManager:
             最高优先级控制消息节点，无可投递消息时返回 None
         """
         async with self._shared_lock:
-            private = self._private_pending.get(session_id)
-            return self._priority_dispatcher.next_control_message(
-                private, self._shared_pending, session_id
-            )
+            return self.dequeue_next_sync(session_id)
+
+    def dequeue_next_sync(self, session_id: str) -> Optional[ControlMessagePendingNode]:
+        """同步出队（热路径，事件循环内调用）。
+
+        与 dequeue_next 等价（dispatcher 纯同步无 await 间隙，事件循环内天然原子）；
+        用于 ControlMessagePort.dequeue_next（同步接口）的委托。
+        """
+        private = self._private_pending.get(session_id)
+        return self._priority_dispatcher.next_control_message(
+            private, self._shared_pending, session_id
+        )
 
     async def force_enqueue(
         self,
