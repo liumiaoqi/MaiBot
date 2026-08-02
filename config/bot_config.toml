@@ -1,5 +1,5 @@
 [inner]
-version = "8.27.0"
+version = "8.28.0"
 
 [bot]
 platform = "qq" # 麦麦主账号所在的平台，例如 qq。
@@ -31,7 +31,7 @@ inevitable_at_reply = true # 开启后，被 @ 时会尽量回复。
 reply_trigger_mode = "frequency" # 控制新消息何时进入 Planner。
 planner_interrupt_max_consecutive_count = 0 # 思考时来了新消息，最多重新思考多少次。
 max_consecutive_wait_count = 3 # Planner 最多连续调用 wait 多少次；达到上限后 wait 工具会拒绝继续进入等待。
-no_action_backoff_base_seconds = 15 # 连续决定不回复后，下一次检查前先等多久。
+no_action_backoff_base_seconds = 15.0 # 连续决定不回复后，下一次检查前先等多久。
 no_action_backoff_start_count = 2 # 连续几次不回复后开始放慢检查。
 enable_talk_value_rules = false # 开启后，可以按聊天或时间段单独调整发言频率。
 talk_value_rules = [{platform = "", item_id = "", rule_type = "group", time = "00:00-08:59", value = 0.8}, {platform = "", item_id = "", rule_type = "group", time = "09:00-18:59", value = 1.0}]
@@ -456,40 +456,6 @@ allow_url = false # 是否允许 MCP 服务器请求打开 URL。
 
 [plugin]
 permission = [] # 允许用聊天命令管理插件的用户，格式如 qq:123456789。
-
-# ZG-5 资源限制 — 插件资源计量、四档限制、压力分级、OOM 处理
-# 对标 Linux cgroup memory controller v2 + vmpressure + OOM killer
-# 渐进启用：未配置四档限制的插件不受干预；global_enabled=false 可全局关闭
-[resource_limit]
-global_enabled = false # 全局开关，false 时所有插件不受资源限制
-
-[resource_limit.pressure] # 压力检测参数（对标 vmpressure）
-win_size = 512 # 采样窗口大小（默认 512，对标 vmpressure_win）
-priority_critical_threshold = 3 # 优先级 ≤此值强制 CRITICAL（对标 vmpressure_prio）
-
-[resource_limit.oom] # OOM 处理参数（对标 oom_kill）
-lock_timeout_sec = 5.0 # oom_lock 获取超时秒数
-reap_max_attempts = 10 # 异步杀除重试上限
-reap_retry_interval_sec = 0.5 # 重试间隔（2Hz，对标 oom_reaper）
-
-[resource_limit.event] # 事件传播参数（对标 memory.events）
-dedup_window_ms = 1000 # 事件去重窗口毫秒
-max_depth = 32 # 父链传播最大深度
-
-# 插件资源配置示例（取消注释并按需调整）
-# [resource_limit.plugins.my_plugin]
-# oom_group = false # 整组杀除标志
-# events_local = false # 事件仅本地
-# [resource_limit.plugins.my_plugin.token]
-# min = 0 # 硬保护量（OOM 时跳过 usage < min 的插件）
-# low = 0 # 软保护偏好量（超出标记 reclaimable）
-# high = 0 # 警戒软限（超出触发异步回收）
-# max = 0 # 硬限上限（超出阻断并触发 OOM）
-# [resource_limit.plugins.my_plugin.message]
-# min = 0
-# low = 0
-# high = 0
-# max = 0
 
 [plugin_runtime]
 enabled = true # 是否启用新版插件运行时。
