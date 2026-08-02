@@ -111,6 +111,13 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 14. **同名方法 v1/v2 并存是空操作陷阱** — `dual_vector_migration.py` 的 `clear_legacy_single_vector_files_after_dual_ready`（v1）只刷 manifest 不删文件，`_v2` 才是真清理——kernel 注入调 v1 → legacy 文件永不清理（"三池冗余"）。规则：grep 同名方法时检查全部定义；删死方法不留双轨
 15. **容器内 src 是 bind mount、tests/pytests 不是** — 改 src 立即生效；tests/pytests 在容器里是旧快照（镜像 COPY），跑测试前必须 `docker exec maim-bot-core rm -rf /MaiMBot/tests /MaiMBot/pytests && docker cp tests maim-bot-core:/MaiMBot/ && docker cp pytests maim-bot-core:/MaiMBot/`。忘了同步会把旧测试文件 + 新 src 混跑，报出幽灵失败（2026-08-03 撞过：容器里多了本地已删的 test_maibot_migration_script.py）
 16. **计算回填 ≠ 写盘** — plugin install manifest id 回填只算了 `manifest_plugin_id` 没写回文件，按 id 查找永远失败；`_read_manifest_plugin_id` 用 `str(manifest.get("id")).strip()` 对缺 id 返回 "None" 非空导致回填条件永不触发（str(None) 陷阱第 4 次）
+17. **Windows worktree 在 WSL 里 gitdir 失效** — CA 的 Windows 工作树（E:\Users\lmq\MaiBot-fix-send）`.git` 文件内容 `gitdir: E:/...` 是 Windows 绝对路径，WSL 的 git 解析不了 → `git worktree list` 显示 prunable、`git status` 报 "not a git repository: (null)"。修复：`git worktree repair /mnt/e/Users/lmq/MaiBot-fix-send`（2026-08-03 fix_send_failure 合并时撞过）
+18. **CA 在子仓库里建嵌套 git 仓库是事故** — CA 的产出目录里若出现带 .git 的子目录（旧副本），`git add` 会作为 gitlink（mode 160000）提交并警告 "adding embedded git repository"——嵌套仓库内容无法被外层仓库管理。规则：合并 CA 产出前先 `find <dir> -name .git` 检查嵌套仓库；内容为旧副本时整个删除，gitlink 从 index 撤销（`git rm --cached`）
+19. **submodule 改动两段式提交** — 插件子仓库（plugins/*）的改动必须在子仓库内单独 commit，主仓库只提交指针更新（子仓库 commit → 主仓库 `git add plugins/xxx` 提交指针）
+20. **Dummy/假类方法不全 = 错误被吞**（测试卫生批次） — fixture 的 DummyLogger 缺 `debug`/`exception` 方法 → 生产代码调 `logger.debug` 抛 AttributeError → 被外层 try/except 吞 → 断言拿到空字符串、错误不可见。规则：修"断言空结果"类失败时，先检查假类方法是否齐全（logger 至少 debug/info/warning/error/exception），再追链路
+21. **fixture 的 sys.modules 假模块替换有时序要求** — 需要 import 真实依赖链的代码（如 port registry 模块）必须在 sys.modules 替换**之前** import；`importlib.reload` 与 sys.modules 假模块互斥（reload 重新 exec 会从被替换模块 import → "cannot import name X from '<unknown module name>'"）。规则：新 import 放 fixture 顶部、不要 reload
+22. **Codex 修复可能是"规避"而非"根因"** — 审查 Codex 补丁时对每个生产改动问"它真的修对了吗"：i18n 缺 `import logging`（NameError 根因）被 Codex 用字符串 `"warning"` 规避（破坏 `logger.log(level: int)` 契约）——正确修法是补 import + 走项目 logger 规则。规则：Codex 改了生产代码的语义（参数类型/契约）时重点审查；宁可还原其改动自己修
+23. **真实 db 的测试残留要测试内清理** — 走真实 db（AgentActivityStore 等）的测试重跑会 UNIQUE 冲突/数据累积——测试开头 delete 同 id 记录，或改用临时 db 隔离。数据库迁移只跑一次：已跑过新版本的测试环境，后续补列要手动 ALTER（迁移文件对新 db 生效，旧 db 已跳版本）
 
 ## .shared/ 写新文件规则
 

@@ -1,7 +1,10 @@
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from src.maisaka.agent_interaction.engine import InteractionEngine
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
@@ -1587,7 +1590,7 @@ class AgentOrchestrator:
             episodes = list(getattr(intuition, "triggered_episodes", ()) or ())
             sagas = list(getattr(intuition, "triggered_sagas", ()) or ())
 
-        if not entries and not episodes and not saga:
+        if not entries and not episodes and not sagas:
             return ""
 
         parts: list[str] = []
