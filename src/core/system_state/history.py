@@ -53,6 +53,8 @@ class TransitionHistory:
                     f.write(json.dumps(line, ensure_ascii=False) + "\n")
             logger.info("迁移历史已导出: %s（%d 条）", path, len(records))
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("迁移历史导出失败: %s", path)
 
     @staticmethod

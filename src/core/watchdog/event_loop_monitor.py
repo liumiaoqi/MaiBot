@@ -103,6 +103,8 @@ class EventLoopMonitor:
             try:
                 self._detect_once()
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.exception("检测周期发生异常，跳过本次判定")
 
     def _detect_once(self) -> None:

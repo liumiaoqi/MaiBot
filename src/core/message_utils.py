@@ -161,6 +161,8 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
                         return True
             return False
         except Exception as exc:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.debug("核心消息@检测异常: %s", exc)
             return False
 
@@ -278,6 +280,8 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
                             target_info.person_id = person_info.person_id
                             target_info.person_name = person_info.person_name or ""
                 except Exception as person_e:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.warning(
                         f"获取 person_id 或 person_name 时出错 for {platform}:{user_id} in utils: {person_e}"
                     )
@@ -286,6 +290,8 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
         else:
             logger.warning(f"无法获取 chat_stream for {chat_id} in utils")
     except Exception as e:
+        from src.core.tainted_mask.mark import mark_exception_swallowed
+        mark_exception_swallowed()
         logger.error(f"获取聊天类型和目标信息时出错 for {chat_id}: {e}", exc_info=True)
 
     return is_group_chat, chat_target_info

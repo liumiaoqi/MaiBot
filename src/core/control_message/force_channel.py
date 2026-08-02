@@ -59,6 +59,8 @@ class ForceChannel:
                 configured = app_config_port.get_control_message_force_caller_whitelist()
                 whitelist = frozenset(configured) or whitelist
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("force 白名单配置读取失败，使用默认", exc_info=True)
         self._caller_whitelist = whitelist
 
@@ -67,6 +69,8 @@ class ForceChannel:
             try:
                 await self._event_bus.emit(event_type, data)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
 
     async def force_send(

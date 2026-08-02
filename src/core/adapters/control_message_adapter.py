@@ -78,6 +78,8 @@ class ControlMessageAdapter(ControlMessagePort):
             try:
                 history_limit = app_config_port.get_control_message_delivery_history_limit()
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("投递历史上限配置读取失败，使用默认 %s", _DEFAULT_DELIVERY_HISTORY_LIMIT, exc_info=True)
 
         # 1. 类别注册表
@@ -358,6 +360,8 @@ class ControlMessageAdapter(ControlMessagePort):
             try:
                 await self._event_bus.emit(event_type, data)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
 
     def _emit_sync(self, event_type: str, data: dict[str, Any]) -> None:
@@ -365,6 +369,8 @@ class ControlMessageAdapter(ControlMessagePort):
             try:
                 self._event_bus.emit_sync(event_type, data)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("control 事件同步发布失败: %s", event_type, exc_info=True)
 
     async def _report_fault(self, detail: str) -> None:
@@ -374,6 +380,8 @@ class ControlMessageAdapter(ControlMessagePort):
                     "control_message", _FAULT_REASON, detail
                 )
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("故障上报失败: %s", detail, exc_info=True)
 
     # ── 健康探针（T19 使用）────────────────────────────────────────

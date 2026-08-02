@@ -114,6 +114,8 @@ class WatchdogAdapter(WatchdogPort):
                 event.component_id, event.reason.value, event.detail
             )
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("故障上报异常（component_id=%s）", event.component_id)
 
     async def _notify_subscribers_async(self) -> None:
@@ -127,6 +129,8 @@ class WatchdogAdapter(WatchdogPort):
             try:
                 callback(status)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("状态订阅回调异常", exc_info=True)
 
     def get_status(self) -> WatchdogStatus:
@@ -195,6 +199,8 @@ class WatchdogAdapter(WatchdogPort):
             try:
                 callback(event)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("超时订阅回调异常", exc_info=True)
 
     def subscribe_status_change(

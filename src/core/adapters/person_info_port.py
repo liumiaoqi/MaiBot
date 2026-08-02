@@ -26,6 +26,8 @@ class PersonInfoPortAdapter:
                 person_name=person.person_name,
             )
         except Exception as exc:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.debug(f"人物信息查询失败: platform={platform}, user_id={user_id}, error={exc}")
             return None
 

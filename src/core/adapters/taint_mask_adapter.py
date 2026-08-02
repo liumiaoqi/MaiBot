@@ -57,6 +57,8 @@ class TaintMaskAdapter(TaintedMaskPort):
             config = self._app_config_port.get_taint_on_taint()
             mapper = TaintActionMapper.from_config(config)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.warning("on_taint 配置加载失败，使用默认（全部 RECORD）", exc_info=True)
             return {}
         return {
@@ -72,6 +74,8 @@ class TaintMaskAdapter(TaintedMaskPort):
         try:
             return max(0, int(self._app_config_port.get_taint_warn_limit()))
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.warning("warn_limit 配置读取失败，使用默认 0", exc_info=True)
             return 0
 
@@ -82,6 +86,8 @@ class TaintMaskAdapter(TaintedMaskPort):
         try:
             return int(self._app_config_port.get_taint_preset_mask())
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.warning("preset_mask 配置读取失败，使用默认 0", exc_info=True)
             return 0
 

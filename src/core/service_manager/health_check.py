@@ -137,6 +137,8 @@ class HealthCheckEngine:
                 f"探针超时({self._probe_timeout}s)",
             )
         except Exception as e:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             await self._on_check_fail(
                 component_id,
                 FaultReason.PROBE_EXCEPTION,

@@ -52,6 +52,8 @@ class ControlMessageKindRegistry:
                 configured = app_config_port.get_control_message_unmaskable_whitelist()
                 parsed = frozenset(ControlMessageKind(k) for k in configured)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("不可屏蔽白名单配置读取失败，使用默认 {1,2,3}", exc_info=True)
                 parsed = frozenset()
             # 配置必须恰好覆盖默认白名单，否则拒绝该配置项保持默认（spec §5.1.2）

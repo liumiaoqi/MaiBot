@@ -240,6 +240,8 @@ class StartupOrchestrator:
             logger.warning(f"[{component.name}] 子系统启动超时")
             self._subsystem_status[component.name] = ComponentStatus.FAILED
         except Exception as exc:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             component.status = ComponentStatus.FAILED
             component.error = exc
             logger.warning(f"[{component.name}] 子系统初始化失败（降级继续）: {exc}")

@@ -215,6 +215,8 @@ class TaintedMask:
                     except RuntimeError:
                         logger.warning("无事件循环，跳过异步订阅回调", exc_info=True)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("污染通知订阅回调异常（flag=%s）", event.flag.name, exc_info=True)
 
     # ── 内部工具 ─────────────────────────────────────────────────
@@ -252,6 +254,8 @@ class TaintedMask:
                         flag.name,
                     )
                 except Exception:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.error(
                         "TAINT_ACTION_FAILED: 污染位 %s 的 TRIGGER_DEGRADE 调度失败",
                         flag.name,
@@ -264,6 +268,8 @@ class TaintedMask:
             await self._state_machine_port.trigger_health_level_change("fault")
         except Exception:
             # 动作失败不回滚污染位（不可逆优先，spec §2.3.1 规则 5）
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.error(
                 "TAINT_ACTION_FAILED: 污染位 %s 的 TRIGGER_DEGRADE 动作执行失败",
                 flag.name,

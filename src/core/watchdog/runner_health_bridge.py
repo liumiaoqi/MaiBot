@@ -83,6 +83,8 @@ class RunnerHealthBridge:
         try:
             heartbeat_manager.add_timeout_listener(runner_id, self._on_v2_timeout)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception(
                 "V2 心跳监听器注入失败，已降级跳过（runner_id=%s）", runner_id
             )
@@ -106,6 +108,8 @@ class RunnerHealthBridge:
                 runner_id, DetectionSource.HEARTBEAT, consecutive_failures
             )
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("V2 超时回调处理异常（runner_id=%s）", runner_id)
 
     async def _v2_diff_loop(self, runner_id: str) -> None:
@@ -141,6 +145,8 @@ class RunnerHealthBridge:
                     elif status_str == "running":
                         await self._on_runner_recovered(runner_id)
                 except Exception:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.exception("V2 diff 轮询异常（runner_id=%s）", runner_id)
         except asyncio.CancelledError:
             pass
@@ -228,6 +234,8 @@ class RunnerHealthBridge:
                             if status and status.is_recovering:
                                 await self._on_runner_recovered(runner_id)
                 except Exception:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.exception("V1 旁路轮询异常（runner_id=%s）", runner_id)
         except asyncio.CancelledError:
             pass
@@ -289,6 +297,8 @@ class RunnerHealthBridge:
         try:
             await self._report_callback(event)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("Runner 上报回调异常（runner_id=%s）", runner_id)
             return
 
@@ -340,6 +350,8 @@ class RunnerHealthBridge:
                     runner_id, self._on_v2_timeout
                 )
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.exception(
                     "V2 心跳监听器摘除失败，已降级跳过（runner_id=%s）", runner_id
                 )

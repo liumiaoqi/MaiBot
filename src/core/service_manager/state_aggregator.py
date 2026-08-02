@@ -138,6 +138,8 @@ class StateAggregator:
             try:
                 callback(view)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("健康等级变更订阅回调异常，已跳过", exc_info=True)
 
     def subscribe(self, callback: Callable[[SystemHealthView], None]) -> None:

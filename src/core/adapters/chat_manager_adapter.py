@@ -158,6 +158,8 @@ class ChatManagerAdapter:
             try:
                 callback(session_id)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("会话创建订阅回调异常", exc_info=True)
 
     def register_session_task(self, session_id: str, task: asyncio.Task) -> None:

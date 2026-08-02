@@ -416,6 +416,8 @@ class ServiceManagerAdapter:
             new_level = self._state_aggregator.compute_level()
             self._state_aggregator.check_and_notify(old_level, new_level)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.error(
                 "组件 %s 恢复流程异常，转入故障(需人工)",
                 component_id,

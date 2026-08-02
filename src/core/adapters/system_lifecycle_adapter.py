@@ -62,6 +62,8 @@ class SystemLifecycleAdapter:
             view = self._agg.build_view()
             return view.level
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             return None
 
     def _on_health_view_change(self, view) -> None:
@@ -118,6 +120,8 @@ class SystemLifecycleAdapter:
             tainted_mask = port.get_taint()
             tainted_verbose = port.print_tainted_verbose()
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             pass
         return self._sm.get_view(
             health_level=health_level.value if health_level is not None else "healthy",
@@ -147,6 +151,8 @@ class SystemLifecycleAdapter:
             try:
                 self._crp.update_flag(flag, value)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.exception("强制核心就绪标志失败: %s", flag)
 
     def _sync_core_readiness(self) -> None:
@@ -161,6 +167,8 @@ class SystemLifecycleAdapter:
             self._crp.update_flag("agent_thinking_ready", agent)
             self._crp.update_flag("reply_capability_ready", reply)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("同步核心就绪标志失败")
 
     # ── 崩溃导出钩子（提示 2）───────────────────────────────
@@ -178,6 +186,8 @@ class SystemLifecycleAdapter:
                 prev = signal.getsignal(signum)
                 signal.signal(signum, self._make_signal_handler(signum, prev))
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             pass  # 非主线程等场景注册失败忽略
         sys.excepthook = self._make_excepthook(sys.excepthook)
 
@@ -210,6 +220,8 @@ class SystemLifecycleAdapter:
             path = TransitionHistory.default_export_path(self._crash_export_dir)
             self._sm.export_history_to(path)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             pass  # best-effort
 
 

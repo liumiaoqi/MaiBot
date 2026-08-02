@@ -101,6 +101,8 @@ class ResourceEventPropagator:
             emit_data = {**data, "plugin_id": plugin_id}
             await self._event_bus.emit(event_type, emit_data)
         except Exception as e:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.error(
                 "事件 emit 失败，继续至下一节点: %s/%s -> %s",
                 plugin_id,

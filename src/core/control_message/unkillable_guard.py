@@ -40,6 +40,8 @@ class UnkillableGuard:
             try:
                 entities = app_config_port.get_control_message_unkillable_entities()
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("UNKILLABLE 实体清单配置读取失败，使用空清单", exc_info=True)
                 entities = []
             now = time.monotonic()

@@ -212,4 +212,6 @@ class SystemStateMachine:
         try:
             self._history.export_to_jsonl(self._history.default_export_path())
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("迁移历史关闭导出失败")

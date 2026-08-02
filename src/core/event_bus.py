@@ -236,6 +236,8 @@ class EventBus:
                     break
                 executed.append(entry)
             except Exception as e:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.error(f"拦截型 handler {entry.name} 执行异常: {e}", exc_info=True)
                 if nofail:
                     failures.append((entry.name, e))
@@ -347,6 +349,8 @@ class EventBus:
             task.add_done_callback(lambda t: self._task_done_callback(t, entry.name))
             self._running_tasks.setdefault(entry.name, []).append(task)
         except Exception as e:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.error(f"创建 handler 任务 {entry.name} 失败: {e}", exc_info=True)
 
     def _task_done_callback(self, task: asyncio.Task, handler_name: str) -> None:
@@ -362,6 +366,8 @@ class EventBus:
                 # 非拦截型不参与投票：BAD 被忽略，仅告警（spec 5.3.1-5）
                 logger.warning("非拦截型 handler %s 返回 BAD 被忽略（不参与投票）", handler_name)
         except Exception as exc:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.debug("清理异步任务异常: %s", exc)
             pass
         finally:
@@ -378,6 +384,8 @@ class EventBus:
             if asyncio.iscoroutine(result):
                 await asyncio.wait_for(result, timeout=self._rollback_timeout)
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.exception("事件回滚异常（handler %s），回滚继续", entry.name)
 
     async def _bridge_to_ipc_runtime(
@@ -409,6 +417,8 @@ class EventBus:
             if modified_dict is not None and message is not None:
                 message = self._apply_ipc_message_update(message, modified_dict)
         except Exception as e:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.warning(f"桥接事件到 IPC 运行时失败: {e}")
 
         return continue_flag, message

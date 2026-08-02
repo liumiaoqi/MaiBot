@@ -128,6 +128,8 @@ class RecoveryEngine:
             try:
                 await lifecycle_manager.stop(component_id, force=True, confirmed=True)
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning(
                     "组件 %s 恢复流程停止残留异常，继续尝试启动",
                     component_id,
@@ -150,12 +152,16 @@ class RecoveryEngine:
                     mark_taint(TaintFlag.TAINT_COMPAT_FALLBACK)
                     await oom_hook(component_id)
                 except Exception:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.warning(
                         "组件 %s OOM 重应用异常", component_id, exc_info=True
                     )
 
             return True
         except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.error(
                 "组件 %s 恢复流程异常，需人工介入", component_id, exc_info=True
             )

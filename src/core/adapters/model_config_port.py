@@ -94,6 +94,8 @@ class ConfigManagerModelConfigPort:
                 except TypeError:
                     cb()
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning(
                     "配置热重载回调异常: callback=%s",
                     getattr(cb, "__name__", str(cb)),

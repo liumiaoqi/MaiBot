@@ -127,6 +127,8 @@ class LifecycleManager:
                     logger.warning("组件 %s 级联停止超时，标记故障", cid)
                     self._update_state(cid, ServiceState.FAULT)
                 except Exception:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.warning(
                         "组件 %s 级联停止异常，继续停止剩余", cid, exc_info=True
                     )
@@ -154,6 +156,8 @@ class LifecycleManager:
                     error="停止超时",
                 )
             except Exception as e:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("组件 %s 停止异常", component_id, exc_info=True)
                 self._update_state(component_id, ServiceState.FAULT)
                 return LifecycleActionResult(
@@ -214,6 +218,8 @@ class LifecycleManager:
             try:
                 await actions.start_fn()
             except Exception as e:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("组件 %s 启动失败", component_id, exc_info=True)
                 self._update_state(component_id, ServiceState.FAULT)
                 return LifecycleActionResult(

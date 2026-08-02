@@ -386,6 +386,8 @@ class ToolRegistry:
                 try:
                     return await provider.invoke(invocation, context)
                 except Exception as exc:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.exception(
                         f"工具调用异常: tool={invocation.tool_name} provider={getattr(provider, 'provider_name', '')}",
                     )

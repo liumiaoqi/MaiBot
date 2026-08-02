@@ -256,6 +256,8 @@ class GlobalConfigAppConfigPort:
         try:
             return bool(self._get_cfg().visual.image_cache_cleanup.enabled)
         except Exception as exc:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.debug("读取 image_cache_cleanup.enabled 异常: %s", exc)
             return False
 
@@ -263,6 +265,8 @@ class GlobalConfigAppConfigPort:
         try:
             return bool(self._get_cfg().emoji.cache_cleanup.enabled)
         except Exception as exc:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
             logger.debug("读取 emoji.cache_cleanup.enabled 异常: %s", exc)
             return False
 

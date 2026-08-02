@@ -130,6 +130,8 @@ class OOMHandler:
                         "limit": limit,
                     })
                 except Exception as e:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     logger.error("发布 oom_unresolvable 事件失败: %s", e)
             return None
 
@@ -145,6 +147,8 @@ class OOMHandler:
                     "trigger_dimension": dimension.value,
                 })
             except Exception as e:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.error("发布 OOM 事件失败: %s", e)
 
         # 故障上报
@@ -156,6 +160,8 @@ class OOMHandler:
                     f"dimension={dimension.value}, usage={usage}, limit={limit}",
                 )
             except Exception as e:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.error("故障上报失败，OOM 流程继续: %s", e)
 
         # 异步处置（oom_lock 已释放）
@@ -262,6 +268,8 @@ class OOMHandler:
                                 _REAP_MAX_ATTEMPTS,
                             )
                 except Exception as e:
+                    from src.core.tainted_mask.mark import mark_exception_swallowed
+                    mark_exception_swallowed()
                     all_killed = False
                     logger.error("OOM 杀除异常: %s -> %s", target.plugin_id, e)
 

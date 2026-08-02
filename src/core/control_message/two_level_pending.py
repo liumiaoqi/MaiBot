@@ -58,10 +58,14 @@ class TwoLevelPendingManager:
             try:
                 private_limit = app_config_port.get_control_message_private_queue_limit()
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("私有队列上限配置读取失败，使用默认 %s", _DEFAULT_PRIVATE_LIMIT, exc_info=True)
             try:
                 shared_limit = app_config_port.get_control_message_shared_queue_limit()
             except Exception:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
                 logger.warning("共享队列上限配置读取失败，使用默认 %s", _DEFAULT_SHARED_LIMIT, exc_info=True)
         self._private_limit = max(1, private_limit)
         self._shared_limit = max(1, shared_limit)
