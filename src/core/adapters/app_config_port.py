@@ -386,6 +386,18 @@ class GlobalConfigAppConfigPort:
     def get_control_message_force_caller_whitelist(self) -> set[str]:
         return set(self._get_cfg().control_message.force_caller_whitelist)
 
+    def get_taint_on_taint(self) -> dict[str, str]:
+        """获取污染动作映射（key=标志名，value=动作；缺省仅记录，默认空 dict）。"""
+        return dict(self._get_cfg().tainted_mask.on_taint)
+
+    def get_taint_warn_limit(self) -> int:
+        """获取 WARN 累计阈值（warn_count 达到后触发降级；0=禁用）。"""
+        return int(self._get_cfg().tainted_mask.warn_limit)
+
+    def get_taint_preset_mask(self) -> int:
+        """获取预置位掩码（启动即置位，如测试模式预置 128）。"""
+        return int(self._get_cfg().tainted_mask.preset_mask)
+
     def register_reload_callback(self, callback: object) -> None:
         from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
         config_manager.register_reload_callback(callback)

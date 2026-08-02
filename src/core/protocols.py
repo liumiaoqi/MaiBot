@@ -1268,6 +1268,20 @@ class AppConfigPort(Protocol):
         """获取 force 通道调用方白名单（系统核心层）。"""
         ...
 
+    # === Tainted Mask 域（ZG-7）===
+
+    def get_taint_on_taint(self) -> dict[str, str]:
+        """获取污染动作映射（key=标志名，value=动作；缺省仅记录，默认空 dict）。"""
+        ...
+
+    def get_taint_warn_limit(self) -> int:
+        """获取 WARN 累计阈值（warn_count 达到后触发降级；0=禁用）。"""
+        ...
+
+    def get_taint_preset_mask(self) -> int:
+        """获取预置位掩码（启动即置位，如测试模式预置 128）。"""
+        ...
+
     def register_reload_callback(self, callback: object) -> None:
         """注册全局配置热重载回调。
 

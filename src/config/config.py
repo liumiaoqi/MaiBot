@@ -46,6 +46,7 @@ from .official_configs import (
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
     SystemStateSectionConfig,
+    TaintedMaskSectionConfig,
     VisualConfig,
     VoiceConfig,
     WatchdogSectionConfig,
@@ -142,6 +143,9 @@ class Config(ConfigBase):
 
     control_message: ControlMessageSectionConfig = Field(default_factory=ControlMessageSectionConfig)
     """控制消息优先级配置类（ZG-8）"""
+
+    tainted_mask: TaintedMaskSectionConfig = Field(default_factory=TaintedMaskSectionConfig)
+    """污染标记配置类（ZG-7）"""
 
     system_state: SystemStateSectionConfig = Field(default_factory=SystemStateSectionConfig)
     """系统生命周期状态机配置类（ZG-6）"""

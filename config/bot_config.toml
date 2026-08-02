@@ -436,6 +436,12 @@ delivery_history_limit = 100 # 投递决策历史环形缓冲上限。
 diffuse_timeout_sec = 5.0 # 致命扩散超时（秒）。
 force_caller_whitelist = ["watchdog", "service_manager", "system_state_machine"] # force 通道调用方白名单（系统核心层；插件和 WebUI 普通接口不可调用）。
 
+[tainted_mask]
+# ZG-7 污染标记 — 对标 Linux tainted_mask（不可逆污染位图，只增不减）。
+on_taint = {} # 污染动作映射（key=标志名如 TAINT_PORT_BYPASS，value=动作如 trigger_degrade/warn；缺省仅记录）。
+warn_limit = 0 # WARN 累计阈值（warn_count 达到后触发降级；0=禁用）。
+preset_mask = 0 # 预置位掩码（启动即置位，如测试模式预置 128）。
+
 
 [system_state]
 history_capacity = 100 # 迁移历史环形缓冲容量（条）。

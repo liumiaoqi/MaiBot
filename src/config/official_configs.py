@@ -6886,6 +6886,23 @@ class ControlMessageSectionConfig(ConfigBase):
     """force 通道调用方白名单（系统核心层；插件和 WebUI 普通接口不可调用）。"""
 
 
+class TaintedMaskSectionConfig(ConfigBase):
+    """污染标记配置类（ZG-7）。
+
+    对标 Linux tainted_mask（不可逆污染位图，只增不减）；3 项配置与 ZG-7
+    TaintedMask 引擎构造参数一一对应，全部带默认值。
+    """
+
+    on_taint: dict[str, str] = Field(default_factory=dict)
+    """污染动作映射（如 {"TAINT_PORT_BYPASS": "trigger_degrade"}）。"""
+
+    warn_limit: int = Field(default=0)
+    """WARN 累计阈值（0=禁用）。"""
+
+    preset_mask: int = Field(default=0)
+    """预置位掩码。"""
+
+
 class SystemStateSectionConfig(ConfigBase):
     """系统生命周期状态机配置（ZG-6）。
 
