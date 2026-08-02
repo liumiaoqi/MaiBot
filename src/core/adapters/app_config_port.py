@@ -451,7 +451,7 @@ class GlobalConfigAppConfigPort:
             api_server_allowed_api_keys=tuple(cfg.api_server_allowed_api_keys),
             ws_server_host=str(cfg.ws_server_host),
             ws_server_port=int(cfg.ws_server_port),
-            auth_token=str(cfg.auth_token),
+            auth_token=tuple(cfg.auth_token),
         )
 
     async def reload_config(self, changed_scopes: tuple[str, ...] = ()) -> bool:
