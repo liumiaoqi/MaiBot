@@ -35,7 +35,7 @@ class PersonFactWritebackService:
         self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=256)
         self._worker_task: Optional[asyncio.Task] = None
         self._stopping = False
-        self._llm_service = llm_service or get_llm_service()
+        self._llm_service = llm_service  # lazy：使用时才 get_llm_service()（模块级实例化不阻塞）
 
     async def start(self) -> None:
         if self._worker_task is not None and not self._worker_task.done():
@@ -360,7 +360,8 @@ class PersonFactWritebackService:
 ["他喜欢深夜打游戏", "他养了一只猫"]
 如果没有可写入的事实，输出 []"""
         try:
-            response_result = await self._llm_service.generate_response("utils", prompt, request_type="A_Memorix.person_fact_writeback")
+            llm_service = self._llm_service or get_llm_service()
+            response_result = await llm_service.generate_response("utils", prompt, request_type="A_Memorix.person_fact_writeback")
         except Exception as exc:
             logger.warning(f"人物事实提取模型调用失败: {exc}")
             return []

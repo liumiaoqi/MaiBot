@@ -8,7 +8,7 @@ import pytest
 from src.A_memorix.core.strategies.base import ChunkContext, KnowledgeType, ProcessedChunk, SourceInfo
 from src.A_memorix.core.strategies.factual import FactualStrategy
 from src.A_memorix.core.strategies.narrative import NarrativeStrategy
-from src.A_memorix.core.storage.knowledge_types import ImportStrategy
+from src.A_memorix.core.strategies.base import KnowledgeType
 from src.A_memorix.core.utils.web_import_manager import (
     ImportChunkRecord,
     ImportFileRecord,
@@ -221,12 +221,12 @@ def test_import_strategy_uses_configurable_chunk_windows() -> None:
 
     narrative = manager._instantiate_strategy(
         "demo.txt",
-        strategy=ImportStrategy.NARRATIVE,
+        strategy=KnowledgeType.NARRATIVE,
         import_params={"narrative_window_size": 2400, "narrative_overlap": 600},
     )
     factual = manager._instantiate_strategy(
         "demo.txt",
-        strategy=ImportStrategy.FACTUAL,
+        strategy=KnowledgeType.FACTUAL,
         import_params={"factual_target_size": 1400},
     )
 
@@ -241,7 +241,7 @@ def test_narrative_split_progresses_with_high_overlap_and_newline_backoff() -> N
     manager, _ = _build_manager()
     narrative = manager._instantiate_strategy(
         "demo.txt",
-        strategy=ImportStrategy.NARRATIVE,
+        strategy=KnowledgeType.NARRATIVE,
         import_params={"narrative_window_size": 200, "narrative_overlap": 199},
     )
     assert isinstance(narrative, NarrativeStrategy)
