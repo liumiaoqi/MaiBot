@@ -61,7 +61,7 @@ if TYPE_CHECKING:
         ResourceUsageSnapshot,
     )
     from src.core.watchdog.config import WatchdogConfig
-    from src.core.watchdog.types import RunnerBridgeStatus, WatchdogStatus
+    from src.core.watchdog.types import FaultReportEvent, RunnerBridgeStatus, WatchdogStatus
     from src.maisaka.agent.config import AgentConfig
     from src.core.types import (
         AgentAutonomySnapshot,
@@ -1472,6 +1472,24 @@ class WatchdogPort(Protocol):
 
         Returns:
             RunnerBridgeStatus 列表
+        """
+
+    def subscribe_timeout(self, callback: Callable[["FaultReportEvent"], None]) -> None:
+        """订阅组件无响应超时事件（ZG-8 消费触发 force 通道）。
+
+        看门狗检测到组件无响应超时时调用已注册回调（FaultReportEvent 含
+        component_id / reason / detail）；ZG-8 收到通知后通过 force 通道
+        投递 EMERGENCY_STOP 到超时组件。
+
+        Args:
+            callback: 超时事件回调函数
+        """
+
+    def unsubscribe_timeout(self, callback: Callable[["FaultReportEvent"], None]) -> None:
+        """取消订阅。
+
+        Args:
+            callback: 先前注册过的回调函数
         """
 
     def subscribe_status_change(self, callback: Callable[["WatchdogStatus"], None]) -> None:
