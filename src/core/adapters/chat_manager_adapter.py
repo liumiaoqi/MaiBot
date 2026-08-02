@@ -5,8 +5,9 @@
 """
 
 
+import asyncio
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from src.common.logger import get_logger
 from src.core.protocols import (
@@ -43,6 +44,10 @@ class ChatManagerAdapter:
         self._resolver = resolver
         self._binding_restorer = binding_restorer
         self._session_lifecycle = session_lifecycle
+        # T14 ZG-8 衔接：会话生命周期订阅 + 关联任务注册表（致命扩散目标）
+        self._session_created_subscribers: list[Callable[[str], None]] = []
+        self._session_destroyed_subscribers: list[Callable[[str], None]] = []
+        self._session_tasks: dict[str, list[asyncio.Task]] = {}
         for name, val in (
             ("routing_service", routing_service),
             ("session_store", session_store),
@@ -123,6 +128,7 @@ class ChatManagerAdapter:
         scope: str = "",
     ) -> str:
         lifecycle = self._ensure_session_lifecycle()
+        before = set(self._session_store.list_session_ids()) if hasattr(self._session_store, "list_session_ids") else None
         session = await lifecycle.get_or_create_session(
             platform=platform,
             user_id=user_id,
@@ -130,7 +136,47 @@ class ChatManagerAdapter:
             account_id=account_id or None,
             scope=scope or None,
         )
+        # T14 ZG-8 衔接：新建会话通知订阅者（私有 pending 队列创建）
+        if before is not None and session.session_id not in before:
+            self._notify_session_created(session.session_id)
         return session.session_id
+
+    def subscribe_session_created(self, callback: Callable[[str], None]) -> None:
+        """订阅会话创建事件（ZG-8 维护私有 pending 队列）。"""
+        self._session_created_subscribers.append(callback)
+
+    def subscribe_session_destroyed(self, callback: Callable[[str], None]) -> None:
+        """订阅会话销毁事件（ZG-8 清理私有队列 + 致命扩散）。
+
+        说明：MaiBot 会话常驻无显式销毁路径，触发点待未来会话销毁功能接入；
+        回调注册机制先行（渐进启用，spec §4.5 兼容性 3）。
+        """
+        self._session_destroyed_subscribers.append(callback)
+
+    def _notify_session_created(self, session_id: str) -> None:
+        for callback in self._session_created_subscribers:
+            try:
+                callback(session_id)
+            except Exception:
+                logger.warning("会话创建订阅回调异常", exc_info=True)
+
+    def register_session_task(self, session_id: str, task: asyncio.Task) -> None:
+        """注册会话关联异步任务（致命扩散取消目标，T14 ZG-8 衔接）。
+
+        任务完成时自动从注册表移除。
+        """
+        tasks = self._session_tasks.setdefault(session_id, [])
+        if task not in tasks:
+            tasks.append(task)
+            task.add_done_callback(
+                lambda _t: self._session_tasks.get(session_id, []).remove(task)
+                if task in self._session_tasks.get(session_id, [])
+                else None
+            )
+
+    async def list_session_async_tasks(self, session_id: str) -> list:
+        """查询会话关联的异步任务列表（致命扩散使用，T14 ZG-8 衔接）。"""
+        return list(self._session_tasks.get(session_id, []))
 
     def save_all_sessions(self) -> None:
         lifecycle = self._ensure_session_lifecycle()

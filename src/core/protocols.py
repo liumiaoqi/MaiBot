@@ -663,6 +663,34 @@ class SessionLifecyclePort(Protocol):
             interval_seconds: 保存间隔（秒）
         """
 
+    def subscribe_session_created(
+        self, callback: Callable[[str], None]
+    ) -> None:
+        """订阅会话创建事件（ZG-8 维护私有 pending 队列）。
+
+        Args:
+            callback: 会话创建回调（参数为 session_id）
+        """
+
+    def subscribe_session_destroyed(
+        self, callback: Callable[[str], None]
+    ) -> None:
+        """订阅会话销毁事件（ZG-8 清理私有队列 + 致命扩散）。
+
+        Args:
+            callback: 会话销毁回调（参数为 session_id）
+        """
+
+    async def list_session_async_tasks(self, session_id: str) -> list:
+        """查询会话关联的异步任务列表（致命扩散使用）。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            会话关联的 asyncio.Task 列表；查询失败抛异常（由调用方跳过扩散）
+        """
+
 
 @runtime_checkable
 class SessionQueryPort(Protocol):
