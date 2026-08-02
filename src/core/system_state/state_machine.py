@@ -8,6 +8,7 @@
 import asyncio
 import time
 from pathlib import Path
+from typing import Optional
 
 from src.common.logger import get_logger
 from src.core.system_state.history import TransitionHistory
@@ -117,13 +118,22 @@ class SystemStateMachine:
 
     # ── 内省 ──────────────────────────────────────────────
 
-    def get_view(self, health_level: str, core_readiness: tuple[bool, bool, bool]) -> SystemLifecycleView:
+    def get_view(
+        self,
+        health_level: str,
+        core_readiness: tuple[bool, bool, bool],
+        tainted_mask: int = 0,
+        tainted_verbose: Optional[list[str]] = None,
+    ) -> SystemLifecycleView:
+        """构造内省视图（ZG-7：tainted_mask/tainted_verbose 可选注入，spec §4.1 规则 4）。"""
         return SystemLifecycleView(
             state=self._state,
             health_level=health_level,
             core_readiness=core_readiness,
             transition_history=self.get_history(),
             generated_at=time.time(),
+            tainted_mask=tainted_mask,
+            tainted_verbose=tainted_verbose or [],
         )
 
     def get_history(self) -> list[TransitionRecord]:

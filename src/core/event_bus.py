@@ -192,6 +192,10 @@ class EventBus:
                     current_message = modified
 
                 if vote is Vote.BAD:
+                    # ZG-7 检测点（T16）：Vote 返回 BAD 意味着变更链被否决/回滚，
+                    # 若调用方在 BAD 后仍直接修改状态/资源，属"绕过 Vote 的直接变更"，
+                    # 可调用 taint_mask_port.add_taint(TAINT_UNVOTED_MUTATION) 标记
+                    # （检测点非拦截点，不影响 Vote 现有链路，spec §4.3 规则 1）
                     bad_reason: BaseException | str = (
                         cb_reason if cb_reason is not None else "BAD without reason"
                     )
@@ -216,6 +220,8 @@ class EventBus:
                             await self._rollback_one(done)
                     break
                 if vote is Vote.STOP:
+                    # ZG-7 检测点（T16）：Vote 返回 STOP 即变更链被中止，
+                    # 同 BAD 语义——绕过 Vote 继续变更的路径应打 TAINT_UNVOTED_MUTATION
                     if nofail:
                         # nofail：STOP 记录告警，继续遍历到底
                         # （与 NotifierChain.notify_nofail 行为一致，CX 审查 P2）

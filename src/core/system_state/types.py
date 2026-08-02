@@ -4,7 +4,7 @@
 顺序不可变：迁移表用 <, >= 偏序守卫（"Ordering must not be changed"）。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 
 
@@ -67,6 +67,8 @@ class SystemLifecycleView:
     core_readiness: tuple[bool, bool, bool]
     transition_history: list[TransitionRecord]
     generated_at: float
+    tainted_mask: int = 0  # ZG-7 新增：污染位图值（spec §4.1 规则 4）
+    tainted_verbose: list[str] = field(default_factory=list)  # ZG-7 新增：verbose 输出
 
 
 class IllegalTransitionError(Exception):

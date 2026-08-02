@@ -23,6 +23,31 @@ class CrashDump:
         self._enabled = enabled
         self._exported = False
         self._lock = threading.Lock()
+        # ZG-7（T17）：污染状态查询接口，启动接线时注入（模块级单例无法构造时注入）
+        self._taint_mask_port = None
+
+    def set_taint_mask_port(self, port) -> None:
+        """注入污染状态查询接口（ZG-7，spec §4.5 规则 1）。
+
+        模块级单例在启动早期创建（logger.py），TaintMaskAdapter 启动后期才实例化，
+        故用 setter 注入而非构造参数（CC 审查 P2 修正）。
+        """
+        self._taint_mask_port = port
+
+    def _taint_line(self) -> str:
+        """构造污染状态行（JSON）；port 未注入时返回 None（跳过污染行）。"""
+        if self._taint_mask_port is None:
+            return None
+        try:
+            return json.dumps(
+                {
+                    "tainted_mask": self._taint_mask_port.get_taint(),
+                    "tainted_verbose": self._taint_mask_port.print_tainted_verbose(),
+                },
+                ensure_ascii=False,
+            )
+        except Exception:
+            return None
 
     def export(self, reason: str) -> None:
         """导出缓冲为 dump_*.log.jsonl。best-effort：失败仅记录，不二次抛异常。"""
@@ -40,6 +65,10 @@ class CrashDump:
             pid = _get_pid()
             path = self._log_dir / f"dump_{timestamp}_{pid}.log.jsonl"
             with open(path, "w", encoding="utf-8") as f:
+                # ZG-7（T17）：首行追加污染状态（对标 Linux kmsg_dump 含 "Tainted: ..." 行）
+                taint_line = self._taint_line()
+                if taint_line is not None:
+                    f.write(taint_line + "\n")
                 for entry in entries:
                     line = {
                         "sequence": entry.sequence,
