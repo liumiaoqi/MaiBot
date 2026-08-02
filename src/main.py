@@ -384,7 +384,6 @@ class MainSystem:
         try:
             from src.core.adapters.control_message_adapter import ControlMessageAdapter
             from src.core.app_config_port_registry import get_app_config_port
-            from src.core.control_message.types import ControlMessageKind
             from src.core.control_message_port_registry import set_control_message_port
             from src.core.event_bus_port_registry import get_event_bus_port
             from src.core.service_manager_port_registry import get_service_manager_port
@@ -410,7 +409,7 @@ class MainSystem:
         async def _force_on_timeout(event: object) -> None:
             try:
                 await adapter.force_send(
-                    ControlMessageKind.EMERGENCY_STOP,
+                    1,  # ControlMessageKind.EMERGENCY_STOP（系统级强制，IntEnum 值）
                     target_session_id="",
                     target_entity=getattr(event, "component_id", ""),
                     reason=f"watchdog timeout: {getattr(event, 'reason', '')}",
@@ -454,39 +453,19 @@ class MainSystem:
     async def _on_system_state_change(
         self, from_state: object, to_state: object, reason: object
     ) -> object:
-        """T17: ZG-6 状态迁移联动 — 通过系统级屏蔽集实现类别过滤。
+        """T17: ZG-6 状态迁移联动 — 委托适配器 apply_system_state。
 
-        - DEGRADING：屏蔽调试追踪（10-11），降低非关键类别干扰
-        - SHUTTING_DOWN：屏蔽调试/普通/实时（10-16），只留系统级强制 + 引擎致命
-        - BOOTING/READY：不干预（保持配置默认）
+        ZG-8 不维护系统状态，只订阅 ZG-6 状态变更（spec §7.6 规则 2）。
         """
-        try:
-            from src.core.adapters.control_message_adapter import ControlMessageAdapter
-            from src.core.control_message.types import MaskOperation, MaskScope
-            from src.core.vote import Vote
+        from src.core.vote import Vote
 
-            state_name = getattr(to_state, "name", str(to_state))
-            adapter: ControlMessageAdapter = self._control_message
-            if adapter is None:
-                return Vote.OK
-            if "DEGRADING" in state_name:
-                await adapter.set_blocked(
-                    MaskOperation.BLOCK,
-                    {10, 11},
-                    MaskScope.SYSTEM,
-                )
-            elif "SHUTTING_DOWN" in state_name:
-                await adapter.set_blocked(
-                    MaskOperation.BLOCK,
-                    {10, 11, 12, 13, 14, 15, 16},
-                    MaskScope.SYSTEM,
-                )
-            return Vote.OK
+        try:
+            adapter = self._control_message
+            if adapter is not None:
+                await adapter.apply_system_state(getattr(to_state, "name", str(to_state)))
         except Exception:
             logger.warning("ZG-8 状态联动失败", exc_info=True)
-            from src.core.vote import Vote
-
-            return Vote.OK
+        return Vote.OK
 
     # ── 阶段 0 闭包 ───────────────────────────────────────────
 

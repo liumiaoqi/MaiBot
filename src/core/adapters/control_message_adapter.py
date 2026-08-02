@@ -378,3 +378,21 @@ class ControlMessageAdapter(ControlMessagePort):
             "healthy": True,
             "shared_pending_count": self._pending_manager.get_pending_view("")[3],
         }
+
+    # ── 系统状态联动（T17）────────────────────────────────────────
+
+    async def apply_system_state(self, state_name: str) -> None:
+        """ZG-6 状态迁移联动 — 通过系统级屏蔽集实现类别过滤（T17）。
+
+        - DEGRADING：屏蔽调试追踪（10-11），降低非关键类别干扰
+        - SHUTTING_DOWN：屏蔽调试/普通/实时（10-16），只留系统级强制 + 引擎致命
+        - BOOTING/READY：不干预（保持配置默认）
+
+        ZG-8 不维护系统状态，只订阅 ZG-6 状态变更（spec §7.6 规则 2）。
+        """
+        if "DEGRADING" in state_name:
+            await self.set_blocked(MaskOperation.BLOCK, {10, 11}, MaskScope.SYSTEM)
+        elif "SHUTTING_DOWN" in state_name:
+            await self.set_blocked(
+                MaskOperation.BLOCK, {10, 11, 12, 13, 14, 15, 16}, MaskScope.SYSTEM
+            )
