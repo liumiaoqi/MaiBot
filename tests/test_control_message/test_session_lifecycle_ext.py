@@ -62,13 +62,13 @@ class TestSessionCreatedSubscription:
 
     @pytest.mark.asyncio
     async def test_existing_session_no_notify(self) -> None:
-        """已存在会话不触发创建通知。"""
+        """已存在会话（get 命中）不触发创建通知。"""
         adapter = _make_adapter()
         created: list[str] = []
         adapter.subscribe_session_created(lambda sid: created.append(sid))
         await adapter.get_or_create_session_id(platform="qq", user_id="u1")
-        await adapter.get_or_create_session_id(platform="qq", user_id="u2")
-        assert created == [f"sess-u1-1"]  # 第二次创建的是新会话 sess-2
+        await adapter.get_or_create_session_id(platform="qq", user_id="u1")
+        assert created == [f"sess-u1-1"]  # 第二次复用，不通知
 
     def test_subscribe_destroyed_registration(self) -> None:
         """销毁回调注册机制就位（MaiBot 会话常驻，触发点待销毁功能接入）。"""
