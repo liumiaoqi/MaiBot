@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 
 import os
+import time
 import traceback
 
 from maim_message import MessageBase
@@ -170,6 +171,8 @@ class ChatBot:
         self.bot = None  # bot 实例引用
         self._started = False
         self.heartflow_message_receiver = HeartFCMessageReceiver()
+        # T15 ZG-8：会话控制消息落地状态（stopped=不再处理该会话消息；paused=暂不回复）
+        self._session_control: Dict[str, Dict[str, Any]] = {}
 
     async def _ensure_started(self) -> None:
         """确保所有后台任务已启动。"""
@@ -239,12 +242,10 @@ class ChatBot:
         return hook_result, mutated_message
 
     def _consume_control_messages(self, session_id: str) -> None:
-        """T15 ZG-8 衔接：消息处理路径检查 pending 控制消息（peek，不出队）。
+        """T15 ZG-8 衔接：消息处理路径消费 pending 控制消息（dequeue + 动作路由）。
 
         消费点 = 用户消息处理路径（bot.py receive_message，design 裁决）；
-        控制消息的处理动作路由（停止会话/暂停回复等）随实际投递方接入。
-        动作路由实现前只 peek 不 dequeue——出队即从 pending 永久移除，
-        无动作消费会导致控制消息不可逆丢失（CX P2）。
+        动作路由为固定映射（ADR-12：SESSION_STOP → 停止会话等，不暴露注册接口）。
         global_enabled=false 或 Port 未注册时透明跳过（渐进启用，spec §4.5）。
         """
         try:
@@ -257,14 +258,77 @@ class ChatBot:
         except Exception:
             return
         try:
-            view = port.get_pending_view(session_id)
+            while True:
+                message = port.dequeue_next(session_id)
+                if message is None:
+                    break
+                self._dispatch_control_message(session_id, message)
         except Exception:
             return
-        if view.total_count > 0:
-            logger.info(
-                f"检测到 pending 控制消息 {view.total_count} 条（session={session_id}，"
-                f"动作路由待接入，暂不出队）"
-            )
+
+    def _dispatch_control_message(self, session_id: str, message: Any) -> None:
+        """控制消息动作路由 — 固定映射（ADR-12），不暴露注册接口。
+
+        会话控制/回复开关落地到 bot 会话状态（_session_control）；RELOAD_CONFIG
+        委托 config_manager；调试/实时类别记录审计日志（动作执行点接 ZG-1 服务
+        管理器后替换）。
+        """
+        from src.core.control_message.types import ControlMessageKind
+
+        kind = message.kind
+        reason = str((message.payload or {}).get("reason", "") or "").strip()
+        logger.info(
+            f"[control] 处理控制消息 kind={kind.name} force={message.force} "
+            f"source={message.source} reason={reason or '(未提供)'} session={session_id}"
+        )
+        if kind in (
+            ControlMessageKind.EMERGENCY_STOP,
+            ControlMessageKind.FORCE_SHUTDOWN,
+            ControlMessageKind.FORCE_OFFLINE,
+            ControlMessageKind.ENGINE_FATAL_ERROR,
+            ControlMessageKind.MEMORY_SUBSYSTEM_FAILURE,
+            ControlMessageKind.SESSION_CORRUPTED,
+            ControlMessageKind.SESSION_STOP,
+            ControlMessageKind.SESSION_DESTROY,
+        ):
+            self._session_control[session_id] = {
+                "stopped": True,
+                "paused": False,
+                "reason": reason or kind.name,
+                "since": time.time(),
+            }
+            logger.warning(f"[control] 会话 {session_id} 已被控制消息停止: {reason or kind.name}")
+        elif kind == ControlMessageKind.SESSION_RESUME:
+            self._session_control.pop(session_id, None)
+            logger.info(f"[control] 会话 {session_id} 已恢复")
+        elif kind == ControlMessageKind.PAUSE_REPLY:
+            self._session_control[session_id] = {
+                "stopped": False,
+                "paused": True,
+                "reason": reason or kind.name,
+                "since": time.time(),
+            }
+            logger.info(f"[control] 会话 {session_id} 回复已暂停")
+        elif kind == ControlMessageKind.RESUME_REPLY:
+            self._session_control.pop(session_id, None)
+            logger.info(f"[control] 会话 {session_id} 回复已恢复")
+        elif kind == ControlMessageKind.RELOAD_CONFIG:
+            try:
+                import asyncio
+
+                from src.config.config import config_manager  # noqa: TID251 — 配置重载委托
+
+                async def _reload() -> None:
+                    try:
+                        await config_manager.reload_config()
+                        logger.info("[control] 配置已重载")
+                    except Exception as exc:
+                        logger.warning(f"[control] 配置重载失败: {exc}")
+
+                asyncio.create_task(_reload())
+            except Exception:
+                return
+        # DEBUG_TRACE / INSPECT_REQUEST / URGENT_NOTICE / RATE_LIMIT_HIT：审计日志已记录
 
     async def _process_commands(self, message: SessionMessage) -> tuple[bool, Optional[str], bool]:
         """使用统一组件注册表处理命令。
@@ -547,6 +611,15 @@ class ChatBot:
             )
 
             message.session_id = session_id  # 正确初始化session_id
+
+            # T15 ZG-8：被控制消息停止的会话不再处理消息（SESSION_STOP/EMERGENCY_STOP 等）
+            control_state = self._session_control.get(session_id)
+            if control_state and control_state.get("stopped"):
+                logger.info(
+                    f"会话 {session_id} 已被控制消息停止（{control_state.get('reason', '')}），跳过消息"
+                )
+                return
+
             image_process_report = process_received_images_in_message(message.raw_message.components)
             if image_process_report.compressed_count or image_process_report.discarded_count:
                 image_process_details = []
