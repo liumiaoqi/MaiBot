@@ -1506,7 +1506,7 @@ class AgentOrchestrator:
                     seeds.append(emotion_state_text[:60])
                 recall_result = await port.recall_with_intuition(
                     seeds=seeds,
-                    context_text=messages[-1].get_text_content() if messages else "",
+                    context_text=messages[-1].plain_text if messages else "",
                     agent_id=agent.agent_id,
                     max_tokens=800,
                 )
