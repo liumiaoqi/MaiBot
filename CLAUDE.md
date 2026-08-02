@@ -106,6 +106,11 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 9. **删除/重构模块必须同步测试** — 测试债务主源（2026-08-02 测试卫生批次根因）：删模块后 behavior_* 测试残留、`_chat_manager` 删除后 monkeypatch 字符串目标失效、`chat_prompts` 移入 `reply_style` 后 setattr 目标没跟、f63ca9bf1 删 monologue 漏 bootstrap.py import（启动路径 ImportError）。规则：**删/改任何模块时，grep 其 import 引用 + monkeypatch 字符串引用（"src.x.y" 形式），同步更新或删除测试**；explore agent 核查"零引用"必须含 import 语句级检查
 10. **.py 文件必须 UTF-8 无 BOM** — Windows 编辑器保存事故：tests/webui/__init__.py 变 UTF-16 导致整个目录无法收集（SyntaxError: null bytes）。提交前 `file xxx.py` 抽查；跨平台编辑后留意编码
 11. **pytests/ 与 tests/ 双目录并存** — 同模块名（webui.conftest）引发 ImportPathMismatchError；已配 `import-mode = "importlib"`（pyproject），不要再手动删其中一个目录，两目录内容不同都有用
+12. **faiss≥1.13 裸 IndexHNSWFlat 不支持 add_with_ids** — C++ 基类默认抛 "add_with_ids not implemented"；必须 `faiss.IndexIDMap2(IndexHNSWFlat(...))` 包装（hnsw 参数先设再包）。裸索引 + add_with_ids 的 VectorStore 生产 save() 必崩（2026-08-03 B 类 T3 发现）
+13. **sqlite3 连接"拥有权"决定 commit 语义** — 跨连接操作：`conn is self._conn` 时不 commit（参与调用方事务），外部连接要显式 commit（独立生效）。`fts_upsert/delete_tokenized_paragraph` 的 conn 参数曾被实现丢弃 + 自连自提交（破坏 sparse_bm25 独立连接的 shadow 写入，也破坏外层事务）；commit 方向写反过一次（owns_conn 判断反了）
+14. **同名方法 v1/v2 并存是空操作陷阱** — `dual_vector_migration.py` 的 `clear_legacy_single_vector_files_after_dual_ready`（v1）只刷 manifest 不删文件，`_v2` 才是真清理——kernel 注入调 v1 → legacy 文件永不清理（"三池冗余"）。规则：grep 同名方法时检查全部定义；删死方法不留双轨
+15. **容器内 src 是 bind mount、tests/pytests 不是** — 改 src 立即生效；tests/pytests 在容器里是旧快照（镜像 COPY），跑测试前必须 `docker exec maim-bot-core rm -rf /MaiMBot/tests /MaiMBot/pytests && docker cp tests maim-bot-core:/MaiMBot/ && docker cp pytests maim-bot-core:/MaiMBot/`。忘了同步会把旧测试文件 + 新 src 混跑，报出幽灵失败（2026-08-03 撞过：容器里多了本地已删的 test_maibot_migration_script.py）
+16. **计算回填 ≠ 写盘** — plugin install manifest id 回填只算了 `manifest_plugin_id` 没写回文件，按 id 查找永远失败；`_read_manifest_plugin_id` 用 `str(manifest.get("id")).strip()` 对缺 id 返回 "None" 非空导致回填条件永不触发（str(None) 陷阱第 4 次）
 
 ## .shared/ 写新文件规则
 
