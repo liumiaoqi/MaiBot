@@ -19,22 +19,24 @@ class _FakeStateMachine:
         self.calls.append(level)
 
 
+class _FakeConfigPort:
+    def get_taint_on_taint(self) -> dict[str, str]:
+        return {"TAINT_PORT_BYPASS": "trigger_degrade"}
+
+    def get_taint_warn_limit(self) -> int:
+        return 0
+
+    def get_taint_preset_mask(self) -> int:
+        return 0
+
+
 class TestEndToEndLifecycle:
     @pytest.mark.asyncio
     async def test_full_lifecycle(self) -> None:
         """完整生命周期：位图从 0 开始 → 多位置位 → 不可逆 → 幂等 → 动作 → 通知 → 内省 → 导出。"""
         sm = _FakeStateMachine()
         adapter = TaintMaskAdapter(
-            state_machine_port=sm,
-            app_config_port=type(
-                "Cfg",
-                (),
-                {
-                    "get_taint_on_taint": lambda self: {"TAINT_PORT_BYPASS": "trigger_degrade"},
-                    "get_taint_warn_limit": lambda self: 0,
-                    "get_taint_preset_mask": lambda self: 0,
-                },
-            )(),
+            state_machine_port=sm, app_config_port=_FakeConfigPort()
         )
         events: list[object] = []
         adapter.subscribe(lambda e: events.append(e))
@@ -161,27 +163,15 @@ class TestWiringCompleteness:
         reset_taint_mask_port()
 
     def test_structured_log_fields(self) -> None:
-        """add_taint 结构化日志字段完整（spec §4.2 规则 1）。"""
-        import logging
+        """add_taint 结构化日志字段完整（spec §4.2 规则 1，mock 断言不触发真实日志）。"""
+        from unittest.mock import patch
 
-        records: list[logging.LogRecord] = []
-
-        class _Handler(logging.Handler):
-            def emit(self, record: logging.LogRecord) -> None:
-                records.append(record)
-
-        from src.core.tainted_mask import tainted_mask as tm_module
-
-        handler = _Handler()
-        tm_module.logger.addHandler(handler)
-        try:
+        with patch("src.core.tainted_mask.tainted_mask.logger") as mock_logger:
             adapter = TaintMaskAdapter(app_config_port=None)
             adapter.add_taint(TaintFlag.TAINT_WARN)
-        finally:
-            tm_module.logger.removeHandler(handler)
-
-        assert records, "add_taint 未输出日志"
-        record = records[0]
-        assert "污染位置位" in record.getMessage()
-        assert "TAINT_WARN" in record.getMessage()
-        assert "0x20" in record.getMessage()
+        mock_logger.info.assert_called_once()
+        args = mock_logger.info.call_args
+        assert "污染位置位" in args[0][0]
+        assert args[0][1] == "TAINT_WARN"  # flag 格式化参数
+        assert args[0][3] == "RECORD"  # action 格式化参数
+        assert args[0][4] == 0x20  # current_mask 格式化参数
