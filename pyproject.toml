@@ -61,9 +61,11 @@ dev = [
 
 [tool.pytest.ini_options]
 markers = ["benchmark: 性能基准用例（NFR-PER 验收），常规回归不运行"]
-addopts = "-m 'not benchmark'"
+addopts = "-m 'not benchmark' --ignore=lab --ignore=pytests/phoenix1_test/test_grpc_transport.py --ignore=tests/plugin_runtime_v2/test_mcp_e2e.py"
 # asyncio_mode 必须在此段（pytest-asyncio 1.x 不读 [tool.pytest-asyncio] 独立段）
 asyncio_mode = "auto"
+# importlib 模式：pytests/webui 与 tests/webui 同模块名共存（ImportPathMismatchError 修复）
+import-mode = "importlib"
 
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"

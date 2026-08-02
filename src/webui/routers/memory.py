@@ -1086,7 +1086,7 @@ async def _graph_get_node_detail(
         evidence_node_limit=evidence_node_limit,
     )
     if not bool(payload.get("success", False)):
-        raise AppError(ErrorCode.BIZ_NOT_FOUND, str(payload.get("error", "未找到节点详情", http_status=404)))
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, str(payload.get("error", "未找到节点详情")), http_status=404)
     return payload
 
 async def _graph_get_edge_detail(
@@ -1104,7 +1104,7 @@ async def _graph_get_edge_detail(
         evidence_node_limit=evidence_node_limit,
     )
     if not bool(payload.get("success", False)):
-        raise AppError(ErrorCode.BIZ_NOT_FOUND, str(payload.get("error", "未找到边详情", http_status=404)))
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, str(payload.get("error", "未找到边详情")), http_status=404)
     return payload
 
 def _trim_memory_text(value: Any, limit: int = 160) -> str:
