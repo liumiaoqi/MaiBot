@@ -77,7 +77,7 @@ class ExperienceWriter:
                 tags=("agent_experience", action),
             )
             await self._memory_port.observe_experience(request)
-        except Exception as exc:
+        except Exception:
             logger.warning(
                 "体验写入失败: agent=%s action=%s", agent_id, action, exc_info=True,
             )
@@ -109,7 +109,7 @@ class ExperienceWriter:
                     if emotion in negative:
                         return "negative"
                     return "neutral"
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in experience_writer.py", exc_info=True)
         positive = {"joy", "happy", "excited", "grateful", "love", "satisfied", "calm"}
         negative = {"anger", "sad", "fear", "anxious", "frustrated", "jealous", "disgust"}

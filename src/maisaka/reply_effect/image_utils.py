@@ -73,7 +73,7 @@ def _resolve_image_path(binary_hash: str, *, kind: str) -> Path | None:
         file_path = Path(str(image_record.full_path or "")).expanduser().resolve()
         if file_path.is_file():
             return file_path
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in image_utils", exc_info=True)
     return None
 

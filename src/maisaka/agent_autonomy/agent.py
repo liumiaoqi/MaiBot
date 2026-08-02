@@ -1,10 +1,9 @@
-from typing import Any, Optional
+from typing import Any
 
 from src.common.logger import get_logger
 from src.core.protocols import ThinkingOrgan as ThinkingOrganProtocol
 from src.core.protocols import ThinkingOrganFactory
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
-from src.maisaka.agent_autonomy.thinking_organ import ThinkingOrgan
 from src.maisaka.agent_autonomy.inner_need import InnerNeed, InnerNeedEngine
 from src.maisaka.agent_autonomy.inner_need import (
     EmotionNeedCalculator,

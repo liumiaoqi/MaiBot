@@ -15,7 +15,6 @@ from .models import MigrationExecutionContext
 # === 以下为行为学习系统内联（激进档废弃，迁移语义保持原样）===
 # 来源: 行为学习系统通用标签模块（激进档废弃时内联，迁移语义保持原样）
 
-from typing import Iterable
 
 
 TAG_KIND_ALIASES = {

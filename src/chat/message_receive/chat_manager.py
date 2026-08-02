@@ -13,7 +13,7 @@ from .session_lifecycle import SessionLifecycle
 from .session_name_cache import SessionNameCache
 from .session_resolver import SessionResolver
 from .session_store import SessionStore
-from .session_types import BotChatSession, SessionContext
+from .session_types import BotChatSession
 
 if TYPE_CHECKING:
     from .message import SessionMessage

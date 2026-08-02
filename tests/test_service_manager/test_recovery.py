@@ -6,7 +6,6 @@ import asyncio
 import pytest
 
 from src.core.service_manager.recovery import RecoveryEngine
-from src.core.service_manager.types import ServiceDescriptor
 
 
 class TestComputeBackoff:

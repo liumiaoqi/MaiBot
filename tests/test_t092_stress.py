@@ -152,7 +152,6 @@ def benchmark_emotion_computation() -> BenchmarkResult:
 
 def benchmark_relationship_computation() -> BenchmarkResult:
     """测试关系等级评估延迟 <100ms。"""
-    from src.maisaka.relationship.level import RelationshipLevel, RelationshipSnapshot
     from src.maisaka.relationship.manager import RelationshipManager
 
     mgr = RelationshipManager()

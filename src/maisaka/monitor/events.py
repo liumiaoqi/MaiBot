@@ -34,13 +34,13 @@ def _normalize_payload_value(value: Any) -> Any:
     if hasattr(value, "model_dump"):
         try:
             return _normalize_payload_value(value.model_dump())
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in events.py", exc_info=True)
             return str(value)
     if hasattr(value, "__dict__"):
         try:
             return _normalize_payload_value(dict(value.__dict__))
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in events.py", exc_info=True)
             return str(value)
     return str(value)

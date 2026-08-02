@@ -47,7 +47,7 @@ class BufferCLI:
             task_config = port.get_task_config("planner")
             if task_config.model_list:
                 return task_config.model_list[0]
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in maisaka_cli", exc_info=True)
         return "未配置"
 

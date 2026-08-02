@@ -62,7 +62,7 @@ class InteractionScheduler:
         while self._running:
             try:
                 await self._evaluate_all_agents()
-            except Exception as exc:
+            except Exception:
                 logger.exception("[agent_interaction] 调度循环异常，降级静默")
             await asyncio.sleep(self._interval)
 
@@ -77,7 +77,7 @@ class InteractionScheduler:
                         "[agent_interaction] 触发成功: event_id=%s",
                         result.event_id,
                     )
-            except Exception as exc:
+            except Exception:
                 logger.warning(
                     "[agent_interaction] 智能体 %s 评估异常，跳过",
                     agent.agent_id,

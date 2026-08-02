@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import pytest
 
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
-from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
 
 
 class TestAutonomyEventBus:

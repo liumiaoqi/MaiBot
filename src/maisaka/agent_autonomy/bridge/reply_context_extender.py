@@ -47,6 +47,6 @@ class ReplyToolContextExtender:
             tag_format = get_app_config_port().get_agent_autonomy_config().speaker_tag_format
             organ = ExpressionOrgan(agent_id, tag_format)
             return organ.prepend_speaker_tag(content, is_multi_agent_active)
-        except Exception as exc:
+        except Exception:
             logger.warning(f"添加发言标记失败: agent_id={agent_id}", exc_info=True)
             return content

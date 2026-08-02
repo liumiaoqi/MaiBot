@@ -77,7 +77,7 @@ class HeuristicMemoryInjector:
                     seeds=impression.split()[:10] if impression else [],
                     context_text=context_text,
                 )
-        except Exception as exc:
+        except Exception:
             logger.warning("直觉召回失败，降级到 search", exc_info=True)
         return await self.memory_port.search(
             impression,
@@ -300,7 +300,7 @@ class HeuristicMemoryInjector:
             if not registry.has_agent(context.agent_id):
                 return hits
             focus_areas = registry.get_agent(context.agent_id).memory_focus_areas
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in heuristic_injector.py", exc_info=True)
             return hits
 

@@ -5,7 +5,6 @@
 """
 
 
-from typing import Optional
 
 from .summarizer import ContextSummary
 

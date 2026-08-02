@@ -1,4 +1,4 @@
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from ...retrieval import RetrievalResult
 from ...utils.aggregate_query_service import AggregateQueryService

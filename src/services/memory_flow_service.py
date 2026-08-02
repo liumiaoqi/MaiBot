@@ -251,7 +251,7 @@ class PersonFactWritebackService:
         if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
             try:
                 return float(raw_timestamp.timestamp())
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)
@@ -374,7 +374,7 @@ class PersonFactWritebackService:
         try:
             repaired = repair_json(text)
             payload = json.loads(repaired) if isinstance(repaired, str) else repaired
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             payload = None
         if not isinstance(payload, list):
@@ -569,7 +569,7 @@ class ChatSummaryWritebackService:
     def _paragraph_created_at(paragraph: dict[str, Any]) -> float:
         try:
             return float(paragraph.get("created_at") or 0.0)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             return 0.0
 
@@ -581,7 +581,7 @@ class ChatSummaryWritebackService:
         if isinstance(metadata, (bytes, bytearray)):
             try:
                 parsed = pickle.loads(metadata)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
                 return {}
             return parsed if isinstance(parsed, dict) else {}
@@ -591,7 +591,7 @@ class ChatSummaryWritebackService:
     def _coerce_positive_int(value: Any) -> int:
         try:
             number = int(value or 0)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             return 0
         return max(0, number)
@@ -628,7 +628,7 @@ class ChatSummaryWritebackService:
         if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
             try:
                 return float(raw_timestamp.timestamp())
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)

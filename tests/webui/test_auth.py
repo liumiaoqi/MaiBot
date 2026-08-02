@@ -1,6 +1,5 @@
 """Auth 路由集成测试"""
 
-from src.webui.errors.codes import ErrorCode
 
 
 def test_health_check(client):

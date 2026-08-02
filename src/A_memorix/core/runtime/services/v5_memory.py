@@ -1,5 +1,5 @@
 import time
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional
 
 from ...storage import MetadataStore
 

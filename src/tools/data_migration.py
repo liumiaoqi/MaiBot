@@ -10,7 +10,6 @@
 
 
 import shutil
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -71,7 +70,7 @@ class DataMigrationTool:
             registry = get_agent_config_provider()
             default = registry.get_default_agent()
             self._default_agent_id = default.agent_id
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in data_migration", exc_info=True)
 
     def backup_database(self) -> Path:

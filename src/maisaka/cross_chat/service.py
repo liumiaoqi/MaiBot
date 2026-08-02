@@ -4,7 +4,7 @@
 """
 
 
-from typing import Any, Optional
+from typing import Any
 
 from .injector import CrossChatContextInjector
 from .sharing import ContextSharingManager

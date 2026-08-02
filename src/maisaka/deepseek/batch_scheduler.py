@@ -136,6 +136,6 @@ class BatchScheduler:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.batch_api_enabled
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in batch_scheduler.py", exc_info=True)
         return True

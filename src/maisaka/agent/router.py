@@ -30,7 +30,7 @@ class AgentRouter:
             from src.core.app_config_port_registry import get_app_config_port
 
             return get_app_config_port().get_default_agent_id()
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in router.py", exc_info=True)
             return self._registry.get_default_agent().agent_id
 

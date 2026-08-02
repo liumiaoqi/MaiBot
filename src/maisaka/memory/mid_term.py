@@ -17,7 +17,6 @@ from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.core.app_config_port_registry import get_app_config_port
-from src.core.app_config_port_registry import get_app_config_port
 from src.llm_models.payload_content.message import (
     ImageMessagePart,
     Message,
@@ -652,7 +651,7 @@ def _parse_json_candidate(candidate: str) -> Any:
 
     try:
         return repair_json(candidate, return_objects=True, logging=False)
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in mid_term.py", exc_info=True)
 
 

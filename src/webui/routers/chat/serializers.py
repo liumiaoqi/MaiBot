@@ -191,7 +191,7 @@ def _load_cached_binary_data(
 
         guessed_mime_type = mimetypes.guess_type(str(image_path))[0] or default_mime_type
         return image_path.read_bytes(), guessed_mime_type
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in serializers", exc_info=True)
         return b"", default_mime_type
 

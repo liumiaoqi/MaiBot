@@ -18,7 +18,6 @@ from src.common.database.database_model import Messages, PersonInfo
 from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_session import SessionUtils
-from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 
 from .serializers import serialize_message_sequence
@@ -732,7 +731,7 @@ def _resolve_agent_id_for_session(
             cs = db.exec(statement).first()
             if cs and cs.agent_id:
                 return cs.agent_id
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in service.py", exc_info=True)
     return None
 

@@ -6,10 +6,8 @@
 
 
 import time
-from typing import Optional
 
 from .sharing import ContextSharingManager
-from .summarizer import ContextSummary
 
 from src.common.logger import get_logger
 logger = get_logger(__name__)

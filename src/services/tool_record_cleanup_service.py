@@ -39,7 +39,7 @@ def _load_stats(raw_stats: Any) -> dict[str, int]:
         return {"scanned_records": 0, "updated_records": 0}
     try:
         stats = loads(raw_stats)
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in tool_record_cleanup_service.py", exc_info=True)
         return {"scanned_records": 0, "updated_records": 0}
     if not isinstance(stats, dict):

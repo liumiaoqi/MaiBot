@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from src.common.logger import get_logger
 
@@ -50,7 +50,7 @@ class ChatLoopServiceAdapter:
                 self._chat_loop_service.update_emotion_state_text(
                     emotion_state.to_prompt_text()
                 )
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in chat_loop_adapter.py", exc_info=True)
             self._chat_loop_service.update_emotion_state_text("")
 
@@ -61,7 +61,7 @@ class ChatLoopServiceAdapter:
             rel_manager = AgentRelationshipManager()
             # 关系文本在 build_prompt_template_context 中动态获取
             self._chat_loop_service.update_relationship_text("")
-        except Exception as exc:
+        except Exception:
             pass
 
         logger.warning(

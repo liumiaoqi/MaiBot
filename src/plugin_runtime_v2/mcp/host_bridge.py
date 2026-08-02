@@ -153,7 +153,7 @@ class MCPHostBridge:
                     "", context.user_id or ""
                 )
                 name = info.person_name if info else ""
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in host_bridge.py", exc_info=True)
                 name = ""
             invocation.arguments["sender_name"] = name

@@ -49,7 +49,7 @@ def _build_webui_local_base_url() -> str:
 
         host = _select_webui_local_host(get_app_config_port().get_webui_host())
         port = int(get_app_config_port().get_webui_port() or 8001)
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
         host = "127.0.0.1"
         port = 8001
@@ -222,7 +222,7 @@ class PromptCLIVisualizer:
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
         try:
             image_bytes = b64decode(image_base64)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
 
         official_path = PromptCLIVisualizer._build_official_image_path(normalized_format, image_bytes)
@@ -233,7 +233,7 @@ class PromptCLIVisualizer:
         if not path.exists():
             try:
                 path.write_bytes(image_bytes)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
         return build_file_uri(path), path
 
@@ -251,7 +251,7 @@ class PromptCLIVisualizer:
             try:
                 if not b64decode(image_base64, validate=True):
                     return None
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
             return normalized_format, image_base64
         return None
@@ -325,7 +325,7 @@ class PromptCLIVisualizer:
                     continue
                 try:
                     parts.append(json.dumps(item, ensure_ascii=False, indent=2, default=str))
-                except Exception as exc:
+                except Exception:
                     logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
                     parts.append(str(item))
             return "\n".join(part for part in parts if part).strip()
@@ -333,7 +333,7 @@ class PromptCLIVisualizer:
             return ""
         try:
             return json.dumps(content, ensure_ascii=False, indent=2, default=str)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
             return str(content)
 
@@ -381,7 +381,7 @@ class PromptCLIVisualizer:
             from src.core.app_config_port_registry import get_app_config_port
 
             return bool(get_app_config_port().get_debug_keep_prompt_preview_json_base64())
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in prompt_cli_renderer.py", exc_info=True)
 
     @classmethod

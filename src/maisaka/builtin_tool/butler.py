@@ -2,11 +2,10 @@
 
 
 import traceback
-from typing import Any, Optional
+from typing import Optional
 
 from src.common.logger import get_logger
-from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.maisaka.context.message_adapter import build_visible_text_from_sequence
+from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 
 from .context import BuiltinToolRuntimeContext
 
@@ -25,7 +24,7 @@ def _is_butler_agent(ctx: BuiltinToolRuntimeContext) -> bool:
             return False
         agent_cfg = registry.get_agent(ctx.agent_id)
         return bool(getattr(agent_cfg, "is_butler", False))
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in butler.py", exc_info=True)
 
 

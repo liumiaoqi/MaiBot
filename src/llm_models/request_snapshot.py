@@ -73,7 +73,7 @@ def extract_error_response_body(error: Exception) -> Any | None:
             if callable(response_json):
                 try:
                     return _json_friendly(response_json())
-                except Exception as exc:
+                except Exception:
                     logger.warning("操作异常 in request_snapshot.py", exc_info=True)
 
             response_text = getattr(response, "text", None)
@@ -391,7 +391,7 @@ def _get_llm_request_snapshot_limit() -> int:
         from src.core.app_config_port_registry import get_app_config_port
 
         return max(1, int(get_app_config_port().get_log_llm_request_snapshot_limit() or DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT))
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in request_snapshot.py", exc_info=True)
         return DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT
 
@@ -465,7 +465,7 @@ def save_failed_request_snapshot(
         )
         _trim_llm_request_snapshots()
         return snapshot_path
-    except Exception as exc:
+    except Exception:
         logger.exception("淇濆瓨 LLM 澶辫触璇锋眰蹇収鏃跺彂鐢熷紓甯?")
         return None
 

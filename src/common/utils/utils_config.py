@@ -671,7 +671,7 @@ class ChatConfigUtils:
             sh, sm = [int(x) for x in start_str.split(":")]
             eh, em = [int(x) for x in end_str.split(":")]
             return sh * 60 + sm, eh * 60 + em
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in utils_config.py", exc_info=True)
 
 

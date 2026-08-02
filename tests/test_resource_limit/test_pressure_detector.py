@@ -3,9 +3,8 @@
 
 from unittest.mock import MagicMock
 
-import pytest
 
-from src.core.resource_limit.pressure_detector import PressureDetector, PressureWindow
+from src.core.resource_limit.pressure_detector import PressureDetector
 from src.core.resource_limit.types import PressureLevel
 
 

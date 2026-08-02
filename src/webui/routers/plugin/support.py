@@ -256,7 +256,7 @@ def load_manifest_json(manifest_path: Path) -> Optional[Dict[str, Any]]:
     try:
         with open(manifest_path, "r", encoding="utf-8") as file_obj:
             return cast(dict[str, Any], json.load(file_obj))
-    except Exception as exc:
+    except Exception:
         logger.warning("操作异常 in support.py", exc_info=True)
 
 

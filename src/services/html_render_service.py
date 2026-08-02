@@ -239,7 +239,7 @@ class HTMLRenderService:
                     height=height,
                     render_ms=int((time.perf_counter() - start_time) * 1000),
                 )
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in html_render_service.py", exc_info=True)
                 await self.reset_browser(restart_playwright=False)
                 raise
@@ -345,7 +345,7 @@ class HTMLRenderService:
             return False
         try:
             return bool(browser.is_connected())
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in html_render_service.py", exc_info=True)
 
     async def _connect_to_existing_browser(self, playwright: Any, config: PluginRuntimeRenderConfig) -> Any:
@@ -426,7 +426,7 @@ class HTMLRenderService:
 
         try:
             browser.on("disconnected", self._handle_browser_disconnected)
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in html_render_service.py", exc_info=True)
 
     def _handle_browser_disconnected(self, *_args: Any) -> None:

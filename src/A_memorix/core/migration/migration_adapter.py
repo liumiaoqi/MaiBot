@@ -1,12 +1,8 @@
 from enum import Enum
-from typing import Any
 
 from src.common.logger import get_logger
 
-from ..connectionist.enums import TimeOfDay, Valence
 from ..connectionist.memory_field import MemoryField
-from ..connectionist.models import Trace
-from ..connectionist.models import _time_of_day_from_timestamp
 
 logger = get_logger("MigrationAdapter")
 
