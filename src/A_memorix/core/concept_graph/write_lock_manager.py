@@ -73,6 +73,13 @@ class WriteLockManager:
                 self._maybe_prune(cid, lock)
 
     def _maybe_prune(self, cid: str, lock: asyncio.Lock) -> None:
-        """无等待者且未持有 → 移除字典条目（防无界增长）。"""
-        if not getattr(lock, "_waiters", None) and not lock.locked():
+        """无等待者且未持有 → 移除字典条目（防无界增长）。
+
+        仅用 lock.locked() 不够：释放后有等待者的锁若移出字典，等待者会
+        永远挂在旧锁上。_waiters 是 CPython 实现细节——加 hasattr 防护，
+        缺失时保守保留条目（不 prune）。
+        """
+        if not lock.locked():
+            if hasattr(lock, "_waiters") and lock._waiters:
+                return
             self._locks.pop(cid, None)
