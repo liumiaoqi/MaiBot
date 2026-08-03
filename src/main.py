@@ -3,7 +3,10 @@ from typing import TYPE_CHECKING, Any
 from rich.traceback import install
 
 import asyncio
+import sys
 import time
+
+from pathlib import Path
 
 from src.common.i18n import t
 from src.common.logger import get_logger
@@ -475,6 +478,40 @@ class MainSystem:
             logger.warning("ZG-7 CrashDump 注入失败，污染行跳过", exc_info=True)
 
         logger.info("ZG-7 污染标记已接线")
+
+        # TAINT_PORT_BYPASS（位0）运行时守卫：检查核心模块是否违规导入禁止项
+        self._check_port_bypass_violations()
+
+    def _check_port_bypass_violations(self) -> None:
+        """ZG-7 位0 守卫：运行时检测核心模块绕过 Protocol 直接导入禁止项。"""
+        try:
+            import importlib
+            import inspect
+
+            from src.core.tainted_mask.mark import mark_taint
+            from src.core.tainted_mask.taint_flag import TaintFlag
+
+            _BANNED_IMPORTS_IN_CORE = {
+                "src.services.chat_manager": "核心直接导入 chat_manager",
+                "src.A_memorix.core": "核心导入 A_memorix 内部模块",
+            }
+            core_pkg = importlib.import_module("src.core")
+            core_dir = str(Path(inspect.getfile(core_pkg)).parent)
+            for mod_name, mod in list(sys.modules.items()):
+                if not mod_name.startswith("src.core.") or mod_name.startswith("src.core.adapters"):
+                    continue
+                try:
+                    mod_file = getattr(mod, "__file__", None)
+                    if mod_file and not mod_file.startswith(core_dir):
+                        continue
+                except Exception:
+                    continue
+                for banned, reason in _BANNED_IMPORTS_IN_CORE.items():
+                    if banned in getattr(mod, "__dict__", {}):
+                        mark_taint(TaintFlag.TAINT_PORT_BYPASS)
+                        logger.warning("ZG-7 守卫: %s 违规导入 %s", mod_name, reason)
+        except Exception:
+            pass
 
     async def _init_control_message(self) -> None:
         """ZG-8: 控制消息优先级接线。

@@ -157,6 +157,10 @@ class ConfigManagerModelConfigPort:
                 continue
 
             setattr(merged, field_name, override_value)
+            from src.core.tainted_mask.mark import mark_taint
+            from src.core.tainted_mask.taint_flag import TaintFlag
+
+            mark_taint(TaintFlag.TAINT_CONFIG_OVERRIDE)
 
         # model_list 空保护
         if field_name == "model_list" and not isinstance(getattr(merged, "model_list", None), list):

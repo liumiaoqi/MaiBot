@@ -438,6 +438,18 @@ class SuppressionFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
+            # ZG-7 TAINT_WARN（位5）：WARNING 级日志自动标记污染位
+            # 对标 Linux panic.c:1074-1118 warn_count 递增语义
+            # 仅首次经过 filter 的 WARNING 记录触发（幂等由 TaintedMask 保证）
+            if record.levelno == logging.WARNING:
+                try:
+                    from src.core.tainted_mask.mark import mark_taint
+                    from src.core.tainted_mask.taint_flag import TaintFlag
+
+                    mark_taint(TaintFlag.TAINT_WARN)
+                except Exception:
+                    pass
+
             # 周期性摘要输出（窗口过期且有抑制时）
             if not _is_rate_limit_record(record):
                 _maybe_flush_summaries()
