@@ -469,7 +469,7 @@ class AMemorixHostService:
                 }
     
             if component_name == "migration_search":
-                return await kernel._migration_router.search(
+                return await kernel._fusion_router.search(
                     query=payload.get("query", ""),
                     agent_id=payload.get("agent_id", ""),
                     limit=payload.get("limit", 5),
@@ -484,14 +484,14 @@ class AMemorixHostService:
                 )
     
             if component_name == "migration_get_person_profile":
-                return await kernel._migration_router.get_person_profile(
+                return await kernel._fusion_router.get_person_profile(
                     person_id=payload.get("person_id", ""),
                     agent_id=payload.get("agent_id", ""),
                     limit=int(payload.get("limit", 4) or 4),
                 )
     
             if component_name == "migration_build_profile_injection_text":
-                return await kernel._migration_router.build_profile_injection_text(
+                return await kernel._fusion_router.build_profile_injection_text(
                     raw_text=payload.get("raw_text", ""),
                     agent_id=payload.get("agent_id", ""),
                 )

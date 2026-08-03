@@ -1,3 +1,10 @@
+"""迁移路由（已废弃）。
+
+融合后由 FusionRouter 替代（.core.concept_graph.fusion_router）——按
+FusionConfig.stage 路由，移除 LEGACY_ONLY/DUAL_WRITE/DUAL_READ/NEW_INDEPENDENT
+切换逻辑。保留作为 FusionRouter 的 FUSION_OFF legacy 回调源。
+"""
+
 from typing import Any, Optional
 
 from src.common.logger import get_logger

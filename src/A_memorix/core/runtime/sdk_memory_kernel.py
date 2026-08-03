@@ -391,19 +391,12 @@ class SDKMemoryKernel:
         self._migration_adapter = MigrationAdapter(self._memory_field)
         self._memory_field.set_migration_adapter(self._migration_adapter)
 
-        from ..migration.migration_router import MigrationRouter
-        from ..migration.translator import ConnectionistTranslator
-        self._migration_router = MigrationRouter(
-            self._migration_adapter, self._memory_field, self, ConnectionistTranslator(),
-            build_profile_injection_text_fn=self._ports.build_profile_injection_text if self._ports else None,
-        )
-
-        await self._memory_field.initialize()
-
-        # 融合概念图（P1 前置集成——完整路由接线在任务 8/9）
+        # 融合概念图（P1 前置集成）
         from ..concept_graph.concept_graph import ConceptGraph
         from ..concept_graph.concept_graph_store import ConceptGraphStore
         from ..concept_graph.decay_engine import FusedDecayEngine
+        from ..concept_graph.fusion_config import FusionConfig
+        from ..concept_graph.fusion_router import FusionRouter
         from ..concept_graph.spread_anchor_retriever import SpreadAnchorRetriever
         from ..concept_graph.unified_id_generator import UnifiedIdGenerator
         from ..concept_graph.unified_profile_service import UnifiedProfileService
@@ -416,6 +409,24 @@ class SDKMemoryKernel:
         self._fused_decay_engine = FusedDecayEngine(self._concept_graph)
         self._fusion_retriever = SpreadAnchorRetriever(self._concept_graph)
         self._unified_profile_service = UnifiedProfileService(self._concept_graph)
+
+        # FusionRouter 替代 MigrationRouter（按 stage 路由；FUSION_OFF 委托迁移链路）
+        from ..migration.migration_router import MigrationRouter
+        from ..migration.translator import ConnectionistTranslator
+        self._migration_router = MigrationRouter(
+            self._migration_adapter, self._memory_field, self, ConnectionistTranslator(),
+            build_profile_injection_text_fn=self._ports.build_profile_injection_text if self._ports else None,
+        )
+        self._fusion_router = FusionRouter(
+            config=FusionConfig(self._cfg("memory_fusion", {}) or {}),
+            retriever=self._fusion_retriever,
+            profile_service=self._unified_profile_service,
+            legacy_search=self._migration_router.search,
+            legacy_get_person_profile=self._migration_router.get_person_profile,
+            legacy_build_profile_injection_text=self._migration_router.build_profile_injection_text,
+        )
+
+        await self._memory_field.initialize()
 
         # _initialized 必须在 MemoryField 等核心组件全部就绪后置位——
         # 否则中途失败会留下"已初始化但 _memory_field=None"的半初始化内核，永不重试
