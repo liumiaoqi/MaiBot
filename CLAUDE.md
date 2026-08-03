@@ -13,6 +13,7 @@
 - `zip(a, b)` — **禁止无 strict**；要么 `strict=True`（理应等长）要么 `strict=False`（显式允许不等）
 - 新并发代码首选 `asyncio.TaskGroup`，替代 `asyncio.gather`
 - frozen dataclass 更新用 `copy.replace()`，替代 `dataclasses.replace()`
+  -在main干活需要许可，一般在工作树干活，不要擅自合并
 
 ## 运行环境
 

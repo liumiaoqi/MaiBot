@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent / "src" / "maisaka"
@@ -87,7 +86,6 @@ def process_b_class(fp: Path) -> bool:
 
     has_import_logging = False
     has_get_logger_import = False
-    import_logging_idx = -1
     get_logger_line = "from src.common.logger import get_logger\n"
     last_stdlib_import_idx = -1
 
@@ -95,7 +93,6 @@ def process_b_class(fp: Path) -> bool:
         stripped = line.strip()
         if stripped == "import logging":
             has_import_logging = True
-            import_logging_idx = i
         if "from src.common.logger import get_logger" in stripped:
             has_get_logger_import = True
         if re.match(r"^from __future__", stripped):
