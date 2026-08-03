@@ -302,6 +302,19 @@ class AMemorixHostService:
                 tags_raw = payload.get("tags")
                 tags = list(tags_raw) if isinstance(tags_raw, list) else None
                 metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
+                if kernel._fusion_stage() == "fusion_full" and kernel._fusion_pipeline is not None:
+                    from src.core.types import ObserveRequest
+                    request = ObserveRequest(
+                        text=payload.get("text", ""),
+                        valence=str(valence.value) if hasattr(valence, "value") else str(valence),
+                        source_id=payload.get("source_id", ""),
+                        session_id=payload.get("session_id", ""),
+                        agent_id=payload.get("agent_id", ""),
+                        participants=participants or [],
+                        tags=tags or [],
+                        metadata=metadata,
+                    )
+                    return await kernel._fusion_pipeline.observe_experience(request)
                 return await kernel._memory_field.observe(
                     text=payload.get("text", ""),
                     valence=valence,

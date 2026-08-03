@@ -88,6 +88,7 @@ class SDKMemoryKernel:
         self._fused_decay_engine: Optional[Any] = None
         self._fusion_retriever: Optional[Any] = None
         self._unified_profile_service: Optional[Any] = None
+        self._fusion_pipeline: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -409,6 +410,11 @@ class SDKMemoryKernel:
         self._fused_decay_engine = FusedDecayEngine(self._concept_graph)
         self._fusion_retriever = SpreadAnchorRetriever(self._concept_graph)
         self._unified_profile_service = UnifiedProfileService(self._concept_graph)
+        from ..concept_graph.fused_write_pipeline import FusedWritePipeline
+        self._fusion_pipeline = FusedWritePipeline(
+            self._concept_graph,
+            self._concept_graph_store,
+        )
 
         # FusionRouter 替代 MigrationRouter（按 stage 路由；FUSION_OFF 委托迁移链路）
         from ..migration.migration_router import MigrationRouter
@@ -663,6 +669,24 @@ class SDKMemoryKernel:
             "confidence": item.confidence,
             "source_id": item.source_id,
         }
+
+    async def observe_experience(self, request: Any) -> Any:
+        """实时体验写入（FUSION_FULL 走融合写入管线，否则原连接主义路径）。"""
+        if self._fusion_stage() == "fusion_full" and self._fusion_pipeline is not None:
+            return await self._fusion_pipeline.observe_experience(request)
+        if self._memory_field is None:
+            from src.common.memory_types import MemoryWriteResult
+            return MemoryWriteResult(success=False, detail="memory_field 未初始化")
+        return await self._memory_field.observe(
+            text=getattr(request, "text", ""),
+            valence=getattr(request, "valence", 0.0),
+            source_id=getattr(request, "source_id", ""),
+            session_id=getattr(request, "session_id", ""),
+            agent_id=getattr(request, "agent_id", ""),
+            participants=list(getattr(request, "participants", None) or []),
+            tags=list(getattr(request, "tags", None) or []),
+            metadata=getattr(request, "metadata", None),
+        )
 
     async def derive_profile(
         self,
