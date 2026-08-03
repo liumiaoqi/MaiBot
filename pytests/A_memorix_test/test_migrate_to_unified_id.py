@@ -117,8 +117,8 @@ def test_rollback_restores_original_data(tmp_path: Path) -> None:
     assert (data_dir / "concept_graph.db").exists()
 
     _run_script(data_dir, "--rollback")
-    # concept_graph.db 被备份覆盖删除 → 不存在
-    assert not (data_dir / "concept_graph.db").exists()
+    # 备份缺失的 concept_graph.db 不再删除（rollback 防护：无法确认是迁移产物）
+    assert (data_dir / "concept_graph.db").exists()
     # 原数据未动
     assert (data_dir / "connectionist" / "concepts.json").read_text(encoding="utf-8") == original_concepts
 
@@ -149,3 +149,42 @@ def test_dry_run_no_write(tmp_path: Path) -> None:
     data_dir = _setup_data_dir(tmp_path)
     _run_script(data_dir, "--dry-run")
     assert not (data_dir / "concept_graph.db").exists()
+    assert not (data_dir / "unified_id_backup").exists()  # dry-run 不执行备份
+
+
+def test_migration_upserts_outside_names_and_keeps_perspective(tmp_path: Path) -> None:
+    """关系/trace 引用初始集合外名字时先建节点再写边；无 agent_id 时保留原 perspective。"""
+    data_dir = tmp_path / "data"
+    (data_dir / "connectionist").mkdir(parents=True)
+    (data_dir / "metadata").mkdir(parents=True)
+    (data_dir / "connectionist" / "concepts.json").write_text(
+        json.dumps({"concept_types": {"生日": "event"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    conn = sqlite3.connect(data_dir / "metadata" / "metadata.db")
+    conn.execute("CREATE TABLE entities (name TEXT PRIMARY KEY, hash TEXT, is_deleted INTEGER DEFAULT 0)")
+    conn.execute("CREATE TABLE relations (subject TEXT, predicate TEXT, object TEXT, confidence REAL, is_inactive INTEGER DEFAULT 0)")
+    conn.execute("INSERT INTO relations VALUES ('凯文', '庆祝', '生日', 1.0, 0)")
+    conn.commit()
+    conn.close()
+
+    conn = sqlite3.connect(data_dir / "connectionist" / "traces.db")
+    conn.execute("CREATE TABLE traces (source TEXT, target TEXT, weight REAL, valence REAL, agent_id TEXT, perspective TEXT)")
+    conn.execute("INSERT INTO traces VALUES ('凯文', '生日', 0.8, 0.5, NULL, '回忆')")
+    conn.commit()
+    conn.close()
+
+    _run_script(data_dir)
+
+    store = ConceptGraphStore(data_dir)
+    store.init_schema()
+    try:
+        kevin = store.get_node_by_name("凯文")
+        birthday = store.get_node_by_name("生日")
+        assert kevin is not None and birthday is not None
+        edges = store.get_relation_edges(kevin.id)
+        assert len(edges) == 1 and edges[0].relation_type == "庆祝"
+        traces = store.get_trace_edges(kevin.id)
+        assert len(traces) == 1 and traces[0].perspective == "回忆"
+    finally:
+        store.close()
