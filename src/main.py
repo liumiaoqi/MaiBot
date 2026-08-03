@@ -3,7 +3,10 @@ from typing import TYPE_CHECKING, Any
 from rich.traceback import install
 
 import asyncio
+import sys
 import time
+
+from pathlib import Path
 
 from src.common.i18n import t
 from src.common.logger import get_logger
@@ -476,6 +479,55 @@ class MainSystem:
             logger.warning("ZG-7 CrashDump 注入失败，污染行跳过", exc_info=True)
 
         logger.info("ZG-7 污染标记已接线")
+
+        # TAINT_PORT_BYPASS（位0）运行时守卫：检查核心模块是否违规导入禁止项
+        self._check_port_bypass_violations()
+
+    def _check_port_bypass_violations(self) -> None:
+        """ZG-7 位0 守卫：运行时检测核心模块绕过 Protocol 直接导入禁止项。
+
+        检查方式：遍历核心模块命名空间中对象的 __module__ 属性，
+        判断其来源是否属于被禁模块前缀。键名检查无效（from X import Y 不留 X 键）。
+        """
+        try:
+            import importlib
+            import inspect
+
+            from src.core.tainted_mask.mark import mark_taint
+            from src.core.tainted_mask.taint_flag import TaintFlag
+
+            _BANNED_MODULE_PREFIXES = (
+                "src.services.chat_manager",
+                "src.A_memorix.core",
+                "src.config.config",
+                "src.services.send_service",
+                "src.core.adapters.service_manager_adapter",
+                "src.core.adapters.watchdog_adapter",
+            )
+            core_pkg = importlib.import_module("src.core")
+            core_dir = str(Path(inspect.getfile(core_pkg)).parent)
+            for mod_name, mod in list(sys.modules.items()):
+                if not mod_name.startswith("src.core.") or mod_name.startswith("src.core.adapters"):
+                    continue
+                if mod is None:
+                    continue
+                try:
+                    mod_file = getattr(mod, "__file__", None)
+                    if mod_file and not mod_file.startswith(core_dir):
+                        continue
+                except Exception:
+                    continue
+                for name, obj in getattr(mod, "__dict__", {}).items():
+                    if name.startswith("_"):
+                        continue
+                    obj_module = getattr(obj, "__module__", None)
+                    if obj_module and any(
+                        obj_module.startswith(banned) for banned in _BANNED_MODULE_PREFIXES
+                    ):
+                        mark_taint(TaintFlag.TAINT_PORT_BYPASS)
+                        logger.warning("ZG-7 守卫: %s.%s 违规导入自 %s", mod_name, name, obj_module)
+        except Exception:
+            pass
 
     async def _init_control_message(self) -> None:
         """ZG-8: 控制消息优先级接线。

@@ -147,7 +147,14 @@ def _get_loaded_global_config() -> Optional[Any]:
     config_module = sys.modules.get("src.config.config")
     if config_module is None:
         return None
-    return getattr(config_module, "global_config", None)
+    result = getattr(config_module, "global_config", None)
+    # ZG-7 TAINT_COMPAT_FALLBACK（位3）：V1 配置模块兼容 getattr fallback
+    if result is None:
+        from src.core.tainted_mask.mark import mark_taint
+        from src.core.tainted_mask.taint_flag import TaintFlag
+
+        mark_taint(TaintFlag.TAINT_COMPAT_FALLBACK)
+    return result
 
 
 def get_startup_main_bind_address(config_path: Path = BOT_CONFIG_PATH) -> BindAddress:

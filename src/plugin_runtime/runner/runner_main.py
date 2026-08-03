@@ -1271,6 +1271,11 @@ class PluginRunner:
         if handler_name != component_name:
             legacy_style_handler = getattr(instance, f"handle_{component_name}", None)
             if legacy_style_handler is not None:
+                # ZG-7 TAINT_COMPAT_FALLBACK（位3）：旧式插件组件处理器 fallback
+                from src.core.tainted_mask.mark import mark_taint
+                from src.core.tainted_mask.taint_flag import TaintFlag
+
+                mark_taint(TaintFlag.TAINT_COMPAT_FALLBACK)
                 return legacy_style_handler
 
         prefixed_handler = getattr(instance, f"handle_{component_name}", None)

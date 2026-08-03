@@ -381,6 +381,12 @@ class KernelInitializer:
 
     @staticmethod
     def init_all_services(kernel: SDKMemoryKernel) -> None:
+        # ZG-7 TAINT_MONKEY_PATCH（位6）：kernel 初始化通过 setattr 批量注入属性，
+        # 属运行时结构化 monkey patch，统一标记一次
+        from src.core.tainted_mask.mark import mark_taint
+        from src.core.tainted_mask.taint_flag import TaintFlag
+
+        mark_taint(TaintFlag.TAINT_MONKEY_PATCH)
         KernelInitializer.init_admin_handlers(kernel)
         KernelInitializer.init_hit_filter_service(kernel)
         KernelInitializer.init_graph_ops_service(kernel)
