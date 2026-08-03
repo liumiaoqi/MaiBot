@@ -52,6 +52,7 @@ class FusedWritePipeline:
         write_lock_manager: Optional[WriteLockManager] = None,
         embedding_writer: Optional[Callable[[list[ConceptNode]], list[str]]] = None,
         concept_extractor: Optional[Callable[[str], Awaitable[list[str]]]] = None,
+        write_lock_timeout: float = 5.0,
     ) -> None:
         """初始化。
 
@@ -63,12 +64,15 @@ class FusedWritePipeline:
                 节点 id 列表；None 时跳过向量写入（全部标记 pending）
             concept_extractor: 概念提取回调（文本 → 概念名列表），
                 observe_experience/ingest_summary 使用；None 时入口降级
+            write_lock_timeout: 写入锁超时秒数（CX-P1：接线
+                memory_fusion.write_lock_timeout）
         """
         self._graph = concept_graph
         self._store = store
         self._lock_manager = write_lock_manager or WriteLockManager()
         self._embedding_writer = embedding_writer
         self._concept_extractor = concept_extractor
+        self._write_lock_timeout = max(0.1, float(write_lock_timeout))
         self._id_generator = UnifiedIdGenerator()
 
     async def write(
@@ -92,7 +96,9 @@ class FusedWritePipeline:
             return FusedWriteResult(event_id=event_id, written=False)
 
         concept_ids = [c.id for c in concepts]
-        token = await self._lock_manager.acquire(concept_ids, timeout=5.0)
+        token = await self._lock_manager.acquire(
+            concept_ids, timeout=self._write_lock_timeout,
+        )
         try:
             if self._store.has_event_written(event_id):
                 return FusedWriteResult(event_id=event_id, written=False)

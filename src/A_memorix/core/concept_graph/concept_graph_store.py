@@ -84,7 +84,7 @@ class ConceptGraphStore:
                 self._conn.commit()
 
     def _rebuild_adjacency_index(self) -> None:
-        """从 SQLite 全量加载 trace_edges 到内存邻接索引（R07）。"""
+        """从 SQLite 全量加载 trace_edges 到内存邻接索引（R07，双向）。"""
         self._adjacency_index.clear()
         rows = self._conn.execute(
             "SELECT * FROM trace_edges ORDER BY created_at"
@@ -92,6 +92,7 @@ class ConceptGraphStore:
         for row in rows:
             edge = self._row_to_trace_edge(row)
             self._adjacency_index.setdefault(edge.source_concept_id, []).append(edge)
+            self._adjacency_index.setdefault(edge.target_concept_id, []).append(edge)
 
     # ── 节点 ──────────────────────────────────────────────
 
@@ -200,18 +201,25 @@ class ConceptGraphStore:
             if not self._in_outer_transaction:
                 self._conn.commit()
             # R07：同步内存邻接索引（先移除同键旧条目，避免 UPSERT 重复追加）
-            self._remove_index_entry(edge.source_concept_id, edge.target_concept_id, edge.perspective)
-            self._adjacency_index.setdefault(edge.source_concept_id, []).append(edge)
+            # CX-P1-E2：双向索引——source 与 target 两侧都登记（observe 写入无序共现对）
+            for node_id in (edge.source_concept_id, edge.target_concept_id):
+                self._remove_index_entry(node_id, edge, edge.perspective)
+                self._adjacency_index.setdefault(node_id, []).append(edge)
 
     def _remove_index_entry(
-        self, source_id: str, target_id: str, perspective: str,
+        self, node_id: str, edge: TraceEdge, perspective: str,
     ) -> None:
-        edges = self._adjacency_index.get(source_id)
+        """移除 node_id 邻接列表中与 edge 同键的旧条目（UPSERT 覆盖不重复）。"""
+        edges = self._adjacency_index.get(node_id)
         if not edges:
             return
-        self._adjacency_index[source_id] = [
+        self._adjacency_index[node_id] = [
             e for e in edges
-            if not (e.target_concept_id == target_id and e.perspective == perspective)
+            if not (
+                e.source_concept_id == edge.source_concept_id
+                and e.target_concept_id == edge.target_concept_id
+                and e.perspective == perspective
+            )
         ]
 
     def get_trace_edges(self, node_id: str) -> list[TraceEdge]:

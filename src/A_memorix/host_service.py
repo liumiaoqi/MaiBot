@@ -237,6 +237,14 @@ class AMemorixHostService:
                 )
     
             if component_name == "ingest_summary":
+                if kernel._fusion_stage() in ("fusion_write", "fusion_full") and kernel._fusion_pipeline is not None:
+                    # 融合写入管线（CX-P0-1：ingest_summary 融合入口路由）
+                    return await kernel._fusion_pipeline.ingest_summary(
+                        external_id=payload.get("external_id", ""),
+                        chat_id=payload.get("chat_id", ""),
+                        text=payload.get("text", ""),
+                        agent_id=payload.get("agent_id", ""),
+                    )
                 return await kernel.ingest_summary(
                     external_id=payload.get("external_id", ""),
                     chat_id=payload.get("chat_id", ""),
@@ -302,7 +310,7 @@ class AMemorixHostService:
                 tags_raw = payload.get("tags")
                 tags = list(tags_raw) if isinstance(tags_raw, list) else None
                 metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
-                if kernel._fusion_stage() == "fusion_full" and kernel._fusion_pipeline is not None:
+                if kernel._fusion_stage() in ("fusion_write", "fusion_full") and kernel._fusion_pipeline is not None:
                     from src.core.types import ObserveRequest
                     request = ObserveRequest(
                         text=payload.get("text", ""),

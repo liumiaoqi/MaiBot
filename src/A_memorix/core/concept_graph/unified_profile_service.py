@@ -115,12 +115,20 @@ class UnifiedProfileService:
         return items
 
     def _build_associations(self, person_node_id: str, *, limit: int) -> list[AssociationItem]:
-        """联想视图 → associations（Trace 边）。"""
+        """联想视图 → associations（Trace 边）。
+
+        CX-P1-E4：入边（person 是 target）取对端（source）——避免 self-association。
+        """
         traces = self._graph.query_association_view([person_node_id])
         items: list[AssociationItem] = []
         for trace in traces:
+            counterpart = (
+                trace.source_concept_id
+                if trace.target_concept_id == person_node_id
+                else trace.target_concept_id
+            )
             items.append(AssociationItem(
-                concept_id=trace.target_concept_id,
+                concept_id=counterpart,
                 weight=trace.weight,
                 valence=trace.valence,
                 perspective=trace.perspective,

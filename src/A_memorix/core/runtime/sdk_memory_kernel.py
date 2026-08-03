@@ -89,6 +89,7 @@ class SDKMemoryKernel:
         self._fusion_retriever: Optional[Any] = None
         self._unified_profile_service: Optional[Any] = None
         self._fusion_pipeline: Optional[Any] = None
+        self._fusion_spread_depth: int = 3
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -408,12 +409,35 @@ class SDKMemoryKernel:
             self._concept_graph_store, UnifiedIdGenerator(),
         )
         self._fused_decay_engine = FusedDecayEngine(self._concept_graph)
-        self._fusion_retriever = SpreadAnchorRetriever(self._concept_graph)
+        # CX-P1：score_alpha/spread_depth/write_lock_timeout 配置接线
+        fusion_cfg = self._cfg("memory_fusion", {}) or {}
+        self._fusion_spread_depth = max(1, int(fusion_cfg.get("spread_depth", 3) or 3))
+        self._fusion_retriever = SpreadAnchorRetriever(
+            self._concept_graph,
+            score_alpha=float(fusion_cfg.get("score_alpha", 0.5) or 0.5),
+        )
         self._unified_profile_service = UnifiedProfileService(self._concept_graph)
         from ..concept_graph.fused_write_pipeline import FusedWritePipeline
+
+        # concept_extractor 注入（CX-P0-1：否则 FUSION_FULL 下 observe 永远 success=False）
+        # 默认用 jieba 轻量提取器（SemanticConceptExtractor），不阻塞 LLM 调用
+        pipeline_extractor = None
+        memory_field_concept_index = getattr(self._memory_field, "_concept_index", None)
+        if memory_field_concept_index is not None:
+            from ..extraction.semantic_concept_extractor import SemanticConceptExtractor
+
+            semantic = SemanticConceptExtractor(memory_field_concept_index)
+
+            async def _extract_concept_names(text: str) -> list[str]:
+                result = await semantic.extract(text)
+                return [c.name for c in result.concepts]
+
+            pipeline_extractor = _extract_concept_names
         self._fusion_pipeline = FusedWritePipeline(
             self._concept_graph,
             self._concept_graph_store,
+            concept_extractor=pipeline_extractor,
+            write_lock_timeout=float(fusion_cfg.get("write_lock_timeout", 5.0) or 5.0),
         )
 
         # FusionRouter 替代 MigrationRouter（按 stage 路由；FUSION_OFF 委托迁移链路）
@@ -563,6 +587,7 @@ class SDKMemoryKernel:
             request.query,
             agent_id=request.person_id,
             limit=max(1, int(request.limit or 5)),
+            max_depth=self._fusion_spread_depth,
         )
         hits = [
             {
@@ -596,6 +621,7 @@ class SDKMemoryKernel:
                 agent_id=agent_id,
                 limit=max_results,
                 min_weight=min_weight,
+                max_depth=self._fusion_spread_depth,
             )
             recall_items = [
                 {
@@ -671,8 +697,8 @@ class SDKMemoryKernel:
         }
 
     async def observe_experience(self, request: Any) -> Any:
-        """实时体验写入（FUSION_FULL 走融合写入管线，否则原连接主义路径）。"""
-        if self._fusion_stage() == "fusion_full" and self._fusion_pipeline is not None:
+        """实时体验写入（FUSION_WRITE/FULL 走融合写入管线，否则原连接主义路径）。"""
+        if self._fusion_stage() in ("fusion_write", "fusion_full") and self._fusion_pipeline is not None:
             return await self._fusion_pipeline.observe_experience(request)
         if self._memory_field is None:
             from src.common.memory_types import MemoryWriteResult
@@ -718,7 +744,12 @@ class SDKMemoryKernel:
     ) -> Dict[str, Any]:
         await self.initialize()
         act = str(action or "").strip().lower()
-        if act == "decay" and self._fused_decay_engine is not None:
+        # CX-P0-3：衰减走融合引擎需 stage 门控（FUSION_OFF 保持旧路径，防止行为回归）
+        if (
+            act == "decay"
+            and self._fusion_stage() in ("fusion_write", "fusion_full")
+            and self._fused_decay_engine is not None
+        ):
             # 统一衰减（MF-P2-005）：事实投影 + 联想投影同步衰减
             elapsed_hours = float(hours or 1.0) if hours else 1.0
             half_life = float(self._cfg("memory.half_life_hours", 24.0) or 24.0)

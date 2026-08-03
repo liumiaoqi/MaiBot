@@ -9,7 +9,7 @@ import pytest
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
 
 
-def _build_kernel(tmp_path) -> SDKMemoryKernel:
+def _build_kernel(tmp_path, stage: str = "fusion_write") -> SDKMemoryKernel:
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     kernel = SDKMemoryKernel(
@@ -17,6 +17,7 @@ def _build_kernel(tmp_path) -> SDKMemoryKernel:
         config={
             "storage": {"data_dir": str(data_dir)},
             "memory": {"enabled": True, "half_life_hours": 24.0},
+            "memory_fusion": {"stage": stage},
         },
     )
     # 模拟 initialize() 后的概念图就绪状态（完整初始化集成在任务 9.2 验证）
@@ -97,3 +98,18 @@ async def test_maintain_memory_non_decay_keeps_original_path(tmp_path) -> None:
     kernel = _build_kernel(tmp_path)
     result = await kernel.maintain_memory(action="reinforce", target="nonexistent")
     assert result["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_maintain_memory_decay_gated_by_stage(tmp_path) -> None:
+    """CX-P0-3：FUSION_OFF 时 decay 走旧路径（不劫持到融合引擎）。"""
+    kernel = _build_kernel(tmp_path, stage="fusion_off")
+    node_a = _prepare_graph_with_edges(kernel)
+    graph = kernel._concept_graph
+    assert graph is not None
+    # 概念图衰减引擎就绪，但 FUSION_OFF 不应使用
+    result = await kernel.maintain_memory(action="decay", hours=12.0)
+    assert result["success"] is False  # 旧路径：未命中可维护关系
+    # 概念图数据未被衰减（门控生效）
+    after_facts = graph.query_fact_view([node_a])
+    assert after_facts[0].weight == pytest.approx(1.0)

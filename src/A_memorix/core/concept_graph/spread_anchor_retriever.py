@@ -43,6 +43,7 @@ class SpreadAnchorRetriever:
         concept_graph: ConceptGraph,
         score_normalizer: Optional[ScoreNormalizer] = None,
         vector_retriever: Optional[Callable[[str, int], list[tuple[str, float]]]] = None,
+        score_alpha: float = 0.5,
     ) -> None:
         """初始化。
 
@@ -51,10 +52,14 @@ class SpreadAnchorRetriever:
             score_normalizer: 评分归一化器（默认新建）
             vector_retriever: 向量检索回调 (query, top_n) → [(concept_id, similarity)]；
                 未注入时跳过向量补充
+            score_alpha: 扩散分权重（CX-P1：接线 memory_fusion.score_alpha）
         """
         self._graph = concept_graph
         self._normalizer = score_normalizer or ScoreNormalizer()
         self._vector_retriever = vector_retriever
+        self._score_alpha = max(0.0, min(1.0, score_alpha))
+        # CX-P1-E1：扩散路径上的入边权重（BFS 入队时记录，取最大）
+        self._incoming_weights: dict[str, float] = {}
 
     def retrieve(
         self,
@@ -78,6 +83,7 @@ class SpreadAnchorRetriever:
 
         # 激活扩散：从锚点沿 TraceEdge BFS
         spread_scores: dict[str, float] = {}
+        anchor_ids = {node.id for node in anchors}
         try:
             self._spread(
                 start_nodes=spread_start,
@@ -105,16 +111,21 @@ class SpreadAnchorRetriever:
             fused = self._normalizer.normalize(
                 spread_scores=spread_scores,
                 vector_scores=vector_scores,
-                alpha=0.5,
+                alpha=self._score_alpha,
             )
         except Exception as exc:
             logger.warning("评分归一化异常，降级纯事实检索: %s", exc)
             anchor_status = AnchorStatus.DEGRADED
             fused = dict(spread_scores)
 
+        # 锚点保底：事实命中是绝对标记，不被归一化抹平（CX-P1-E3）
+        for anchor_id in anchor_ids:
+            fused[anchor_id] = max(fused.get(anchor_id, 0.0), 1.0)
+
         items = self._build_items(
             fused=fused,
             spread_scores=spread_scores,
+            anchor_ids=anchor_ids,
             vector_scores=vector_scores,
             limit=limit,
         )
@@ -152,8 +163,9 @@ class SpreadAnchorRetriever:
         min_weight: float,
         scores: dict[str, float],
     ) -> None:
-        """BFS 扩散：每层沿 TraceEdge，深度衰减 0.85^depth × weight。"""
+        """BFS 扩散：每层沿 TraceEdge，深度衰减 0.85^depth × 入边权重。"""
         max_depth = max(1, int(max_depth))
+        self._incoming_weights.clear()
         visited: set[str] = set()
         queue: deque[tuple[ConceptNode, int]] = deque(
             (node, 0) for node in start_nodes
@@ -166,16 +178,28 @@ class SpreadAnchorRetriever:
             if depth == 0:
                 scores[node.id] = 1.0  # 锚点本身是事实命中
             else:
+                # CX-P1-E1：扩散分 = 深度衰减 × 入边权重（0.9 与 0.06 权重可区分）
+                incoming = self._incoming_weights.get(node.id, 0.0)
                 scores[node.id] = max(
                     scores.get(node.id, 0.0),
-                    0.85 ** depth,
+                    0.85 ** depth * incoming,
                 )
             if depth >= max_depth:
                 continue
             for edge in self._graph.get_adjacent_traces(node.id, agent_id):
                 if edge.weight < min_weight:
                     continue
-                target = self._graph.get_node(edge.target_concept_id)
+                # CX-P1-E2：双向扩散——入边（node 是 target）的邻居是 source
+                neighbor_id = (
+                    edge.target_concept_id
+                    if edge.source_concept_id == node.id
+                    else edge.source_concept_id
+                )
+                self._incoming_weights[neighbor_id] = max(
+                    self._incoming_weights.get(neighbor_id, 0.0),
+                    edge.weight,
+                )
+                target = self._graph.get_node(neighbor_id)
                 if target is not None:
                     queue.append((target, depth + 1))
 
@@ -184,21 +208,26 @@ class SpreadAnchorRetriever:
         *,
         fused: dict[str, float],
         spread_scores: dict[str, float],
+        anchor_ids: set[str],
         vector_scores: dict[str, float],
         limit: int,
     ) -> list[FusionSearchItem]:
-        """合并去重 + 排序 → items。"""
+        """合并去重 + 排序 → items。
+
+        标注（CX-P1-E5）：锚点 → FACT_ANCHOR；扩散命中 → ASSOCIATION_SPREAD；
+        仅向量命中 → FACT_ANCHOR（向量侧 = 事实侧）。
+        """
         ordered = sorted(fused.items(), key=lambda kv: -kv[1])
         items: list[FusionSearchItem] = []
         for cid, score in ordered[:limit]:
             node = self._graph.get_node(cid)
             if node is None:
                 continue
-            in_spread = cid in spread_scores
-            in_vector = cid in vector_scores
-            if in_spread and in_vector:
+            if cid in anchor_ids:
+                source_type = SourceType.FACT_ANCHOR
+            elif cid in spread_scores and cid in vector_scores:
                 source_type = SourceType.HYBRID
-            elif in_spread:
+            elif cid in spread_scores:
                 source_type = SourceType.ASSOCIATION_SPREAD
             else:
                 source_type = SourceType.FACT_ANCHOR

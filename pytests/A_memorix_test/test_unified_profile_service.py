@@ -42,6 +42,21 @@ async def test_profile_with_dual_views(service: UnifiedProfileService) -> None:
     assert profile.valence == pytest.approx(0.7)
 
 
+async def test_inbound_trace_counterpart_not_self(service: UnifiedProfileService) -> None:
+    """CX-P1-E4：入边（person 是 target）→ associations 指向对端，非自引用。"""
+    person = service._graph.add_entity(name="凯文")
+    other = service._graph.add_concept(name="终焉")
+    # 反向写入：other → person（person 是 target）
+    service._graph.add_trace_edge(
+        source_id=other.id, target_id=person.id,
+        perspective="p", weight=0.8, valence=0.6,
+    )
+    profile = await service.get_person_profile("凯文")
+    assert len(profile.associations) == 1
+    assert profile.associations[0].concept_id == other.id  # 对端，非 person 自己
+    assert profile.associations[0].concept_id != person.id
+
+
 async def test_evidence_missing_associations_remain(service: UnifiedProfileService) -> None:
     """evidence 缺失 → [] + associations 有值。"""
     person = service._graph.add_entity(name="琪亚娜")

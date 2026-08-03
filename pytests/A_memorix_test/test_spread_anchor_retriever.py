@@ -12,6 +12,7 @@ from src.A_memorix.core.concept_graph import (
     ConceptGraphStore,
     SourceType,
 )
+from src.A_memorix.core.concept_graph.models import TraceEdge
 from src.A_memorix.core.concept_graph.score_normalizer import ScoreNormalizer
 from src.A_memorix.core.concept_graph.spread_anchor_retriever import SpreadAnchorRetriever
 
@@ -112,3 +113,63 @@ def test_normalizer_failure_degrades(graph: ConceptGraph) -> None:
     retriever = SpreadAnchorRetriever(graph, score_normalizer=_BrokenNormalizer())
     result = retriever.retrieve("生日", max_depth=1, min_weight=0.05)
     assert result.anchor_status == AnchorStatus.DEGRADED
+
+
+def test_edge_weight_differentiates_scores(graph: ConceptGraph) -> None:
+    """CX-P1-E1：扩散分 = 深度衰减 × 入边权重（强/弱权重可区分）。"""
+    store = graph._store
+    anchor = graph.add_concept(name="权重锚")
+    strong = graph.add_concept(name="强权重")
+    weak = graph.add_concept(name="弱权重")
+    store.upsert_trace_edge(_trace(anchor.id, strong.id, weight=0.9))
+    store.upsert_trace_edge(_trace(anchor.id, weak.id, weight=0.06))
+
+    retriever = SpreadAnchorRetriever(graph)
+    result = retriever.retrieve("权重锚", max_depth=1, min_weight=0.05)
+    scores = {item.context: item.score for item in result.items}
+    assert scores["强权重"] > scores["弱权重"]
+
+
+def test_bidirectional_spread(graph: ConceptGraph) -> None:
+    """CX-P1-E2：入边可达——从 target 检索命中 source。"""
+    store = graph._store
+    a = graph.add_concept(name="源点")
+    b = graph.add_concept(name="对端")
+    store.upsert_trace_edge(_trace(a.id, b.id, weight=0.8))
+
+    retriever = SpreadAnchorRetriever(graph)
+    result = retriever.retrieve("对端", max_depth=1, min_weight=0.05)
+    names = {item.context for item in result.items}
+    assert "源点" in names  # 反向联想可达
+
+
+def test_anchor_score_floored_at_one(graph: ConceptGraph) -> None:
+    """CX-P1-E3：单锚点（无扩散/向量）融合分保 1.0，下游过滤不丢。"""
+    graph.add_concept(name="孤立锚点")
+
+    retriever = SpreadAnchorRetriever(graph)
+    result = retriever.retrieve("孤立锚点", max_depth=3, min_weight=0.05)
+    assert result.anchor_status == AnchorStatus.ANCHORED
+    scores = {item.context: item.score for item in result.items}
+    assert scores["孤立锚点"] == pytest.approx(1.0)
+
+
+def test_anchor_source_type_is_fact_anchor(graph: ConceptGraph) -> None:
+    """CX-P1-E5：锚点标注 FACT_ANCHOR（非 ASSOCIATION_SPREAD）。"""
+    retriever = SpreadAnchorRetriever(graph)
+    result = retriever.retrieve("生日", max_depth=1, min_weight=0.05)
+    anchor_item = next(i for i in result.items if i.context == "生日")
+    assert anchor_item.source_type == SourceType.FACT_ANCHOR
+
+
+def _trace(source_id: str, target_id: str, *, weight: float) -> TraceEdge:
+    return TraceEdge(
+        id=f"t:{source_id}:{target_id}",
+        source_concept_id=source_id,
+        target_concept_id=target_id,
+        weight=weight,
+        valence=0.0,
+        perspective="测试",
+        last_activated_at=1.0,
+        created_at=1.0,
+    )
