@@ -60,6 +60,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | ~~**ZG-4**~~ | ~~事件总线增强（D-Bus 化）~~　　　| ✅ **已完成**（2026-08-01，Vote 统一投票 + BAD-only robust 回滚 + EventBus robust/nofail，78 测试全绿） | 应用 |
 | **ZG-5**　　 | 资源限制（cgroups 化）　　　　　　| 单进程下需求弱，会话/智能体数增长后价值上升。可先做每会话 LLM 配额　　　　　　　　　　　　　　　　　　 | 应用 |
 | ~~**ZG-6**~~ | ~~系统状态机（system_state 化）~~ | ✅ **已完成**（2026-08-01，见已完成表）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 应用 |
+| **ZG-12**　 | 模型配置仲裁（alternative 化）　 | V1 遗留命名(replyer/planner/utils)+硬编码回退+embedding 静默失败+TaskConfig 无分化，见下方子项详情 | 应用 |
 
 ### 🔵 P2 — 打磨
 
@@ -111,27 +112,77 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 ## ZG-11 多核利用 — 子项详情
 
-> 当前 MaiBot 单进程 asyncio，32 核机器只用 1 核，31 核空转。
+> 当前 MaiBot 单进程 asyncio，16 核/32 线程机器只用 1 核，大部分核空转。
 > 对标 Linux SMP（对称多处理）：内核启动时检测 CPU 核数，per-CPU 数据结构，
 > 中断亲和性绑定，工作队列多 worker 并行。
+>
+> **⚠️ 2026-08-03 调研修正**：用户已通过 WebUI 配置阿里 API embedding（`model_task_config.embedding.model_list` 运行时非空），模板默认 `model_list=[]` 不代表运行时状态。实际 CPU 瓶颈是 FAISS HNSW 向量搜索（同步阻塞）。
+
+### Embedding 现状（2026-08-03 调研）
+
+| 维度 | 现状 |
+|------|------|
+| embedding 模型 | **已配置**（用户通过 WebUI 配置阿里 API embedding，运行时 `model_list` 非空） |
+| 阿里 API | 已接入（WebUI 配置生效） |
+| 本地模型 | `E:\Users\lmq\all-MiniLM-L6-v2`（384 维，英文，~5-10ms/次，太快不需要 worker） |
+| Fallback | embedding 不可用时回退 sparse BM25 搜索 + metadata-only 写入 + 向量回填队列 |
+| 向量存储 | FAISS HNSW（IndexHNSWFlat + IndexIDMap2），M=32, efSearch=50 |
+| 向量搜索阻塞 | FAISS search 同步执行（RLock），在调用线程阻塞 |
+
+### 接入阿里 embedding 的配置步骤
+
+```toml
+# model_config.toml
+
+# 1. 添加阿里百炼 API provider
+[[api_providers]]
+name = "AliBailian"
+base_url = "https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+api_key = "sk-xxx"
+client_type = "openai"
+auth_type = "bearer"
+
+# 2. 添加 embedding 模型
+[[models]]
+model_identifier = "text-embedding-v4"
+name = "ali-text-embedding-v4"
+api_provider = "AliBailian"
+visual = false
+
+# 3. 配置 embedding 任务
+[model_task_config.embedding]
+model_list = ["ali-text-embedding-v4"]
+```
 > MaiBot 不需要内核级 SMP，但应利用多核做 CPU 密集型工作。
 
-### 当前 CPU 密集型阻塞点
+### 当前 CPU 密集型阻塞点（修正@2026-08-03）
 
-| 阻塞点 | 频率 | 单次耗时 | 当前影响 |
-|--------|------|---------|---------|
-| embedding.encode() | 每次记忆写入/检索 | 50-200ms | 阻塞事件循环，所有会话卡住 |
-| 向量相似度搜索 | 每次记忆检索 | 10-50ms | 同上 |
-| 文本分块/摘要提取 | 每次记忆写入 | 5-20ms | 同上 |
-| LLM 响应流处理 | 每次回复 | 1-5ms | 轻微 |
+| 阻塞点 | 频率 | 单次耗时 | 当前影响 | 是否真瓶颈 |
+|--------|------|---------|---------|-----------|
+| embedding.encode() API | 每次记忆写入/检索 | 100-500ms | ❌ I/O 等待，asyncio 不阻塞 | ❌ |
+| embedding.encode() 本地大模型 | 每次记忆写入/检索 | 50-200ms | ✅ CPU 阻塞 | ⚠️ 当前未配置 |
+| embedding.encode() 本地小模型(MiniLM) | 每次记忆写入/检索 | 5-10ms | ✅ CPU 阻塞但极快 | ❌ IPC 开销反超计算 |
+| **FAISS HNSW 向量搜索** | **每次记忆检索** | **10-50ms** | **✅ 同步阻塞** | **✅ 真瓶颈** |
+| 文本分块/摘要提取 | 每次记忆写入 | 5-20ms | 同上 | ⚠️ 中 |
 
-### 技术方案
+### 技术方案（修正@2026-08-03）
 
-**Phase 1（最小改动，立即收益）**：
-- `ProcessPoolExecutor(max_workers=N)` 处理 embedding/search/chunk
-- `await loop.run_in_executor(pool, fn, *args)` 替代同步调用
-- N = min(cpu_count - 1, 4)，预留 1 核给事件循环
-- 改动量：~3 行/阻塞点
+**Phase 0（前置，接入阿里 embedding API）**：✅ **已完成**（2026-08-03 核实：用户已通过 WebUI 配置阿里 API embedding，运行时 `model_list` 非空，向量检索已恢复，非 sparse BM25 降级）
+- 接入后 embedding 变为 I/O 密集型，asyncio 天然处理，无需 worker
+
+**Phase 1（FAISS 搜索非阻塞化）**：
+- `await loop.run_in_executor(ThreadPoolExecutor, vector_store.search, query, k)`
+- FAISS 是 C 扩展，释放 GIL → ThreadPoolExecutor 即可用多核
+- 改动量：~3 行（search 调用点）
+
+**Phase 2（本地大模型 embedding worker，按需）**：
+- 仅当使用本地大模型（如 bge-large-zh-v1.5，50-200ms/次）时启用
+- `ProcessPoolExecutor(max_workers=physical_core_count)` 处理 embedding
+- 小模型（MiniLM, 5-10ms）不需要 worker——IPC 开销反超计算
+- **⚠️ 2026-08-03 定位待定**：用户已决定本地微调 bge-large-zh-v1.5（三元组构造完成，6 万+ 条）。微调产物的**部署方式决定本 Phase 是否需要**：
+  - 走 Xinference/vLLM 本地服务（openai_client 指向 localhost）→ embedding 变 I/O 等待，**Phase 2 不需要**（服务进程自管并发）
+  - 走 MaiBot 内嵌进程 → Phase 2 需要实现 + ZG-12 配置体系需加"本地模型"provider 类型（现仅 openai/gemini/plugin）
+  - 倾向：Xinference 服务（MaiBot 侧零代码，ZG 计划不扩）——决策点待微调完成前确认
 
 **Phase 2（精细调度）**：
 - 按 CPU 亲和性分组 worker（embedding 独立池、search 独立池）
@@ -157,6 +208,75 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 - **进程**：`ProcessPoolExecutor` 可用多核，但有进程启动开销和 IPC 序列化
 - **C 扩展**：numpy/pytorch 已释放 GIL，`ThreadPoolExecutor` 即可用多核
 - **建议**：embedding 若用 numpy 后端，可用线程池（零 IPC 开销）；纯 Python 实现用进程池
+
+### 效率优化设计（对标 Linux 内存管理哲学）
+
+> Linux 哲学：空闲 CPU 是浪费，空闲内存也是浪费（全用作 page cache）。
+> 开销 = 消耗资源中不产生有用产出的部分；效率 = 有用产出 / 总资源消耗。
+> 用满资源且每份资源都产出 = 高效率。
+
+| 设计 | 对标 Linux | 减少的开销 | MaiBot 适用场景 | 实现方式 |
+|------|-----------|-----------|----------------|---------|
+| **mmap 共享索引** | page cache | 避免数据在 Python 堆和磁盘间复制两份 | 记忆向量索引（大数组） | `np.load(mmap_mode='r')`；SQLite WAL 已是 mmap |
+| **共享内存 IPC** | shm/mmap | 避免 worker 进程间 pickle 序列化/反序列化 | embedding worker 返回 numpy 数组 | `multiprocessing.shared_memory.SharedMemory` + numpy |
+| **对象池** | slab allocator | 减少 GC 压力和重复分配开销 | LLM 请求/响应对象、embedding 结果 | 预分配 + 循环复用 |
+| **零拷贝传递** | splice/sendfile | 避免 CPU 做内存拷贝 | 大数据在组件间传递 | numpy 视图（view）而非 copy |
+| **工作窃取** | workqueue | 避免 worker 闲置而其他 worker 排队 | 多 worker 负载不均 | `ProcessPoolExecutor` 已内置 |
+| **惰性分配** | vmalloc | 只在首次访问时分配物理页 | 会话级数据结构 | Python `__slots__` + 延迟初始化 |
+
+优先级：mmap 共享索引 > 共享内存 IPC > 对象池 > 零拷贝 > 工作窃取（已内置）> 惰性分配
+
+## ZG-12 模型配置仲裁 — 子项详情
+
+> 2026-08-03，CA 提议，基于模型配置系统深度调研。
+> 对标 Linux **alternative framework**（系统根据硬件能力选最优实现）+ **device model**（统一设备抽象）。
+> 核心问题：V1 遗留命名不反映当前架构，回退链硬编码，TaskConfig 无分化，embedding 静默失败。
+
+### 命名正名方案
+
+当前 `ModelTaskConfig` 字段名来自 V1 架构（单智能体+回复触发），与当前四主智能体+记忆融合架构不匹配：
+
+| 当前名（V1 遗留） | 正名 | 语义 |
+|-------------------|------|------|
+| `replyer` | `chat_reply` | 聊天回复生成 |
+| `planner` | `action_plan` | 行动规划（选工具/定策略） |
+| `utils` | `light_task` | 轻量文本任务（摘要/整理/格式化） |
+| `memory` | `memory_extract` | 记忆抽取（分段/关系/画像） |
+| `mid_memory` | `context_recall` | 上下文回想 |
+| `expression_use` | `style_apply` | 表达方式应用 |
+| `learner` | `style_learn` | 表达方式学习 |
+| `emoji` | `emoji_gen` | 表情包生成 |
+| `vlm` | `vision` | 视觉理解 |
+| `voice` | `asr` | 语音识别 |
+| `embedding` | `embedding` | 文本向量化（无需改） |
+
+**影响范围**：`ModelTaskConfig` 字段名 + `model_config.toml` 键名 + 所有 `LLMOrchestrator(task_name="...")` 调用点 + `EMPTY_TASK_FALLBACKS` + `EpisodeSegmentationService._resolve_model_config()` preferred 链 + WebUI schema + 配置升级钩子。**零逻辑变更，纯重命名**。
+
+### 子项优先级
+
+| # | 子项 | 优先级 | 对标 Linux | 内容 |
+|---|------|--------|-----------|------|
+| 1 | 命名正名 | P0 | — | 上述 10 个字段重命名 + 配置升级钩子自动迁移 |
+| 2 | 回退链声明式 | P0 | alternative framework | `TaskConfig` 内声明 `fallback_to: str`，替代硬编码 `EMPTY_TASK_FALLBACKS`；空 model_list 时按声明链回退 |
+| 3 | TaskConfig 分化 | P1 | device_class | 按 `task_category`（text_gen / embedding / vision / audio）分化 schema，不适用的字段标记 `x-hidden` |
+| 4 | 启动自检 | P1 | device probe | embedding `model_list=[]` + fallback_enabled 时 WARNING；model_list 引用不存在的模型名时 ERROR |
+| 5 | 生效配置预览 | P2 | sysfs | WebUI API 展示全局+智能体覆盖合并后的"生效配置" |
+| 6 | extra_params schema | P2 | — | 按 provider_type 提供 `extra_params` 校验 schema |
+| 7 | 升级钩子预埋 | P2 | — | `MODEL_CONFIG_UPGRADE_HOOKS` 框架对齐 bot_config（当前为空元组） |
+| 8 | WebUI 连通性测试 | P3 | — | "测试连接"按钮，调 `/models` 端点或发最小请求验证 |
+
+### 依赖关系
+
+- **ZG-11 Phase 0 是 ZG-12 的前置**：先有正确的 embedding 配置（阿里 API 接入），才能验证配置仲裁系统的真实负载
+- **子项 1（命名正名）是子项 2-4 的前置**：先正名，再在正确名字上建回退链和自检
+- **子项 3（TaskConfig 分化）依赖子项 1**：分化 schema 需要正确的任务类别名
+
+### 开销评估
+
+- 子项 1（命名正名）：~30 个调用点 rename + 1 个升级钩子，纯机械操作
+- 子项 2（回退链声明式）：`TaskConfig` +1 字段 + `LLMOrchestrator` 改回退逻辑，~20 行
+- 子项 4（启动自检）：`kernel_initializer` +1 检查函数，~15 行
+- 子项 3/5/6/7/8：各 ~50-100 行，可渐进
 
 ## ZG-9 极端环境加固 — 子项详情
 
@@ -195,6 +315,10 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 
 批次4（P2 打磨）
   ZG-7 污染标记 ──→ ZG-8 控制消息优先级
+
+批次5（P1 配置仲裁）
+  ZG-12 模型配置仲裁 ──→ 审阅清理
+  前置：ZG-11 Phase 0（embedding 配置接入）确保配置系统有真实负载可验证
 ```
 
 每步前后都做功能/组件审阅。
