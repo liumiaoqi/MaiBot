@@ -7,17 +7,23 @@
 from .concept_graph import ConceptGraph
 from .concept_graph_store import ConceptGraphStore
 from .decay_engine import FusedDecayEngine
+from .fused_write_pipeline import FusedWritePipeline, FusedWriteResult
 from .models import (
     AnchorStatus,
     ConceptNode,
     DecayResult,
     EdgeSource,
+    FusionSearchItem,
+    FusionSearchResult,
     NodeCategory,
     RelationEdge,
     SourceType,
     TraceEdge,
 )
+from .score_normalizer import ScoreNormalizer
+from .spread_anchor_retriever import SpreadAnchorRetriever
 from .unified_id_generator import UnifiedIdGenerator
+from .write_lock_manager import WriteLockManager, WriteLockTimeoutError, WriteLockToken
 
 __all__ = [
     "AnchorStatus",
@@ -26,10 +32,19 @@ __all__ = [
     "ConceptNode",
     "DecayResult",
     "EdgeSource",
+    "FusionSearchItem",
+    "FusionSearchResult",
     "FusedDecayEngine",
+    "FusedWritePipeline",
+    "FusedWriteResult",
     "NodeCategory",
     "RelationEdge",
+    "ScoreNormalizer",
     "SourceType",
+    "SpreadAnchorRetriever",
     "TraceEdge",
     "UnifiedIdGenerator",
+    "WriteLockManager",
+    "WriteLockTimeoutError",
+    "WriteLockToken",
 ]

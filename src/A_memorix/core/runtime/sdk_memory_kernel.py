@@ -86,6 +86,7 @@ class SDKMemoryKernel:
         self._vector_ensure_service: Optional[Any] = None
         self._concept_graph: Optional[Any] = None
         self._fused_decay_engine: Optional[Any] = None
+        self._fusion_retriever: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -402,6 +403,7 @@ class SDKMemoryKernel:
         from ..concept_graph.concept_graph import ConceptGraph
         from ..concept_graph.concept_graph_store import ConceptGraphStore
         from ..concept_graph.decay_engine import FusedDecayEngine
+        from ..concept_graph.spread_anchor_retriever import SpreadAnchorRetriever
         from ..concept_graph.unified_id_generator import UnifiedIdGenerator
 
         self._concept_graph_store = ConceptGraphStore(self.data_dir)
@@ -410,6 +412,7 @@ class SDKMemoryKernel:
             self._concept_graph_store, UnifiedIdGenerator(),
         )
         self._fused_decay_engine = FusedDecayEngine(self._concept_graph)
+        self._fusion_retriever = SpreadAnchorRetriever(self._concept_graph)
 
         # _initialized 必须在 MemoryField 等核心组件全部就绪后置位——
         # 否则中途失败会留下"已初始化但 _memory_field=None"的半初始化内核，永不重试
@@ -528,7 +531,77 @@ class SDKMemoryKernel:
 
     async def search_memory(self, request: KernelSearchRequest) -> Dict[str, Any]:
         await self.initialize()
+        if self._fusion_stage() == "fusion_full" and str(request.mode or "").strip() in ("", "search"):
+            return self._fusion_search(request)
         return await self._search_service.search_memory(request)
+
+    def _fusion_search(self, request: KernelSearchRequest) -> Dict[str, Any]:
+        """融合检索（FUSION_FULL）：扩散-锚定 → 原 hits 格式。"""
+        if self._fusion_retriever is None:
+            return {"summary": "", "hits": [], "filtered": False}
+        result = self._fusion_retriever.retrieve(
+            request.query,
+            agent_id=request.person_id,
+            limit=max(1, int(request.limit or 5)),
+        )
+        hits = [
+            {
+                "hash_value": item.concept_id,
+                "content": item.context,
+                "hit_type": "concept",
+                "metadata": {
+                    "concept_id": item.concept_id,
+                    "score": item.score,
+                    "source_type": item.source_type.value,
+                    "anchor_status": result.anchor_status.value,
+                },
+            }
+            for item in result.items
+        ]
+        return {"summary": "", "hits": hits, "filtered": False}
+
+    def recall_with_intuition(
+        self,
+        seeds: list[str],
+        context_text: str,
+        agent_id: str,
+        min_weight: float = 0.05,
+        max_results: int = 20,
+        max_tokens: int = 800,
+    ) -> dict:
+        """直觉召回（FUSION_FULL 走融合路径，否则原连接主义路径）。"""
+        if self._fusion_stage() == "fusion_full" and self._fusion_retriever is not None:
+            result = self._fusion_retriever.retrieve(
+                " ".join(seeds),
+                agent_id=agent_id,
+                limit=max_results,
+                min_weight=min_weight,
+            )
+            recall_items = [
+                {
+                    "concept_id": item.concept_id,
+                    "concept_name": item.context,
+                    "score": item.score,
+                    "source_type": item.source_type.value,
+                }
+                for item in result.items
+            ]
+            return {"recall_items": recall_items, "intuition": None}
+        if self._memory_field is None:
+            return {"recall_items": [], "intuition": None}
+        return self._memory_field.recall_with_intuition(
+            seeds=seeds,
+            context_text=context_text,
+            agent_id=agent_id,
+            min_weight=min_weight,
+            max_results=max_results,
+            max_tokens=max_tokens,
+        )
+
+    def _fusion_stage(self) -> str:
+        """融合阶段（FusionConfig 未接入前读配置，默认 FUSION_OFF）。"""
+        fusion_cfg = self._cfg("memory_fusion", {}) or {}
+        return str(fusion_cfg.get("stage", "fusion_off") or "fusion_off").strip().lower()
 
     @staticmethod
     def _empty_person_profile_response(*, person_id: str = "", person_name: str = "") -> Dict[str, Any]:

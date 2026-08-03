@@ -4,7 +4,7 @@
 （trace_edges，连接主义激活痕迹）。节点以统一 id 标识，概念与实体同源。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -103,3 +103,22 @@ class DecayResult:
 
     relation_affected: int = 0
     trace_affected: int = 0
+
+
+@dataclass(slots=True)
+class FusionSearchItem:
+    """单条融合检索命中。"""
+
+    concept_id: str
+    score: float
+    source_type: SourceType = SourceType.HYBRID
+    context: str = ""
+
+
+@dataclass(slots=True)
+class FusionSearchResult:
+    """融合检索结果（扩散-锚定，非 RRF 拼接）。"""
+
+    query: str
+    items: list[FusionSearchItem] = field(default_factory=list)
+    anchor_status: AnchorStatus = AnchorStatus.UNANCHORED

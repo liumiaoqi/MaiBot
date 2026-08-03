@@ -331,7 +331,7 @@ class AMemorixHostService:
                 if migration_adapter and not migration_adapter.should_recall():
                     return {"recall_items": [], "intuition": None}
                 seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
-                return kernel._memory_field.recall_with_intuition(
+                return kernel.recall_with_intuition(
                     seeds=[str(s) for s in seeds],
                     context_text=payload.get("context_text", ""),
                     agent_id=payload.get("agent_id", ""),
