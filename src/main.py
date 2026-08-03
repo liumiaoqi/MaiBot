@@ -506,9 +506,29 @@ class MainSystem:
             )
             core_pkg = importlib.import_module("src.core")
             core_dir = str(Path(inspect.getfile(core_pkg)).parent)
+            # 适配器层豁免收窄：组件禁令整体豁免，但两个被禁适配器自身仍按精确名检查
+            banned_adapters = (
+                "src.core.adapters.service_manager_adapter",
+                "src.core.adapters.watchdog_adapter",
+            )
+
+            def _is_banned(module_name: str) -> bool:
+                """精确模块名边界匹配（== 或 banned + '.'）——避免前缀误伤。"""
+                return any(
+                    module_name == banned or module_name.startswith(f"{banned}.")
+                    for banned in _BANNED_MODULE_PREFIXES
+                )
+
             for mod_name, mod in list(sys.modules.items()):
-                if not mod_name.startswith("src.core.") or mod_name.startswith("src.core.adapters"):
+                if not mod_name.startswith("src.core."):
                     continue
+                if mod_name.startswith("src.core.adapters"):
+                    # 适配器豁免：仅两个被禁适配器自身参与检查
+                    if not any(
+                        mod_name == banned or mod_name.startswith(f"{banned}.")
+                        for banned in banned_adapters
+                    ):
+                        continue
                 if mod is None:
                     continue
                 try:
@@ -521,9 +541,7 @@ class MainSystem:
                     if name.startswith("_"):
                         continue
                     obj_module = getattr(obj, "__module__", None)
-                    if obj_module and any(
-                        obj_module.startswith(banned) for banned in _BANNED_MODULE_PREFIXES
-                    ):
+                    if obj_module and _is_banned(obj_module):
                         mark_taint(TaintFlag.TAINT_PORT_BYPASS)
                         logger.warning("ZG-7 守卫: %s.%s 违规导入自 %s", mod_name, name, obj_module)
         except Exception:

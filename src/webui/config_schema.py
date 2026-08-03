@@ -13,7 +13,6 @@ AMEMORIX_BASIC_FIELD_PATHS: set[str] = {
     "a_memorix.global_memory_sharing_enabled",
     "a_memorix.integration.chat_summary_writeback_enabled",
     "a_memorix.integration.enable_memory_query_tool",
-    "a_memorix.integration.enable_person_profile_query_tool",
     "a_memorix.integration.heuristic_memory_recall_enabled",
     "a_memorix.integration.memory_query_default_limit",
     "a_memorix.person_profile.enabled",

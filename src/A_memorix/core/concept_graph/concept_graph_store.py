@@ -258,7 +258,8 @@ class ConceptGraphStore:
                 """,
                 (max(0.0, min(1.0, factor)),),
             )
-            self._conn.commit()
+            if not self._in_outer_transaction:
+                self._conn.commit()
             return cursor.rowcount
 
     def decay_trace_edges(self, factor: float) -> int:
@@ -271,7 +272,8 @@ class ConceptGraphStore:
                 """,
                 (max(0.0, min(1.0, factor)),),
             )
-            self._conn.commit()
+            if not self._in_outer_transaction:
+                self._conn.commit()
             return cursor.rowcount
 
     def decay_all(self, *, relation_factor: float, trace_factor: float) -> DecayResult:
@@ -291,7 +293,8 @@ class ConceptGraphStore:
                 """,
                 (max(0.0, min(1.0, trace_factor)),),
             ).rowcount
-            self._conn.commit()
+            if not self._in_outer_transaction:
+                self._conn.commit()
             self._rebuild_adjacency_index()
             return DecayResult(
                 relation_affected=relation_affected,

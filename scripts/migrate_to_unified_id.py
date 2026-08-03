@@ -108,7 +108,13 @@ def _load_traces(traces_db: Path) -> list[tuple[str, str, float, float, str]]:
             weight = float(_get(row, "weight", 0.5) or 0.5)
             valence = float(_get(row, "valence", 0.0) or 0.0)
             agent_id = str(_get(row, "agent_id", "") or "")
-            traces.append((source, target, weight, valence, agent_id))
+            perspective = str(_get(row, "perspective", "") or "")
+            # 有 agent_id 时用 agent 前缀视角；否则保留原 perspective 列
+            if agent_id:
+                perspective = f"agent:{agent_id}"
+            elif not perspective:
+                perspective = "migrated"
+            traces.append((source, target, weight, valence, perspective))
         return traces
     finally:
         conn.close()
@@ -160,6 +166,7 @@ def _rollback(data_dir: Path) -> None:
         "concept_graph.db": data_dir / "concept_graph.db",
     }
     restored = 0
+    skipped = 0
     for filename, target in targets.items():
         src = backup_dir / filename
         if src.exists():
@@ -167,12 +174,13 @@ def _rollback(data_dir: Path) -> None:
             shutil.copy2(src, target)
             restored += 1
         elif target.exists():
-            # 备份缺失 = 迁移产物（迁移前不存在）→ 删除
-            target.unlink()
+            # 备份缺失：跳过并告警——绝不删除可能含真实数据的文件
+            skipped += 1
+            print(f"  警告: {filename} 无备份，跳过恢复（保留现有文件）")
     manifest = data_dir / _MANIFEST
     if manifest.exists():
         manifest.unlink()
-    print(f"已从备份恢复 {restored} 个文件（迁移产物已删除）")
+    print(f"已从备份恢复 {restored} 个文件（{skipped} 个跳过）")
 
 
 def main() -> int:
@@ -191,9 +199,6 @@ def main() -> int:
         _rollback(data_dir)
         return 0
 
-    backup_dir = _backup(data_dir)
-    print(f"已备份原数据到: {backup_dir}")
-
     concepts = _load_concepts(data_dir)
     entities = _load_entities(data_dir / "metadata" / "metadata.db")
     relations = _load_relations(data_dir / "metadata" / "metadata.db")
@@ -211,6 +216,9 @@ def main() -> int:
         total_names = len(set(concepts) | set(entities))
         print(f"[dry-run] 将写入 {total_names} 个节点 / {len(relations)} 条关系 / {len(traces)} 条 trace")
         return 0
+
+    backup_dir = _backup(data_dir)
+    print(f"已备份原数据到: {backup_dir}")
 
     store = ConceptGraphStore(data_dir)
     store.init_schema()
@@ -234,17 +242,11 @@ def main() -> int:
         _save_manifest(data_dir, migrated)
         print(f"节点写入完成: {len(node_ids)} 新增（累计 {len(migrated)}）")
 
-        # 2. 关系边迁移（subject/object 名 → id）
+        # 2. 关系边迁移（subject/object 名 → id；集合外名字先建节点防 FK 违约）
         relation_count = 0
         for subject, predicate, obj, weight in relations:
-            source_id = node_ids.get(subject) or gen.generate(subject)
-            target_id = node_ids.get(obj) or gen.generate(obj)
-            if source_id not in migrated and subject not in node_ids:
-                node_ids[subject] = source_id
-                migrated.add(subject)
-            if target_id not in migrated and obj not in node_ids:
-                node_ids[obj] = target_id
-                migrated.add(obj)
+            source_id = _ensure_node_id(store, gen, subject, node_ids, migrated, now)
+            target_id = _ensure_node_id(store, gen, obj, node_ids, migrated, now)
             store.upsert_relation_edge(RelationEdge(
                 id=f"rel:{source_id}:{target_id}:{predicate}",
                 source_id=source_id,
@@ -259,16 +261,16 @@ def main() -> int:
 
         # 3. Trace 迁移（source/target 概念名 → id，perspective=agent_id）
         trace_count = 0
-        for source, target, weight, valence, agent_id in traces:
-            source_id = node_ids.get(source) or gen.generate(source)
-            target_id = node_ids.get(target) or gen.generate(target)
+        for source, target, weight, valence, perspective in traces:
+            source_id = _ensure_node_id(store, gen, source, node_ids, migrated, now)
+            target_id = _ensure_node_id(store, gen, target, node_ids, migrated, now)
             store.upsert_trace_edge(TraceEdge(
-                id=f"trace:{source_id}:{target_id}:{agent_id}",
+                id=f"trace:{source_id}:{target_id}:{perspective}",
                 source_concept_id=source_id,
                 target_concept_id=target_id,
                 weight=weight,
                 valence=valence,
-                perspective=f"agent:{agent_id}" if agent_id else "migrated",
+                perspective=perspective,
                 last_activated_at=now,
                 created_at=now,
             ))
@@ -283,6 +285,18 @@ def main() -> int:
         return 0
     finally:
         store.close()
+
+
+def _ensure_node_id(store, gen, name, node_ids, migrated, now):
+    """名字 → 统一 id；集合外名字先建节点（FK 约束）。"""
+    existing = node_ids.get(name)
+    if existing is not None:
+        return existing
+    node_id = gen.generate(name)
+    node_ids[name] = node_id
+    migrated.add(name)
+    store.upsert_node(create_node(node_id, name, NodeCategory.CONCEPT, now))
+    return node_id
 
 
 def create_node(node_id: str, name: str, category: NodeCategory, now: float):

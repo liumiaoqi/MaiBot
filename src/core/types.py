@@ -930,7 +930,6 @@ class AMemorixIntegrationSnapshot:
     chat_summary_writeback_message_threshold: int = 10
     chat_summary_writeback_context_length: int = 20
     enable_memory_query_tool: bool = True
-    enable_person_profile_query_tool: bool = True
     memory_query_default_limit: int = 5
     enable_person_profile_injection: bool = True
     person_profile_injection_max_profiles: int = 3

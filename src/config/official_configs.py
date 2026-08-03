@@ -1112,20 +1112,6 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """每次默认从长期记忆中取回多少条结果"""
 
-    enable_person_profile_query_tool: bool = Field(
-        default=True,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "启用人物画像查询",
-                "en_US": "Enable profile search",
-                "ja_JP": "人物プロファイル検索を有効化",
-            },
-            "x-widget": "switch",
-            "x-icon": "user-round-search",
-        },
-    )
-    """是否允许麦麦查询人物画像记忆"""
-
     enable_person_profile_injection: bool = Field(
         default=True,
         json_schema_extra={

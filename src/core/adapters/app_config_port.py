@@ -185,7 +185,6 @@ class GlobalConfigAppConfigPort:
             chat_summary_writeback_message_threshold=ami.chat_summary_writeback_message_threshold,
             chat_summary_writeback_context_length=ami.chat_summary_writeback_context_length,
             enable_memory_query_tool=ami.enable_memory_query_tool,
-            enable_person_profile_query_tool=ami.enable_person_profile_query_tool,
             memory_query_default_limit=ami.memory_query_default_limit,
             enable_person_profile_injection=ami.enable_person_profile_injection,
             person_profile_injection_max_profiles=ami.person_profile_injection_max_profiles,

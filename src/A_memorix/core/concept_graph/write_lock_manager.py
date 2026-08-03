@@ -47,25 +47,32 @@ class WriteLockManager:
             WriteLockTimeoutError: 超时未获取到全部锁
         """
         ordered = sorted({cid for cid in concept_ids if cid})
-        acquired: list[asyncio.Lock] = []
+        acquired: list[tuple[str, asyncio.Lock]] = []
         try:
             async with asyncio.timeout(timeout):
                 for cid in ordered:
                     lock = self._get_lock(cid)
                     await lock.acquire()
-                    acquired.append(lock)
+                    acquired.append((cid, lock))
         except TimeoutError:
-            # 释放已持有的锁后抛超时
-            for lock in reversed(acquired):
+            # 释放已持有的锁后抛超时（按 cid 精确配对，逆序释放）
+            for cid, lock in reversed(acquired):
                 lock.release()
+                self._maybe_prune(cid, lock)
             raise WriteLockTimeoutError(
                 f"写入锁获取超时: concepts={ordered} timeout={timeout}s"
             ) from None
         return WriteLockToken(concept_ids=tuple(ordered))
 
     def release(self, token: WriteLockToken) -> None:
-        """释放令牌持有的全部锁（逆序释放）。"""
+        """释放令牌持有的全部锁（逆序释放），无等待者时清理字典条目。"""
         for cid in reversed(token.concept_ids):
             lock = self._locks.get(cid)
             if lock is not None and lock.locked():
                 lock.release()
+                self._maybe_prune(cid, lock)
+
+    def _maybe_prune(self, cid: str, lock: asyncio.Lock) -> None:
+        """无等待者且未持有 → 移除字典条目（防无界增长）。"""
+        if not getattr(lock, "_waiters", None) and not lock.locked():
+            self._locks.pop(cid, None)

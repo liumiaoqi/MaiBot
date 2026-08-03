@@ -109,10 +109,6 @@ def _is_allowed_planner_user_message(text: str) -> bool:
     return not _is_message_summary(content)
 
 
-def _is_person_profile_content(text: str) -> bool:
-    return False
-
-
 def _extract_message_ids(text: str) -> set[str]:
     return {match.group(1).strip() for match in MESSAGE_ID_PATTERN.finditer(text) if match.group(1).strip()}
 
@@ -135,8 +131,6 @@ def _build_tool_result_content(raw_message: Dict[str, Any], timestamp: datetime)
         return ""
 
     raw_content = _message_text(raw_message).strip()
-    if _is_person_profile_content(raw_content):
-        return ""
 
     tool_result_message = ToolResultMessage(
         content=raw_content,
@@ -154,8 +148,6 @@ def _build_user_source_item(text: str, timestamp: datetime) -> Optional[JargonLe
     if _is_sticker_message(text):
         return None
     if is_jargon_reference_text(text):
-        return None
-    if _is_person_profile_content(text):
         return None
 
     content = text.strip()
@@ -205,8 +197,6 @@ def build_planner_candidate(chat_id: str, planner_path: Path, index_in_chat: int
 
         if role == "assistant":
             text = _message_text(raw_message)
-            if _is_person_profile_content(text):
-                continue
             content = _build_assistant_content(raw_message, timestamp, "planner_assistant")
             if content:
                 source_items.append(
@@ -222,8 +212,6 @@ def build_planner_candidate(chat_id: str, planner_path: Path, index_in_chat: int
 
         if role == "tool":
             text = _message_text(raw_message)
-            if _is_person_profile_content(text):
-                continue
             content = _build_tool_result_content(raw_message, timestamp)
             if content:
                 source_items.append(
