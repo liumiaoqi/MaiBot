@@ -242,15 +242,6 @@ python src/A_memorix/scripts/migrate_person_memory_points.py --help
 ### 5.3 写入普通记忆
 
 ```json
-{
-  "tool": "ingest_text",
-  "arguments": {
-    "external_id": "note:2026-03-18:001",
-    "source_type": "note",
-    "text": "模型切换后召回质量更稳定",
-    "chat_id": "group:dev",
-    "tags": ["worklog"]
-  }
 }
 ```
 

@@ -1,7 +1,7 @@
 from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.common.memory_utils import coerce_search_result, coerce_write_result
+from src.common.memory_utils import coerce_search_result
 from src.common.memory_types import MemorySearchResult, MemoryWriteResult
 
 from ..connectionist.memory_field import MemoryField
@@ -76,41 +76,6 @@ class MigrationRouter:
         profile_view = await self._memory_field.derive_profile(person_id, agent_id)
         return self._translator.profile_view_to_dict(profile_view)
 
-    async def ingest_text(self, text: str, **kwargs) -> MemoryWriteResult:
-        import warnings
-        warnings.warn("ingest_text 已废弃，请使用 observe 路径", DeprecationWarning, stacklevel=2)
-        phase = self._adapter.phase
-
-        if phase == MigrationPhase.LEGACY_ONLY:
-            return await self._legacy_ingest(text, **kwargs)
-
-        if phase in (MigrationPhase.DUAL_WRITE, MigrationPhase.DUAL_READ, MigrationPhase.DATA_MIGRATION):
-            legacy_result = await self._legacy_ingest(text, **kwargs)
-            try:
-                await self._memory_field.observe(
-                    text=text,
-                    source_id=kwargs.get("source_id", ""),
-                    session_id=kwargs.get("session_id", ""),
-                    agent_id=kwargs.get("agent_id", ""),
-                    participants=kwargs.get("participants"),
-                    tags=kwargs.get("tags"),
-                    metadata=kwargs.get("metadata"),
-                )
-            except Exception as e:
-                logger.warning(f"连接主义 observe 失败（不影响分类学写入）: {e}")
-            return legacy_result
-
-        observe_result = await self._memory_field.observe(
-            text=text,
-            source_id=kwargs.get("source_id", ""),
-            session_id=kwargs.get("session_id", ""),
-            agent_id=kwargs.get("agent_id", ""),
-            participants=kwargs.get("participants"),
-            tags=kwargs.get("tags"),
-            metadata=kwargs.get("metadata"),
-        )
-        return self._observe_to_write_result(observe_result)
-
     async def build_profile_injection_text(self, raw_text: str, *, agent_id: str = "") -> str:
         if self._adapter.phase == MigrationPhase.NEW_INDEPENDENT:
             profile_view = await self._memory_field.derive_profile(raw_text, agent_id)
@@ -135,27 +100,6 @@ class MigrationRouter:
         )
         raw = await self._kernel.search_memory(request)
         return coerce_search_result(raw)
-
-    async def _legacy_ingest(self, text: str, **kwargs) -> MemoryWriteResult:
-        raw = await self._kernel.ingest_text(
-            external_id=kwargs.get("external_id", ""),
-            source_type=kwargs.get("source_type", ""),
-            text=text,
-            chat_id=kwargs.get("chat_id", ""),
-            person_ids=kwargs.get("person_ids"),
-            participants=kwargs.get("participants"),
-            timestamp=kwargs.get("timestamp"),
-            time_start=kwargs.get("time_start"),
-            time_end=kwargs.get("time_end"),
-            tags=kwargs.get("tags"),
-            metadata=kwargs.get("metadata"),
-            entities=kwargs.get("entities"),
-            relations=kwargs.get("relations"),
-            respect_filter=kwargs.get("respect_filter", True),
-            user_id=kwargs.get("user_id", ""),
-            group_id=kwargs.get("group_id", ""),
-        )
-        return coerce_write_result(raw)
 
     @staticmethod
     def _observe_to_write_result(result: ObserveResult) -> MemoryWriteResult:

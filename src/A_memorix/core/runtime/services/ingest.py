@@ -110,6 +110,9 @@ class IngestService:
         chat_id: str,
         text: str,
         participants: Optional[Sequence[str]] = None,
+        source_type: str = "chat_summary",
+        person_ids: Optional[Sequence[str]] = None,
+        entities: Optional[Sequence[str]] = None,
         time_start: Optional[float] = None,
         time_end: Optional[float] = None,
         tags: Optional[Sequence[str]] = None,
@@ -118,7 +121,7 @@ class IngestService:
         user_id: str = "",
         group_id: str = "",
     ) -> Dict[str, Any]:
-        external_token = str(external_id or "").strip() or compute_hash(f"chat_summary:{chat_id}:{text}")
+        external_token = str(external_id or "").strip() or compute_hash(f"{source_type}:{chat_id}:{text}")
         if self._is_chat_filtered(
             respect_filter=respect_filter,
             stream_id=chat_id,
@@ -150,12 +153,14 @@ class IngestService:
             result.setdefault("external_id", external_id)
             result.setdefault("chat_id", chat_id)
             return result
-        return await self.ingest_text(
+        return await self._ingest_text(
             external_id=external_id,
-            source_type="chat_summary",
+            source_type=source_type,
             text=text,
             chat_id=chat_id,
             participants=participants,
+            person_ids=person_ids,
+            entities=entities,
             time_start=time_start,
             time_end=time_end,
             tags=tags,
@@ -165,7 +170,7 @@ class IngestService:
             group_id=group_id,
         )
 
-    async def ingest_text(
+    async def _ingest_text(
         self,
         *,
         external_id: str,

@@ -196,20 +196,10 @@ python src/A_memorix/scripts/audit_vector_consistency.py --json
 若你不需要任务编排，也可以直接调用：
 
 - `ingest_summary`
-- `ingest_text`
 
 示例：
 
 ```json
-{
-  "tool": "ingest_text",
-  "arguments": {
-    "external_id": "note:2026-03-18:001",
-    "source_type": "note",
-    "text": "新的召回阈值方案已通过评审",
-    "chat_id": "group:dev",
-    "tags": ["worklog", "review"]
-  }
 }
 ```
 

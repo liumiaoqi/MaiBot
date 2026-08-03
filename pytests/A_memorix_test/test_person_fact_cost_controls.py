@@ -139,8 +139,9 @@ def _should_auto_enqueue_episode(kernel: SDKMemoryKernel, source_type: str) -> b
 async def test_person_fact_ingest_skips_episode_and_debounces_profile_refresh(tmp_path) -> None:
     kernel, metadata_store = _build_kernel(tmp_path, config={})
 
-    result = await kernel.ingest_text(
+    result = await kernel.ingest_summary(
         external_id="fact-1",
+        chat_id="",
         source_type="person_fact",
         text="测试用户喜欢猫。",
         person_ids=["person-1"],
@@ -162,11 +163,11 @@ async def test_person_fact_ingest_skips_episode_and_debounces_profile_refresh(tm
 async def test_memory_ingest_enqueues_episode_without_synchronous_processing(tmp_path) -> None:
     kernel, metadata_store = _build_kernel(tmp_path, config={})
 
-    result = await kernel.ingest_text(
+    result = await kernel.ingest_summary(
         external_id="memory-1",
+        chat_id="session-1",
         source_type="memory",
         text="用户今天讨论了绿色围巾。",
-        chat_id="session-1",
     )
 
     assert result["stored_ids"] == ["paragraph-1"]
@@ -186,11 +187,11 @@ async def test_episode_generation_disabled_skips_all_auto_episode_enqueue(tmp_pa
         config={"episode": {"generation_enabled": False}},
     )
 
-    await kernel.ingest_text(
+    await kernel.ingest_summary(
         external_id="memory-1",
+        chat_id="session-1",
         source_type="memory",
         text="用户今天讨论了绿色围巾。",
-        chat_id="session-1",
     )
 
     assert metadata_store.pending == []

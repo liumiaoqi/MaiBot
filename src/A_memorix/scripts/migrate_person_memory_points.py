@@ -86,7 +86,7 @@ async def _main() -> int:
             continue
         display_name = str(row["person_name"] or row["user_nickname"] or "").strip()
         for item in _parse_memory_points(row["memory_points"]):
-            result: Dict[str, Any] = await kernel.ingest_text(
+            result: Dict[str, Any] = await kernel.ingest_summary(
                 external_id=f"person_memory:{person_id}:{item['index']}",
                 source_type="person_fact",
                 text=f"[{item['category']}] {item['content']}",

@@ -11,8 +11,10 @@ R07 修正：内存邻接索引——init_schema() 后从 SQLite 全量加载 tr
 
 import sqlite3
 import threading
+import time as _time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from src.common.logger import get_logger
 
@@ -32,16 +34,54 @@ class ConceptGraphStore:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
-        self._write_lock = threading.Lock()
+        # RLock：transaction() 持有写锁期间，内部 upsert_* 再次获取不互锁
+        self._write_lock = threading.RLock()
         # R07：内存邻接索引 {concept_id: [TraceEdge, ...]}
         self._adjacency_index: dict[str, list[TraceEdge]] = {}
+        # 显式外层事务标志（Python 3.14 sqlite3 隐式事务下 in_transaction 不可靠）
+        self._in_outer_transaction = False
 
     def init_schema(self) -> None:
-        """创建三表 + 索引（幂等）。"""
+        """创建三表 + 索引 + 幂等表（幂等）。"""
         with self._write_lock:
             self._conn.executescript(_SCHEMA_SQL)
             self._conn.commit()
             self._rebuild_adjacency_index()
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """同一 SQLite 事务（R05：双投影串行写入同一 BEGIN/COMMIT）。
+
+        显式 BEGIN + 标志位：外部事务开启时 upsert_* 不自行 commit。
+        """
+        with self._write_lock:
+            self._conn.execute("BEGIN")
+            self._in_outer_transaction = True
+            try:
+                yield self._conn
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+            finally:
+                self._in_outer_transaction = False
+
+    # ── 写入幂等（event_id 去重） ─────────────────────────
+
+    def has_event_written(self, event_id: str) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM event_writes WHERE event_id = ?", (event_id,)
+        ).fetchone()
+        return row is not None
+
+    def mark_event_written(self, event_id: str) -> None:
+        with self._write_lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO event_writes (event_id, written_at) VALUES (?, ?)",
+                (event_id, _time.time()),
+            )
+            if not self._in_outer_transaction:
+                self._conn.commit()
 
     def _rebuild_adjacency_index(self) -> None:
         """从 SQLite 全量加载 trace_edges 到内存邻接索引（R07）。"""
@@ -78,7 +118,8 @@ class ConceptGraphStore:
                     node.updated_at,
                 ),
             )
-            self._conn.commit()
+            if not self._in_outer_transaction:
+                self._conn.commit()
 
     def get_node_by_id(self, node_id: str) -> Optional[ConceptNode]:
         row = self._conn.execute(
@@ -115,7 +156,8 @@ class ConceptGraphStore:
                     edge.created_at,
                 ),
             )
-            self._conn.commit()
+            if not self._in_outer_transaction:
+                self._conn.commit()
 
     def get_relation_edges(self, node_id: str) -> list[RelationEdge]:
         rows = self._conn.execute(
@@ -155,7 +197,8 @@ class ConceptGraphStore:
                     edge.created_at,
                 ),
             )
-            self._conn.commit()
+            if not self._in_outer_transaction:
+                self._conn.commit()
             # R07：同步内存邻接索引（先移除同键旧条目，避免 UPSERT 重复追加）
             self._remove_index_entry(edge.source_concept_id, edge.target_concept_id, edge.perspective)
             self._adjacency_index.setdefault(edge.source_concept_id, []).append(edge)
@@ -330,4 +373,9 @@ CREATE INDEX IF NOT EXISTS idx_relation_source ON relation_edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_relation_target ON relation_edges(target_id);
 CREATE INDEX IF NOT EXISTS idx_trace_source ON trace_edges(source_concept_id);
 CREATE INDEX IF NOT EXISTS idx_trace_target ON trace_edges(target_concept_id);
+
+CREATE TABLE IF NOT EXISTS event_writes (
+    event_id TEXT PRIMARY KEY,
+    written_at REAL NOT NULL
+);
 """

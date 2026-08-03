@@ -166,56 +166,6 @@ class AMemorixPlugin(MaiBotPlugin):
         )
 
     @Tool(
-        "ingest_text",
-        description="写入普通长期记忆文本",
-        parameters=[
-            _tool_param("external_id", ToolParamType.STRING, "外部幂等 ID", True),
-            _tool_param("source_type", ToolParamType.STRING, "来源类型", True),
-            _tool_param("text", ToolParamType.STRING, "原始文本", True),
-            _tool_param("chat_id", ToolParamType.STRING, "聊天流 ID", False),
-            _tool_param("timestamp", ToolParamType.FLOAT, "时间戳", False),
-            _tool_param("respect_filter", ToolParamType.BOOLEAN, "是否应用聊天过滤配置", False),
-        ],
-    )
-    async def handle_ingest_text(
-        self,
-        external_id: str,
-        source_type: str,
-        text: str,
-        chat_id: str = "",
-        person_ids: Optional[List[str]] = None,
-        participants: Optional[List[str]] = None,
-        timestamp: float | None = None,
-        time_start: float | None = None,
-        time_end: float | None = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        respect_filter: bool = True,
-        **kwargs,
-    ):
-        relations = kwargs.get("relations")
-        entities = kwargs.get("entities")
-        kernel = await self._get_kernel()
-        return await kernel.ingest_text(
-            external_id=external_id,
-            source_type=source_type,
-            text=text,
-            chat_id=chat_id,
-            person_ids=person_ids,
-            participants=participants,
-            timestamp=timestamp,
-            time_start=time_start,
-            time_end=time_end,
-            tags=tags,
-            metadata=metadata,
-            entities=entities,
-            relations=relations,
-            respect_filter=respect_filter,
-            user_id=str(kwargs.get("user_id", "") or "").strip(),
-            group_id=str(kwargs.get("group_id", "") or "").strip(),
-        )
-
-    @Tool(
         "get_person_profile",
         description="获取人物画像",
         parameters=[

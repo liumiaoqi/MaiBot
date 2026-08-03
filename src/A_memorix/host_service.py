@@ -242,6 +242,9 @@ class AMemorixHostService:
                     chat_id=payload.get("chat_id", ""),
                     text=payload.get("text", ""),
                     participants=list(payload.get("participants") or []),
+                    source_type=str(payload.get("source_type", "") or "chat_summary"),
+                    person_ids=list(payload.get("person_ids") or []),
+                    entities=list(payload.get("entities") or []),
                     time_start=payload.get("time_start"),
                     time_end=payload.get("time_end"),
                     tags=list(payload.get("tags") or []),
@@ -741,7 +744,7 @@ class AMemorixHostService:
                 "filtered": False,
             }
 
-        if component_name in {"ingest_summary", "ingest_text"}:
+        if component_name in {"ingest_summary"}:
             return {
                 "success": True,
                 "disabled": True,
@@ -796,7 +799,7 @@ class AMemorixHostService:
         if component_name in {"observe", "recall", "derive_profile", "reflect",
                                "register_agent", "connectionist_stats", "migration_status",
                                "migration_search", "migration_get_person_profile",
-                               "migration_ingest_text", "migration_build_profile_injection_text"}:
+                               "migration_build_profile_injection_text"}:
             return {
                 "success": False,
                 "disabled": True,

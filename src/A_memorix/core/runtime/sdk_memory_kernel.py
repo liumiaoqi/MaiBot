@@ -84,6 +84,8 @@ class SDKMemoryKernel:
         self._embedding_recovery_service: Optional[Any] = None
         self._person_profile_facade: Optional[Any] = None
         self._vector_ensure_service: Optional[Any] = None
+        self._concept_graph: Optional[Any] = None
+        self._fused_decay_engine: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -395,6 +397,20 @@ class SDKMemoryKernel:
         )
 
         await self._memory_field.initialize()
+
+        # 融合概念图（P1 前置集成——完整路由接线在任务 8/9）
+        from ..concept_graph.concept_graph import ConceptGraph
+        from ..concept_graph.concept_graph_store import ConceptGraphStore
+        from ..concept_graph.decay_engine import FusedDecayEngine
+        from ..concept_graph.unified_id_generator import UnifiedIdGenerator
+
+        self._concept_graph_store = ConceptGraphStore(self.data_dir)
+        self._concept_graph_store.init_schema()
+        self._concept_graph = ConceptGraph(
+            self._concept_graph_store, UnifiedIdGenerator(),
+        )
+        self._fused_decay_engine = FusedDecayEngine(self._concept_graph)
+
         # _initialized 必须在 MemoryField 等核心组件全部就绪后置位——
         # 否则中途失败会留下"已初始化但 _memory_field=None"的半初始化内核，永不重试
         self._initialized = True
@@ -477,6 +493,9 @@ class SDKMemoryKernel:
         chat_id: str,
         text: str,
         participants: Optional[Sequence[str]] = None,
+        source_type: str = "chat_summary",
+        person_ids: Optional[Sequence[str]] = None,
+        entities: Optional[Sequence[str]] = None,
         time_start: Optional[float] = None,
         time_end: Optional[float] = None,
         tags: Optional[Sequence[str]] = None,
@@ -491,54 +510,13 @@ class SDKMemoryKernel:
             chat_id=chat_id,
             text=text,
             participants=participants,
-            time_start=time_start,
-            time_end=time_end,
-            tags=tags,
-            metadata=metadata,
-            respect_filter=respect_filter,
-            user_id=user_id,
-            group_id=group_id,
-        )
-
-    async def ingest_text(
-        self,
-        *,
-        external_id: str,
-        source_type: str,
-        text: str,
-        chat_id: str = "",
-        person_ids: Optional[Sequence[str]] = None,
-        participants: Optional[Sequence[str]] = None,
-        timestamp: Optional[float] = None,
-        time_start: Optional[float] = None,
-        time_end: Optional[float] = None,
-        tags: Optional[Sequence[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        entities: Optional[Sequence[str]] = None,
-        relations: Optional[Sequence[Dict[str, Any]]] = None,
-        respect_filter: bool = True,
-        user_id: str = "",
-        group_id: str = "",
-    ) -> Dict[str, Any]:
-        await self.initialize()
-        if external_id and self.metadata_store is not None:
-            existing = self.metadata_store.get_external_memory_ref(external_id)
-            if existing:
-                return {"success": True, "stored_ids": [], "skipped_ids": [external_id]}
-        return await self._ingest_service.ingest_text(
-            external_id=external_id,
             source_type=source_type,
-            text=text,
-            chat_id=chat_id,
             person_ids=person_ids,
-            participants=participants,
-            timestamp=timestamp,
+            entities=entities,
             time_start=time_start,
             time_end=time_end,
             tags=tags,
             metadata=metadata,
-            entities=entities,
-            relations=relations,
             respect_filter=respect_filter,
             user_id=user_id,
             group_id=group_id,
@@ -584,6 +562,25 @@ class SDKMemoryKernel:
         limit: int = 50,
     ) -> Dict[str, Any]:
         await self.initialize()
+        act = str(action or "").strip().lower()
+        if act == "decay" and self._fused_decay_engine is not None:
+            # 统一衰减（MF-P2-005）：事实投影 + 联想投影同步衰减
+            elapsed_hours = float(hours or 1.0) if hours else 1.0
+            half_life = float(self._cfg("memory.half_life_hours", 24.0) or 24.0)
+            if half_life > 0:
+                factor = 0.5 ** (elapsed_hours / half_life)
+            else:
+                factor = 0.9
+            result = self._fused_decay_engine.decay(
+                relation_factor=factor,
+                trace_factor=factor,
+            )
+            return {
+                "success": True,
+                "action": "decay",
+                "relation_affected": result.relation_affected,
+                "trace_affected": result.trace_affected,
+            }
         return await self._maintenance_service.maintain_memory(
             action=action,
             target=target,

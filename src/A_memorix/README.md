@@ -41,7 +41,6 @@ A_Memorix 是 MaiBot 内置的长期记忆子系统。
 | --- | --- | --- |
 | `search_memory` | 检索长期记忆 | `query` `mode` `limit` `chat_id` `person_id` `time_start` `time_end` |
 | `ingest_summary` | 写入聊天摘要 | `external_id` `chat_id` `text` |
-| `ingest_text` | 写入普通文本记忆 | `external_id` `source_type` `text` |
 | `get_person_profile` | 获取人物画像 | `person_id` `chat_id` `limit` |
 | `maintain_memory` | 维护关系状态 | `action=reinforce/protect/restore/freeze/recycle_bin` |
 | `memory_stats` | 获取统计信息 | 无 |
@@ -84,19 +83,6 @@ A_Memorix 是 MaiBot 内置的长期记忆子系统。
     "mode": "aggregate",
     "limit": 5,
     "chat_id": "group:dev"
-  }
-}
-```
-
-```json
-{
-  "tool": "ingest_text",
-  "arguments": {
-    "external_id": "note:2026-03-18:001",
-    "source_type": "note",
-    "text": "今天完成了检索调优评审",
-    "chat_id": "group:dev",
-    "tags": ["worklog"]
   }
 }
 ```

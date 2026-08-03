@@ -23,7 +23,7 @@
 
 - Tool 接口统一：
   - `plugin.py` 统一通过 `SDKMemoryKernel` 对外提供 Tool 能力。
-  - 保留基础工具：`search_memory / ingest_summary / ingest_text / get_person_profile / maintain_memory / memory_stats`。
+  - 保留基础工具：`search_memory / ingest_summary / get_person_profile / maintain_memory / memory_stats`。
   - 新增管理工具：`memory_graph_admin / memory_source_admin / memory_episode_admin / memory_profile_admin / memory_runtime_admin / memory_import_admin / memory_tuning_admin / memory_v5_admin / memory_delete_admin`。
 - 检索与写入治理增强：
   - 检索/写入链路支持 `respect_filter + user_id/group_id` 的聊天过滤语义。
