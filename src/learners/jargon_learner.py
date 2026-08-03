@@ -43,7 +43,7 @@ ALLOWED_LEARNING_SOURCE_KINDS = {
     "tool_result_media",
     "user",
 }
-FILTERED_TOOL_NAMES = {"query_person_profile", "wait"}
+FILTERED_TOOL_NAMES = {"wait"}
 MESSAGE_OPEN_TAG_PATTERN = re.compile(r"^<message\b(?P<attrs>[^>]*)>", re.IGNORECASE | re.DOTALL)
 MESSAGE_ID_ATTR_PATTERN = re.compile(r'\s+msg_id\s*=\s*"[^"]*"', re.IGNORECASE)
 

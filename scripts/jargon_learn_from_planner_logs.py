@@ -110,7 +110,7 @@ def _is_allowed_planner_user_message(text: str) -> bool:
 
 
 def _is_person_profile_content(text: str) -> bool:
-    return "【人物画像-内部参考】" in text or "query_person_profile" in text
+    return False
 
 
 def _extract_message_ids(text: str) -> set[str]:

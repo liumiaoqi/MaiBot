@@ -16,8 +16,7 @@ from .fetch_history import get_tool_spec as get_fetch_history_tool_spec
 from .fetch_history import handle_tool as handle_fetch_history_tool
 from .query_memory import get_tool_spec as get_query_memory_tool_spec
 from .query_memory import handle_tool as handle_query_memory_tool
-from .query_person_profile import get_tool_spec as get_query_person_profile_tool_spec
-from .query_person_profile import handle_tool as handle_query_person_profile_tool
+
 from .reply import get_tool_spec as get_reply_tool_spec
 from .reply import handle_tool as handle_reply_tool
 from .send_emoji import get_tool_spec as get_send_emoji_tool_spec
@@ -77,13 +76,6 @@ def _get_query_memory_tool_spec() -> ToolSpec:
     return get_query_memory_tool_spec(enabled=bool(get_app_config_port().get_a_memorix_integration_config().enable_memory_query_tool))
 
 
-def _get_query_person_profile_tool_spec() -> ToolSpec:
-    """根据配置生成 query_person_profile 工具声明。"""
-
-    return get_query_person_profile_tool_spec(
-        enabled=bool(get_app_config_port().get_a_memorix_integration_config().enable_person_profile_query_tool)
-    )
-
 
 BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
     BuiltinToolEntry("wait", get_wait_tool_spec, handle_wait_tool, stage="both"),
@@ -96,12 +88,7 @@ BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
         visibility="deferred",
     ),
     BuiltinToolEntry("query_memory", _get_query_memory_tool_spec, handle_query_memory_tool, stage="action"),
-    BuiltinToolEntry(
-        "query_person_profile",
-        _get_query_person_profile_tool_spec,
-        handle_query_person_profile_tool,
-        stage="action",
-    ),
+
     BuiltinToolEntry("send_emoji", get_send_emoji_tool_spec, handle_send_emoji_tool, stage="action"),
     BuiltinToolEntry("send_image", get_send_image_tool_spec, handle_send_image_tool, stage="action"),
     BuiltinToolEntry("tool_search", get_tool_search_tool_spec, handle_tool_search_tool, stage="action"),
