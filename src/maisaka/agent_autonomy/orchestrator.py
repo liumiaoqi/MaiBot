@@ -1523,20 +1523,19 @@ class AgentOrchestrator:
         try:
             from src.core.adapters import get_memory_service_port
             port = get_memory_service_port()
-            if hasattr(port, "recall_with_intuition"):
-                seeds = [trigger_reason, self._session_name]
-                if emotion_state_text:
-                    seeds.append(emotion_state_text[:60])
-                recall_result = await port.recall_with_intuition(
-                    seeds=seeds,
-                    context_text=messages[-1].plain_text if messages else "",
-                    agent_id=agent.agent_id,
-                    max_tokens=800,
-                )
-                items = getattr(recall_result, "recall_items", []) or []
-                if isinstance(items, list) and items:
-                    memory_snippets = self._format_layered_memory_snippets(items)
-                intuition_context = getattr(recall_result, "intuition", None)
+            seeds = [trigger_reason, self._session_name]
+            if emotion_state_text:
+                seeds.append(emotion_state_text[:60])
+            recall_result = await port.recall_with_intuition(
+                seeds=seeds,
+                context_text=messages[-1].plain_text if messages else "",
+                agent_id=agent.agent_id,
+                max_tokens=800,
+            )
+            items = getattr(recall_result, "recall_items", []) or []
+            if isinstance(items, list) and items:
+                memory_snippets = self._format_layered_memory_snippets(items)
+            intuition_context = getattr(recall_result, "intuition", None)
         except Exception:
             logger.warning("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
 

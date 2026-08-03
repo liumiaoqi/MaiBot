@@ -452,6 +452,16 @@ class MemoryServicePort(Protocol):
             格式化后的注入文本
         """
 
+    async def get_paragraphs_by_source(self, source: str) -> list[dict[str, Any]]:
+        """查询指定来源的段落。
+
+        Args:
+            source: 来源标识（如 chat_summary:{session_id}）
+
+        Returns:
+            段落数据列表（含 hash/source/content 等字段），无结果时返回空列表
+        """
+
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
         """设置智能体记忆性格参数。
 

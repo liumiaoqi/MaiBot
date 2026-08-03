@@ -17,6 +17,7 @@ class InteractionTriggerConfig(BaseModel):
 
 class MemoryDrivenTriggerConfig(BaseModel):
     enabled: bool = True
+    recall_rate_limit_rpm: int = Field(default=10, ge=1, le=60)
     positive_memory_trigger_bonus: float = Field(default=0.2, ge=0.0, le=0.5)
     negative_memory_trigger_penalty: float = Field(default=0.3, ge=0.0, le=0.5)
     reunion_trigger_probability: float = Field(default=0.15, ge=0.0, le=1.0)

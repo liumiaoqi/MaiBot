@@ -132,6 +132,10 @@ class AMemorixMemoryServicePort:
     async def build_profile_injection_text(self, raw_text: str) -> str:
         return await self._get_memory_service().migration_build_profile_injection_text(raw_text)
 
+    async def get_paragraphs_by_source(self, source: str) -> list[dict[str, Any]]:
+        """查询指定来源的段落（如 chat_summary:{session_id}）。"""
+        return await self._get_memory_service().get_paragraphs_by_source(source)
+
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
         try:
             await self._get_memory_service().register_agent(agent_id, params)
@@ -220,9 +224,25 @@ _instance: AMemorixMemoryServicePort | None = None
 def get_memory_service_port() -> AMemorixMemoryServicePort:
     global _instance
     if _instance is None:
+        from src.core.protocols import MemoryServicePort
         from src.services.memory_service import memory_service
-        _instance = AMemorixMemoryServicePort(memory_service=memory_service)
+
+        instance = AMemorixMemoryServicePort(memory_service=memory_service)
+        if not isinstance(instance, MemoryServicePort):
+            missing = _find_protocol_missing_methods(instance, MemoryServicePort)
+            raise RuntimeError(
+                f"MemoryServicePort 契约不完整，缺失方法: {missing or '未知'}",
+            )
+        _instance = instance
     return _instance
+
+
+def _find_protocol_missing_methods(instance: Any, protocol: type) -> list[str]:
+    """列出实例缺失的 Protocol 方法（runtime_checkable 契约检查明细）。"""
+    return [
+        name for name, member in vars(protocol).items()
+        if callable(member) and not hasattr(instance, name)
+    ]
 
 
 def reset_memory_service_port() -> None:

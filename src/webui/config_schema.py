@@ -66,6 +66,7 @@ AMEMORIX_ADVANCED_FIELD_PATHS: set[str] = {
     "a_memorix.integration.heuristic_memory_recall_limit",
     "a_memorix.integration.heuristic_memory_recall_max_chars",
     "a_memorix.integration.heuristic_memory_recall_min_interval_seconds",
+    "a_memorix.integration.heuristic_memory_recall_rate_limit_rpm",
     "a_memorix.integration.heuristic_memory_recall_min_new_messages",
     "a_memorix.integration.heuristic_memory_recall_window_size",
     "a_memorix.integration.person_fact_writeback_enabled",

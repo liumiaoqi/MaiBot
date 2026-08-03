@@ -937,7 +937,8 @@ class AMemorixIntegrationSnapshot:
     heuristic_memory_recall_enabled: bool = False
     heuristic_memory_recall_window_size: int = 20
     heuristic_memory_recall_cache_ttl_seconds: int = 300
-    heuristic_memory_recall_min_interval_seconds: int = 180
+    heuristic_memory_recall_min_interval_seconds: int = 60
+    heuristic_memory_recall_rate_limit_rpm: int = 10
     heuristic_memory_recall_min_new_messages: int = 60
     heuristic_memory_recall_limit: int = 3
     heuristic_memory_recall_max_chars: int = 900

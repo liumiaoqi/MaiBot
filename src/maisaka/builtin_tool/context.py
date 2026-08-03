@@ -19,6 +19,7 @@ from src.common.logger import get_logger
 
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
+from src.core.protocols import MemoryServicePort
 from src.core.tooling import ToolExecutionResult
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 
@@ -54,7 +55,7 @@ class BuiltinToolRuntimeContext:
         self.runtime = runtime
         self.current_agent_id: str = ""
         self.is_multi_agent_active: bool = False
-        self._memory_port: Optional[Any] = None
+        self._memory_port: Optional[MemoryServicePort] = None
 
     def resolve_speaker_context(self) -> tuple[str, bool]:
         """动态解析当前发言智能体 ID 和多智能体活跃状态。
@@ -79,8 +80,8 @@ class BuiltinToolRuntimeContext:
         return agent_id, is_multi
 
     @property
-    def memory_port(self) -> Any:
-        """获取 MemoryServicePort 实例（延迟初始化）。"""
+    def memory_port(self) -> MemoryServicePort:
+        """获取 MemoryServicePort 实例（延迟初始化，首次访问时注入）。"""
         if self._memory_port is None:
             from src.core.adapters import get_memory_service_port
             self._memory_port = get_memory_service_port()

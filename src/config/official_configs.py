@@ -1238,7 +1238,7 @@ class AMemorixIntegrationConfig(ConfigBase):
     """自然拉起记忆注入文本的最大字符数"""
 
     heuristic_memory_recall_min_interval_seconds: int = Field(
-        default=180,
+        default=60,
         ge=0,
         json_schema_extra={
             "label": {
@@ -1268,6 +1268,23 @@ class AMemorixIntegrationConfig(ConfigBase):
         },
     )
     """两次自然拉起之间至少需要新增的当前聊天流消息数"""
+
+    heuristic_memory_recall_rate_limit_rpm: int = Field(
+        default=10,
+        ge=1,
+        le=60,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自然拉起检索频率上限（次/分钟）",
+                "en_US": "Heuristic recall rate limit (rpm)",
+                "ja_JP": "自然呼び出し頻度上限（回/分）",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """每分钟最大记忆检索次数（防止检索过频）"""
 
     heuristic_memory_recall_cache_ttl_seconds: int = Field(
         default=300,

@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from src.common.logger import get_logger
+from src.core.protocols import MemoryServicePort
 from src.core.types import ObserveRequest, SilenceReason, ThinkAction, ThinkResult
 
 logger = get_logger("experience_writer")
@@ -19,7 +20,15 @@ _INTENTIONAL_MIN_SUMMARY_CHARS = 20
 
 
 class ExperienceWriter:
-    def __init__(self, memory_port: Any = None, emotion_manager: Any = None) -> None:
+    def __init__(self, memory_port: MemoryServicePort, emotion_manager: Any = None) -> None:
+        """体验写入器。
+
+        Args:
+            memory_port: 记忆服务端口（必选——agent 初始化时必须注入，禁止 None）
+            emotion_manager: 情感管理器（可选，用于情感极性推导）
+        """
+        if memory_port is None:
+            raise ValueError("ExperienceWriter: memory_port 注入失败——agent 初始化时必须注入已初始化的记忆端口")
         self._memory_port = memory_port
         self._emotion_manager = emotion_manager
 
@@ -43,9 +52,6 @@ class ExperienceWriter:
         agent_id: str,
         emotion_state: Any = None,
     ) -> None:
-        if self._memory_port is None:
-            logger.debug("ExperienceWriter: memory_port 未注入，跳过体验写入")
-            return
         summary = self._build_summary(result, emotion_state)
         valence = self._emotion_to_valence(result)
         asyncio.create_task(

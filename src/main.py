@@ -219,16 +219,17 @@ class MainSystem:
             init_fn=self._start_plugin_runtime_v2,
         ))
         orchestrator.register(StartupComponent(
-            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
-            init_fn=self._start_a_memorix,
-        ))
-        orchestrator.register(StartupComponent(
-            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
+            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
             init_fn=self._load_emoji,
         ))
         orchestrator.register(StartupComponent(
-            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=4, critical=False,
+            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
             init_fn=self._inject_model_config_port,
+        ))
+        # a_memorix 内核初始化依赖 ModelConfigPort——必须在注入之后启动
+        orchestrator.register(StartupComponent(
+            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=4, critical=False,
+            init_fn=self._start_a_memorix,
         ))
 
         # 阶段 4：会话恢复

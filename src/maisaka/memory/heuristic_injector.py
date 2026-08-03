@@ -1,6 +1,7 @@
 """Maisaka 启发式长期记忆自然拉起服务。"""
 
 
+from collections import deque
 from dataclasses import dataclass, field
 from time import time
 from typing import Any, Sequence
@@ -59,6 +60,18 @@ class HeuristicMemoryInjector:
         self._states: dict[str, HeuristicMemoryRecallState] = {}
         self._llm_service = llm_service or get_llm_service()
         self._memory_port: Any = None
+        self._recall_timestamps: deque[float] = deque()
+
+    def _allow_recall(self, rpm: int) -> bool:
+        """每分钟检索次数限流：窗口内调用数 < rpm 时放行。"""
+        now = time()
+        window_start = now - 60.0
+        while self._recall_timestamps and self._recall_timestamps[0] < window_start:
+            self._recall_timestamps.popleft()
+        if len(self._recall_timestamps) >= rpm:
+            return False
+        self._recall_timestamps.append(now)
+        return True
 
     @property
     def memory_port(self) -> Any:
@@ -72,11 +85,10 @@ class HeuristicMemoryInjector:
         cross_chat_enabled: bool, chat_id: str, user_id: str, group_id: str,
     ) -> Any:
         try:
-            if hasattr(self.memory_port, "recall_with_intuition"):
-                return await self.memory_port.recall_with_intuition(
-                    seeds=impression.split()[:10] if impression else [],
-                    context_text=context_text,
-                )
+            return await self.memory_port.recall_with_intuition(
+                seeds=impression.split()[:10] if impression else [],
+                context_text=context_text,
+            )
         except Exception:
             logger.warning("直觉召回失败，降级到 search", exc_info=True)
         return await self.memory_port.search(
@@ -132,6 +144,11 @@ class HeuristicMemoryInjector:
                 config.heuristic_memory_recall_min_new_messages,
             ),
         ):
+            self.clear_session_reference(session_info.session_id)
+            return ""
+
+        # 全局限流：每分钟检索次数上限（防止 memory_driven 周期内检索过频）
+        if not self._allow_recall(max(1, int(config.heuristic_memory_recall_rate_limit_rpm or 10))):
             self.clear_session_reference(session_info.session_id)
             return ""
 

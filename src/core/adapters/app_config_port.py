@@ -193,6 +193,7 @@ class GlobalConfigAppConfigPort:
             heuristic_memory_recall_window_size=ami.heuristic_memory_recall_window_size,
             heuristic_memory_recall_cache_ttl_seconds=ami.heuristic_memory_recall_cache_ttl_seconds,
             heuristic_memory_recall_min_interval_seconds=ami.heuristic_memory_recall_min_interval_seconds,
+            heuristic_memory_recall_rate_limit_rpm=ami.heuristic_memory_recall_rate_limit_rpm,
             heuristic_memory_recall_min_new_messages=ami.heuristic_memory_recall_min_new_messages,
             heuristic_memory_recall_limit=ami.heuristic_memory_recall_limit,
             heuristic_memory_recall_max_chars=ami.heuristic_memory_recall_max_chars,

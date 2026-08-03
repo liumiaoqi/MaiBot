@@ -377,8 +377,6 @@ class SDKMemoryKernel:
         from .services.kernel_initializer import KernelInitializer
         KernelInitializer.init_all_services(self)
 
-        self._initialized = True
-
         from ..connectionist.memory_field import MemoryField
         llm_client = None
         if self._ports and self._ports.llm_service:
@@ -397,6 +395,9 @@ class SDKMemoryKernel:
         )
 
         await self._memory_field.initialize()
+        # _initialized 必须在 MemoryField 等核心组件全部就绪后置位——
+        # 否则中途失败会留下"已初始化但 _memory_field=None"的半初始化内核，永不重试
+        self._initialized = True
         await self._start_background_tasks()
 
     async def shutdown(self) -> None:

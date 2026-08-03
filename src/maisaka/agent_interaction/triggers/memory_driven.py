@@ -6,6 +6,7 @@
 
 
 import time
+from collections import deque
 from typing import Any
 
 from src.maisaka.agent.emotion import EmotionState
@@ -22,14 +23,14 @@ _NEGATIVE_PENALTY = 0.3
 _RECONCILE_BONUS = 0.15
 _REUNION_PROBABILITY = 0.15
 _REUNION_THRESHOLD_HOURS = 24
-
+_RECALL_RATE_LIMIT_RPM = 10
 
 
 class MemoryDrivenTrigger(BaseTrigger):
     """记忆驱动触发器。
 
     触发逻辑：
-    1. 检索与各智能体的交互记忆
+    1. 检索与各智能体的交互记忆（受 recall_rate_limit_rpm 限流）
     2. 正面记忆 +20% 触发概率
     3. 负面记忆 -30% 触发概率，"想和好"类型 +15%
     4. 超过24小时无交互产生"想念"需求
@@ -44,6 +45,7 @@ class MemoryDrivenTrigger(BaseTrigger):
         reconcile_bonus: float = _RECONCILE_BONUS,
         reunion_probability: float = _REUNION_PROBABILITY,
         reunion_threshold_hours: int = _REUNION_THRESHOLD_HOURS,
+        recall_rate_limit_rpm: int = _RECALL_RATE_LIMIT_RPM,
     ) -> None:
         self._memory_adapter = memory_adapter
         self._positive_bonus = positive_bonus
@@ -51,6 +53,19 @@ class MemoryDrivenTrigger(BaseTrigger):
         self._reconcile_bonus = reconcile_bonus
         self._reunion_probability = reunion_probability
         self._reunion_threshold_hours = reunion_threshold_hours
+        self._recall_rate_limit_rpm = max(1, int(recall_rate_limit_rpm))
+        self._recall_timestamps: deque[float] = deque()
+
+    def _allow_recall(self) -> bool:
+        """每分钟检索次数限流：窗口内调用数 < rpm 时放行。"""
+        now = time.time()
+        window_start = now - 60.0
+        while self._recall_timestamps and self._recall_timestamps[0] < window_start:
+            self._recall_timestamps.popleft()
+        if len(self._recall_timestamps) >= self._recall_rate_limit_rpm:
+            return False
+        self._recall_timestamps.append(now)
+        return True
 
     async def evaluate(
         self,
@@ -64,59 +79,65 @@ class MemoryDrivenTrigger(BaseTrigger):
         best_prob = 0.0
         best_reason = ""
 
+        # 检索频率限流：超限时整轮跳过记忆检索（关系基础分仍可用）
+        recall_allowed = self._allow_recall()
+
         for rel in relationships:
             prob = 0.0
             memory_desc = ""
 
             mention = min(rel.score / 300.0, 1.0) if rel.score > 0 else 0.1
 
-            # 检索交互记忆
+            # 检索交互记忆（受每分钟 rpm 限流）
             try:
-                result = await self._memory_adapter.search_interaction_memory(
-                    agent_id, rel.target_agent_id, limit=5
-                )
-                if result.success and result.hits:
-                    # 分析记忆中的情绪标签
-                    positive_count = 0
-                    negative_count = 0
-                    has_reconcile = False
-                    has_continuation = False
-
-                    for hit in result.hits:
-                        tags = hit.metadata.get("tags", [])
-                        if isinstance(tags, str):
-                            tags = [tags]
-                        if "positive" in tags:
-                            positive_count += 1
-                        if "negative" in tags:
-                            negative_count += 1
-                        # 检测"想和好"类型
-                        content_lower = hit.content.lower()
-                        if any(kw in content_lower for kw in ["和好", "和解", "重归于好", "reconcile"]):
-                            has_reconcile = True
-                        # 检测"续聊"约定
-                        if any(kw in content_lower for kw in ["再聊", "下次", "继续", "续聊"]):
-                            has_continuation = True
-
-                    # 计算概率
-                    base_prob = mention * 0.5
-                    prob = base_prob
-                    prob += positive_count * self._positive_bonus
-                    prob -= negative_count * self._negative_penalty
-                    if has_reconcile:
-                        prob += self._reconcile_bonus
-                        memory_desc = "想和好的念头"
-                    if has_continuation:
-                        prob += 0.1
-                        memory_desc = memory_desc or "上次约定再聊"
-
-                    prob = max(0.0, prob)
-
+                if not recall_allowed:
+                    prob = mention * 0.3
                 else:
-                    # 无交互记忆，检查是否超过重逢阈值
-                    prob = self._check_reunion(agent_id, rel, mention)
-                    if prob > 0:
-                        memory_desc = "好久没互动了"
+                    result = await self._memory_adapter.search_interaction_memory(
+                        agent_id, rel.target_agent_id, limit=5
+                    )
+                    if result.success and result.hits:
+                        # 分析记忆中的情绪标签
+                        positive_count = 0
+                        negative_count = 0
+                        has_reconcile = False
+                        has_continuation = False
+
+                        for hit in result.hits:
+                            tags = hit.metadata.get("tags", [])
+                            if isinstance(tags, str):
+                                tags = [tags]
+                            if "positive" in tags:
+                                positive_count += 1
+                            if "negative" in tags:
+                                negative_count += 1
+                            # 检测"想和好"类型
+                            content_lower = hit.content.lower()
+                            if any(kw in content_lower for kw in ["和好", "和解", "重归于好", "reconcile"]):
+                                has_reconcile = True
+                            # 检测"续聊"约定
+                            if any(kw in content_lower for kw in ["再聊", "下次", "继续", "续聊"]):
+                                has_continuation = True
+
+                        # 计算概率
+                        base_prob = mention * 0.5
+                        prob = base_prob
+                        prob += positive_count * self._positive_bonus
+                        prob -= negative_count * self._negative_penalty
+                        if has_reconcile:
+                            prob += self._reconcile_bonus
+                            memory_desc = "想和好的念头"
+                        if has_continuation:
+                            prob += 0.1
+                            memory_desc = memory_desc or "上次约定再聊"
+
+                        prob = max(0.0, prob)
+
+                    else:
+                        # 无交互记忆，检查是否超过重逢阈值
+                        prob = self._check_reunion(agent_id, rel, mention)
+                        if prob > 0:
+                            memory_desc = "好久没互动了"
 
             except Exception as e:
                 logger.debug("[agent_interaction] 记忆检索失败: %s", e)

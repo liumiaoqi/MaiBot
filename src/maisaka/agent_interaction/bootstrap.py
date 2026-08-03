@@ -65,7 +65,12 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
     trigger_registry.register("mention_propagation", MentionPropagationTrigger())
     trigger_registry.register("event_ripple", EventRippleTrigger())
     trigger_registry.register("inner_need", InnerNeedTrigger())
-    trigger_registry.register("memory_driven", MemoryDrivenTrigger(memory_adapter))
+    from src.maisaka.agent_interaction.config.trigger_config import MemoryDrivenTriggerConfig
+    memory_driven_cfg = MemoryDrivenTriggerConfig()
+    trigger_registry.register(
+        "memory_driven",
+        MemoryDrivenTrigger(memory_adapter, recall_rate_limit_rpm=memory_driven_cfg.recall_rate_limit_rpm),
+    )
 
     # 交互引擎
     engine = InteractionEngine(

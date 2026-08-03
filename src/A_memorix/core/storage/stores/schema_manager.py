@@ -31,7 +31,33 @@ class SchemaManager:
         if not db_existed:
             self.create_tables(conn.cursor())
             conn.commit()
+        else:
+            self._align_legacy_schema_version(conn)
         self.assert_compatible(conn, db_existed=db_existed)
+
+    def _align_legacy_schema_version(self, conn: sqlite3.Connection) -> None:
+        """旧版本号体系的存量库对齐到当前 SCHEMA_VERSION。
+
+        背景：schema_manager 拆分前 schema_migrations 使用旧版本号（如 15）；
+        结构实为新版（历史 ALTER 已补齐列），仅版本号与当前体系不一致。
+        对齐方式：补建缺失表（CREATE IF NOT EXISTS 幂等，不动现有表）+ 版本号更新。
+        """
+        version = self.get_schema_version(conn)
+        if version == SCHEMA_VERSION or version <= 0:
+            return
+        self.create_tables(conn.cursor())
+        # INSERT OR REPLACE 只替换主键行——旧版本行（如 15）仍在，MAX(version) 不会变；
+        # 必须删除全部旧版本行后再写当前版本
+        conn.execute(
+            "DELETE FROM schema_migrations WHERE version != ?", (SCHEMA_VERSION,)
+        )
+        conn.commit()
+        self.set_schema_version(conn)
+        logger.info(
+            "metadata schema 已从版本 %s 对齐到 %s（补建缺失表 + 版本号更新）",
+            version,
+            SCHEMA_VERSION,
+        )
 
     def create_tables(self, cursor: sqlite3.Cursor) -> None:
         """创建所有业务表、索引，并写入版本信息。"""

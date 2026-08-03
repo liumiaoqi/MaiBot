@@ -27,10 +27,10 @@ if _tz_env:
         if hasattr(time, "tzset"):
             time.tzset()
 
-from src.common.i18n import set_locale, t, tn
-from src.common.logger import get_logger, initialize_logging, shutdown_logging
-from src.common.runtime_loop import set_main_loop
-from src.common.shutdown import request_shutdown
+from src.common.i18n import set_locale, t, tn  # noqa: E402  # TZ 修正后再导入 src 模块
+from src.common.logger import get_logger, initialize_logging, shutdown_logging  # noqa: E402  # TZ 修正后再导入 src 模块
+from src.common.runtime_loop import set_main_loop  # noqa: E402  # TZ 修正后再导入 src 模块
+from src.common.shutdown import request_shutdown  # noqa: E402  # TZ 修正后再导入 src 模块
 
 
 # 设置工作目录为脚本所在目录

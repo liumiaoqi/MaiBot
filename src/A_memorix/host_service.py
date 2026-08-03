@@ -549,7 +549,10 @@ class AMemorixHostService:
                 try:
                     await kernel.initialize()
                 except Exception as exc:
-                    logger.warning("操作异常: %s", exc)
+                    # 半初始化内核不得注册对外服务（否则 _memory_field=None 静默 AttributeError）；
+                    # 保持 _kernel=None，后续 invoke 会重试初始化
+                    logger.error("记忆内核初始化失败: %s", exc, exc_info=True)
+                    raise
                 self._kernel = kernel
                 set_runtime_kernel(kernel)
                 self._register_agents_from_config(kernel)
