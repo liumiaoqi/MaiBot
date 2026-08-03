@@ -6,7 +6,7 @@
 - maintain_memory(decay) → 事实层和联想层同步衰减
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 

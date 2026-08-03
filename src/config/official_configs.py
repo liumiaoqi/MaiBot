@@ -1698,6 +1698,79 @@ class AMemorixStorageConfig(ConfigBase):
     """数据目录"""
 
 
+class AMemorixMemoryFusionConfig(ConfigBase):
+    """记忆融合（连接主义 × 分类学）渐进启用配置"""
+
+    stage: str = Field(
+        default="fusion_off",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "融合阶段",
+                "en_US": "Fusion stage",
+                "ja_JP": "融合ステージ",
+            },
+            "x-widget": "select",
+            "x-options": [
+                {"value": "fusion_off", "label": "FUSION_OFF（原路径）"},
+                {"value": "fusion_write", "label": "FUSION_WRITE（写入融合）"},
+                {"value": "fusion_full", "label": "FUSION_FULL（全融合）"},
+            ],
+        },
+    )
+    """融合阶段：FUSION_OFF 走原路径；FUSION_WRITE 启用写入融合；FUSION_FULL 全融合"""
+
+    spread_depth: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "联想扩散深度",
+                "en_US": "Spread depth",
+                "ja_JP": "拡散深度",
+            },
+            "x-widget": "input",
+            "x-icon": "share-2",
+            "advanced": True,
+        },
+    )
+    """激活扩散最大深度（沿 TraceEdge 扩散跳数）"""
+
+    score_alpha: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "扩散评分权重",
+                "en_US": "Spread score alpha",
+                "ja_JP": "拡散スコア重み",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-h",
+            "advanced": True,
+        },
+    )
+    """检索评分归一化 alpha（扩散分权重，向量分权重 = 1 - alpha）"""
+
+    write_lock_timeout: float = Field(
+        default=5.0,
+        ge=0.1,
+        le=60.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "写入锁超时（秒）",
+                "en_US": "Write lock timeout (s)",
+                "ja_JP": "書き込みロックタイムアウト（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """概念图写入锁获取超时（秒）"""
+
+
 class AMemorixEmbeddingFallbackConfig(ConfigBase):
     """A_Memorix Embedding 回退"""
 
@@ -3743,6 +3816,18 @@ class AMemorixConfig(ConfigBase):
         },
     )
     """存储位置"""
+
+    memory_fusion: AMemorixMemoryFusionConfig = Field(
+        default_factory=AMemorixMemoryFusionConfig,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "记忆融合",
+                "en_US": "Memory fusion",
+                "ja_JP": "記憶融合",
+            },
+        },
+    )
+    """记忆融合（连接主义 × 分类学）渐进启用"""
 
     embedding: AMemorixEmbeddingConfig = Field(
         default_factory=AMemorixEmbeddingConfig,

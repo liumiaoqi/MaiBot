@@ -98,6 +98,30 @@ A_Memorix 是 MaiBot 内置的长期记忆子系统。
 }
 ```
 
+## 记忆融合（连接主义 × 分类学）
+
+统一概念图：概念节点以统一 id 标识（`SHA256(name)[:16]`，概念-实体同源，
+存量 id 前缀兼容零迁移），双投影（事实关系边 + 联想 Trace 边）一次写入。
+
+渐进启用（`a_memorix.memory_fusion`）：
+
+| stage | 行为 |
+|-------|------|
+| `fusion_off`（默认） | 原路径（分类学 + 连接主义独立运行） |
+| `fusion_write` | 写入融合（FusedWritePipeline），检索/画像仍原路径 |
+| `fusion_full` | 全融合：写入 + 扩散-锚定检索 + 统一画像 |
+
+关键配置：`spread_depth`（扩散深度，默认 3）、`score_alpha`（评分权重，
+默认 0.5）、`write_lock_timeout`（写入锁超时，默认 5s）。
+
+存量数据迁移（一次性）：
+
+```bash
+python scripts/migrate_to_unified_id.py --data-dir /path/to/data
+# 回滚（迁移前已自动备份）
+python scripts/migrate_to_unified_id.py --data-dir /path/to/data --rollback
+```
+
 ## 快速开始
 
 ### 1. 安装依赖

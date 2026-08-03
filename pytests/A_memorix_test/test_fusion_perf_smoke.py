@@ -6,8 +6,6 @@
 
 import time
 
-import pytest
-
 from src.A_memorix.core.concept_graph import ConceptGraph, ConceptGraphStore
 from src.A_memorix.core.concept_graph.spread_anchor_retriever import SpreadAnchorRetriever
 

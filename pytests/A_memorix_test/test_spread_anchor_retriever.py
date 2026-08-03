@@ -10,7 +10,6 @@ from src.A_memorix.core.concept_graph import (
     AnchorStatus,
     ConceptGraph,
     ConceptGraphStore,
-    NodeCategory,
     SourceType,
 )
 from src.A_memorix.core.concept_graph.score_normalizer import ScoreNormalizer

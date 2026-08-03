@@ -43,3 +43,22 @@ def test_config_manager_reads_rate_limit() -> None:
     ami = AMemorixIntegrationConfig()
     assert ami.heuristic_memory_recall_rate_limit_rpm == 10
     assert ami.heuristic_memory_recall_min_interval_seconds == 60
+
+
+def test_memory_fusion_config_defaults() -> None:
+    """memory_fusion 配置段：默认 FUSION_OFF，各参数默认值正确。"""
+    from src.config.official_configs import AMemorixMemoryFusionConfig
+
+    cfg = AMemorixMemoryFusionConfig()
+    assert cfg.stage == "fusion_off"
+    assert cfg.spread_depth == 3
+    assert cfg.score_alpha == 0.5
+    assert cfg.write_lock_timeout == 5.0
+
+
+def test_memory_fusion_config_stage_values() -> None:
+    """三阶段枚举可配置。"""
+    from src.config.official_configs import AMemorixMemoryFusionConfig
+
+    for stage in ("fusion_off", "fusion_write", "fusion_full"):
+        assert AMemorixMemoryFusionConfig(stage=stage).stage == stage

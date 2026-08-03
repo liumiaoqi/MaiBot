@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### 🧠 记忆融合（连接主义 × 分类学）
+
+- 概念图基础：统一 id（SHA256 前缀截断 16 字符，概念-实体同源，存量零迁移）+ 双投影
+  存储（concept_nodes / relation_edges / trace_edges，SQLite WAL + 内存邻接索引）
+- 写入融合：FusedWritePipeline（event_id 幂等 + 节点级写锁 + 同一事务双投影串行写入 +
+  向量失败标记 embedding_pending）；ingest_text 废弃移除（ingest_summary 扩展为唯一入口）
+- 检索融合：SpreadAnchorRetriever（事实锚定 → 联想扩散 → 评分归一化，非 RRF）+
+  ScoreNormalizer；kernel 按 FusionConfig.stage 路由（FUSION_FULL / FUSION_OFF）
+- 画像融合：UnifiedProfileService（evidence + associations + valence 三元组）；
+  ProfileDeriver / PersonProfileFacade 标记废弃
+- 衰减统一：FusedDecayEngine（maintain_memory(decay) 同步衰减事实层 + 联想层）
+- 融合路由：FusionRouter 替代 MigrationRouter（legacy 委托保留）
+- 存量迁移：scripts/migrate_to_unified_id.py（--rollback + 断点续传 + --dry-run）
+- 配置：a_memorix.memory_fusion.{stage, spread_depth, score_alpha, write_lock_timeout}
+- 前置缺陷修复：记忆端口注入必选（MF-P0-001）、MemoryServicePort 契约完整（MF-P0-002）、
+  检索限流可配置（MF-P0-003）；kernel 初始化失败链根因修复（schema 对齐/不注册半初始化内核）
+
+
 ### 📚 文档口径同步
 
 - 补充并统一“运行时目录”和“离线脚本默认目录”的说明：
