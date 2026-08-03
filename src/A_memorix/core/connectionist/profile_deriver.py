@@ -1,3 +1,9 @@
+"""画像实时推导（已废弃）。
+
+融合后由 UnifiedProfileService 替代（.core.concept_graph.unified_profile_service）。
+保留以兼容存量调用；新代码请使用 UnifiedProfileService。
+"""
+
 import time
 from typing import Any
 

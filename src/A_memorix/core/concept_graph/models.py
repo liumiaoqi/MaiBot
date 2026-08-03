@@ -116,6 +116,37 @@ class FusionSearchItem:
 
 
 @dataclass(slots=True)
+class EvidenceItem:
+    """统一画像证据（事实视图）。"""
+
+    type: str = "relation"
+    content: str = ""
+    confidence: float = 1.0
+    source_id: str = ""
+
+
+@dataclass(slots=True)
+class AssociationItem:
+    """统一画像联想关联（联想视图）。"""
+
+    concept_id: str = ""
+    weight: float = 0.0
+    valence: float = 0.0
+    perspective: str = ""
+
+
+@dataclass(slots=True)
+class UnifiedProfile:
+    """统一画像三元组（MF-P4-001）。"""
+
+    person_id: str = ""
+    evidence: list[EvidenceItem] = field(default_factory=list)
+    associations: list[AssociationItem] = field(default_factory=list)
+    valence: Optional[float] = None
+    derived_at: float = 0.0
+
+
+@dataclass(slots=True)
 class FusionSearchResult:
     """融合检索结果（扩散-锚定，非 RRF 拼接）。"""
 

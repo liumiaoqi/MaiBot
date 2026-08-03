@@ -345,7 +345,7 @@ class AMemorixHostService:
                 if migration_adapter and not migration_adapter.should_recall():
                     from .core.connectionist.models import ProfileView
                     return ProfileView(subject=payload.get("subject", ""))
-                return await kernel._memory_field.derive_profile(
+                return await kernel.derive_profile(
                     subject=payload.get("subject", ""),
                     observer=payload.get("observer", ""),
                     now=payload.get("now"),

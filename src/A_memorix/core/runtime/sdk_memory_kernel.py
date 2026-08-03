@@ -87,6 +87,7 @@ class SDKMemoryKernel:
         self._concept_graph: Optional[Any] = None
         self._fused_decay_engine: Optional[Any] = None
         self._fusion_retriever: Optional[Any] = None
+        self._unified_profile_service: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -405,6 +406,7 @@ class SDKMemoryKernel:
         from ..concept_graph.decay_engine import FusedDecayEngine
         from ..concept_graph.spread_anchor_retriever import SpreadAnchorRetriever
         from ..concept_graph.unified_id_generator import UnifiedIdGenerator
+        from ..concept_graph.unified_profile_service import UnifiedProfileService
 
         self._concept_graph_store = ConceptGraphStore(self.data_dir)
         self._concept_graph_store.init_schema()
@@ -413,6 +415,7 @@ class SDKMemoryKernel:
         )
         self._fused_decay_engine = FusedDecayEngine(self._concept_graph)
         self._fusion_retriever = SpreadAnchorRetriever(self._concept_graph)
+        self._unified_profile_service = UnifiedProfileService(self._concept_graph)
 
         # _initialized 必须在 MemoryField 等核心组件全部就绪后置位——
         # 否则中途失败会留下"已初始化但 _memory_field=None"的半初始化内核，永不重试
@@ -620,7 +623,51 @@ class SDKMemoryKernel:
         )
 
     async def get_person_profile(self, *, person_id: str, chat_id: str = "", limit: int = 10) -> Dict[str, Any]:
+        if self._fusion_stage() == "fusion_full" and self._unified_profile_service is not None:
+            profile = await self._unified_profile_service.get_person_profile(
+                person_id, limit=max(1, int(limit or 4)),
+            )
+            return {
+                "person_id": person_id,
+                "summary": "",
+                "evidence": [self._evidence_to_dict(e) for e in profile.evidence],
+                "associations": [
+                    {
+                        "concept_id": a.concept_id,
+                        "weight": a.weight,
+                        "valence": a.valence,
+                        "perspective": a.perspective,
+                    }
+                    for a in profile.associations
+                ],
+                "valence": profile.valence,
+            }
         return await self._person_profile_facade.get_person_profile(person_id=person_id, chat_id=chat_id, limit=limit)
+
+    @staticmethod
+    def _evidence_to_dict(item: Any) -> Dict[str, Any]:
+        return {
+            "type": item.type,
+            "content": item.content,
+            "confidence": item.confidence,
+            "source_id": item.source_id,
+        }
+
+    async def derive_profile(
+        self,
+        subject: str,
+        *,
+        observer: str = "",
+        now: Optional[float] = None,
+    ) -> Any:
+        """画像实时推导（FUSION_FULL 走统一画像，否则原连接主义路径）。"""
+        if self._fusion_stage() == "fusion_full" and self._unified_profile_service is not None:
+            del now
+            return await self._unified_profile_service.derive_profile(subject, observer=observer)
+        if self._memory_field is None:
+            from ..connectionist.models import ProfileView
+            return ProfileView(subject=subject)
+        return await self._memory_field.derive_profile(subject, observer, now)
 
     async def refresh_person_profile(self, person_id: str, limit: int = 10, *, mark_active: bool = True) -> Dict[str, Any]:
         return await self._person_profile_facade.refresh_person_profile(person_id, limit, mark_active=mark_active)

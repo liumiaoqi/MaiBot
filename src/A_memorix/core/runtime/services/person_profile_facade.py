@@ -1,3 +1,9 @@
+"""人物画像 facade（已废弃）。
+
+融合后由 UnifiedProfileService 替代（.core.concept_graph.unified_profile_service）。
+保留以兼容存量调用（FUSION_OFF 路径）；FUSION_FULL 时不再调用。
+"""
+
 from typing import Any, Callable, Dict, List
 
 import asyncio

@@ -91,3 +91,36 @@ def test_fusion_off_recall_delegates_to_memory_field(tmp_path) -> None:
     )
     field.recall_with_intuition.assert_called_once()
     assert result == {"recall_items": [], "intuition": None}
+
+
+@pytest.mark.asyncio
+async def test_fusion_full_profile_uses_unified_service(tmp_path) -> None:
+    """FUSION_FULL：get_person_profile 走 UnifiedProfileService（三元组）。"""
+    from src.A_memorix.core.concept_graph.unified_profile_service import UnifiedProfileService
+
+    kernel = _build_kernel(tmp_path, stage="fusion_full")
+    _inject_fusion(kernel, tmp_path)
+    kernel._unified_profile_service = UnifiedProfileService(kernel._concept_graph)
+
+    person = kernel._concept_graph.add_entity(name="凯文")
+    concept = kernel._concept_graph.add_concept(name="终焉")
+    kernel._concept_graph.add_relation_edge(source_id=person.id, target_id=concept.id, relation_type="对抗")
+    kernel._concept_graph.add_trace_edge(source_id=person.id, target_id=concept.id, perspective="回忆", weight=0.8, valence=0.7)
+
+    result = await kernel.get_person_profile(person_id="凯文", limit=4)
+    assert len(result["evidence"]) == 1
+    assert len(result["associations"]) == 1
+    assert result["valence"] == pytest.approx(0.7)
+    assert result["evidence"][0]["content"] == "对抗: 终焉"  # 原字段语义不变
+
+
+@pytest.mark.asyncio
+async def test_fusion_off_profile_keeps_facade(tmp_path) -> None:
+    """FUSION_OFF：get_person_profile 走原 PersonProfileFacade。"""
+    kernel = _build_kernel(tmp_path, stage="fusion_off")
+    facade = MagicMock()
+    facade.get_person_profile = AsyncMock(return_value={"person_id": "x", "evidence": []})
+    kernel._person_profile_facade = facade
+    result = await kernel.get_person_profile(person_id="x", limit=4)
+    assert result["person_id"] == "x"
+    facade.get_person_profile.assert_called_once()
