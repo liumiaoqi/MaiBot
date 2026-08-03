@@ -1,7 +1,6 @@
 """query_person_profile 内置工具。"""
 
 from src.common.logger import get_logger
-logger = get_logger("auto.query_person_profile")
 
 
 from typing import Any, Dict, Optional
@@ -10,6 +9,7 @@ from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvo
 
 
 from .context import BuiltinToolRuntimeContext
+logger = get_logger("auto.query_person_profile")
 
 DEFAULT_PROFILE_LIMIT = 8
 

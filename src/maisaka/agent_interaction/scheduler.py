@@ -5,13 +5,13 @@
 """
 
 from src.common.logger import get_logger
-logger = get_logger("auto.scheduler")
 
 
 import asyncio
 
 from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.trigger_scheduler import InteractionTrigger
+logger = get_logger("auto.scheduler")
 
 
 _DEFAULT_EVALUATION_INTERVAL = 300  # 5分钟

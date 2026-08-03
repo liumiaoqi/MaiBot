@@ -9,14 +9,15 @@ from typing import Any, Dict, List
 
 from _bootstrap import DEFAULT_CONFIG_PATH, DEFAULT_DATA_DIR, resolve_repo_path
 from src.common.logger import get_logger
+from A_memorix.core.storage import MetadataStore
+from A_memorix.core.utils.episode_service import EpisodeService
+
+logger = get_logger("A_memorix.scripts.rebuild_episodes")
 
 try:
     import tomlkit  # type: ignore
 except Exception as exc:  # pragma: no cover
     logger.warning("操作异常: %s", exc)
-from A_memorix.core.storage import MetadataStore
-from A_memorix.core.utils.episode_service import EpisodeService
-logger = get_logger("A_memorix.scripts.rebuild_episodes")
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from src.common.logger import get_logger
-logger = get_logger("auto.avatar")
 
 from typing import Literal
 from urllib.request import Request, urlopen
@@ -13,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from src.webui.dependencies import require_auth
+logger = get_logger("auto.avatar")
 
 router = APIRouter(prefix="/avatar", tags=["avatar"], dependencies=[Depends(require_auth)])
 

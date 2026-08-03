@@ -4,7 +4,6 @@ MaiSaka CLI and conversation loop.
 
 from datetime import datetime
 from src.common.logger import get_logger
-logger = get_logger("auto.maisaka_cli")
 
 
 import asyncio
@@ -24,6 +23,7 @@ from src.core.model_config_port_registry import get_model_config_port
 from .maisaka_cli_sender import CLI_PLATFORM_NAME
 from .console import console
 from .input_reader import InputReader
+logger = get_logger("auto.maisaka_cli")
 
 
 class BufferCLI:

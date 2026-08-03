@@ -4,7 +4,6 @@ MaiSaka - 单个 MCP 服务器连接管理
 """
 
 from src.common.logger import get_logger
-logger = get_logger("auto.connection")
 
 
 from contextlib import AsyncExitStack
@@ -25,6 +24,7 @@ from .models import (
     build_resource_read_result,
     build_tool_content_items,
 )
+logger = get_logger("auto.connection")
 
 if TYPE_CHECKING:
     from mcp.client.session import ElicitationFnT, ListRootsFnT, LoggingFnT, MessageHandlerFnT, SamplingFnT

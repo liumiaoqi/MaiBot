@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Any, Dict, Set
 
 from _bootstrap import DEFAULT_DATA_DIR, resolve_repo_path
+from src.common.logger import get_logger
+
+logger = get_logger("A_memorix.scripts.audit_vector_consistency")
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="审计 A_Memorix 向量一致性")

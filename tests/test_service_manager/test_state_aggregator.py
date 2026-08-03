@@ -226,7 +226,10 @@ class TestSubscribe:
         agg = StateAggregator(registry, {})
 
         received: list[SystemHealthView] = []
-        cb = lambda v: received.append(v)
+
+        def cb(v):
+            received.append(v)
+
         agg.subscribe(cb)
         agg.unsubscribe(cb)
 

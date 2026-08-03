@@ -22,7 +22,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 
 console = Console()
 
-import _bootstrap  # noqa: F401
+import _bootstrap  # noqa: E402, F401
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -44,7 +44,7 @@ try:
     from src.common.logger import get_logger
 except ImportError as exc:  # pragma: no cover - script bootstrap
     print(f"导入模块失败，请确认 PYTHONPATH 与工作区结构: {exc}")
-    raise SystemExit(1)
+    raise SystemExit(1) from exc
 
 
 logger = get_logger("A_Memorix.LPMMImport")
@@ -143,7 +143,7 @@ async def main() -> None:
 
                 task_id = progress.add_task(f"Importing {json_file.name}", total=total_items)
 
-                def update_progress(step: int = 1) -> None:
+                def update_progress(step: int = 1, task_id: int = task_id) -> None:
                     progress.advance(task_id, advance=step)
 
                 await importer.import_json_data(

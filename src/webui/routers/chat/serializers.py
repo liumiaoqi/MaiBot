@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, List, Optional
 from src.common.logger import get_logger
-logger = get_logger("auto.serializers")
 
 
 import base64
@@ -23,6 +22,7 @@ from src.common.data_models.message_component_data_model import (
     VoiceComponent,
 )
 from src.common.utils.image_path import resolve_stored_image_path
+logger = get_logger("auto.serializers")
 
 
 def serialize_message_sequence(message_sequence: MessageSequence) -> List[Dict[str, Any]]:

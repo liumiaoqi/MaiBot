@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from pydantic import BaseModel, Field
 
-import logging
+import logging  # noqa: TID251  # 测试构造 stdlib LogRecord 的受控用途
 import pytest
 import sys
 

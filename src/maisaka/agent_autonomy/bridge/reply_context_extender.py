@@ -1,6 +1,11 @@
+from typing import TYPE_CHECKING
+
 from src.common.logger import get_logger
 
 logger = get_logger("agent_autonomy.reply_context_extender")
+
+if TYPE_CHECKING:
+    from src.maisaka.builtin_tool.context import BuiltinToolRuntimeContext
 
 
 class ReplyToolContextExtender:

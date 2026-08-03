@@ -1,12 +1,12 @@
 from copy import deepcopy
 from src.common.logger import get_logger
-logger = get_logger("auto.resp_format")
 
 from enum import Enum
 from typing import Any, Dict, List, Mapping, Optional, Type, cast
 
 from pydantic import BaseModel
 from typing_extensions import Required, TypedDict
+logger = get_logger("auto.resp_format")
 
 
 class RespFormatType(Enum):

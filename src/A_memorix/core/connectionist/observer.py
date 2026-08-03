@@ -1,3 +1,5 @@
+from typing import Any
+
 import time
 
 from src.common.logger import get_logger

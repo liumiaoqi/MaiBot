@@ -18,7 +18,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.common.logger import get_logger
+from src.common.logger import get_logger  # noqa: E402  # 需先完成 sys.path 引导
 
 logger = get_logger("MigrateTaxonomy")
 
@@ -62,10 +62,10 @@ async def run_migration(data_dir: Path, agent_id: str) -> None:
     connectionist_dir = data_dir / "connectionist"
     connectionist_dir.mkdir(parents=True, exist_ok=True)
 
-    from src.A_memorix.core.connectionist.concept_index import ConceptIndex
-    from src.A_memorix.core.connectionist.trace_store import TraceStore
-    from src.A_memorix.core.extraction.llm_concept_extractor import LLMConceptExtractor
-    from src.A_memorix.core.migration.data_converter import DataConverter
+    from src.A_memorix.core.connectionist.concept_index import ConceptIndex  # noqa: TID251  # 一次性迁移脚本直连 A_memorix 内部实现
+    from src.A_memorix.core.connectionist.trace_store import TraceStore  # noqa: TID251  # 一次性迁移脚本直连 A_memorix 内部实现
+    from src.A_memorix.core.extraction.llm_concept_extractor import LLMConceptExtractor  # noqa: TID251  # 一次性迁移脚本直连 A_memorix 内部实现
+    from src.A_memorix.core.migration.data_converter import DataConverter  # noqa: TID251  # 一次性迁移脚本直连 A_memorix 内部实现
 
     trace_store = TraceStore(data_dir)
     concept_index = ConceptIndex(data_dir)

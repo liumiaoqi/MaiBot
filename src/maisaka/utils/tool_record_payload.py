@@ -1,7 +1,6 @@
 """工具调用记录落库数据构造工具。"""
 
 from src.common.logger import get_logger
-logger = get_logger("auto.tool_record_payload")
 
 
 from datetime import datetime
@@ -9,6 +8,7 @@ from typing import Any, Optional
 
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolExecutionResult, ToolInvocation, ToolSpec
+logger = get_logger("auto.tool_record_payload")
 
 
 def normalize_tool_record_value(value: Any) -> Any:

@@ -174,8 +174,7 @@ class PersonProfileService:
             logger.warning(f"初始化人物画像检索器失败，将只使用关系证据: {e}")
             return None
 
-    @staticmethod
-    def resolve_person_id(identifier: str) -> str:
+    def resolve_person_id(self, identifier: str) -> str:
         """按 person_id 或姓名/别名解析 person_id。"""
         if not identifier:
             return ""

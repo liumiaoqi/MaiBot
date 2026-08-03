@@ -239,7 +239,7 @@ class ParameterEvolutionEngine:
         """获取审计日志。"""
         logs = self._audit_logs
         if agent_id:
-            logs = [l for l in logs if l.agent_id == agent_id]
+            logs = [log for log in logs if log.agent_id == agent_id]
         return logs[-limit:]
 
     def _get_current_allocation(self, agent_id: str, segment: str) -> float:

@@ -574,7 +574,6 @@ def _is_same_prompt_target(prompt_item: Dict[str, Any], chat_session: ChatSessio
 def _get_chat_prompt_details(chat_session: ChatSession) -> Dict[str, Any]:
     """获取当前聊天流实际使用的基础 Prompt 与额外聊天流 Prompt。"""
 
-    session_id = chat_session.session_id
     is_group_chat = _get_chat_type(chat_session) == "group"
     reply_style_config = get_chat_config_port().get_reply_style()
     base_prompt_type = "group" if is_group_chat else "private"

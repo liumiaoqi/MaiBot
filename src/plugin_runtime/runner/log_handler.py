@@ -24,7 +24,6 @@ Host 端将其重放到主进程的 Logger（以 plugin.<name> 为名）中，�
 """
 
 from src.common.logger import get_logger
-logger = get_logger("auto.log_handler")
 
 
 from typing import TYPE_CHECKING, List, Optional
@@ -36,6 +35,7 @@ import json
 import logging
 
 from src.plugin_runtime.protocol.envelope import LogBatchPayload, LogEntry
+logger = get_logger("auto.log_handler")
 
 if TYPE_CHECKING:
     from src.plugin_runtime.runner.rpc_client import RPCClient

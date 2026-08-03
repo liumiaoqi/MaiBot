@@ -40,9 +40,9 @@ except ImportError:
     norm = _scipy_missing
     HAS_SCIPY = False
 
-import contextlib
-from src.common.logger import get_logger
-from ..utils.io import atomic_write
+import contextlib  # noqa: E402  # SciPy 降级占位后再导入
+from src.common.logger import get_logger  # noqa: E402  # SciPy 降级占位后再导入
+from ..utils.io import atomic_write  # noqa: E402  # SciPy 降级占位后再导入
 
 logger = get_logger("A_Memorix.GraphStore")
 
@@ -487,7 +487,7 @@ class GraphStore:
 
         # 删除并重构节点属性
         new_node_attrs = {}
-        for idx, node_name in enumerate(self._nodes):
+        for _idx, node_name in enumerate(self._nodes):
             canon = self._canonicalize(node_name)
             if canon in self._node_attrs:
                 new_node_attrs[canon] = self._node_attrs[canon]
@@ -1279,8 +1279,6 @@ class GraphStore:
             # 如果全空，则所有节点都是孤儿
             return self._nodes.copy()
 
-        n = len(self._nodes)
-
         # 计算 Active Degree (In + Out)
         # 用 sum(axis) 会得到 dense matrix/array
         active_adj = self._adjacency
@@ -1632,7 +1630,7 @@ class GraphStore:
         count = 0
         self._edge_hash_map = defaultdict(set)
 
-        for s, p, o, h in triples:
+        for s, _p, o, h in triples:
             if not h:
                 continue
 

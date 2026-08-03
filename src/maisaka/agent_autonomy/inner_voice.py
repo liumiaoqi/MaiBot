@@ -178,7 +178,7 @@ class InnerVoiceGenerator:
                         weight += 0.3
                         break
 
-            processed_emotion = self._apply_style(voice.style, dominant_intensity)
+            _ = self._apply_style(voice.style, dominant_intensity)
             emotion_desc = _EMOTION_DESC.get(dominant_emotion, "心有所感")
 
             if voice.style == InnerVoiceStyle.INVERT:

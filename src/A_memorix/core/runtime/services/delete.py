@@ -956,7 +956,7 @@ class DeleteService:
         if not sources:
             return
         try:
-            manifest_result = await manager.invalidate_manifest_for_sources(sources)
+            await manager.invalidate_manifest_for_sources(sources)
         except Exception as exc:
             logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
             result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
@@ -988,4 +988,3 @@ class DeleteService:
         if len(token) == 64 and all(ch in "0123456789abcdef" for ch in token.lower()):
             return [token]
         return metadata_store.search_deleted_relation_hashes_by_text(token, limit=10)
-        result["manifest_invalidation"] = manifest_result

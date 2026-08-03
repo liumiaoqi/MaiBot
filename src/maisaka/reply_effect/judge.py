@@ -1,7 +1,6 @@
 """回复效果 LLM 窄维度评审。"""
 
 from src.common.logger import get_logger
-logger = get_logger("auto.judge")
 
 
 from collections.abc import Awaitable, Callable
@@ -11,6 +10,7 @@ import json
 
 from .models import FollowupMessageSnapshot, ReplyEffectRecord, RubricScoreItem, RubricScores
 from .scoring import normalize_text_for_prompt
+logger = get_logger("auto.judge")
 
 JudgeRunner = Callable[[str], Awaitable[str]]
 

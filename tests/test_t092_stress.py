@@ -54,7 +54,7 @@ class StressTestReport:
 
 def _get_all_agent_ids() -> list[str]:
     """获取全部13个智能体ID。"""
-    from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.maisaka.agent.registry import AgentConfigRegistry  # noqa: TID251  # 压力测试直连 AgentConfigRegistry 构造真实注册表
     from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
 
     registry = AgentConfigProviderAdapter(AgentConfigRegistry())
@@ -69,7 +69,7 @@ def benchmark_memory() -> BenchmarkResult:
     tracemalloc.start()
     snapshot_before = tracemalloc.take_snapshot()
 
-    from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.maisaka.agent.registry import AgentConfigRegistry  # noqa: TID251  # 压力测试直连 AgentConfigRegistry 构造真实注册表
     from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
     from src.maisaka.agent.emotion import EmotionManager
     from src.maisaka.deepseek.budget import TokenBudgetManager
@@ -115,7 +115,7 @@ def benchmark_memory() -> BenchmarkResult:
 
 def benchmark_emotion_computation() -> BenchmarkResult:
     """测试情绪状态计算延迟 <100ms。"""
-    from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.maisaka.agent.registry import AgentConfigRegistry  # noqa: TID251  # 压力测试直连 AgentConfigRegistry 构造真实注册表
     from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
     from src.maisaka.agent.emotion import EmotionManager
 
@@ -131,7 +131,6 @@ def benchmark_emotion_computation() -> BenchmarkResult:
         start = time.perf_counter()
         for _ in range(100):
             em.apply_trigger("happy", 0.3)
-            state = em.state
         elapsed = (time.perf_counter() - start) / 100 * 1000
 
         max_ms = max(max_ms, elapsed)
@@ -158,7 +157,7 @@ def benchmark_relationship_computation() -> BenchmarkResult:
 
     start = time.perf_counter()
     for _ in range(100):
-        snapshot = mgr.evaluate("kiana", "test_user", interaction_score=50.0)
+        mgr.evaluate("kiana", "test_user", interaction_score=50.0)
     elapsed = (time.perf_counter() - start) / 100 * 1000
 
     passed = elapsed < 100
@@ -204,7 +203,7 @@ def benchmark_budget_allocation() -> BenchmarkResult:
 
 def benchmark_prefix_cache() -> BenchmarkResult:
     """测试13个智能体前缀缓存构建延迟。"""
-    from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.maisaka.agent.registry import AgentConfigRegistry  # noqa: TID251  # 压力测试直连 AgentConfigRegistry 构造真实注册表
     from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
     from src.maisaka.deepseek.prefix_cache import PrefixCacheManager
 
@@ -239,7 +238,7 @@ def benchmark_prefix_cache() -> BenchmarkResult:
 def benchmark_config_loading() -> BenchmarkResult:
     """测试智能体配置加载延迟。"""
     start = time.perf_counter()
-    from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.maisaka.agent.registry import AgentConfigRegistry  # noqa: TID251  # 压力测试直连 AgentConfigRegistry 构造真实注册表
     from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
 
     registry = AgentConfigProviderAdapter(AgentConfigRegistry())

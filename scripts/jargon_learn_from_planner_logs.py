@@ -19,7 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251  # 一次性学习脚本直接读取 global_config
 from src.learners.jargon_learner import (
     FILTERED_TOOL_NAMES,
     JargonLearner,

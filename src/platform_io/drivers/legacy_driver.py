@@ -2,11 +2,11 @@
 
 from typing import TYPE_CHECKING, Any, Dict, Optional
 from src.common.logger import get_logger
-logger = get_logger("auto.legacy_driver")
 
 
 from src.platform_io.drivers.base import PlatformIODriver
 from src.platform_io.types import DeliveryReceipt, DeliveryStatus, DriverDescriptor, DriverKind, RouteKey
+logger = get_logger("auto.legacy_driver")
 
 if TYPE_CHECKING:
     from src.common.data_models.session_message_data_model import SessionMessage

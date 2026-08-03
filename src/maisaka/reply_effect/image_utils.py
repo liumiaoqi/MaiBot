@@ -2,12 +2,12 @@
 
 from base64 import b64encode
 from src.common.logger import get_logger
-logger = get_logger("auto.image_utils")
 
 from pathlib import Path
 from typing import Any
 
 from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence
+logger = get_logger("auto.image_utils")
 
 
 _MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024

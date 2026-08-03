@@ -2,7 +2,6 @@
 
 from html import unescape
 from src.common.logger import get_logger
-logger = get_logger("auto.reasoning_process")
 
 from pathlib import Path
 from typing import Any
@@ -27,6 +26,7 @@ from src.services.llm_service import generate as generate_llm_response
 from src.services.service_task_resolver import get_available_models, model_name_exists
 from src.webui.dependencies import require_auth
 from src.webui.routers.avatar import build_webui_avatar_url
+logger = get_logger("auto.reasoning_process")
 
 router = APIRouter(prefix="/reasoning-process", tags=["reasoning-process"], dependencies=[Depends(require_auth)])
 

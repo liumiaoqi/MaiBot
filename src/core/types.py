@@ -838,10 +838,10 @@ class MemoryNotFoundError(MemoryServiceError):
 
 # SessionMessage 真实定义在 src/common/data_models/session_message_data_model.py。
 # 此处 re-export 供 core/maisaka 层使用，不直接依赖 chat 层。
-from src.common.data_models.session_message_data_model import SessionMessage as SessionMessage  # noqa: F401
+from src.common.data_models.session_message_data_model import SessionMessage as SessionMessage  # noqa: E402, F401
 
 # ── 纯数据类型 re-export（真实定义在 common 层）────────────────
-from src.common.memory_types import (  # noqa: F401
+from src.common.memory_types import (  # noqa: E402, F401
     IntuitionContext,
     MemoryHit,
     MemorySearchResult,

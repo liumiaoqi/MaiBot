@@ -68,7 +68,7 @@ try:
     )
 except Exception as e:  # pragma: no cover
     print(f"❌ failed to import storage modules: {e}")
-    raise SystemExit(2)
+    raise SystemExit(2) from e
 
 
 @dataclass

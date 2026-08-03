@@ -8,7 +8,7 @@ import asyncio
 
 from src.common.logger import get_logger
 from src.core.protocols import ThinkingOrgan
-from src.core.types import ThinkContext, ThinkResult
+from src.core.types import ThinkAction, ThinkContext, ThinkResult
 
 logger = get_logger("agent_autonomy.parallel_think")
 

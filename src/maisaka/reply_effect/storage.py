@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from src.common.logger import get_logger
-logger = get_logger("auto.storage")
 
 from typing import Dict
 
@@ -11,6 +10,7 @@ import time
 
 from .models import ReplyEffectRecord
 from .path_utils import BASE_DIR, build_reply_effect_chat_dir, normalize_preview_name
+logger = get_logger("auto.storage")
 
 
 class ReplyEffectStorage:

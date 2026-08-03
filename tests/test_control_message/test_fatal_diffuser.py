@@ -103,7 +103,7 @@ class TestDiffuse:
                 while True:
                     await asyncio.sleep(3600)
             except asyncio.CancelledError:
-                raise RuntimeError("refusing cancel")
+                raise RuntimeError("refusing cancel") from None
 
         stubborn_task = asyncio.create_task(stubborn())
         lifecycle = _MockLifecycle([good, stubborn_task])

@@ -1,7 +1,7 @@
 """ChatManagerRoutingAdapter — AgentRoutingService 的 chat_manager 适配器。"""
 
 
-from typing import Optional
+from typing import Any, Optional
 
 from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig

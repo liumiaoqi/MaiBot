@@ -4,7 +4,6 @@
 """
 
 from src.common.logger import get_logger
-logger = get_logger("auto.engine")
 
 
 import json
@@ -17,6 +16,7 @@ from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.models import InteractionEventCreate
 from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
+logger = get_logger("auto.engine")
 
 
 

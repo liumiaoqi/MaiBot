@@ -207,10 +207,6 @@ class UnifiedWebSocketManager:
         """获取订阅了指定域和主题的所有连接 ID。"""
         key = self._build_subscription_key(domain, topic)
         return [cid for cid, conn in self.connections.items() if key in conn.subscriptions]
-        connection = self.connections.get(connection_id)
-        if connection is None:
-            return False
-        return self._build_subscription_key(domain, topic) in connection.subscriptions
 
     async def enqueue(self, connection_id: str, message: Dict[str, Any]) -> None:
         """向指定连接的发送队列压入消息。

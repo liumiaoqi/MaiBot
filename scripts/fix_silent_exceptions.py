@@ -4,7 +4,6 @@
 Replaces pass-only and empty-body except blocks with logger.warning.
 """
 import re
-import sys
 from pathlib import Path
 
 TARGET_DIRS = ["src/maisaka", "src/A_memorix"]

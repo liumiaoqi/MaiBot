@@ -682,7 +682,7 @@ class MaisakaFocusRuntimeMixin:
             existing_history=copied_history,
         )
         result_content = (
-            f"已从 chat_id={self.session_id} 切换到 chat_id={target_session.session_id}。"
+            f"已从 chat_id={self.session_id} 切换到 chat_id={target_session_info.session_id}。"
             f"已按普通 user message 格式接入新聊天未读新消息 {len(recent_context_messages)} 条"
             f"（未读 {target_unread_count} 条，最多自动接入 {FOCUS_SWITCH_NEW_MESSAGE_LIMIT} 条）。"
         )
@@ -700,7 +700,7 @@ class MaisakaFocusRuntimeMixin:
         switch_timestamp = datetime.now()
         switch_message_id = f"focus_switch:{int(time.time() * 1000)}"
         switch_notice = (
-            f"已经切换到 chat_id={target_session.session_id}。"
+            f"已经切换到 chat_id={target_session_info.session_id}。"
             f"下面已按普通 user message 格式接入这个聊天未读新消息 {len(recent_context_messages)} 条"
             f"（未读 {target_unread_count} 条，最多 {FOCUS_SWITCH_NEW_MESSAGE_LIMIT} 条）。\n"
             "</focus_switch>"
@@ -708,9 +708,9 @@ class MaisakaFocusRuntimeMixin:
         switch_trigger_message = SessionMessage(
             message_id=switch_message_id,
             timestamp=switch_timestamp,
-            platform=target_session.platform,
+            platform=target_session_info.platform,
         )
-        switch_trigger_message.session_id = target_session.session_id
+        switch_trigger_message.session_id = target_session_info.session_id
         switch_trigger_message.message_info = MessageInfo(
             user_info=target_runtime._build_runtime_user_info(),
             group_info=target_runtime._build_group_info(),
@@ -737,7 +737,7 @@ class MaisakaFocusRuntimeMixin:
         self._enter_stop_state()
         structured_content = {
             "from_chat_id": self.session_id,
-            "to_chat_id": target_session.session_id,
+            "to_chat_id": target_session_info.session_id,
         }
         metadata = {"pause_execution": True}
         return True, result_content, structured_content, metadata

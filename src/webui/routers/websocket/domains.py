@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 from src.common.logger import get_logger
-logger = get_logger("auto.domains")
 
 from enum import Enum
 from typing import Any, Callable, Coroutine
+logger = get_logger("auto.domains")
 
 
 class LogsEventType(str, Enum):

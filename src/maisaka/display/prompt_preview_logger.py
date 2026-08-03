@@ -1,7 +1,6 @@
 """Maisaka Prompt 预览落盘器。"""
 
 from src.common.logger import get_logger
-logger = get_logger("auto.prompt_preview_logger")
 
 
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 import time
 
 from .preview_path_utils import build_preview_chat_dir_name, normalize_preview_name
+logger = get_logger("auto.prompt_preview_logger")
 
 
 class PromptPreviewLogger:

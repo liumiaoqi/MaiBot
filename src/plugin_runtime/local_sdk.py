@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from src.common.logger import get_logger
-logger = get_logger("auto.local_sdk")
 
 from typing import Mapping, Optional
 
@@ -11,6 +10,7 @@ import sys
 import tomllib
 
 from src.plugin_runtime import ENV_LOCAL_PLUGIN_SDK_PATH
+logger = get_logger("auto.local_sdk")
 
 _SDK_PACKAGE_NAME = "maibot-plugin-sdk"
 _SDK_IMPORT_DIR = "maibot_sdk"

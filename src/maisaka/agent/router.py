@@ -1,5 +1,4 @@
 from src.common.logger import get_logger
-logger = get_logger("auto.router")
 
 
 from typing import TYPE_CHECKING, Optional
@@ -8,6 +7,7 @@ if TYPE_CHECKING:
     from src.core.protocols import AgentConfigProvider
 
 from .config import AgentConfig
+logger = get_logger("auto.router")
 
 
 

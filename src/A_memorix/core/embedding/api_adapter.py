@@ -474,7 +474,7 @@ class EmbeddingAPIAdapter:
 
             semaphore = asyncio.Semaphore(self.max_concurrent)
 
-            async def encode_with_semaphore(text: str, batch_index: int, absolute_index: int):
+            async def encode_with_semaphore(text: str, batch_index: int, absolute_index: int, semaphore=semaphore):
                 async with semaphore:
                     embedding = await self._get_embedding_direct(text, dimensions=dimensions)
                     if embedding is None:

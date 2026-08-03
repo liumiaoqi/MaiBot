@@ -1,6 +1,5 @@
 from typing import Any, Dict, List
 from src.common.logger import get_logger
-logger = get_logger("auto.plugin_client")
 
 
 from src.config.model_configs import APIProvider
@@ -19,6 +18,7 @@ from src.llm_models.request_snapshot import (
     serialize_embedding_request_snapshot,
     serialize_response_request_snapshot,
 )
+logger = get_logger("auto.plugin_client")
 
 
 class PluginLLMClient(BaseClient):

@@ -58,7 +58,7 @@ class ChatLoopServiceAdapter:
         try:
             from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 
-            rel_manager = AgentRelationshipManager()
+            _ = AgentRelationshipManager()
             # 关系文本在 build_prompt_template_context 中动态获取
             self._chat_loop_service.update_relationship_text("")
         except Exception:

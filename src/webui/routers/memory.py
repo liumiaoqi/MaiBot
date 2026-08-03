@@ -1,5 +1,4 @@
 from src.common.logger import get_logger
-logger = get_logger("auto.memory")
 
 
 from datetime import datetime, timedelta, timezone
@@ -54,6 +53,7 @@ from src.webui.schemas.memory import (
     V5ActionRequest,
     VectorRebuildRequest,
 )
+logger = get_logger("auto.memory")
 
 router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(require_auth)])
 compat_router = APIRouter(prefix="/api", tags=["memory-compat"], dependencies=[Depends(require_auth)])
@@ -2204,12 +2204,12 @@ async def get_memory_import_guide():
     return await _import_guide()
 
 @router.post("/import/resolve-path")
-async def resolve_memory_import_path(payload: dict[str, Any] = Body(default_factory=dict)):
+async def resolve_memory_import_path(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_resolve_path(payload)
 
 @router.post("/import/upload")
 async def create_memory_import_upload(
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     payload_json: str = Form("{}"),
 ):
     staging_dir, staged_files = await _stage_upload_files(files)
@@ -2227,27 +2227,27 @@ async def create_memory_import_upload(
         shutil.rmtree(staging_dir, ignore_errors=True)
 
 @router.post("/import/paste")
-async def create_memory_import_paste(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_import_paste(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_paste", payload)
 
 @router.post("/import/raw-scan")
-async def create_memory_import_raw_scan(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_import_raw_scan(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_raw_scan", payload)
 
 @router.post("/import/lpmm-openie")
-async def create_memory_import_lpmm_openie(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_import_lpmm_openie(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_lpmm_openie", payload)
 
 @router.post("/import/lpmm-convert")
-async def create_memory_import_lpmm_convert(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_import_lpmm_convert(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_lpmm_convert", payload)
 
 @router.post("/import/temporal-backfill")
-async def create_memory_import_temporal_backfill(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_import_temporal_backfill(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_temporal_backfill", payload)
 
 @router.post("/import/maibot-migration")
-async def create_memory_import_maibot_migration(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_import_maibot_migration(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_maibot_migration", payload)
 
 @router.get("/import/tasks")
@@ -2272,7 +2272,7 @@ async def cancel_memory_import_task(task_id: str):
     return await _import_cancel(task_id)
 
 @router.post("/import/tasks/{task_id}/retry")
-async def retry_memory_import_task(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):
+async def retry_memory_import_task(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_retry(task_id, payload)
 
 @router.get("/retrieval_tuning/settings")
@@ -2296,7 +2296,7 @@ async def export_memory_tuning_profile():
     return await _tuning_export_profile()
 
 @router.post("/retrieval_tuning/tasks")
-async def create_memory_tuning_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def create_memory_tuning_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _tuning_create_task(payload)
 
 @router.get("/retrieval_tuning/tasks")
@@ -2322,7 +2322,7 @@ async def cancel_memory_tuning_task(task_id: str):
 @router.post("/retrieval_tuning/tasks/{task_id}/apply-best")
 async def apply_best_memory_tuning_profile(
     task_id: str,
-    payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),
+    payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),  # noqa: B008  # FastAPI Body/File 依赖注入默认值
 ):
     return await _tuning_apply_best(task_id, payload)
 
@@ -2549,69 +2549,69 @@ async def compat_import_guide():
     return await _import_guide()
 
 @compat_router.post("/import/resolve_path")
-async def compat_import_resolve_path(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_resolve_path(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_resolve_path(payload)
 
 @compat_router.post("/import/upload")
 async def compat_import_upload(
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     payload_json: str = Form("{}"),
 ):
     return await create_memory_import_upload(files=files, payload_json=payload_json)
 
 @compat_router.post("/import/tasks/upload")
 async def compat_import_upload_task(
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     payload_json: str = Form("{}"),
 ):
     return await create_memory_import_upload(files=files, payload_json=payload_json)
 
 @compat_router.post("/import/paste")
-async def compat_import_paste(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_paste(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_paste", payload)
 
 @compat_router.post("/import/tasks/paste")
-async def compat_import_paste_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_paste_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_paste", payload)
 
 @compat_router.post("/import/raw_scan")
-async def compat_import_raw_scan(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_raw_scan(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_raw_scan", payload)
 
 @compat_router.post("/import/tasks/raw_scan")
-async def compat_import_raw_scan_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_raw_scan_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_raw_scan", payload)
 
 @compat_router.post("/import/lpmm_openie")
-async def compat_import_lpmm_openie(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_lpmm_openie(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_lpmm_openie", payload)
 
 @compat_router.post("/import/tasks/lpmm_openie")
-async def compat_import_lpmm_openie_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_lpmm_openie_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_lpmm_openie", payload)
 
 @compat_router.post("/import/lpmm_convert")
-async def compat_import_lpmm_convert(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_lpmm_convert(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_lpmm_convert", payload)
 
 @compat_router.post("/import/tasks/lpmm_convert")
-async def compat_import_lpmm_convert_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_lpmm_convert_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_lpmm_convert", payload)
 
 @compat_router.post("/import/temporal_backfill")
-async def compat_import_temporal_backfill(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_temporal_backfill(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_temporal_backfill", payload)
 
 @compat_router.post("/import/tasks/temporal_backfill")
-async def compat_import_temporal_backfill_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_temporal_backfill_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_temporal_backfill", payload)
 
 @compat_router.post("/import/maibot_migration")
-async def compat_import_maibot_migration(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_maibot_migration(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_maibot_migration", payload)
 
 @compat_router.post("/import/tasks/maibot_migration")
-async def compat_import_maibot_migration_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_maibot_migration_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_create("create_maibot_migration", payload)
 
 @compat_router.get("/import/tasks")
@@ -2645,11 +2645,11 @@ async def compat_import_cancel(task_id: str):
     return await _import_cancel(task_id)
 
 @compat_router.post("/import/tasks/{task_id}/retry")
-async def compat_import_retry(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_retry(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_retry(task_id, payload)
 
 @compat_router.post("/import/tasks/{task_id}/retry_failed")
-async def compat_import_retry_failed(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_import_retry_failed(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _import_retry(task_id, payload)
 
 @compat_router.get("/retrieval_tuning/settings")
@@ -2677,7 +2677,7 @@ async def compat_export_tuning_profile_toml():
     return await _tuning_export_profile()
 
 @compat_router.post("/retrieval_tuning/tasks")
-async def compat_create_tuning_task(payload: dict[str, Any] = Body(default_factory=dict)):
+async def compat_create_tuning_task(payload: dict[str, Any] = Body(default_factory=dict)):  # noqa: B008  # FastAPI Body/File 依赖注入默认值
     return await _tuning_create_task(payload)
 
 @compat_router.get("/retrieval_tuning/tasks")
@@ -2703,14 +2703,14 @@ async def compat_cancel_tuning_task(task_id: str):
 @compat_router.post("/retrieval_tuning/tasks/{task_id}/apply_best")
 async def compat_apply_best_tuning_profile(
     task_id: str,
-    payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),
+    payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),  # noqa: B008  # FastAPI Body/File 依赖注入默认值
 ):
     return await _tuning_apply_best(task_id, payload)
 
 @compat_router.post("/retrieval_tuning/tasks/{task_id}/apply-best")
 async def compat_apply_best_tuning_profile_kebab(
     task_id: str,
-    payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),
+    payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),  # noqa: B008  # FastAPI Body/File 依赖注入默认值
 ):
     return await _tuning_apply_best(task_id, payload)
 

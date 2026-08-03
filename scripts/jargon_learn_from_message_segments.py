@@ -23,7 +23,7 @@ from src.chat.message_receive.message import SessionMessage
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Messages
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251  # 一次性学习脚本直接读取 global_config
 from src.learners.jargon_learner import JargonLearner, jargon_learn_model
 from src.learners.jargon_miner import JargonMiner
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType

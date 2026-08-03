@@ -104,7 +104,7 @@ async def get_deepseek_overview():
     """获取 DeepSeek 优化全局概览。"""
     registry = _get_registry()
     agents = registry.list_agents()
-    budget_mgr = _get_budget_manager()
+    _ = _get_budget_manager()
     cache_mgr = _get_prefix_cache_manager()
     batch_sched = _get_batch_scheduler()
     cost_tracker = _get_cost_tracker()

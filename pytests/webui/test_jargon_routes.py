@@ -2,7 +2,6 @@
 
 from contextlib import contextmanager
 from datetime import datetime
-from types import SimpleNamespace
 import json
 
 import pytest

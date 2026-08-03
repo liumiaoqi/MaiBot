@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from src.common.logger import get_logger
-logger = get_logger("auto.messages")
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -29,6 +28,7 @@ from src.common.data_models.message_component_data_model import (
 )
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.tool_option import ToolCall
+logger = get_logger("auto.messages")
 
 FORWARD_PREVIEW_LIMIT = 4
 FOCUS_COOLDOWN_WAKEUP_SOURCE = "focus_cooldown_wakeup"

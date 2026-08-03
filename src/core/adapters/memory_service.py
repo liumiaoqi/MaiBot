@@ -15,7 +15,7 @@ from src.common.memory_types import (
     RecallResult,
     ReflectResult,
 )
-from src.core.types import ObserveRequest, PermanentMemoryError, TemporaryMemoryError
+from src.core.types import MemoryServiceError, ObserveRequest, PermanentMemoryError, TemporaryMemoryError
 
 logger = get_logger("core.adapters.memory_service")
 

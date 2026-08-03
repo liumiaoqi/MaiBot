@@ -1,7 +1,10 @@
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
+from src.common.logger import get_logger
 from ...storage import GraphStore, MetadataStore
 from ...utils.hash import compute_hash
+
+logger = get_logger("A_Memorix.GraphOpsService")
 
 
 class GraphOpsService:

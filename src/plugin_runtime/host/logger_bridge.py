@@ -1,9 +1,10 @@
 import logging as stdlib_logging
 from src.common.logger import get_logger
-logger = get_logger("auto.logger_bridge")
 
 from src.plugin_runtime.protocol.errors import ErrorCode
 from src.plugin_runtime.protocol.envelope import Envelope, LogBatchPayload
+logger = get_logger("auto.logger_bridge")
+
 class RunnerLogBridge:
     """将 Runner 进程上报的批量日志重放到主进程的 Logger 中。
 

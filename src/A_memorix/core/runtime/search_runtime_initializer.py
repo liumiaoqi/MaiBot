@@ -22,6 +22,7 @@ from ..retrieval import (
 )
 
 _logger = get_logger("A_Memorix.SearchRuntimeInitializer")
+logger = _logger
 
 _REQUIRED_COMPONENT_KEYS = (
     "vector_store",

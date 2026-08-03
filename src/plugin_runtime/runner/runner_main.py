@@ -32,9 +32,9 @@ from src.plugin_runtime.local_sdk import activate_local_sdk_import_path
 
 activate_local_sdk_import_path()
 
-from src.common.logger import get_console_handler, get_logger, initialize_logging
-from src.config.config_utils import compare_versions
-from src.plugin_runtime import (
+from src.common.logger import get_console_handler, get_logger, initialize_logging  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
+from src.config.config_utils import compare_versions  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
+from src.plugin_runtime import (  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
     ENV_BLOCKED_PLUGIN_REASONS,
     ENV_EXTERNAL_PLUGIN_IDS,
     ENV_HOST_VERSION,
@@ -43,7 +43,7 @@ from src.plugin_runtime import (
     ENV_RUNNER_GROUP,
     ENV_SESSION_TOKEN,
 )
-from src.plugin_runtime.protocol.envelope import (
+from src.plugin_runtime.protocol.envelope import (  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
     BootstrapPluginPayload,
     ComponentDeclaration,
     ConfigUpdatedPayload,
@@ -65,11 +65,11 @@ from src.plugin_runtime.protocol.envelope import (
     ValidatePluginConfigPayload,
     ValidatePluginConfigResultPayload,
 )
-from src.plugin_runtime.protocol.errors import ErrorCode
-from src.plugin_runtime.runner.log_handler import RunnerIPCLogHandler
-from src.plugin_runtime.runner.plugin_paths import PluginPaths, build_plugin_paths
-from src.plugin_runtime.runner.plugin_loader import PluginCandidate, PluginLoader, PluginMeta
-from src.plugin_runtime.runner.rpc_client import RPCClient
+from src.plugin_runtime.protocol.errors import ErrorCode  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
+from src.plugin_runtime.runner.log_handler import RunnerIPCLogHandler  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
+from src.plugin_runtime.runner.plugin_paths import PluginPaths, build_plugin_paths  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
+from src.plugin_runtime.runner.plugin_loader import PluginCandidate, PluginLoader, PluginMeta  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
+from src.plugin_runtime.runner.rpc_client import RPCClient  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
 
 logger = get_logger("plugin_runtime.runner.main")
 

@@ -6,7 +6,6 @@
 """
 
 from src.common.logger import get_logger
-logger = get_logger("auto.monologue_engine")
 
 
 import json
@@ -22,6 +21,7 @@ from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.monologue_trigger import MonologueTrigger
+logger = get_logger("auto.monologue_engine")
 
 
 

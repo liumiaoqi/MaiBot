@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from src.common.logger import get_logger
-logger = get_logger("auto.startup_bindings")
 
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
@@ -8,6 +7,7 @@ import os
 import sys
 
 import tomlkit
+logger = get_logger("auto.startup_bindings")
 
 
 PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()

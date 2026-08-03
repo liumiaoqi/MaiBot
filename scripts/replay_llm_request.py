@@ -14,7 +14,7 @@ if str(SRC_ROOT) not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(1, str(PROJECT_ROOT))
 
-from src.config.config import config_manager
+from src.config.config import config_manager  # noqa: TID251  # 调试脚本直接使用 config_manager
 from src.llm_models.model_client.base_client import AudioTranscriptionRequest, ResponseRequest, client_registry
 from src.llm_models.model_client.base_client import EmbeddingRequest
 from src.llm_models.request_snapshot import (

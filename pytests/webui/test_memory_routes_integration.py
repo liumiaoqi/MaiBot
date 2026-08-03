@@ -11,11 +11,9 @@ import json
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
-import tomlkit
 
 from src.A_memorix import host_service as host_service_module
-from src.A_memorix.core.runtime import sdk_memory_kernel as kernel_module
-from src.A_memorix.core.utils import retrieval_tuning_manager as tuning_manager_module
+from src.A_memorix.core.utils import retrieval_tuning_manager as tuning_manager_module  # noqa: TID251  # 集成测试直测 A_memorix 内部实现（MemoryServicePort 契约由集成测试覆盖）
 from src.webui.dependencies import require_auth
 from src.webui.routers import memory as memory_router_module
 

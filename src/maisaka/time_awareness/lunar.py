@@ -4,11 +4,11 @@
 """
 
 from src.common.logger import get_logger
-logger = get_logger("auto.lunar")
 
 
 from dataclasses import dataclass
 from datetime import date, datetime
+logger = get_logger("auto.lunar")
 
 
 
@@ -81,7 +81,7 @@ def get_lunar_info(target_date: date | None = None) -> LunarInfo | None:
         from zhdate import ZhDate
 
         zh = ZhDate.from_datetime(datetime(target_date.year, target_date.month, target_date.day))
-        solar = zh.to_datetime()
+        _ = zh.to_datetime()
 
         lunar_month_name = ""
         lunar_day_name = ""
@@ -125,7 +125,7 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
         year = target_date.year
         for i, term_name in enumerate(_24_SOLAR_TERMS):
             try:
-                term_date = ZhDate(year, 1, 1).to_datetime().date()
+                _ = ZhDate(year, 1, 1).to_datetime().date()
                 if i > 0:
                     pass
 

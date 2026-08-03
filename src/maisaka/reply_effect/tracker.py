@@ -1,7 +1,6 @@
 """会话级回复效果观察器。"""
 
 from src.common.logger import get_logger
-logger = get_logger("auto.tracker")
 
 
 from datetime import datetime
@@ -34,6 +33,7 @@ from .scoring import (
     score_reply_effect,
 )
 from .storage import ReplyEffectStorage
+logger = get_logger("auto.tracker")
 
 TARGET_USER_FOLLOWUP_LIMIT = 2
 SESSION_FOLLOWUP_LIMIT = 5

@@ -60,12 +60,12 @@ dev = [
 
 
 [tool.pytest.ini_options]
-markers = ["benchmark: 性能基准用例（NFR-PER 验收），常规回归不运行"]
-addopts = "-m 'not benchmark' --ignore=lab --ignore=pytests/phoenix1_test/test_grpc_transport.py --ignore=tests/plugin_runtime_v2/test_mcp_e2e.py"
+markers = ["benchmark: 性能基准用例（NFR-PER 验收），常规回归不运行", "integration: 端到端集成测试，需真实数据库/host_service 基础设施"]
+addopts = "-m 'not benchmark and not integration' --import-mode=importlib --ignore=lab --ignore=pytests/phoenix1_test/test_grpc_transport.py --ignore=tests/plugin_runtime_v2/test_mcp_e2e.py --ignore=tests/plugin_runtime_v2/test_napcat_v4.py --ignore=tests/plugin_runtime_v2/test_v1_compat.py"
 # asyncio_mode 必须在此段（pytest-asyncio 1.x 不读 [tool.pytest-asyncio] 独立段）
 asyncio_mode = "auto"
 # importlib 模式：pytests/webui 与 tests/webui 同模块名共存（ImportPathMismatchError 修复）
-import-mode = "importlib"
+# --import-mode 是命令行选项（pytest 9.x 未注册为 ini option），放在 addopts 中
 # 项目根进 sys.path：tests/ 目录独立跑时不依赖 pytests/conftest.py 的 sys.path 副作用
 pythonpath = ["."]
 
@@ -147,6 +147,12 @@ ignore = ["E711", "E501", "TID252"]
 "pytests/log_pipeline_test/*" = ["TID251"]  # 测试构造 stdlib LogRecord 的受控用途
 "pytests/A_memorix_test/*" = ["TID251"]  # A_memorix 测试直测内部实现（MemoryServicePort 契约由集成测试覆盖）
 "pytests/common_test/*" = ["TID251"]  # 测试直测 global_config 配置结构（配置读取走 port 的契约由 webui 测试覆盖）
+"lab/**" = ["TID251", "B007", "F841", "E741", "B905", "E731", "E722", "E701", "B023", "E702"]  # 实验原型区：不适用生产规范（2026-08-03 全仓 ruff 清理裁定）
+"tests/test_t092_stress.py" = ["TID251"]  # 压力测试直测内部实现
+"scripts/**" = ["TID251"]  # 运维/工具脚本直测内部实现（一次性或手动运行，非服务代码）
+"pytests/config_test/test_config_base.py" = ["TID251"]  # 测试构造 stdlib LogRecord（受控用途，同 log_pipeline_test 先例）
+"pytests/webui/test_memory_routes_integration.py" = ["TID251"]  # 端到端集成测试直连 A_memorix 内部（同 A_memorix_test 先例）
+".codeartsdoer/temp/**" = ["ALL"]  # 临时接受目录（非源码）
 
 [tool.ruff.format]
 docstring-code-format = true

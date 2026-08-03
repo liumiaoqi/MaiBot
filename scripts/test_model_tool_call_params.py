@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.common.data_models.llm_service_data_models import LLMServiceRequest, LLMServiceResult  # noqa: E402
-from src.config.config import config_manager  # noqa: E402
+from src.config.config import config_manager  # noqa: E402, TID251
 from src.config.model_configs import APIProvider, ModelInfo, TaskConfig  # noqa: E402
 from src.llm_models.payload_content.tool_option import ToolCall  # noqa: E402
 from src.services.llm_service import generate  # noqa: E402

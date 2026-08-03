@@ -28,7 +28,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(errors="replace")
 
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions  # noqa: E402
-from src.services.llm_service import LLMServiceClient  # noqa: E402
+from src.services.llm_service import LLMServiceClient  # noqa: E402, TID251
 
 DEFAULT_METHODS = ["old_direct", "precise_selection", "vector_recall"]
 BLIND_LABELS = ["A", "B", "C"]

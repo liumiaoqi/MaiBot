@@ -1,7 +1,5 @@
-from types import ModuleType, SimpleNamespace
 
 import ipaddress
-import sys
 
 import pytest
 

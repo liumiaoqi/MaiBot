@@ -5,14 +5,16 @@
 命名空间隔离，不污染用户记忆。
 """
 
+from typing import Any
+
 from src.common.logger import get_logger
-logger = get_logger("auto.adapter")
 
 
 import time
 
 from src.core.protocols import MemoryServicePort
 from src.core.types import MemorySearchResult, MemoryWriteResult
+logger = get_logger("auto.adapter")
 
 
 _CHAT_ID_PREFIX = "agent_interaction"

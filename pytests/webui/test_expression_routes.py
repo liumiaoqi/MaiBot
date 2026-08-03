@@ -1,6 +1,5 @@
 """Expression routes pytest tests"""
 
-from types import SimpleNamespace
 from typing import Generator
 
 import pytest

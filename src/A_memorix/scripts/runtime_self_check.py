@@ -46,8 +46,8 @@ if any(arg in {"-h", "--help"} for arg in sys.argv[1:]):
     _build_arg_parser().print_help()
     raise SystemExit(0)
 
-from A_memorix.core.runtime.lifecycle_orchestrator import initialize_storage_async
-from A_memorix.core.utils.runtime_self_check import run_embedding_runtime_self_check
+from A_memorix.core.runtime.lifecycle_orchestrator import initialize_storage_async  # noqa: E402  # help fast-path 后再导入
+from A_memorix.core.utils.runtime_self_check import run_embedding_runtime_self_check  # noqa: E402  # help fast-path 后再导入
 logger = get_logger("A_memorix.scripts.runtime_self_check")
 
 

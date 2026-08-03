@@ -16,7 +16,7 @@ from hashlib import sha256
 from pathlib import Path
 from random import Random
 from sys import path as sys_path
-from typing import Any, Dict, List, Sequence
+from typing import Any, List, Sequence
 
 import argparse
 import asyncio
@@ -34,8 +34,8 @@ if hasattr(sys.stdout, "reconfigure"):
 from src.chat.replyer.maisaka_expression_selector import maisaka_expression_selector  # noqa: E402
 from src.chat.replyer.expression_vector_index import expression_vector_index  # noqa: E402
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions  # noqa: E402
-from src.config.config import global_config  # noqa: E402
-from src.services.llm_service import LLMServiceClient, _build_message_from_dict  # noqa: E402
+from src.config.config import global_config  # noqa: E402, TID251
+from src.services.llm_service import LLMServiceClient, _build_message_from_dict  # noqa: E402, TID251
 
 DEFAULT_INPUT_JSON = "data/analysis/expression_selection_batch_compare_live_intent_20260622_164359.json"
 DEFAULT_INDEX_JSON = "data/expression_selection/expression_vector_index.json"

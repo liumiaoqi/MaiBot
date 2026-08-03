@@ -1,7 +1,6 @@
 """CLI 下的 Prompt 可视化渲染模块。"""
 
 from src.common.logger import get_logger
-logger = get_logger("auto.prompt_cli_renderer")
 
 
 from base64 import b64decode
@@ -24,6 +23,7 @@ from .display_utils import (
 )
 from .preview_path_utils import build_display_path, build_file_uri, REPO_ROOT
 from .prompt_preview_logger import PromptPreviewLogger
+logger = get_logger("auto.prompt_cli_renderer")
 
 DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"
 DATA_EMOJI_DIR = REPO_ROOT / "data" / "emoji"

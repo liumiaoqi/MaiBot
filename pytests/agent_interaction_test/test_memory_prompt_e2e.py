@@ -1,6 +1,6 @@
 """记忆驱动触发端到端验证（6.4）+ 提示词注入验证（6.5）。"""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
