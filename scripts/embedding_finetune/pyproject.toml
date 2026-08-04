@@ -1,0 +1,40 @@
+# embedding_finetune 独立工作区声明
+#
+# 作用：
+#   1. 本目录内的 uv 命令（uv venv / uv run / uv sync）自动使用本目录的 .venv，
+#      与主项目（MaiBot 根）环境彻底隔离——主项目的 uv run 永远不会冲掉这里
+#   2. requires-python 锁定 3.12（torch 训练栈在 3.12 最稳）
+#   3. torch 自动从 cu128 索引安装（RTX 50 系 Blackwell 必需）
+#
+# 用法：
+#   cd scripts/embedding_finetune
+#   uv venv --python 3.12 .venv
+#   uv pip install -e .          # 或 uv sync——按本文件声明装依赖
+#   python run_train_v1.py       # 训练
+
+[project]
+name = "maibot-embedding-finetune"
+version = "0.1.0"
+description = "MaiBot 本地 embedding 模型微调工作区（与主项目隔离，3.12 + cu128）"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "sentence-transformers[training]>=3.0",
+    "accelerate>=1.1.0",
+    "optimum[onnxruntime]>=1.20",
+    "onnx>=1.16",
+    "onnxscript",
+    "onnxruntime>=1.18",
+    "fastapi",
+    "uvicorn",
+    "numpy",
+]
+
+[tool.uv]
+# torch 从 cu128 专用索引安装（PyPI 主索引没有 cu128 轮子）
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

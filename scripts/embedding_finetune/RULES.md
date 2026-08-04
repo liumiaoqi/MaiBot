@@ -7,20 +7,17 @@
 
 ## 1. 环境规则（硬性）
 
-- **Python 3.12 专用**：微调环境是 `.venv`（cpython-3.12.11，Windows）。**不要用 uv run**——`uv run` 按主项目 pyproject 声明（3.14）重建环境，会冲掉训练环境（已踩坑一次）。
-- **正确用法**：
+- **独立环境**：本目录有独立的 `.venv`（Python 3.12，由 `pyproject.toml` 声明）——与主项目（MaiBot 根 .venv）**彻底隔离**。
+- **建环境**（torch 命中 uv 缓存，秒装）：
   ```powershell
-  .\.venv\Scripts\activate   # 激活后直接 python 跑
-  python scripts\embedding_finetune\run_train_v1.py
-  ```
-- **torch 必须 cu128**：RTX 50 系（Blackwell sm_120）的 kernel 只在 cu128+ 轮子中；cu126 报 `no kernel image is available for execution on the device`。
-- **环境重建命令**（环境被冲后恢复）：
-  ```powershell
+  cd scripts\embedding_finetune
   uv venv --python 3.12 .venv
-  uv pip install torch --index-url https://download.pytorch.org/whl/cu128   # 命中 uv 缓存，无需下载
-  uv pip install -r scripts\embedding_finetune\requirements.txt
+  uv pip install -e .        # 按 pyproject.toml 声明装依赖（torch 自动走 cu128 索引）
   ```
-- 依赖（requirements.txt）：sentence-transformers[training]、accelerate>=1.1.0（sentence-transformers 3.x 的 fit 必需）、optimum[onnxruntime]、onnx、onnxruntime。torch 单独装（cu128 索引）。
+- **使用**：`cd scripts\embedding_finetune` 后 `.\venv\Scripts\activate`，直接 `python run_train_v1.py`。
+- **不要用根目录的 uv run 跑本目录脚本**（会按主项目 pyproject 用根 .venv）；本目录内的 uv 命令自动用本目录 .venv。
+- **torch 必须 cu128**：RTX 50 系（Blackwell sm_120）的 kernel 只在 cu128+ 轮子中；cu126 报 `no kernel image is available for execution on the device`。
+- 依赖声明：`pyproject.toml`（torch 走 `pytorch-cu128` 专用索引）；requirements.txt 是参考副本。
 
 ## 2. 数据规则
 
