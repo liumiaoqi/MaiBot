@@ -46,6 +46,11 @@ class CrashDump:
             try:
                 data["degrade_on_taint_mask"] = self._taint_mask_port.get_degrade_on_taint_mask()
             except Exception:
+                # 查询掩码失败：字段降级为 N/A（spec §5.2.3.1）；标记债务
+                # （崩溃场景 logger 不可用，用 _print 兜底，不留普通日志）
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+
+                mark_exception_swallowed()
                 data["degrade_on_taint_mask"] = "N/A"
             return json.dumps(data, ensure_ascii=False)
         except Exception:

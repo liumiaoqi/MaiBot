@@ -91,7 +91,9 @@ class TaintedMask:
         is_first = not (self._mask & flag.value)
 
         if is_first:
-            # 首次置位：先判定实际 action，再创建 TaintRecord
+            # 置位先完成（不可逆优先，design 决策 1）再判定 action（CX P2-5）
+            self._mask |= flag.value
+            # 注意：preset_mask 预置位不经此路径，不触发掩码级降级（CX P2-7）
             stack = self._capture_stack()
             mask_matched = flag.value & self._degrade_on_taint_mask != 0
             if mask_matched:
@@ -107,7 +109,6 @@ class TaintedMask:
                 action_taken=action,
             )
             self._first_taints[flag.bit_position] = record
-            self._mask |= flag.value
 
             # 结构化日志（spec §4.2 规则 1）
             logger.info(
@@ -132,7 +133,9 @@ class TaintedMask:
             self._notify_nofail(event)
         # warn_count 每次 add_taint(TAINT_WARN) 递增（含首次与幂等分支，
         # 计数非动作，spec §4.2 规则 2；对标 atomic_inc_return）
-        # 掩码匹配时跳过阈值降级（避免同一次 add_taint 双触发 TRIGGER_DEGRADE）
+        # 掩码匹配时跳过阈值降级（避免同一次 add_taint 双触发 TRIGGER_DEGRADE）。
+        # 注意：仅同一次调用内抑制（CX P2-8）；后续幂等分支再次 add_taint(TAINT_WARN)
+        # 若 warn_count 达限仍会触发阈值降级——符合 spec §5.1.1.8 "同一次" 限定。
         self._bump_warn_count(flag, mask_matched=is_first and mask_matched)
 
     def _bump_warn_count(self, flag: TaintFlag, *, mask_matched: bool = False) -> None:

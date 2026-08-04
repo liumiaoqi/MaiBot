@@ -178,6 +178,17 @@ class TestWiringCompleteness:
         assert args[0][1] == "TAINT_WARN"  # flag 格式化参数
         assert args[0][3] == "RECORD"  # action 格式化参数
         assert args[0][4] == 0x20  # current_mask 格式化参数
+        assert args.kwargs["taint_trigger_source"] == "on_taint"  # spec §5.2.1.2
+
+    def test_structured_log_trigger_source_degrade_mask(self) -> None:
+        """掩码级触发日志 taint_trigger_source="degrade_mask"（spec §5.2.1.2）。"""
+        from unittest.mock import patch
+
+        with patch("src.core.tainted_mask.tainted_mask.logger") as mock_logger:
+            adapter = TaintMaskAdapter(app_config_port=_FakeConfigPortWithMask())
+            adapter.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        assert mock_logger.info.call_args.kwargs["taint_trigger_source"] == "degrade_mask"
+        assert mock_logger.info.call_args.kwargs["taint_action"] == "TRIGGER_DEGRADE"
 
 
 class _FakeConfigPortWithMask(_FakeConfigPort):
@@ -202,7 +213,7 @@ class TestDegradeOnTaintMaskE2E:
 
     @pytest.mark.asyncio
     async def test_full_lifecycle_with_mask(self) -> None:
-        """完整生命周期：配置加载 → 掩码置位 → 降级触发 → 内省输出。"""
+        """完整生命周期：配置加载 → 掩码置位 → 降级触发 → 内省输出 → CrashDump 导出。"""
         sm = _FakeStateMachine()
         adapter = TaintMaskAdapter(
             state_machine_port=sm, app_config_port=_FakeConfigPortWithMask()
@@ -215,6 +226,37 @@ class TestDegradeOnTaintMaskE2E:
             await asyncio.sleep(0.01)
         assert sm.calls == ["fault"]
         assert adapter.get_taint() & TaintFlag.TAINT_PORT_BYPASS.value != 0
+
+        # CrashDump 导出含 degrade_on_taint_mask 字段（spec §5.2.1.1，tasks §7.2）
+        from src.common.log_pipeline.crash_dump import CrashDump
+        from src.common.log_pipeline.ring_buffer import RingBuffer
+
+        buffer = RingBuffer(capacity=10, max_bytes=65536, entry_max_bytes=4096)
+        buffer.append(
+            type(
+                "Entry",
+                (),
+                {
+                    "sequence": 1,
+                    "timestamp": "2026-08-02 10:00:00",
+                    "level": "INFO",
+                    "logger_name": "test",
+                    "module": "test",
+                    "event": "hello",
+                    "rate_limit": False,
+                    "truncated": False,
+                    "extra": {},
+                },
+            )()
+        )
+        tmp = Path(tempfile.mkdtemp())
+        dump = CrashDump(ring_buffer=buffer, log_dir=Path(tmp), enabled=True)
+        dump.set_taint_mask_port(adapter)
+        dump.export("test")
+        files = list(tmp.glob("dump_*.log.jsonl"))
+        assert len(files) == 1
+        first = json.loads(files[0].read_text(encoding="utf-8").strip().split("\n")[0])
+        assert first["degrade_on_taint_mask"] == 0x01
 
     @pytest.mark.asyncio
     async def test_default_zero_no_behavior_change(self) -> None:

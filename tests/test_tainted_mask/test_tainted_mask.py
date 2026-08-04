@@ -315,14 +315,21 @@ class TestDegradeOnTaintMask:
         assert sm.calls == ["fault"]
 
     def test_degrade_on_taint_mask_no_match_uses_on_taint(self) -> None:
-        """掩码不匹配走 on_taint 映射。"""
+        """掩码不匹配走 on_taint 映射（WARN 动作真实执行）。"""
+        from unittest.mock import patch
+
         sm = _FakeStateMachine()
         mask = _make_mask(
+            on_taint={TaintFlag.TAINT_PORT_BYPASS: TaintAction.WARN},
             degrade_on_taint_mask=0x04,
             state_machine_port=sm,
         )
-        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        with patch("src.core.tainted_mask.tainted_mask.logger") as mock_logger:
+            mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
         assert sm.calls == []
+        # WARN 动作真实执行：额外 WARNING 日志
+        assert mock_logger.warning.call_count == 1
+        assert "WARN 动作" in mock_logger.warning.call_args[0][0]
 
     def test_degrade_on_taint_mask_default_zero_disabled(self) -> None:
         """默认值 0 禁用掩码级触发。"""
@@ -334,18 +341,23 @@ class TestDegradeOnTaintMask:
     @pytest.mark.asyncio
     async def test_degrade_on_taint_mask_priority_over_on_taint(self) -> None:
         """掩码优先于 on_taint（掩码匹配时跳过 on_taint WARN）。"""
+        from unittest.mock import patch
+
         sm = _FakeStateMachine()
         mask = _make_mask(
             on_taint={TaintFlag.TAINT_PORT_BYPASS: TaintAction.WARN},
             degrade_on_taint_mask=0x01,
             state_machine_port=sm,
         )
-        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
-        for _ in range(50):
-            if sm.calls:
-                break
-            await asyncio.sleep(0.01)
+        with patch("src.core.tainted_mask.tainted_mask.logger") as mock_logger:
+            mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+            for _ in range(50):
+                if sm.calls:
+                    break
+                await asyncio.sleep(0.01)
         assert sm.calls == ["fault"]
+        # WARN 被掩码级跳过：无 WARNING 日志
+        assert mock_logger.warning.call_count == 0
 
     def test_degrade_on_taint_mask_no_override_non_matching(self) -> None:
         """掩码不覆盖非匹配标志的 on_taint 映射。"""
@@ -385,10 +397,15 @@ class TestDegradeOnTaintMask:
             _make_mask(degrade_on_taint_mask=0x100)
 
     def test_degrade_on_taint_mask_no_state_machine_port(self) -> None:
-        """掩码级触发 + state_machine_port=None → 降级为 WARN。"""
+        """掩码级触发 + state_machine_port=None → 降级为 WARN + TAINT_ACTION_FAILED 日志。"""
+        from unittest.mock import patch
+
         mask = _make_mask(degrade_on_taint_mask=0x01, state_machine_port=None)
-        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        with patch("src.core.tainted_mask.tainted_mask.logger") as mock_logger:
+            mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
         assert mask.get_taint() & TaintFlag.TAINT_PORT_BYPASS.value != 0
+        assert mock_logger.warning.call_count == 1
+        assert "TAINT_ACTION_FAILED" in mock_logger.warning.call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_degrade_on_taint_mask_warn_limit_interaction(self) -> None:

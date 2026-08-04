@@ -75,8 +75,8 @@ class TestSystemLifecycleView:
 
 
 class TestCrashDumpTaintedLine:
-    def _make_dump(self) -> tuple[object, Path, object]:
-        """构造带污染的 CrashDump + 注入 port。"""
+    def _make_dump(self, config: object = None, port: object = None) -> tuple[object, Path, object]:
+        """构造带污染的 CrashDump + 注入 port（config 自定义配置；port 直接注入绕过适配器）。"""
         from src.common.log_pipeline.crash_dump import CrashDump
         from src.common.log_pipeline.ring_buffer import RingBuffer
 
@@ -101,9 +101,12 @@ class TestCrashDumpTaintedLine:
         )
         tmp = Path(tempfile.mkdtemp())
         dump = CrashDump(ring_buffer=buffer, log_dir=Path(tmp), enabled=True)
-        adapter = TaintMaskAdapter(app_config_port=_FakeConfigPort())
-        adapter.add_taint(TaintFlag.TAINT_WARN)
-        dump.set_taint_mask_port(adapter)
+        if port is not None:
+            dump.set_taint_mask_port(port)
+        else:
+            adapter = TaintMaskAdapter(app_config_port=config or _FakeConfigPort())
+            adapter.add_taint(TaintFlag.TAINT_WARN)
+            dump.set_taint_mask_port(adapter)
         return dump, Path(tmp), buffer
 
     def test_crash_dump_tainted_line(self) -> None:
@@ -117,6 +120,40 @@ class TestCrashDumpTaintedLine:
         assert "tainted_mask" in first
         assert first["tainted_mask"] == 0x20
         assert first["tainted_verbose"] == ["W=TAINT_WARN"]
+
+    def test_crash_dump_tainted_line_contains_degrade_mask(self) -> None:
+        """CrashDump 导出含 degrade_on_taint_mask 字段（spec §5.2.1.1）。"""
+
+        class _ConfigWithMask(_FakeConfigPort):
+            def get_degrade_on_taint_mask(self) -> int:
+                return 0x03
+
+        dump, tmp, _ = self._make_dump(config=_ConfigWithMask())
+        dump.export("test")
+        files = list(tmp.glob("dump_*.log.jsonl"))
+        first = json.loads(files[0].read_text(encoding="utf-8").strip().split("\n")[0])
+        assert first["tainted_mask"] == 0x20
+        assert first["degrade_on_taint_mask"] == 3
+
+    def test_crash_dump_tainted_line_mask_query_exception_n_a(self) -> None:
+        """get_degrade_on_taint_mask 单独抛异常 → N/A（spec §5.2.3.1）。"""
+
+        class _BrokenMaskPort:
+            def get_taint(self) -> int:
+                return 0x20
+
+            def print_tainted_verbose(self) -> list[str]:
+                return ["W=TAINT_WARN"]
+
+            def get_degrade_on_taint_mask(self) -> int:
+                raise RuntimeError("掩码查询失败")
+
+        dump, tmp, _ = self._make_dump(port=_BrokenMaskPort())
+        dump.export("test")
+        files = list(tmp.glob("dump_*.log.jsonl"))
+        first = json.loads(files[0].read_text(encoding="utf-8").strip().split("\n")[0])
+        assert first["tainted_mask"] == 0x20  # 其他字段不受影响
+        assert first["degrade_on_taint_mask"] == "N/A"
 
     def test_no_port_skips_taint_line(self) -> None:
         """port 未注入时跳过污染行（渐进启用，spec §5.5 规则 2）。"""
@@ -184,14 +221,20 @@ class TestDegradeOnTaintMaskAdapter:
         assert adapter.get_degrade_on_taint_mask() == 0
 
     def test_adapter_config_read_exception_defaults_zero(self) -> None:
-        """配置读取异常时使用默认值 0。"""
+        """配置读取异常时使用默认值 0，并标记 TAINT_EXCEPTION_SWALLOWED。"""
+        from unittest.mock import patch
+
+        from src.core.tainted_mask.taint_flag import TaintFlag as _TF
 
         class _BrokenConfig(_FakeConfigPort):
             def get_degrade_on_taint_mask(self) -> int:
                 raise RuntimeError("配置读取失败")
 
-        adapter = TaintMaskAdapter(app_config_port=_BrokenConfig())
+        with patch("src.core.tainted_mask.mark.mark_taint") as mock_mark:
+            adapter = TaintMaskAdapter(app_config_port=_BrokenConfig())
         assert adapter.get_degrade_on_taint_mask() == 0
+        # WARNING 日志路径也会 mark TAINT_WARN（logger.py:449 接线点），故断言存在而非唯一
+        mock_mark.assert_any_call(_TF.TAINT_EXCEPTION_SWALLOWED)
 
     def test_adapter_invalid_range_raises(self) -> None:
         """超范围值由 TaintedMask 构造时抛 ValueError。"""
