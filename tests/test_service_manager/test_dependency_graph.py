@@ -180,3 +180,139 @@ class TestQueryMethods:
         result = g.dependencies_with_kind("B")
         assert result["A"] == DependencyKind.STRONG
         assert result["C"] == DependencyKind.WEAK
+
+class TestAddNode:
+    """add_node 独立节点（ZG-10 T8）。"""
+
+    def test_add_independent_node(self) -> None:
+        """无依赖边节点加入图并出现在拓扑序。"""
+        g = DependencyGraph()
+        g.add_node("image_port")
+        assert "image_port" in g._all_nodes()
+        assert "image_port" in g.topological_sort()
+
+    def test_add_node_idempotent(self) -> None:
+        """重复 add_node 同一 ID 不报错。"""
+        g = DependencyGraph()
+        g.add_node("x")
+        g.add_node("x")
+        assert "x" in g._all_nodes()
+
+    def test_add_node_invalidates_cache(self) -> None:
+        """add_node 后拓扑缓存失效。"""
+        g = DependencyGraph()
+        g.add_relation(DependencyRelation("B", "A"))
+        assert g.topological_sort() == ["A", "B"]
+        g.add_node("C")
+        assert "C" in g.topological_sort()
+
+
+class TestComputeWaves:
+    """compute_waves 零入度分波（ZG-10 T9）。"""
+
+    def test_chain_waves(self) -> None:
+        """线性链 A←B←C → 3 波次 [A],[B],[C]。"""
+        g = DependencyGraph()
+        g.add_relation(DependencyRelation("B", "A"))
+        g.add_relation(DependencyRelation("C", "B"))
+        assert g.compute_waves() == [["A"], ["B"], ["C"]]
+
+    def test_diamond_waves(self) -> None:
+        """菱形：B/C 依赖 A，D 依赖 B/C → [A],[B,C],[D]。"""
+        g = DependencyGraph()
+        g.add_relation(DependencyRelation("B", "A"))
+        g.add_relation(DependencyRelation("C", "A"))
+        g.add_relation(DependencyRelation("D", "B"))
+        g.add_relation(DependencyRelation("D", "C"))
+        assert g.compute_waves() == [["A"], ["B", "C"], ["D"]]
+
+    def test_wave_alpha_order(self) -> None:
+        """同波次内按字母序：C/B 依赖 A → 波次 1 为 [B, C]。"""
+        g = DependencyGraph()
+        g.add_relation(DependencyRelation("C", "A"))
+        g.add_relation(DependencyRelation("B", "A"))
+        assert g.compute_waves() == [["A"], ["B", "C"]]
+
+    def test_node_filter_subset(self) -> None:
+        """node_filter 子集：子集外节点视为已完成，其出边不贡献入度。"""
+        g = DependencyGraph()
+        g.add_relation(DependencyRelation("B", "A"))
+        g.add_relation(DependencyRelation("C", "B"))
+        # 子集 {A, C}：A 依赖 B（B 不在子集，不算）；C 依赖 B（同上）→ 两者零入度
+        assert g.compute_waves(node_filter={"A", "C"}) == [["A", "C"]]
+
+    def test_cycle_raises(self) -> None:
+        """环图抛 DependencyCycleError。"""
+        g = DependencyGraph()
+        g.add_relation(DependencyRelation("B", "A"))
+        g.add_relation(DependencyRelation("A", "B"))
+        with pytest.raises(DependencyCycleError):
+            g.compute_waves()
+
+    def test_empty_graph(self) -> None:
+        """空图返回空列表。"""
+        assert DependencyGraph().compute_waves() == []
+
+    def test_real_33_components(self) -> None:
+        """33 组件 + 19 条真实依赖边 → 6 波次（与原型实验一致）。"""
+        edges = [
+            ("replyer_port", "chat_manager_adapter"),
+            ("replyer_port", "agent_registry"),
+            ("session_lifecycle", "chat_manager_adapter"),
+            ("interaction_scheduler", "message_handlers"),
+            ("message_ingestion_port", "chat_manager_adapter"),
+            ("memory_automation", "a_memorix"),
+            ("emoji_manager", "llm_service_port"),
+            ("plugin_runtime", "llm_service_port"),
+            ("plugin_runtime_v2", "llm_service_port"),
+            ("session_submodules", "agent_registry"),
+            ("chat_manager_adapter", "session_submodules"),
+            ("chat_manager_adapter", "agent_registry"),
+            ("model_config_port", "agent_registry"),
+            ("ipc_bridge_port", "plugin_runtime"),
+            ("a_memorix", "model_config_port_inject"),
+            ("a_memorix", "model_config_port"),
+            ("interaction_scheduler", "a_memorix"),
+            ("plugin_runtime_v2", "app_config_port"),
+            ("message_handlers", "message_ingestion_port"),
+        ]
+        all_items = [
+            "config_manager", "config_validator", "file_watcher", "tool_record_vacuum",
+            "agent_registry", "session_submodules", "chat_manager_adapter", "replyer_port",
+            "image_port", "runtime_port", "model_config_port", "llm_service_port",
+            "message_ingestion_port", "person_info_port", "bot_config_port", "chat_config_port",
+            "app_config_port", "event_bus_port", "prompt_manager", "message_port_v2",
+            "plugin_runtime", "ipc_bridge_port", "plugin_runtime_v2", "emoji_manager",
+            "model_config_port_inject", "a_memorix", "session_lifecycle", "memory_automation",
+            "message_handlers", "on_start_event", "webui_server", "scheduled_tasks",
+            "interaction_scheduler",
+        ]
+        g = DependencyGraph()
+        for n in all_items:
+            g.add_node(n)
+        for dep, base in edges:
+            g.add_relation(DependencyRelation(dep, base))
+        waves = g.compute_waves()
+        assert len(waves) == 6  # 与原型实验一致
+        flat = [n for wave in waves for n in wave]
+        assert set(flat) == set(all_items)
+
+    def test_real_subsystems_two_waves(self) -> None:
+        """SUBSYSTEMS 6 组件补边后 2 波次（与原型实验一致）。"""
+        g = DependencyGraph()
+        subs = {"plugin_runtime", "ipc_bridge_port", "plugin_runtime_v2",
+                "emoji_manager", "model_config_port_inject", "a_memorix"}
+        for n in subs:
+            g.add_node(n)
+        g.add_relation(DependencyRelation("ipc_bridge_port", "plugin_runtime"))
+        g.add_relation(DependencyRelation("a_memorix", "model_config_port_inject"))
+        g.add_relation(DependencyRelation("a_memorix", "model_config_port"))
+        g.add_relation(DependencyRelation("plugin_runtime_v2", "app_config_port"))
+        g.add_relation(DependencyRelation("emoji_manager", "llm_service_port"))
+        g.add_relation(DependencyRelation("plugin_runtime", "llm_service_port"))
+        g.add_relation(DependencyRelation("plugin_runtime_v2", "llm_service_port"))
+        waves = g.compute_waves(node_filter=subs)
+        assert len(waves) == 2
+        assert set(waves[0]) == {"emoji_manager", "model_config_port_inject",
+                                 "plugin_runtime", "plugin_runtime_v2"}
+        assert set(waves[1]) == {"a_memorix", "ipc_bridge_port"}

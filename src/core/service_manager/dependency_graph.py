@@ -49,6 +49,68 @@ class DependencyGraph:
         """返回图中所有节点。"""
         return set(self._dependencies.keys()) | set(self._dependents.keys())
 
+    def add_node(self, node_id: str) -> None:
+        """添加独立节点（无依赖边，ZG-10 T8）。
+
+        Args:
+            node_id: 节点唯一标识（重复添加幂等）
+        """
+        self._dependencies.setdefault(node_id, {})
+        self._dependents.setdefault(node_id, {})
+        self._topo_cache = None
+
+    def compute_waves(self, node_filter: set[str] | None = None) -> list[list[str]]:
+        """Kahn 零入度分波（ZG-10 T9）。
+
+        按零入度分层：同一波次内任意两项无直接/间接依赖（可并行），
+        波次间按依赖关系串行。对标 Linux initcall 等级 + 相位内仲裁。
+
+        Args:
+            node_filter: 仅计算这些节点的波次（None=全部节点）。
+                子集内节点的入度只统计"依赖也在子集内"的边——
+                不在子集内的节点视为已完成，其出边不贡献入度。
+
+        Returns:
+            波次列表，waves[i] = 第 i 波的节点名列表（同波次字母序）
+
+        Raises:
+            DependencyCycleError: 存在环时抛出（含环上节点）
+        """
+        nodes = self._all_nodes() if node_filter is None else set(node_filter)
+        if not nodes:
+            return []
+
+        # 入度：仅统计依赖也在子集内的边
+        in_degree: dict[str, int] = {}
+        for n in nodes:
+            deps = self._dependencies.get(n, {})
+            in_degree[n] = sum(1 for dep in deps if dep in nodes)
+
+        queue = deque(sorted(n for n in nodes if in_degree[n] == 0))
+        waves: list[list[str]] = []
+        remaining = len(nodes)
+
+        while queue:
+            wave: list[str] = []
+            for _ in range(len(queue)):
+                node = queue.popleft()
+                wave.append(node)
+                remaining -= 1
+                for dependent in self._dependents.get(node, {}):
+                    if dependent not in nodes:
+                        continue
+                    in_degree[dependent] -= 1
+                    if in_degree[dependent] == 0:
+                        queue.append(dependent)
+            waves.append(sorted(wave))
+
+        if remaining > 0:
+            cycle_nodes = sorted(n for n in nodes if in_degree[n] > 0)
+            raise DependencyCycleError(
+                f"依赖声明形成环: {cycle_nodes}", cycle_nodes
+            )
+        return waves
+
     def detect_cycle(self) -> list[str] | None:
         """Kahn 算法环检测。
 
