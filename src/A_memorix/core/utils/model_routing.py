@@ -188,7 +188,13 @@ async def generate_with_resolved_model(
             )
         )
 
-    client = llm_api.LLMServiceClient(task_name=model.task_name, request_type=request_type)
+    # P0-1 修复：task_name 在能力化后是模型名（非旧任务名）——
+    # 构造 client 走 capabilities（task_name 仅作统计元数据）。
+    client = llm_api.LLMServiceClient(
+        task_name=model.task_name,
+        request_type=request_type,
+        capabilities=("text_generation",),
+    )
     client._orchestrator.model_for_task = model.task_config
     client._orchestrator.model_usage = {model.selected_model_name: (0, 0, 0)}
 

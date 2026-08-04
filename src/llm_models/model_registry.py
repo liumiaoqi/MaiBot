@@ -199,14 +199,31 @@ class ModelRegistry:
             if old_candidates != new_candidates:
                 affected.add(component_name)
                 continue
-            # provider 维度：组件解析的模型依赖变更的 provider
-            resolved = self._first_candidate(self._model_index, declaration)
+            # provider 维度：组件**实际解析**的模型（prefer 优先，P1-1 修复）
+            # 依赖变更的 provider → 受影响（候选集合不变但 prefer 模型所在 provider 变了）
+            resolved = self._resolve_preferred(self._model_index, declaration)
             if resolved is not None and (
                 resolved.api_provider in changed_providers
                 or resolved.api_provider in removed_providers
             ):
                 affected.add(component_name)
         return affected
+
+    @staticmethod
+    def _resolve_preferred(
+        model_index: dict[tuple[str, str], ModelEntry],
+        declaration: ComponentDeclaration,
+    ) -> ModelEntry | None:
+        """按声明 prefer 解析实际模型（prefer 命中优先，否则首个候选）。"""
+        prefer = declaration.defaults.prefer if declaration.defaults else ()
+        for prefer_category, prefer_name in prefer:
+            entry = model_index.get((prefer_category, prefer_name))
+            if entry is not None and declaration.capabilities.issubset(entry.capabilities):
+                return entry
+        for entry in model_index.values():
+            if declaration.capabilities.issubset(entry.capabilities):
+                return entry
+        return None
 
     @staticmethod
     def _candidate_keys(

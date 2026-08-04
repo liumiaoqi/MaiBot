@@ -237,12 +237,20 @@ class ModelConfig(ConfigBase):
             if str(name).strip()
         }
         for model in self.models:
-            if model.name in embedding_names:
-                model.category = "embedding"
-                model.capabilities = {"embedding"}
-            elif model.name in voice_names:
-                model.category = "voice"
-                model.capabilities = {"voice"}
+            # P1-5 修复：仅"未显式声明"（category=llm 且 capabilities 恰为默认迁移集
+            # 或空）才推断——用户显式配置的双用模型/自定义能力不被静默覆盖
+            _default_llm_caps = {"text_generation", "tool_calling"}
+            _is_default_migrated = (
+                model.category in {"llm", ""}
+                and (not model.capabilities or set(model.capabilities) == _default_llm_caps)
+            )
+            if _is_default_migrated:
+                if model.name in embedding_names:
+                    model.category = "embedding"
+                    model.capabilities = {"embedding"}
+                elif model.name in voice_names:
+                    model.category = "voice"
+                    model.capabilities = {"voice"}
         return super().model_post_init(context)
 
 

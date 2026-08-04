@@ -29,6 +29,7 @@ from src.llm_models.exceptions import (
     RespNotOkException,
     RespParseException,
 )
+from src.llm_models.error_classifier import is_permanent
 from src.llm_models.model_requirement import ResolutionOptions, ResolvedModel
 from src.llm_models.model_client import ensure_configured_clients_loaded
 from src.llm_models.model_client.base_client import (
@@ -1085,9 +1086,15 @@ class LLMOrchestrator:
                 self.model_usage[model_info.name] = (total_tokens, penalty + 1, usage_penalty - 1)
                 failed_models_this_request.add(model_info.name)
 
-                if isinstance(last_exception, RespNotOkException) and last_exception.status_code == 400:
-                    logger.warning("收到客户端错误 (400)，跳过当前模型并继续尝试其他模型。")
-                    continue
+                if isinstance(last_exception, RespNotOkException) and is_permanent(last_exception.status_code):
+                    # ZG-12 错误码驱动：永久性错误（400/401/402/403/404/422）=
+                    # 配置写错——不重试、不走 fallback，上抛（错误信息指向根因）
+                    logger.error(
+                        "模型 '%s' 永久性错误码 %s（配置写错：模型名/参数/认证/余额）——"
+                        "错误信息指向根因，调用方应关闭组件",
+                        model_info.name, last_exception.status_code,
+                    )
+                    raise last_exception from e
 
         logger.error(f"所有 {max_attempts} 个模型均尝试失败。")
         if last_exception:

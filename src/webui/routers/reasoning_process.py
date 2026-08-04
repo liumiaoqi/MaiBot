@@ -23,7 +23,8 @@ from src.common.data_models.llm_service_data_models import LLMServiceRequest
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Messages
 from src.services.llm_service import generate as generate_llm_response
-from src.services.service_task_resolver import get_available_models, model_name_exists
+from src.llm_models.model_requirement import ResolutionOptions
+from src.services.service_task_resolver import model_name_exists
 from src.webui.dependencies import require_auth
 from src.webui.routers.avatar import build_webui_avatar_url
 logger = get_logger("auto.reasoning_process")
@@ -866,20 +867,29 @@ def _ensure_replay_model_exists(model_name: str) -> str:
 
 
 def _resolve_replay_task_name(stage: str, model_name: str) -> str:
-    """为重放调试选择一个已存在的任务配置名。"""
+    """为重放调试选择一个已存在的任务配置名。
 
-    available_tasks = get_available_models()
-    normalized_stage = stage.strip()
-    if normalized_stage in available_tasks:
-        return normalized_stage
+    ZG-12 组件自治后 get_available_models 不再返回旧任务名——
+    按能力解析重放（stage 映射到能力，模型名作为 prefer）。
+    """
 
-    for task_name, task_config in available_tasks.items():
-        if model_name in list(task_config.model_list or []):
-            return task_name
+    del stage
+    from src.core.model_config_port_registry import get_model_config_port
 
-    if available_tasks:
-        return next(iter(available_tasks.keys()))
-    raise HTTPException(status_code=500, detail="没有可用的模型任务配置")
+    port = get_model_config_port()
+    if port is None:
+        raise HTTPException(status_code=500, detail="ModelConfigPort 未注册")
+    try:
+        # 重放 = 用指定模型跑文本生成（能力解析 + prefer 指定模型）
+        resolved = port.resolve_by_capability(
+            ("text_generation",),
+            options=ResolutionOptions(prefer=(("llm", model_name),)),
+        )
+    except Exception as exc:
+        # prefer 不存在（模型非 llm 形态）时退化为默认能力解析
+        logger.warning(f"重放模型 {model_name} 按 llm 形态解析失败，回退默认: {exc}")
+        resolved = port.resolve_by_capability(("text_generation",))
+    return resolved.name
 
 
 def _is_path_in_roots(file_path: Path, roots: tuple[Path, ...]) -> bool:

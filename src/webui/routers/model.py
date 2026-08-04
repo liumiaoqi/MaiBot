@@ -22,6 +22,7 @@ from src.llm_models.model_client.base_client import client_registry
 from src.llm_models.openai_compat import build_openai_compatible_client_config, normalize_openai_base_url
 from src.llm_models.payload_content.message import Message, MessageBuilder
 from src.llm_models.payload_content.tool_option import ToolCall
+from src.llm_models.model_requirement import ResolutionOptions
 from src.llm_models.utils_model import LLMOrchestrator, LLMResponseResult
 from src.webui.dependencies import require_auth
 from src.webui.utils.network_security import validate_public_url
@@ -394,9 +395,11 @@ async def _test_embedding_model(model_name: str) -> ModelTestResponse:
     """
     start_time = time.time()
     try:
+        # P0-2 修复：embedding 测试必须用 embedding 能力 + pin 被测模型
         orchestrator = LLMOrchestrator(
-            capabilities=["text_generation", "tool_calling"],
+            capabilities=["embedding"],
             request_type="webui_model_test",
+            options=ResolutionOptions(prefer=(("embedding", model_name),)),
         )
         result = await orchestrator.get_embedding("MaiBot 模型可用性测试")
         latency_ms = round((time.time() - start_time) * 1000, 2)

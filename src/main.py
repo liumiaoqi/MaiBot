@@ -1050,6 +1050,44 @@ class MainSystem:
 
     @staticmethod
     @startup_item(
+        name="model_declaration_validator",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=6,
+        critical=True,
+        depends_on=["model_config_port_inject", "model_config_port"],
+        dependency_kind={
+            "model_config_port_inject": DependencyKind.STRONG,
+            "model_config_port": DependencyKind.STRONG,
+        },
+    )
+    async def _validate_model_declarations() -> None:
+        """启动需求校验（P1-7）：critical 声明不可满足 → 拒绝启动。
+
+        对标 Linux device probe：声明错误 fast-fail，不假装驱动了设备。
+        """
+        system = _require_main_system()
+        port = system._model_config_port
+        if port is None:
+            raise RuntimeError("ModelConfigPort 未注入，无法执行模型声明校验")
+        from src.core.adapters.model_config_port import ConfigManagerModelConfigPort as _Port
+        from src.llm_models.declaration_validator import STATUS_FAST_FAIL, DeclarationValidator
+        from src.llm_models.model_registry import ModelRegistry
+
+        registry = ModelRegistry()
+        model_config = port.get_model_config()
+        entries = [_Port._to_entry(m) for m in model_config.models]
+        registry.build_index(list(model_config.api_providers), entries)
+        report = DeclarationValidator().validate_all_declarations(registry)
+        if report.status == STATUS_FAST_FAIL:
+            raise RuntimeError(
+                f"模型需求校验失败（critical 声明不可满足，拒绝启动）: "
+                f"{report.fast_fail_components}"
+            )
+        if report.degraded_components:
+            logger.warning(f"模型需求校验：非 critical 声明降级: {report.degraded_components}")
+
+    @staticmethod
+    @startup_item(
         name="message_port_v2",
         phase=StartupPhase.CORE_SERVICES,
         order=15,

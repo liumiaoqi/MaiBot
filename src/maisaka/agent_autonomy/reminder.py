@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.common.logger import get_logger
-from src.llm_models.model_requirement import model_requirement
+from src.llm_models.model_requirement import ResolutionOptions, model_requirement
 
 logger = get_logger("agent_autonomy.reminder")
 
@@ -269,7 +269,13 @@ class ReminderStore:
             logger.error(f"[reminder] 更新提醒失败: {e}")
 
 
-@model_requirement(capabilities=["text_generation"], critical=True)
+@model_requirement(
+    capabilities=["text_generation"], critical=True,
+    defaults=ResolutionOptions(
+        prefer=(("llm", "deepseek-v4-flash"), ("llm", "deepseek-v4-pro-nonthink")),
+        temperature=0.7, max_tokens=4096,
+    ),
+)
 class ReminderManager:
     """提醒管理器 — 创建、检查、持久化。"""
 

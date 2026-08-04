@@ -17,7 +17,7 @@ from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.types import CycleStatus, SilenceReason, ThinkAction, ThinkContext, ThinkCycleLog, ThinkResult
-from src.llm_models.model_requirement import model_requirement
+from src.llm_models.model_requirement import ResolutionOptions, model_requirement
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
 
@@ -44,7 +44,13 @@ class ToolCycleResult:
 PLANNER_CAPABILITIES = ("text_generation", "tool_calling")
 
 
-@model_requirement(capabilities=["text_generation", "tool_calling"], critical=True)
+@model_requirement(
+    capabilities=["text_generation", "tool_calling"], critical=True,
+    defaults=ResolutionOptions(
+        prefer=(("llm", "deepseek-v4-flash"), ("llm", "deepseek-v4-pro-nonthink")),
+        temperature=0.7, max_tokens=8000,
+    ),
+)
 class ThinkingOrgan:
     """思维器官——以角色内部视角运行 Planner。
 

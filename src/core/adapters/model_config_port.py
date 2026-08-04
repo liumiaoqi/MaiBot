@@ -273,12 +273,27 @@ class ConfigManagerModelConfigPort:
             model_config = self._config_manager.get_model_config()
             providers = list(model_config.api_providers)
             entries = [self._to_entry(m) for m in model_config.models]
+            # P1-3 修复：热重载前声明预校验——critical 声明不可满足 → 拒绝应用新配置
+            # （保留旧索引继续生效，符合"配置冻结"语义）
+            from src.llm_models.declaration_validator import (
+                STATUS_FAST_FAIL,
+                DeclarationValidator,
+            )
+
+            probe_registry = ModelRegistry()
+            probe_registry.build_index(providers, entries)
+            probe_report = DeclarationValidator().validate_all_declarations(probe_registry)
+            if probe_report.status == STATUS_FAST_FAIL:
+                logger.error(
+                    "模型配置热重载被拒：critical 声明不可满足（%s）——"
+                    "保留旧配置继续生效，请修正后重试",
+                    probe_report.fast_fail_components,
+                )
+                return
             if self._registry is not None:
                 affected = self._registry.refresh_index(providers, entries)
             else:
-                registry = ModelRegistry()
-                registry.build_index(providers, entries)
-                self._registry = registry
+                self._registry = probe_registry
         else:
             self._registry = None  # 非模型 scope：整体失效（下次查询重建）
         self._schedule_affected_restart(affected)

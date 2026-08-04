@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from src.common.logger import get_logger
-from src.llm_models.model_requirement import model_requirement
+from src.llm_models.model_requirement import ResolutionOptions, model_requirement
 from src.maisaka.agent.config import AgentConfig
 from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
@@ -51,7 +51,13 @@ class InterjectionCandidate:
     has_relation: bool
 
 
-@model_requirement(capabilities=["text_generation"], critical=True)
+@model_requirement(
+    capabilities=["text_generation"], critical=True,
+    defaults=ResolutionOptions(
+        prefer=(("llm", "deepseek-v4-flash"), ("llm", "deepseek-v4-pro-nonthink")),
+        temperature=0.7, max_tokens=4096,
+    ),
+)
 class Butler:
     """管家 — 丽塔·洛丝薇瑟，客厅的守护者。
 
