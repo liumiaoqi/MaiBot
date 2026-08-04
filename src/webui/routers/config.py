@@ -23,7 +23,6 @@ from src.config.model_configs import (
     APIProvider,
     ModelInfo,
     ModelTaskConfig,
-    TaskConfig,
 )
 from src.config.official_configs import (
     AMemorixConfig,
@@ -97,24 +96,6 @@ _LEGACY_CUSTOM_PROMPT_VERSION_ID = "legacy-current"
 _RESTART_REQUIRED_SECTIONS = frozenset({
     "bot", "database", "log", "webui", "debug",
 })
-
-
-class _SingleModelPromptOrchestrator(LLMOrchestrator):
-    """复用现有 LLM 调度器，但把本次请求限制到一个已定义模型。"""
-
-    def __init__(self, model_name: str, temperature: float, max_tokens: int) -> None:
-        self._prompt_generator_task_config = TaskConfig(
-            model_list=[model_name],
-            max_tokens=max_tokens,
-            temperature=temperature,
-            slow_threshold=30.0,
-            selection_strategy="sequential",
-            hard_timeout=180.0,
-        )
-        super().__init__(task_name="webui_prompt_generator", request_type="webui_prompt_generator")
-
-    def _get_task_config_or_raise(self) -> TaskConfig:
-        return self._prompt_generator_task_config
 
 
 def _get_cached_schema(cache_key: str, config_class: type[ConfigBase], include_nested: bool = True) -> Dict[str, Any]:
@@ -1313,15 +1294,15 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
 
     prompt = _build_prompt_generator_instruction(request)
     try:
-        orchestrator = _SingleModelPromptOrchestrator(
-            model_name=model_name,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
+        orchestrator = LLMOrchestrator(
+            capabilities=["text_generation"],
+            request_type="webui_prompt_generator",
         )
         llm_result = await orchestrator.generate_response_async(
             prompt=prompt,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
+            model_name=model_name,
         )
         raw_response = llm_result.response.strip()
         parsed_data = _extract_json_object(raw_response)

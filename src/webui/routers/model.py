@@ -16,7 +16,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.config.config import CONFIG_DIR
-from src.config.model_configs import APIProvider, TaskConfig
+from src.config.model_configs import APIProvider
 from src.llm_models.model_client import ensure_client_type_loaded
 from src.llm_models.model_client.base_client import client_registry
 from src.llm_models.openai_compat import build_openai_compatible_client_config, normalize_openai_base_url
@@ -92,24 +92,6 @@ class ModelTestResponse(BaseModel):
     total_tokens: int = 0
 
 
-class _SingleModelTestOrchestrator(LLMOrchestrator):
-    """复用 LLM 调度器，但将 WebUI 测试请求限制到单个模型。"""
-
-    def __init__(self, model_name: str) -> None:
-        self._model_test_task_config = TaskConfig(
-            model_list=[model_name],
-            max_tokens=512,
-            temperature=0.0,
-            slow_threshold=30.0,
-            selection_strategy="sequential",
-            hard_timeout=90.0,
-        )
-        super().__init__(task_name="webui_model_test", request_type="webui_model_test")
-
-    def _get_task_config_or_raise(self) -> TaskConfig:
-        return self._model_test_task_config
-
-
 @router.get("/client-types")
 async def get_registered_client_types():
     """返回当前主程序与插件已注册的 LLM Provider client_type。"""
@@ -151,7 +133,10 @@ async def test_model_capability(request: ModelTestRequest):
     visual_enabled = bool(model_config.get("visual", False))
     start_time = time.time()
     try:
-        orchestrator = _SingleModelTestOrchestrator(model_name=model_name)
+        orchestrator = LLMOrchestrator(
+            capabilities=["text_generation", "tool_calling"],
+            request_type="webui_model_test",
+        )
         result = await orchestrator.generate_response_with_message_async(
             message_factory=_build_model_test_message_factory(visual_enabled),
             temperature=0.0,
@@ -409,7 +394,10 @@ async def _test_embedding_model(model_name: str) -> ModelTestResponse:
     """
     start_time = time.time()
     try:
-        orchestrator = _SingleModelTestOrchestrator(model_name=model_name)
+        orchestrator = LLMOrchestrator(
+            capabilities=["text_generation", "tool_calling"],
+            request_type="webui_model_test",
+        )
         result = await orchestrator.get_embedding("MaiBot 模型可用性测试")
         latency_ms = round((time.time() - start_time) * 1000, 2)
         return ModelTestResponse(

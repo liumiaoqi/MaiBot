@@ -789,6 +789,8 @@ class LLMOrchestrator:
         force_new_client = self.request_type == "embedding"
         client = client_registry.get_client_class_instance(api_provider, force_new=force_new_client)
         logger.debug(f"选择请求模型: {model_info.name} (策略: {strategy})")
+        # ZG-12：单模型指定（WebUI 测试等）可能不在解析池中——usage 兜底
+        self.model_usage.setdefault(model_info.name, (0, 0, 0))
         total_tokens, penalty, usage_penalty = self.model_usage[model_info.name]
         self.model_usage[model_info.name] = (total_tokens, penalty, usage_penalty + 1)
         return model_info, api_provider, client
