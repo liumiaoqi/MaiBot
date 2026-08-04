@@ -4,6 +4,7 @@
 基于Faiss的高效向量存储与检索，HNSW索引 + Append-Only磁盘存储。
 """
 
+import asyncio
 import pickle
 import hashlib
 import shutil
@@ -188,6 +189,18 @@ class VectorStore:
 
         self._write_buffer_vecs.clear()
         self._write_buffer_ids.clear()
+
+    async def search_async(
+        self,
+        query: np.ndarray,
+        k: int = 10,
+        filter_deleted: bool = True,
+    ) -> Tuple[List[str], List[float]]:
+        """异步检索（ZG-11 Phase 1）：FAISS 是 C 扩展释放 GIL，
+        ThreadPoolExecutor 即可用多核，事件循环不被阻塞。"""
+        return await asyncio.to_thread(
+            self.search, query, k=k, filter_deleted=filter_deleted,
+        )
 
     def search(
         self,

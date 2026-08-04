@@ -994,7 +994,7 @@ class DualPathRetriever:
         if embedding_ok:
             multiplier = max(1, temporal.candidate_multiplier) if temporal else 1
             candidate_k = self._cap_temporal_scan_k(top_k * 2 * multiplier, temporal)
-            para_ids, para_scores = self.vector_store.search(
+            para_ids, para_scores = await self.vector_store.search_async(
                 query_emb,  # type: ignore[arg-type]
                 k=candidate_k,
             )
@@ -1068,7 +1068,7 @@ class DualPathRetriever:
             # 1. 检索向量 (混合了段落和实体，所以扩大检索范围以召回足够多实体)
             multiplier = max(1, temporal.candidate_multiplier) if temporal else 1
             candidate_k = self._cap_temporal_scan_k(top_k * 3 * multiplier, temporal)
-            ids, scores = self.vector_store.search(
+            ids, scores = await self.vector_store.search_async(
                 query_emb,  # type: ignore[arg-type]
                 k=candidate_k,
             )
@@ -1251,10 +1251,11 @@ class DualPathRetriever:
                     relation_top_k=relation_top_k,
                 )  # type: ignore[arg-type]
             else:
-                para_results, rel_results = self._sequential_retrieve(
+                para_results, rel_results = await asyncio.to_thread(
+                    self._sequential_retrieve,
                     query_emb,
-                    temporal=temporal,
-                    relation_top_k=relation_top_k,
+                    temporal,
+                    relation_top_k,
                 )  # type: ignore[arg-type]
         else:
             logger.warning("embedding 不可用，跳过向量段落/关系召回")
@@ -1725,8 +1726,7 @@ class DualPathRetriever:
         candidates: Dict[str, RetrievalResult] = {}
         if embedding_ok and query_emb is not None:
             paragraph_top_k = max(top_k, int(self.config.vector_pools.paragraph_top_k))
-            para_ids, para_scores = await asyncio.to_thread(
-                self.paragraph_vector_store.search,
+            para_ids, para_scores = await self.paragraph_vector_store.search_async(
                 query_emb,
                 k=paragraph_top_k,
             )
