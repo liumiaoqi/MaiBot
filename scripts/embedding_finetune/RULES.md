@@ -49,13 +49,17 @@
 
 | 坑 | 现象 | 解法 |
 |----|------|------|
-| `uv run` 重建环境 | .venv 变 3.14 + 主项目依赖，torch 环境丢失 | 永远用激活的 python，不用 uv run |
+| `uv run` 重建环境 | .venv 变 3.14 + 主项目依赖，torch 环境丢失 | 独立 .venv + 本目录 pyproject.toml 隔离；根目录 uv run 碰不到 |
 | cu126 torch | `no kernel image is available for execution on the device` | cu128 重装 |
 | fit 的 fp16 参数 | `FitMixin.fit() got an unexpected keyword argument 'fp16'` | 3.x 改 `use_amp` |
 | accelerate 缺失 | Trainer 要求 accelerate>=1.1.0 | requirements 已补 |
 | step4 参数名 | `main() got an unexpected keyword argument 'model'` | argparse `dest="model_dir"`（已修） |
 | 笔记本功耗墙 | 训练越跑越慢（降频） | 夏天别拉功耗；垫高 + 清灰 + 风扇拉满 |
 | 内存吃满 | 显存满溢出到系统内存 | batch 降到 8 |
+| optimum × ST 3.x 不兼容 | 导出 ONNX 报 `property 'config' has no setter` | 绕开 optimum——step4 手动 torch.onnx.export + onnxruntime quantize_dynamic |
+| onnxscript 缺失 | torch.onnx.export 报 `No module named 'onnxscript'` | torch 2.11 新导出器依赖——requirements 已补 |
+| setuptools 包发现 | `uv pip install -e .` 报 `Multiple top-level packages: data/output/onnx_model` | pyproject 加 `[tool.setuptools] py-modules=[] + packages.find exclude` |
+| torchvision warning | 导出时 `torchvision is not installed. Skipping torchvision::roi_align` | 无害噪音（图像算子，BERT 用不到），忽略 |
 
 ## 6. 当前状态（2026-08-04）
 

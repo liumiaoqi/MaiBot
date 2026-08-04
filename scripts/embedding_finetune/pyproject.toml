@@ -29,6 +29,13 @@ dependencies = [
     "numpy",
 ]
 
+[tool.setuptools]
+# 本目录是脚本工作区不是包——声明空包，排除数据/产物目录
+py-modules = []
+
+[tool.setuptools.packages.find]
+exclude = ["data*", "output*", "onnx_model*"]
+
 [tool.uv]
 # torch 从 cu128 专用索引安装（PyPI 主索引没有 cu128 轮子）
 [[tool.uv.index]]
