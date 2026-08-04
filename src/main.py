@@ -414,7 +414,9 @@ class MainSystem:
                     if name.startswith("_"):
                         continue
                     obj_module = getattr(obj, "__module__", None)
-                    if obj_module and _is_banned(obj_module):
+                    # 排除模块自身定义的对象（obj_module == mod_name）——
+                    # 适配器模块里定义的类 __module__ 等于自身，误判"违规导入自自身"
+                    if obj_module and obj_module != mod_name and _is_banned(obj_module):
                         mark_taint(TaintFlag.TAINT_PORT_BYPASS)
                         logger.warning("ZG-7 守卫: %s.%s 违规导入自 %s", mod_name, name, obj_module)
         except Exception:
