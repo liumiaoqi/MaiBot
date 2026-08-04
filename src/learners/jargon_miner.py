@@ -14,6 +14,7 @@ from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Jargon, JargonCreatedBy, Messages
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.common.utils.utils_config import JargonConfigUtils
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
@@ -123,6 +124,7 @@ def register_jargon_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
     )
 
 
+@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
 class JargonMiner:
     def __init__(self, session_id: str, session_name: str) -> None:
         """初始化黑话学习器。
@@ -149,7 +151,7 @@ class JargonMiner:
             Any: 插件运行时管理器单例。
         """
 
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
+        from src.plugin_runtime.integration import get_plugin_runtime_manager  # noqa: TID251 — 既有 hook 调用点
 
         return get_plugin_runtime_manager()
 

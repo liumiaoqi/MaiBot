@@ -15,6 +15,7 @@ import re
 from src.common.data_models.message_component_data_model import DictComponent, MessageSequence
 from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.common.prompt_i18n import load_prompt
 from src.core.app_config_port_registry import get_app_config_port
 from src.llm_models.payload_content.message import (
@@ -46,6 +47,11 @@ MID_TERM_MEMORY_RECALL_SUMMARY_TEXT_LIMIT = 1400
 MID_TERM_MEMORY_DEFAULT_RECALL_THRESHOLD = 0.8
 
 logger = get_logger("maisaka_mid_term_memory")
+
+
+@model_requirement(capabilities=["text_generation"], critical=False)
+class MidTermMemory:
+    """中期记忆委派声明（ZG-12）：mid_memory 任务能力声明。"""
 
 
 class MidTermMemorySummaryModel(BaseModel):
@@ -148,6 +154,7 @@ async def build_mid_term_memory_message(
 
     result = await get_llm_service().generate_response_with_messages(
         "mid_memory", message_factory,
+        capabilities=("text_generation",),
         request_type="maisaka.mid_term_memory",
         session_id=session_id,
     )

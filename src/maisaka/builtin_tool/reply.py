@@ -33,6 +33,7 @@ async def _run_expression_selector(tool_ctx: BuiltinToolRuntimeContext, system_p
         context_message_limit=10,
         system_prompt=system_prompt,
         request_kind="expression_selector",
+        capabilities=["text_generation"],
     )
     return (response.content or "").strip()
 

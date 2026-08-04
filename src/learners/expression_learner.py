@@ -14,6 +14,7 @@ from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression, ModifiedBy
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
@@ -182,6 +183,7 @@ def register_expression_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]
     )
 
 
+@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
 class ExpressionLearner:
     def __init__(self, session_id: str) -> None:
         """初始化表达方式学习器。
@@ -201,7 +203,7 @@ class ExpressionLearner:
             Any: 插件运行时管理器单例。
         """
 
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
+        from src.plugin_runtime.integration import get_plugin_runtime_manager  # noqa: TID251 — 既有 hook 调用点
 
         return get_plugin_runtime_manager()
 

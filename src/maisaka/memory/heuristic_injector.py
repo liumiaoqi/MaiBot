@@ -9,6 +9,7 @@ from typing import Any, Sequence
 from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.common.message_repository import count_messages, find_messages
 from src.common.prompt_i18n import load_prompt
 from src.core.app_config_port_registry import get_app_config_port
@@ -53,6 +54,7 @@ class HeuristicMemoryContext:
     agent_id: str = ""
 
 
+@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
 class HeuristicMemoryInjector:
     """根据当前聊天流印象自然拉起长期记忆。"""
 

@@ -11,6 +11,7 @@ from src.core.identity import is_bot_self
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions, LLMResponseResult
 from src.common.data_models.message_component_data_model import EmojiComponent, ReplyComponent
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
@@ -117,6 +118,7 @@ class JargonLearningBatchGate:
 jargon_learning_batch_gate = JargonLearningBatchGate()
 
 
+@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
 class JargonLearner:
     def __init__(self, session_id: str) -> None:
         """初始化黑话学习器。

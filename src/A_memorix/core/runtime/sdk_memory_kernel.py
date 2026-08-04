@@ -5,6 +5,7 @@ import asyncio
 import time
 
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from ...paths import default_data_dir, resolve_repo_path
 from ..retrieval import SparseBM25Index
 from ..storage import GraphStore, MetadataStore, VectorStore
@@ -25,6 +26,7 @@ from .services.types import KernelSearchRequest
 
 logger = get_logger("A_Memorix.SDKMemoryKernel")
 
+@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
 class SDKMemoryKernel:
     def __init__(self, *, plugin_root: Path, config: Optional[Dict[str, Any]] = None, ports: Optional[Any] = None) -> None:
         self.plugin_root = Path(plugin_root).resolve()
