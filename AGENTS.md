@@ -89,6 +89,8 @@
 10. 禁止使用 AutonomyEventBus.get_instance() ✅
 11. 禁止核心直接导入 ServiceManagerAdapter ✅
 12. 禁止核心直接导入 WatchdogAdapter ✅
+13. 禁止核心 port_registry 导入适配器具体类 — port_registry 应只依赖 Protocol 接口做类型标注，具体实现类由 main.py 启动时通过 set_*() 注入 ✅
+14. 禁止核心直接导入 plugin_runtime 组件 — 核心通过 Protocol 或 port_registry 获取 IPC 桥接能力，不直接依赖插件运行时 ✅
 
 Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters/`，不在此枚举。
 

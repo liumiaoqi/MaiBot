@@ -117,6 +117,12 @@ ignore = ["E711", "E501", "TID252"]
 "src.person_info.person_info.Person" = {msg = "禁止直接导入 Person 类，请使用 PersonInfoPort Protocol 接口（get_person_info_port()）"}
 "src.config.config.global_config" = {msg = "禁止直接导入 global_config，请使用 BotConfigPort/ChatConfigPort/AppConfigPort Protocol 接口"}
 "src.core.event_bus.AutonomyEventBus.get_instance" = {msg = "禁止调用 AutonomyEventBus.get_instance()，请使用 AutonomyEventBusPort 构造注入"}
+"src.services.send_service.SendServiceMessagePortV2" = {msg = "核心禁止直接导入 SendServiceMessagePortV2，请通过 message_port_registry 注入"}
+"src.core.adapters.resource_limit_adapter.ResourceLimitAdapter" = {msg = "核心 port_registry 禁止导入适配器具体类，请使用 ResourceLimitPort Protocol 类型标注，由 main.py 注入"}
+"src.core.adapters.system_lifecycle_adapter.SystemLifecycleAdapter" = {msg = "核心 port_registry 禁止导入适配器具体类，请使用 Any 类型标注，由 main.py 注入"}
+"src.core.adapters.watchdog_adapter.WatchdogAdapter" = {msg = "核心禁止直接导入 WatchdogAdapter，请使用 WatchdogPort Protocol 接口"}
+"src.core.adapters.service_manager_adapter.ServiceManagerAdapter" = {msg = "核心禁止直接导入 ServiceManagerAdapter，请使用 ServiceManagerPort Protocol 接口"}
+"src.plugin_runtime.integration" = {msg = "核心禁止直接导入 plugin_runtime 组件，请通过 Protocol 或 port_registry 获取 IPC 桥接能力"}
 "src.chat.heart_flow.heartflow_manager.heartflow_manager" = {msg = "禁止直接导入 heartflow_manager 全局单例，请使用 ChatRuntimeRegistry Protocol 接口（get_chat_runtime_registry()）"}
 "logging" = {msg = "禁止直接 import logging，请使用 src.common.logger.get_logger() 统一入口；受控 stdlib_logging 用法见 .codeartsdoer/specs/zg2_log_pipeline/spec.md 附录 A 受控清单"}
 
@@ -126,7 +132,7 @@ ignore = ["E711", "E501", "TID252"]
 "src/main.py" = ["TID251"]
 "src/services/llm_service.py" = ["TID251"]
 "src/services/memory_service.py" = ["TID251"]
-"src/core/message_port_registry.py" = ["TID251"]
+
 "src/maisaka/message_port.py" = ["TID251"]
 "src/plugin_runtime/hook_catalog.py" = ["TID251"]
 "src/A_memorix/**" = ["TID251"]

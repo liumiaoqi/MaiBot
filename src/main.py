@@ -211,6 +211,10 @@ class MainSystem:
             name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=14, critical=True,
             init_fn=self._load_prompts,
         ))
+        orchestrator.register(StartupComponent(
+            name="message_port_v2", phase=StartupPhase.CORE_SERVICES, order=15, critical=True,
+            init_fn=self._inject_message_port_v2,
+        ))
 
         # 阶段 3：子系统
         orchestrator.register(StartupComponent(
@@ -878,6 +882,13 @@ class MainSystem:
         model_client.base_client.set_model_config_port(self._model_config_port)
         model_client.set_model_config_port(self._model_config_port)
         service_task_resolver.set_model_config_port(self._model_config_port)
+
+    @staticmethod
+    async def _inject_message_port_v2() -> None:
+        from src.core.message_port_registry import set_message_port_v2
+        from src.services.send_service import SendServiceMessagePortV2
+
+        set_message_port_v2(SendServiceMessagePortV2())
 
     # ── 阶段 4 闭包 ───────────────────────────────────────────
 

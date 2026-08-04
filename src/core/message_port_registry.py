@@ -17,8 +17,7 @@ def get_message_port_v2() -> MessagePortV2:
     """获取全局 MessagePortV2 实例。"""
     global _port_v2_instance
     if _port_v2_instance is None:
-        from src.services.send_service import SendServiceMessagePortV2
-        _port_v2_instance = SendServiceMessagePortV2()
+        raise RuntimeError("MessagePortV2 未注册，请在 main.py 启动时调用 set_message_port_v2()")
     return _port_v2_instance
 
 
@@ -31,7 +30,7 @@ def set_message_port_v2(port: MessagePortV2) -> None:
 __service_descriptor__: dict[str, Any] = {
     "name": "message_port_v2",
     "phase": StartupPhase.CORE_SERVICES,
-    "order": 99,  # lazy-init，不经过 main.py 阶段 2 的顺序编排
+    "order": 99,
     "critical": True,
     "protocol": MessagePortV2,
     "register_fn": set_message_port_v2,
