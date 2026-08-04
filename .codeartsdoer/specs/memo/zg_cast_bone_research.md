@@ -101,6 +101,11 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 > - **失败标记降级**（超越 Linux）：失败项让依赖它的项标记"不可运行/降级"，不无声跳过（Linux 因无图只能失败继续跑）
 > - **调试三件套**：`--debug-startup`（对标 initcall_debug，每项名称+耗时+相位）/ `--skip-startup-item`（对标 blacklist，运行时禁用）/ 启动完成回调在所有异步项 settle 后（对标 async_synchronize_full）
 > - **`__init` 回收**：启动完成后释放一次性数据（item 元数据、仲裁中间结构）+ 启动配置冻结/只读化
+>
+> ### ZG-10 后续遗留（2026-08-04 运行验证期发现）
+>
+> 1. **watchdog/service_manager 移入启动编排**：watchdog 注册在 post-startup（run() 之后），SUBSYSTEMS 相位组件（V2 Runner 注册看门狗、_init_control_message）用不到 → 每次启动报"WatchdogPort 未注册"降级日志（servicer 有降级不阻断）。修复：watchdog 做成 @startup_item（CORE_SERVICES，depends_on app_config_port），post-startup 删除启动段（组件数 33→34）
+> 2. **UDS 防御**：uds.py 无条件 unlink 活 socket（同路径碰撞时静默串线）——改为先探测活监听再报错（Runner 碰撞事故的架构级防御，子代理报告）
 
 ### 设计原则：分层仲裁（对标 Linux 内核/systemd）
 
@@ -254,6 +259,21 @@ model_list = ["ali-text-embedding-v4"]
 > 对标 Linux **alternative framework**（系统根据硬件能力选最优实现）+ **device model**（统一设备抽象）。
 > 核心问题：V1 遗留命名不反映当前架构，回退链硬编码，TaskConfig 无分化，embedding 静默失败。
 > **用户设计意图**：一次完整回复只调用一次 LLM，replyer 作为独立 task 应降级。
+
+### 思考即回复 — reply 工具不调 LLM（2026-08-05，用户拍板记入）
+
+**现状实锤**（2026-08-05 代码核查）：一次用户消息 → 回复 = 思考（thinking_organ 工具循环，1-10 轮，每轮 1 次 LLM）+ replyer 生成（1 次）+ 可选富回复检查（当前 `enable_rich_reply=false`，0 次）。典型 2 次，最多 12+。
+
+reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`reply_guide`/`expression_intent`——**无 `text` 参数**。思考轮模型说"我要回复，指引如下" → reply 工具 → 内部再调一次 LLM（replyer，`generator_base.py:1059`，task_name="replyer"）按 `reply_guide` + `latest_thought` 重新生成正文。这是 V1 双阶段遗产（planner 决策 + replyer 生成）。
+
+**科学依据**（用户提出，2026-08-05）：Vygotsky 内部言语理论——内部言语是压缩语义单位不是完整句子的预演，"想→说"是展开不是重新生成；Levelt 言语产出模型——"口是心非/润色"是同一大脑的输出前监控回路，不是第二个大脑重演。LLM 思考轮 content 本身就是完整句子，第二次调用是**同一生成器重复采样**：2 倍 token 成本 + 信息衰减（replyer 只拿到 `latest_thought`，上下文比思考轮更少，可能歪曲原意）。
+
+**设计方向（革命而非改良）**：
+- reply 工具 schema 加 `text` 参数（**required**，回复正文）——思考轮一次 LLM 直接生成正文放进参数，reply 工具只做校验/分段/发送，**零 LLM**
+- 思考-行动分离保留：模型必须显式调 reply 工具才算"张嘴"（防止"只思考不回复"历史坑——`chat_loop_service.py:73` 注释：assistant pre-fill 强 bias 纯文本输出是"只思考不回复"核心成因，不能退回 content 直接发）
+- 回复风格/表情习惯/内容过滤：注入思考轮 prompt 或做成无 LLM 的后处理
+- `enable_rich_reply` 检查器保留为**可选**表达过滤器（正确的"表达过滤"形态，非每次必跑）
+- **影响 ZG-12 子项范围**：replyer 不调 LLM 后 `chat_reply`（原 replyer）TaskConfig 是否还需要独立存在——归入子项 1 命名正名时一并裁定；Hook 系统（before_request/after_response）改为针对工具参数文本的无 LLM 后处理
 
 ### ComfyUI 借鉴（2026-08-04，用户提出）
 
