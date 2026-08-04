@@ -7002,6 +7002,9 @@ class TaintedMaskSectionConfig(ConfigBase):
     preset_mask: int = Field(default=0)
     """预置位掩码。"""
 
+    degrade_on_taint_mask: int = Field(default=0)
+    """掩码级降级触发掩码（0=禁用，对标 Linux panic_on_taint bitmask 语义）。"""
+
 
 class SystemStateSectionConfig(ConfigBase):
     """系统生命周期状态机配置（ZG-6）。

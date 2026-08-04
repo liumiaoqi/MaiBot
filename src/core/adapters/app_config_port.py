@@ -402,6 +402,10 @@ class GlobalConfigAppConfigPort:
         """获取预置位掩码（启动即置位，如测试模式预置 128）。"""
         return int(self._get_cfg().tainted_mask.preset_mask)
 
+    def get_degrade_on_taint_mask(self) -> int:
+        """获取掩码级降级触发掩码（0=禁用，默认 0）。"""
+        return int(self._get_cfg().tainted_mask.degrade_on_taint_mask)
+
     def register_reload_callback(self, callback: object) -> None:
         from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
         config_manager.register_reload_callback(callback)

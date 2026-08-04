@@ -16,6 +16,9 @@ class _FakeConfigPort:
     def get_taint_preset_mask(self) -> int:
         return 0
 
+    def get_degrade_on_taint_mask(self) -> int:
+        return 0
+
 
 def _make_adapter() -> TaintMaskAdapter:
     return TaintMaskAdapter(app_config_port=_FakeConfigPort())
@@ -36,6 +39,7 @@ class TestContract:
             "print_tainted_verbose",
             "get_taint_records",
             "warn_count",
+            "get_degrade_on_taint_mask",
         ):
             assert hasattr(adapter, method), f"缺失方法: {method}"
 
@@ -90,3 +94,7 @@ class TestAdapterConfigLoading:
         adapter.add_taint(TaintFlag.TAINT_WARN)
         assert len(events) == 1
         adapter.unsubscribe(handle)
+
+    def test_get_degrade_on_taint_mask_delegates(self) -> None:
+        adapter = _make_adapter()
+        assert adapter.get_degrade_on_taint_mask() == adapter._tainted_mask.get_degrade_on_taint_mask()

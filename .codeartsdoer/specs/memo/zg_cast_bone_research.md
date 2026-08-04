@@ -1,6 +1,6 @@
 # 铸骨（ZhuGu / ZG）— 研究备忘
 
-> 2026-07-30，CA 整理，基于 Linux 内核源码分析 + MaiBot 现状评估 + 用户讨论
+> 2026-07-30 创建，CA 整理；2026-08-04 修订，全面刷新进度与路线
 
 ## 计划定义
 
@@ -42,39 +42,50 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 - ~~进程调度器（CFS 化）~~ — asyncio 事件循环就是调度器
 - ~~系统调用号表（syscall 化）~~ — Protocol 接口已是系统调用
 
-## ZG 方向清单与优先级
+## ZG 方向清单与优先级（2026-08-04 刷新）
 
-### 🔴 P0 — 应该做
+### ✅ 已完成（7/12）
 
-| 编号　　　　 | 方向　　　　　　　　　　　　 | 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 复杂度 | 层级 |
-| --------------| ------------------------------| ------------------------------------------------------------------------------------------------------| --------| ------|
-| ~~**ZG-1**~~ | ~~服务管理器（systemd 化）~~ | ✅ **已完成**（2026-07-31，引擎层+适配器+main.py 启动接管，见已完成表）　　　　　　　　　　　　　　　 | 低　　 | 应用 |
-| **ZG-2**　　 | 统一日志管线（journald 化）　| CQ-11 已在清理 45 处 `import logging` 残留，趁机加结构化+环形缓冲+ratelimit　　　　　　　　　　　　　| 中　　 | 应用 |
-| **ZG-3**　　 | 看门狗（watchdog 化）　　　　| asyncio 事件循环阻塞 + Runner 子进程无响应，当前最痛的运行时风险　　　　　　　　　　　　　　　　　　 | 低　　 | 应用 |
-| ~~**ZG-9**~~ | ~~极端环境加固~~　　　　　　 | ✅ **已完成**（2026-07-31，mem_limit/swap=0/OOM保护/tmpfs，WSL2 内核 6.18；Kernel7.0 特性待升级时补） | 低　　 | 基础 |
+| 编号 | 方向 | 完成日期 | 核心产出 |
+|------|------|---------|---------|
+| **ZG-1** | 服务管理器（systemd 化） | 2026-07-31 | 引擎层 dependency_graph/health_check/lifecycle/recovery + 适配器 + main.py 启动接管 |
+| **ZG-2** | 统一日志管线（journald 化） | 2026-08-01 | 结构化日志 + RingBuffer + 按调用点 ratelimit + deferred output + 全 ERROR O(1) 快速判定 |
+| **ZG-3** | 看门狗（watchdog 化） | 2026-08-02 | S1 延迟报告 + S2 检测线程健康 + S3 V2 注册验证 + S4 blocker 追踪 + 25 新测试 |
+| **ZG-4** | 事件总线增强（D-Bus 化） | 2026-08-01 | Vote 统一投票 + BAD-only robust 回滚 + EventBus robust/nofail，78 测试全绿 |
+| **ZG-5** | 资源限制（cgroups 化） | 2026-08-02 | ResourceCounter + FourTierLimit + PressureDetector + OOMHandler + 适配器全接线，75 测试 |
+| **ZG-6** | 系统状态机（system_state 化） | 2026-08-01 | BOOTING→READY→DEGRADING→SHUTTING_DOWN + 通知链 + 崩溃导出 + WebUI /lifecycle，38 测试 |
+| **ZG-7** | 污染标记（tainted_mask 化） | 2026-08-03 | 8 位 TaintFlag + 6 位运行时接线 + TaintActionMapper + CrashDump 内省，68 测试 |
+| **ZG-9** | 极端环境加固 | 2026-07-31 | mem_limit/swap=0/OOM保护/tmpfs，WSL2 内核 6.18 |
 
-### 🟡 P1 — 值得做但靠后
+### 🔴 P0 — 剩余必做
 
-| 编号　　　　 | 方向　　　　　　　　　　　　　　　| 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 层级 |
-| --------------| -----------------------------------| --------------------------------------------------------------------------------------------------------| ------|
-| ~~**ZG-4**~~ | ~~事件总线增强（D-Bus 化）~~　　　| ✅ **已完成**（2026-08-01，Vote 统一投票 + BAD-only robust 回滚 + EventBus robust/nofail，78 测试全绿） | 应用 |
-| **ZG-5**　　 | 资源限制（cgroups 化）　　　　　　| 单进程下需求弱，会话/智能体数增长后价值上升。可先做每会话 LLM 配额　　　　　　　　　　　　　　　　　　 | 应用 |
-| ~~**ZG-6**~~ | ~~系统状态机（system_state 化）~~ | ✅ **已完成**（2026-08-01，见已完成表）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 应用 |
-| **ZG-12**　 | 模型配置仲裁（alternative 化）　 | V1 遗留命名(replyer/planner/utils)+硬编码回退+embedding 静默失败+TaskConfig 无分化，见下方子项详情 | 应用 |
+| 编号 | 方向 | 理由 | 复杂度 | 层级 |
+|------|------|------|--------|------|
+| **ZG-12** | 模型配置重写（alternative 化） | V1 遗留命名+硬编码回退+embedding 静默失败+TaskConfig 无分化，**用户决定整体重写** | 高 | 应用 |
 
-### 🔵 P2 — 打磨
+### 🟡 P1 — 值得做
 
-| 编号　　 | 方向　　　　　　　　　　　　| 理由　　　　　　　　　　　　　　　　　　　　　　 | 层级 |
-| ----------| -----------------------------| --------------------------------------------------| ------|
-| **ZG-7** | 污染标记（tainted_mask 化） | ✅ **已完成**（2026-08-03，8 位 TaintFlag + 6 位运行时接线 + TaintActionMapper + CrashDump 内省，78 测试全绿）。**Linux 深度对标报告**：`.codeartsdoer/specs/zg7_tainted_mask/linux_taint_comparison_report.md`，核心发现：4/8 标志完全对齐 Linux，P0 遗漏为 `degrade_on_taint_mask` 掩码级触发（对标 `panic_on_taint`），P2 遗漏为 3 个候选新标志（UNHANDLED_FATAL/EXTERNAL_FALLBACK/LOOP_STALL） | 应用 |
-| **ZG-8** | 控制消息优先级（signal 化） | 紧急消息优先于常规消息，主智能体不可淘汰　　　　 | 应用 |
+| 编号 | 方向 | 理由 | 层级 |
+|------|------|------|------|
+| **ZG-8** | 控制消息优先级（signal 化） | 紧急消息优先于常规消息，主智能体不可淘汰 | 应用 |
 
-### 🟢 P3 — 未来方向
+### 🟢 P2 — 未来方向
 
 | 编号 | 方向 | 理由 | 层级 |
 |------|------|------|------|
 | **ZG-10** | 启动编排演进（initcall→systemd 化） | 见下方 ZG-10 子项详情 | 应用 |
 | **ZG-11** | 多核利用（SMP 化） | 见下方 ZG-11 子项详情 | 基础 |
+| **ZG-13** | 角色语音（TTS 输出） | 见下方 ZG-13 子项详情 | 应用 |
+
+### 🔧 已知遗留（从已完成项中拆出）
+
+| 来源 | 遗留 | 严重度 | 触发时机 |
+|------|------|--------|---------|
+| ZG-7 | `degrade_on_taint_mask` 掩码级触发（对标 `panic_on_taint`） | P0 | 出现"污染后应自动降级但未降级"实证时 |
+| ZG-7 | 3 个候选新标志（UNHANDLED_FATAL/EXTERNAL_FALLBACK/LOOP_STALL） | P2 | 对应场景出现时 |
+| ZG-3 | V2 Runner 注册（register_v2_supervisor 方法已存在未调用） | 低 | V2 Runner 普及后 |
+| ZG-5 | §11 WebUI 内省接口暂缓（适配器方法已实现，缺 WebUI 路由暴露） | 低 | 用户决定恢复 WebUI 资源监控时 |
+| ZG-2 | L1 deferred output 已实现；L2 锁已实测否决；L3 ratelimit 已完成 | — | 全部关闭 |
 
 ## ZG-10 启动编排演进 — 子项详情
 
@@ -226,11 +237,13 @@ model_list = ["ali-text-embedding-v4"]
 
 优先级：mmap 共享索引 > 共享内存 IPC > 对象池 > 零拷贝 > 工作窃取（已内置）> 惰性分配
 
-## ZG-12 模型配置仲裁 — 子项详情
+## ZG-12 模型配置重写 — 子项详情
 
 > 2026-08-03，CA 提议，基于模型配置系统深度调研。
+> 2026-08-04，用户决定从"仲裁"升级为"整体重写"。
 > 对标 Linux **alternative framework**（系统根据硬件能力选最优实现）+ **device model**（统一设备抽象）。
 > 核心问题：V1 遗留命名不反映当前架构，回退链硬编码，TaskConfig 无分化，embedding 静默失败。
+> **用户设计意图**：一次完整回复只调用一次 LLM，replyer 作为独立 task 应降级。
 
 ### 命名正名方案
 
@@ -301,27 +314,40 @@ ZG-9 是 ZG-1/ZG-3 的前置条件：OS 层不稳定时，看门狗检测到的"
 
 ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排序"（关键进程免杀），看门狗管"死之后的处理"（检测→重启→通知）。ZG-3 重启的进程应自动获得 OOM 保护优先级。
 
-## 推进路线
+## 推进路线（2026-08-04 刷新）
 
 ```
-批次1（P0 打底）
-  ZG-9 极端环境加固（OS 层前置，确保可预测环境）──→ ZG-1 服务管理器 ──→ ZG-3 看门狗 ──→ 审阅清理
+批次1（P0 打底）✅ 已完成
+  ZG-9 极端环境加固 ✅ → ZG-1 服务管理器 ✅ → ZG-3 看门狗 ✅ → 审阅清理 ✅
 
-批次2（P0 收尾 + P1 启动）
-  ZG-2 统一日志管线 ──→ 审阅清理 ──→ ZG-6 系统状态机
+批次2（P0 收尾 + P1 启动）✅ 已完成
+  ZG-2 统一日志管线 ✅ → 审阅清理 ✅ → ZG-6 系统状态机 ✅
 
-批次3（P1 深化）
-  ZG-4 事件总线增强 ──→ ZG-5 资源限制 ──→ 审阅清理
+批次3（P1 深化）✅ 已完成
+  ZG-4 事件总线增强 ✅ → ZG-5 资源限制 ✅ → 审阅清理 ✅
 
-批次4（P2 打磨）
-  ZG-7 污染标记 ──→ ZG-8 控制消息优先级
+批次4（P2 打磨）✅ 已完成
+  ZG-7 污染标记 ✅ → ZG-8 控制消息优先级 ⏳（唯一未编码的 P1+）
 
-批次5（P1 配置仲裁）
-  ZG-12 模型配置仲裁 ──→ 审阅清理
-  前置：ZG-11 Phase 0（embedding 配置接入）确保配置系统有真实负载可验证
+批次5（P1 配置重写）⏳ 待启动
+  ZG-12 模型配置重写 → 审阅清理
+  前置：ZG-11 Phase 0 ✅（embedding 阿里 API 已接入）+ embedding 微调 ✅（ONNX 量化完成）
 ```
 
-每步前后都做功能/组件审阅。
+### 当前优先级排序
+
+1. **ZG-12 模型配置重写** — 唯一 P0 剩余，建议走 SDD 流程
+2. **ZG-8 控制消息优先级** — P1，独立可做
+3. **ZG-7 P0 遗漏** — `degrade_on_taint_mask` 掩码级触发，小范围
+4. **ZG-10/ZG-11** — P2 未来方向，不急
+
+### 附加成果（非 ZG 编号但随 ZG 推进完成）
+
+- **记忆融合架构改造**：写入融合管线 + 检索融合（ScoreNormalizer + SpreadAnchorRetriever）+ 配置注册
+- **Embedding 微调全流程**：数据提取 → 三元组构造 → GPU 微调 → ONNX INT8 量化 → embedding_server
+- **审阅清理**：零引用死代码删除（37 文件 -5140 行）+ 人物画像死代码删除
+- **消息发送失败修复**：T1/T2 编码完成
+- **既有测试债务暴露**：601 passed / 195 failed / 77 errors（均为既有债务，非回归）
 
 ## 已完成
 
@@ -334,10 +360,17 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 | 2026-07-31 | **ZG-9 极端环境加固**（mem_limit/swap=0/OOM 保护/tmpfs，WSL2 内核 6.18；Kernel7.0 特性待升级时补）　　　　　　　　　　　　　　　　　　　　　　　　 | 89ee8c815 |
 | 2026-08-01 | **ZG-6 系统状态机**（BOOTING→READY→DEGRADING→SHUTTING_DOWN + 通知链 + 崩溃导出 + WebUI /lifecycle + 信号退出联动，20 需求 48 验收全覆盖，38 测试） | c38dd6f1c |
 | 2026-08-01 | **ZG-4 事件总线增强**（统一 Vote 四值投票 + BAD-only robust 回滚 + EventBus robust/nofail + unique_priority + 内省，28 需求 39 验收，78 测试）　　 | 200dd93cf |
-| 2026-08-02 | **ZG-5 资源限制**（cgroups 化：ResourceCounter 层级计数 + FourTierLimit 四档限制 + PressureDetector 压力分级 + OOMHandler OOM 处置 + EventPropagator 事件传播 + Adapter 适配器，§1-§10+§12 完成 75 测试全通过，worktree `zg5-resource-limit`） | 16d53f284+ |
-| 2026-08-02 | ZG-5 **§11 WebUI 内省接口暂缓**（用户决定：和 WebUI 有关的暂时不做。适配器内省方法 `get_resource_tree_view`/`get_pressure_history`/`get_oom_history` 已实现，仅缺 WebUI 后端路由暴露） | 未做　　　 |
+| 2026-08-01 | **ZG-2 统一日志管线**（结构化日志 + RingBuffer + 按调用点 ratelimit + deferred output + 全 ERROR O(1) 快速判定，31+33 测试）　　　　　　　　　　　　| 693b735f6+ |
+| 2026-08-02 | **ZG-3 看门狗补强**（S1 延迟报告 + S2 检测线程健康检查 + S3 V2 注册验证 + S4 blocker 追踪，25 新测试全绿）　　　　　　　　　　　　　　　　　　　　　| c26e1ee4c+ |
+| 2026-08-02 | **ZG-5 资源限制**（ResourceCounter + FourTierLimit + PressureDetector + OOMHandler + EventPropagator + 适配器全接线，75 测试全通过）　　　　　　　　　　| 16d53f284+ |
+| 2026-08-02 | ZG-5 **§11 WebUI 内省接口暂缓**（适配器内省方法已实现，仅缺 WebUI 路由暴露）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 未做　　　 |
 | 2026-08-02 | **审阅清理：零引用死代码删除**（subagent/18 + consolidation/4 + goal/5 + event_sensor/4 + message_port + embedding manager+presets + monologue 2文件 = 37文件 -5140行） | f63ca9bf1 |
 | 2026-08-02 | **审阅清理：路线图标记** — cross_chat/ 待实现（社会关系功能）；deepseek 4文件 待评估（LLM优化适配）；learners/ expression+jargon 待独立 SSD 任务（21处活跃引用，与社会关系理念不合） | 文档　　　 |
+| 2026-08-03 | **ZG-7 污染标记**（8 位 TaintFlag + 6 位运行时接线 + TaintActionMapper + CrashDump 内省 + 配置域扩展 + WebUI 展示，68 测试全绿）　　　　　　　　　　　| 7aa2d8c1f+ |
+| 2026-08-03 | **人物画像死代码删除**（profile 相关废弃代码清理）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| 合并到 main |
+| 2026-08-03 | **记忆融合架构改造**（写入融合管线 + 检索融合 ScoreNormalizer + SpreadAnchorRetriever + 配置注册 + 部署文档）　　　　　　　　　　　　　　　　　　　　　　| 多次提交　 |
+| 2026-08-03 | **Embedding 微调全流程**（数据提取 60650→清洗 2291 条三元组 + GPU 微调 bge-large-zh-v1.5 + ONNX INT8 量化 312MB + embedding_server）　　　　　　　　　| ed53af9f6+ |
+| 2026-08-03 | **消息发送失败修复**（T1/T2 编码完成）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| worktree　 |
 
 ## ZG-6 系统状态机遗留事项（2026-08-01）
 
@@ -478,9 +511,13 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 
 ## 待讨论
 
-- ~~ZG 方向优先级是否需要调整~~ → 已确定 4 批次路线
-- ~~功能/组件清理的切入点和范围~~ → 随 ZG 批次推进审阅
+- ~~ZG 方向优先级是否需要调整~~ → 已确定 5 批次路线，批次 1-4 已完成
+- ~~功能/组件清理的切入点和范围~~ → 随 ZG 批次推进审阅，已完成两轮
 - OS 化方向备忘录（`os_like_direction.md`）中是否有其他需要修正的幼稚想法
+- **ZG-12 重写范围**：用户决定整体重写，需走 SDD 流程确定 spec/design
+- **ZG-8 启动时机**：唯一未编码的 P1+ 方向，独立于 ZG-12
+- **worktree 清理**：6 个 prunable 分支待清理
+- **既有测试债务治理**：195 failed + 77 errors，需另立治理项
 
 > 全项目债务全景和项目路线已迁入 `.shared/roadmap.md`，本文件只追踪与 ZG 直接相关的内容。
 
@@ -506,3 +543,31 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 | ZG-2-L1 | 摘要输出完全异步化　　　| 当前事件循环不可用时同步 fallback；对标 printk deferred output，改为排队而非同步阻塞　　　　　　　　　　　　 | 日志风暴期间摘要输出阻塞写线程的实测证据出现时　　 |
 | ZG-2-L2 | RingBuffer 无锁方案评估 | ✅ **已完成**（2026-08-02）：实测完整 emit 单条 0.0094ms（触发线 1ms 的 106 倍余量），锁非瓶颈（占 2%），**维持 RLock 不改**。报告 `.shared/decisions/zg2_l2_lockfree_ringbuffer_0802.md`。**顺带发现真实缺陷**：全 ERROR 满缓冲 `_evict_oldest_non_error` O(capacity) 扫描 223µs/条（正常 127 倍，逼近触发线）——另立任务修复 | 已完成（实测否决）；新缺陷修复待排期 |
 | ZG-2-L3 | 按调用点 ratelimit　　　| ✅ **已完成**（2026-08-02）：source_key 改调用点 (pathname, lineno) + call_site 摘要；合成 record（Runner 桥接占位符）回退 logger+event 键（CX P2）；31 passed | 已完成（主动修正，未等实证） |
+
+## ZG-13 角色语音（TTS 输出）— 子项详情
+
+> 2026-08-04 立项：给十三个角色接入本地 TTS 语音输出（每角色一音色）。
+> 调研依据：`.shared/research/2026-08/voice_output_capability_0804.md`（Explore 全仓库调研）
+
+### 现状（调研结论）
+
+| 维度 | 现状 |
+|------|------|
+| TTS 输出 | **无**（全仓库零 synthesize 代码），但管道半成品在 |
+| ASR 输入 | 有，默认关闭（`[voice] enable_asr = false`，链路完整） |
+| 音色配置 | 无（14 个 agent_id 均无 voice 字段，需新建） |
+| 现成管道 | `VoiceComponent`（message_component_data_model.py:128）+ napcat voice→record 编码器（segment_encoder.py:176） |
+
+### 设计方向
+
+```
+本地 TTS 服务（候选：IndexTTS 2.0 / GPT-SoVITS / CosyVoice 2.0，zero-shot 克隆免微调）
+→ 音色配置：每个 agent_id 一段参考音频（14 角色 14 音色）
+→ maisaka 回复工具（reply.py:368 前）：按 agent_id 选音色 → 合成 → VoiceComponent
+→ napcat 桥接：_handle_outbound_message 补 convert_segments 编码 → record 段
+```
+
+- **候选模型**：IndexTTS 2.0（中文天花板，2B 级，笔记本 8GB 勉强）；GPT-SoVITS（1B 级稳跑，中文接近）；CosyVoice 2.0（流式，轻量）。zero-shot 克隆 = 不用微调
+- **关键坑**：napcat maim_message 桥接路径只特殊处理 text 段，voice 段透传 → 需补 convert_segments 编码（现成逻辑可复用）
+- **策略**：管道优先模型次之——先跑通用语音输出口 + 音色配置，模型层留接口可换
+- **硬件**：笔记本 5060 8GB 跑 IndexTTS 2.0 勉强 → 低频场景（角色主动说话/情绪高光）才发语音，文字为主体

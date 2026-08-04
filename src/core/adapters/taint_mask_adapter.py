@@ -41,12 +41,14 @@ class TaintMaskAdapter(TaintedMaskPort):
         on_taint = self._load_on_taint_config()
         warn_limit = self._load_warn_limit_config()
         preset_mask = self._load_preset_mask_config()
+        degrade_on_taint_mask = self._load_degrade_on_taint_mask_config()
 
         self._tainted_mask = TaintedMask(
             on_taint=on_taint,
             warn_limit=warn_limit,
             state_machine_port=state_machine_port,
             preset_mask=preset_mask,
+            degrade_on_taint_mask=degrade_on_taint_mask,
         )
 
     def _load_on_taint_config(self) -> dict[TaintFlag, Any]:
@@ -91,6 +93,18 @@ class TaintMaskAdapter(TaintedMaskPort):
             logger.warning("preset_mask 配置读取失败，使用默认 0", exc_info=True)
             return 0
 
+    def _load_degrade_on_taint_mask_config(self) -> int:
+        """从 AppConfigPort 加载 degrade_on_taint_mask。"""
+        if self._app_config_port is None:
+            return 0
+        try:
+            return int(self._app_config_port.get_degrade_on_taint_mask())
+        except Exception:
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+            mark_exception_swallowed()
+            logger.warning("degrade_on_taint_mask 配置读取失败，使用默认 0", exc_info=True)
+            return 0
+
     # ── TaintedMaskPort 委托 ─────────────────────────────────────
 
     def add_taint(self, flag: TaintFlag) -> None:
@@ -114,6 +128,9 @@ class TaintMaskAdapter(TaintedMaskPort):
     @property
     def warn_count(self) -> int:
         return self._tainted_mask.warn_count
+
+    def get_degrade_on_taint_mask(self) -> int:
+        return self._tainted_mask.get_degrade_on_taint_mask()
 
     # ── 订阅（外部衔接，如 CrashDump）────────────────────────────
 

@@ -29,6 +29,9 @@ class _FakeConfigPort:
     def get_taint_preset_mask(self) -> int:
         return 0
 
+    def get_degrade_on_taint_mask(self) -> int:
+        return 0
+
 
 class TestStateMachineIntegration:
     @pytest.mark.asyncio
@@ -162,3 +165,50 @@ class TestWarnEndToEnd:
                 break
             await asyncio.sleep(0.01)
         assert sm.calls == ["fault"]
+
+
+class TestDegradeOnTaintMaskAdapter:
+    def test_adapter_loads_degrade_on_taint_mask(self) -> None:
+        """适配器正常加载 degrade_on_taint_mask 配置。"""
+
+        class _ConfigWithMask(_FakeConfigPort):
+            def get_degrade_on_taint_mask(self) -> int:
+                return 0x03
+
+        adapter = TaintMaskAdapter(app_config_port=_ConfigWithMask())
+        assert adapter.get_degrade_on_taint_mask() == 0x03
+
+    def test_adapter_no_config_port_defaults_zero(self) -> None:
+        """app_config_port=None 时使用默认值 0。"""
+        adapter = TaintMaskAdapter(app_config_port=None)
+        assert adapter.get_degrade_on_taint_mask() == 0
+
+    def test_adapter_config_read_exception_defaults_zero(self) -> None:
+        """配置读取异常时使用默认值 0。"""
+
+        class _BrokenConfig(_FakeConfigPort):
+            def get_degrade_on_taint_mask(self) -> int:
+                raise RuntimeError("配置读取失败")
+
+        adapter = TaintMaskAdapter(app_config_port=_BrokenConfig())
+        assert adapter.get_degrade_on_taint_mask() == 0
+
+    def test_adapter_invalid_range_raises(self) -> None:
+        """超范围值由 TaintedMask 构造时抛 ValueError。"""
+
+        class _BadConfig(_FakeConfigPort):
+            def get_degrade_on_taint_mask(self) -> int:
+                return 0x100
+
+        with pytest.raises(ValueError, match="degrade_on_taint_mask 超范围"):
+            TaintMaskAdapter(app_config_port=_BadConfig())
+
+    def test_adapter_degrade_on_taint_mask_delegates(self) -> None:
+        """get_degrade_on_taint_mask 委托正确。"""
+
+        class _ConfigWithMask(_FakeConfigPort):
+            def get_degrade_on_taint_mask(self) -> int:
+                return 0x05
+
+        adapter = TaintMaskAdapter(app_config_port=_ConfigWithMask())
+        assert adapter.get_degrade_on_taint_mask() == adapter._tainted_mask.get_degrade_on_taint_mask()

@@ -41,6 +41,7 @@ class TaintedMask:
         state_machine_port: Any = None,
         time_func: Callable[[], float] = time.time,
         preset_mask: int = 0,
+        degrade_on_taint_mask: int = 0,
     ) -> None:
         """初始化污染位图。
 
@@ -51,12 +52,15 @@ class TaintedMask:
                 None 时降级为 WARN）
             time_func: 时间函数注入点（测试可替换，spec §5.3 规则 4）
             preset_mask: 预置位掩码（对标 CONFIG_RANDSTRUCT 预置，spec §2.1.1 规则 4）
+            degrade_on_taint_mask: 掩码级降级触发掩码（0=禁用，对标 Linux panic_on_taint）
 
         Raises:
-            ValueError: preset_mask 超范围（> TAINT_FLAGS_MAX）
+            ValueError: preset_mask 或 degrade_on_taint_mask 超范围（> TAINT_FLAGS_MAX）
         """
         if preset_mask & ~TAINT_FLAGS_MAX:
             raise ValueError(f"preset_mask 超范围: 0x{preset_mask:X} > 0x{TAINT_FLAGS_MAX:X}")
+        if degrade_on_taint_mask & ~TAINT_FLAGS_MAX:
+            raise ValueError(f"degrade_on_taint_mask 超范围: 0x{degrade_on_taint_mask:X} > 0x{TAINT_FLAGS_MAX:X}")
         self._mask: int = preset_mask
         self._first_taints: dict[int, TaintRecord] = {}
         self._on_taint: dict[TaintFlag, TaintAction] = dict(on_taint or {})
@@ -65,6 +69,7 @@ class TaintedMask:
         self._warn_limit: int = max(0, int(warn_limit))
         self._time_func = time_func
         self._state_machine_port = state_machine_port
+        self._degrade_on_taint_mask: int = degrade_on_taint_mask
 
     # ── 置位 / 查询 ──────────────────────────────────────────────
 
@@ -86,9 +91,15 @@ class TaintedMask:
         is_first = not (self._mask & flag.value)
 
         if is_first:
-            # 首次置位：记录时间戳 / 调用栈 / 动作（spec §2.1.1 规则 3）
+            # 首次置位：先判定实际 action，再创建 TaintRecord
             stack = self._capture_stack()
-            action = self._on_taint.get(flag, TaintAction.RECORD)
+            mask_matched = flag.value & self._degrade_on_taint_mask != 0
+            if mask_matched:
+                action = TaintAction.TRIGGER_DEGRADE
+                taint_trigger_source = "degrade_mask"
+            else:
+                action = self._on_taint.get(flag, TaintAction.RECORD)
+                taint_trigger_source = "on_taint"
             record = TaintRecord(
                 flag=flag,
                 first_ts=self._time_func(),
@@ -110,6 +121,7 @@ class TaintedMask:
                 taint_stack=stack,
                 taint_action=action.name,
                 taint_mask=self._mask,
+                taint_trigger_source=taint_trigger_source,
             )
 
             # 执行动作（fire-and-forget：同步方法内调度异步操作）
@@ -120,19 +132,28 @@ class TaintedMask:
             self._notify_nofail(event)
         # warn_count 每次 add_taint(TAINT_WARN) 递增（含首次与幂等分支，
         # 计数非动作，spec §4.2 规则 2；对标 atomic_inc_return）
-        self._bump_warn_count(flag)
+        # 掩码匹配时跳过阈值降级（避免同一次 add_taint 双触发 TRIGGER_DEGRADE）
+        self._bump_warn_count(flag, mask_matched=is_first and mask_matched)
 
-    def _bump_warn_count(self, flag: TaintFlag) -> None:
+    def _bump_warn_count(self, flag: TaintFlag, *, mask_matched: bool = False) -> None:
         """warn_count 递增（每次 add_taint(TAINT_WARN) 调用时，含幂等分支）。
 
         对标 Linux `atomic_inc_return(&warn_count)`（panic.c:234）；
         warn_limit > 0 且累计达到阈值时触发 TRIGGER_DEGRADE（对标
         `check_panic_on_warn`，但降级而非 panic）。
+        掩码匹配时跳过阈值降级（掩码已触发降级，避免双触发）。
         """
         if flag is not TaintFlag.TAINT_WARN:
             return
         self._warn_count += 1
         if self._warn_limit > 0 and self._warn_count >= self._warn_limit:
+            if mask_matched:
+                logger.info(
+                    "warn_count=%d 达到 warn_limit=%d，但掩码已触发降级，跳过阈值降级",
+                    self._warn_count,
+                    self._warn_limit,
+                )
+                return
             logger.warning(
                 "warn_count=%d 达到 warn_limit=%d，触发 TRIGGER_DEGRADE",
                 self._warn_count,
@@ -147,6 +168,10 @@ class TaintedMask:
     def get_taint(self) -> int:
         """查询污染位图值。"""
         return self._mask
+
+    def get_degrade_on_taint_mask(self) -> int:
+        """查询当前掩码级降级触发掩码值（只读，0=禁用）。"""
+        return self._degrade_on_taint_mask
 
     # ── 内省输出 ────────────────────────────────────────────────
 

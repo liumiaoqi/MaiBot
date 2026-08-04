@@ -1292,6 +1292,10 @@ class AppConfigPort(Protocol):
         """获取预置位掩码（启动即置位，如测试模式预置 128）。"""
         ...
 
+    def get_degrade_on_taint_mask(self) -> int:
+        """获取掩码级降级触发掩码（0=禁用，默认 0）。"""
+        ...
+
     def register_reload_callback(self, callback: object) -> None:
         """注册全局配置热重载回调。
 
@@ -1994,3 +1998,6 @@ class TaintedMaskPort(Protocol):
     @property
     def warn_count(self) -> int:
         """WARN 累计计数（只读，对标 /sys/kernel/warn_count）。"""
+
+    def get_degrade_on_taint_mask(self) -> int:
+        """查询当前掩码级降级触发掩码值（只读，0=禁用）。"""

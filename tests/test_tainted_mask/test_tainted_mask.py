@@ -294,3 +294,122 @@ class TestActions:
             assert mask.get_taint() & TaintFlag.TAINT_PORT_BYPASS.value != 0
         else:
             pytest.skip("存在事件循环，无法模拟无循环场景")
+
+
+class TestDegradeOnTaintMask:
+    """degrade_on_taint_mask 掩码级降级触发测试（ZG-7 P0 遗漏修复）。"""
+
+    @pytest.mark.asyncio
+    async def test_degrade_on_taint_mask_match_triggers_degrade(self) -> None:
+        """掩码匹配触发 TRIGGER_DEGRADE。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(
+            degrade_on_taint_mask=0x01,
+            state_machine_port=sm,
+        )
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
+
+    def test_degrade_on_taint_mask_no_match_uses_on_taint(self) -> None:
+        """掩码不匹配走 on_taint 映射。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(
+            degrade_on_taint_mask=0x04,
+            state_machine_port=sm,
+        )
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        assert sm.calls == []
+
+    def test_degrade_on_taint_mask_default_zero_disabled(self) -> None:
+        """默认值 0 禁用掩码级触发。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(state_machine_port=sm)
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        assert sm.calls == []
+
+    @pytest.mark.asyncio
+    async def test_degrade_on_taint_mask_priority_over_on_taint(self) -> None:
+        """掩码优先于 on_taint（掩码匹配时跳过 on_taint WARN）。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(
+            on_taint={TaintFlag.TAINT_PORT_BYPASS: TaintAction.WARN},
+            degrade_on_taint_mask=0x01,
+            state_machine_port=sm,
+        )
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
+
+    def test_degrade_on_taint_mask_no_override_non_matching(self) -> None:
+        """掩码不覆盖非匹配标志的 on_taint 映射。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(
+            on_taint={TaintFlag.TAINT_EXCEPTION_SWALLOWED: TaintAction.WARN},
+            degrade_on_taint_mask=0x01,
+            state_machine_port=sm,
+        )
+        mask.add_taint(TaintFlag.TAINT_EXCEPTION_SWALLOWED)
+        assert sm.calls == []
+
+    @pytest.mark.asyncio
+    async def test_degrade_on_taint_mask_idempotent(self) -> None:
+        """幂等性：重复置位同一标志不重复触发降级。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(
+            degrade_on_taint_mask=0x01,
+            state_machine_port=sm,
+        )
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
+
+    def test_get_degrade_on_taint_mask_returns_value(self) -> None:
+        """get_degrade_on_taint_mask 返回构造时传入的值。"""
+        mask = _make_mask(degrade_on_taint_mask=0x03)
+        assert mask.get_degrade_on_taint_mask() == 0x03
+
+    def test_degrade_on_taint_mask_invalid_range(self) -> None:
+        """超范围掩码抛 ValueError。"""
+        with pytest.raises(ValueError, match="degrade_on_taint_mask 超范围"):
+            _make_mask(degrade_on_taint_mask=0x100)
+
+    def test_degrade_on_taint_mask_no_state_machine_port(self) -> None:
+        """掩码级触发 + state_machine_port=None → 降级为 WARN。"""
+        mask = _make_mask(degrade_on_taint_mask=0x01, state_machine_port=None)
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        assert mask.get_taint() & TaintFlag.TAINT_PORT_BYPASS.value != 0
+
+    @pytest.mark.asyncio
+    async def test_degrade_on_taint_mask_warn_limit_interaction(self) -> None:
+        """掩码匹配时 warn_count 递增但不因 warn_limit 再次触发降级。"""
+        sm = _FakeStateMachine()
+        mask = _make_mask(
+            degrade_on_taint_mask=0x20,
+            warn_limit=1,
+            state_machine_port=sm,
+        )
+        mask.add_taint(TaintFlag.TAINT_WARN)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
+        assert mask.warn_count == 1
+
+    def test_taint_record_action_taken_reflects_mask(self) -> None:
+        """掩码匹配时 TaintRecord.action_taken 为 TRIGGER_DEGRADE。"""
+        mask = _make_mask(degrade_on_taint_mask=0x01)
+        mask.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        record = mask.get_taint_records()[TaintFlag.TAINT_PORT_BYPASS.bit_position]
+        assert record.action_taken == TaintAction.TRIGGER_DEGRADE

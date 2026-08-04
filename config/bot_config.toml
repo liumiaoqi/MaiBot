@@ -441,6 +441,7 @@ force_caller_whitelist = ["watchdog", "service_manager", "system_state_machine"]
 on_taint = {} # 污染动作映射（key=标志名如 TAINT_PORT_BYPASS，value=动作如 trigger_degrade/warn；缺省仅记录）。
 warn_limit = 0 # WARN 累计阈值（warn_count 达到后触发降级；0=禁用）。
 preset_mask = 0 # 预置位掩码（启动即置位，如测试模式预置 128）。
+degrade_on_taint_mask = 0 # 掩码级降级触发掩码（0=禁用；位在掩码中则自动触发降级，对标 Linux panic_on_taint）。
 
 
 [system_state]

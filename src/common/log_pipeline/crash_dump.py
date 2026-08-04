@@ -39,13 +39,15 @@ class CrashDump:
         if self._taint_mask_port is None:
             return None
         try:
-            return json.dumps(
-                {
-                    "tainted_mask": self._taint_mask_port.get_taint(),
-                    "tainted_verbose": self._taint_mask_port.print_tainted_verbose(),
-                },
-                ensure_ascii=False,
-            )
+            data = {
+                "tainted_mask": self._taint_mask_port.get_taint(),
+                "tainted_verbose": self._taint_mask_port.print_tainted_verbose(),
+            }
+            try:
+                data["degrade_on_taint_mask"] = self._taint_mask_port.get_degrade_on_taint_mask()
+            except Exception:
+                data["degrade_on_taint_mask"] = "N/A"
+            return json.dumps(data, ensure_ascii=False)
         except Exception:
             return None
 

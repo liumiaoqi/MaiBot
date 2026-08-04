@@ -29,6 +29,9 @@ class _FakeConfigPort:
     def get_taint_preset_mask(self) -> int:
         return 0
 
+    def get_degrade_on_taint_mask(self) -> int:
+        return 0
+
 
 class TestEndToEndLifecycle:
     @pytest.mark.asyncio
@@ -175,3 +178,53 @@ class TestWiringCompleteness:
         assert args[0][1] == "TAINT_WARN"  # flag 格式化参数
         assert args[0][3] == "RECORD"  # action 格式化参数
         assert args[0][4] == 0x20  # current_mask 格式化参数
+
+
+class _FakeConfigPortWithMask(_FakeConfigPort):
+    def get_degrade_on_taint_mask(self) -> int:
+        return 0x01
+
+
+class TestDegradeOnTaintMaskE2E:
+    @pytest.mark.asyncio
+    async def test_mask_degrade_drives_state_machine(self) -> None:
+        """degrade_on_taint_mask=0x01 时 add_taint(TAINT_PORT_BYPASS) 驱动降级。"""
+        sm = _FakeStateMachine()
+        adapter = TaintMaskAdapter(
+            state_machine_port=sm, app_config_port=_FakeConfigPortWithMask()
+        )
+        adapter.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle_with_mask(self) -> None:
+        """完整生命周期：配置加载 → 掩码置位 → 降级触发 → 内省输出。"""
+        sm = _FakeStateMachine()
+        adapter = TaintMaskAdapter(
+            state_machine_port=sm, app_config_port=_FakeConfigPortWithMask()
+        )
+        assert adapter.get_degrade_on_taint_mask() == 0x01
+        adapter.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
+        assert adapter.get_taint() & TaintFlag.TAINT_PORT_BYPASS.value != 0
+
+    @pytest.mark.asyncio
+    async def test_default_zero_no_behavior_change(self) -> None:
+        """默认值 0 时行为与改动前完全一致。"""
+        sm = _FakeStateMachine()
+        adapter = TaintMaskAdapter(state_machine_port=sm, app_config_port=_FakeConfigPort())
+        assert adapter.get_degrade_on_taint_mask() == 0
+        adapter.add_taint(TaintFlag.TAINT_PORT_BYPASS)
+        for _ in range(50):
+            if sm.calls:
+                break
+            await asyncio.sleep(0.01)
+        assert sm.calls == ["fault"]
