@@ -73,7 +73,7 @@ class PhaseResult:
     start_time: float = 0.0
     end_time: float = 0.0
     duration_ms: int = 0
-    components: list[StartupComponent] = field(default_factory=list)
+    components: list[str] = field(default_factory=list)  # 组件名列表（ZG-10 声明化后）
 
 
 @dataclass

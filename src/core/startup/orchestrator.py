@@ -97,8 +97,9 @@ class StartupOrchestrator:
 
         # 1. 收集声明（装饰器 + 编程式，合并去重）
         for name, desc in _registry.drain().items():
-            if name not in self._items:
-                self._items[name] = desc
+            if name in self._items:
+                raise ValueError(f"启动项重复注册（装饰器与编程式同名）: {name}")
+            self._items[name] = desc
         if not self._items:
             logger.warning("无启动项声明——启动流程为空")
             self._running = False
