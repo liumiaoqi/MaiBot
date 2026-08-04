@@ -3,7 +3,7 @@
 对标 Linux `sigprocmask` + `set_current_blocked`：
 - 屏蔽（blocked）：消息留 pending 不投递，解除后按原顺序投递（屏蔽 ≠ 丢弃）
 - 忽略（ignored）：消息直接丢弃不入队（忽略 = 永久丢弃，对标 SIG_IGN）
-- 不可屏蔽强制剔除：操作时强制剔除编号 1-3（对标 sigdelsetmask(SIGKILL|SIGSTOP)）
+- 不可屏蔽强制剔除：操作时强制剔除不可屏蔽类别（动态掩码，默认 1-3，白名单扩展时含扩展类别）
 - 两级屏蔽：系统级 ∪ 会话级
 """
 
@@ -96,7 +96,7 @@ class ControlMessageMaskManager:
     ) -> int:
         """屏蔽集操作（BLOCK 并集 / UNBLOCK 差集 / SETMASK 直接设置）。
 
-        操作前后强制剔除不可屏蔽类别（编号 1-3，spec §5.4.1 规则 3/6）。
+        操作前后强制剔除不可屏蔽类别（动态掩码，默认 1-3，spec §5.4.1 规则 3/6）。
 
         Args:
             how: 操作类型

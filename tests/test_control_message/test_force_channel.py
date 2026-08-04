@@ -165,3 +165,47 @@ class TestForceDelivery:
         assert node.info["force"] is True
         assert node.info["reason"] == "watchdog timeout"
         assert node.info["source"] == "watchdog"
+
+
+class TestKindValidationExt:
+    """force 类别扩展 1-6（CX 审核 P1-3，tasks 5.2，spec §5.7.1 规则 5 / §6.9）。"""
+
+    @pytest.mark.asyncio
+    async def test_engine_fatal_allowed(self) -> None:
+        """force 允许引擎致命 4-6 → FORCE_DELIVERED。"""
+        channel, bus, _, _ = _make_channel()
+        for kind in (
+            ControlMessageKind.ENGINE_FATAL_ERROR,
+            ControlMessageKind.MEMORY_SUBSYSTEM_FAILURE,
+            ControlMessageKind.SESSION_CORRUPTED,
+        ):
+            result = await channel.force_send(kind, caller="watchdog")
+            assert result.delivered is True, kind
+            assert result.result is DeliveryResult.FORCE_DELIVERED
+
+    @pytest.mark.asyncio
+    async def test_session_control_rejected(self) -> None:
+        """force 拒绝会话控制 7-9 → CONTROL_FORCE_KIND_INVALID。"""
+        channel, bus, _, _ = _make_channel()
+        for kind in (
+            ControlMessageKind.SESSION_STOP,
+            ControlMessageKind.SESSION_RESUME,
+            ControlMessageKind.SESSION_DESTROY,
+        ):
+            result = await channel.force_send(kind, caller="watchdog")
+            assert result.delivered is False, kind
+            assert "CONTROL_FORCE_KIND_INVALID" in result.detail
+
+    @pytest.mark.asyncio
+    async def test_normal_realtime_rejected(self) -> None:
+        """force 拒绝普通 12-14 与实时 15-16。"""
+        channel, bus, _, _ = _make_channel()
+        for kind in (
+            ControlMessageKind.PAUSE_REPLY,
+            ControlMessageKind.RELOAD_CONFIG,
+            ControlMessageKind.URGENT_NOTICE,
+            ControlMessageKind.RATE_LIMIT_HIT,
+        ):
+            result = await channel.force_send(kind, caller="watchdog")
+            assert result.delivered is False, kind
+            assert "CONTROL_FORCE_KIND_INVALID" in result.detail

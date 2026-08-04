@@ -202,3 +202,65 @@ class TestHasPending:
         assert not q.is_full()
         q.enqueue(ControlMessageKind.PAUSE_REPLY, _info())
         assert q.is_full()
+
+
+class TestPriorityEvictionExt:
+    """优先级感知溢出驱逐补全（CX 审核 P1-6，tasks 8.3）。"""
+
+    def test_eviction_target_is_lowest_priority(self) -> None:
+        """驱逐对象断言：4 驱逐 13（编号最大），不是任意节点（CX 强化断言）。"""
+        q = _make_queue(max_nodes=2)
+        q.enqueue(ControlMessageKind.PAUSE_REPLY, _info(payload={"v": 1}))    # 12
+        q.enqueue(ControlMessageKind.RESUME_REPLY, _info(payload={"v": 2}))   # 13
+        result = q.enqueue(ControlMessageKind.ENGINE_FATAL_ERROR, _info())    # 4
+        assert result.accepted is True
+        kinds = sorted(int(n.kind) for n in q.node_list)
+        assert kinds == [4, 12]  # 13 被驱逐
+
+    def test_same_priority_no_eviction(self) -> None:
+        """同优先级不驱逐：15 驱逐不了 15（实时消息不去重，spec §5.2.1 规则 7）。
+
+        标准消息同类别会被去重分支拦截（P2-3 修复后去重优先于溢出），
+        故用实时消息验证"编号不大于则不驱逐"。
+        """
+        q = _make_queue(max_nodes=1)
+        q.enqueue(ControlMessageKind.URGENT_NOTICE, _info())
+        result = q.enqueue(ControlMessageKind.URGENT_NOTICE, _info())
+        assert result.accepted is False
+        assert "CONTROL_PENDING_OVERFLOW" in result.reason
+
+    def test_unmaskable_not_evictable(self) -> None:
+        """1-3 不可驱逐：仅 EMERGENCY_STOP(1) 时 FORCE_SHUTDOWN(2) 无法入队。"""
+        q = _make_queue(max_nodes=1)
+        q.enqueue(ControlMessageKind.EMERGENCY_STOP, _info())
+        result = q.enqueue(ControlMessageKind.FORCE_SHUTDOWN, _info())
+        assert result.accepted is False
+
+    def test_fatal_evicts_realtime(self) -> None:
+        """标准高优先级驱逐实时低优先级：4 驱逐 15。"""
+        q = _make_queue(max_nodes=1)
+        q.enqueue(ControlMessageKind.URGENT_NOTICE, _info())
+        result = q.enqueue(ControlMessageKind.ENGINE_FATAL_ERROR, _info())
+        assert result.accepted is True
+        assert [int(n.kind) for n in q.node_list] == [4]
+
+    def test_eviction_bitmap_consistency(self) -> None:
+        """驱逐后位图一致性：被驱逐类别无剩余节点时清位。"""
+        q = _make_queue(max_nodes=2)
+        q.enqueue(ControlMessageKind.PAUSE_REPLY, _info())   # 12
+        q.enqueue(ControlMessageKind.RESUME_REPLY, _info())  # 13
+        q.enqueue(ControlMessageKind.ENGINE_FATAL_ERROR, _info())  # 4 驱逐 13
+        assert q.kind_bitmap & (1 << (ControlMessageKind.RESUME_REPLY - 1)) == 0  # 13 位清
+        assert q.kind_bitmap & (1 << (ControlMessageKind.ENGINE_FATAL_ERROR - 1)) != 0  # 4 位置
+        assert q.kind_bitmap & (1 << (ControlMessageKind.PAUSE_REPLY - 1)) != 0  # 12 位保留
+
+    def test_eviction_logged(self) -> None:
+        """驱逐日志含 priority_eviction（spec §5.2.1 规则 7 验收）。"""
+        from unittest.mock import patch
+
+        q = _make_queue(max_nodes=1)
+        q.enqueue(ControlMessageKind.PAUSE_REPLY, _info())
+        with patch("src.core.control_message.pending_queue.logger") as mock_logger:
+            q.enqueue(ControlMessageKind.ENGINE_FATAL_ERROR, _info())
+        assert mock_logger.info.call_count == 1
+        assert "priority_eviction" in mock_logger.info.call_args[0][0]

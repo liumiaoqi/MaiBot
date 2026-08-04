@@ -160,3 +160,45 @@ class TestMisc:
         assert UNMASKABLE_MASK == _bit(ControlMessageKind.EMERGENCY_STOP) | _bit(
             ControlMessageKind.FORCE_SHUTDOWN
         ) | _bit(ControlMessageKind.FORCE_OFFLINE)
+
+
+
+class TestDynamicUnmaskable:
+    """动态不可屏蔽掩码（CX 审核 P1-4，tasks 7.2，spec §5.5.1 规则 2）。"""
+
+    def test_default_fallback_static_mask(self) -> None:
+        """kind_registry=None 时回退静态 UNMASKABLE_MASK（行为不变）。"""
+        m = ControlMessageMaskManager(kind_registry=None)
+        result = m.set_blocked(
+            MaskOperation.SETMASK,
+            _bit(ControlMessageKind.EMERGENCY_STOP) | _bit(ControlMessageKind.PAUSE_REPLY),
+            MaskScope.SYSTEM,
+        )
+        assert result == _bit(ControlMessageKind.PAUSE_REPLY)  # 1-3 被剔除
+
+    def test_extended_whitelist_forced_out(self) -> None:
+        """白名单 {1,2,3,4} 时 kind=4 也被强制剔除（动态掩码）。"""
+        from src.core.control_message.kind_registry import ControlMessageKindRegistry
+
+        class _FakeConfig:
+            def get_control_message_unmaskable_whitelist(self) -> set[int]:
+                return {1, 2, 3, 4}
+
+        registry = ControlMessageKindRegistry(app_config_port=_FakeConfig())
+        assert registry.unmaskable_mask == 0xF  # bit0-3 = kind 1-4
+        m = ControlMessageMaskManager(kind_registry=registry)
+        result = m.set_blocked(
+            MaskOperation.SETMASK,
+            _bit(ControlMessageKind.ENGINE_FATAL_ERROR) | _bit(ControlMessageKind.PAUSE_REPLY),
+            MaskScope.SYSTEM,
+        )
+        assert result == _bit(ControlMessageKind.PAUSE_REPLY)  # kind=4 被剔除
+
+    def test_unmaskable_mask_lifetime_invariant(self) -> None:
+        """unmaskable_mask 在 KindRegistry 生命周期内不变（运行时不可修改）。"""
+        from src.core.control_message.kind_registry import ControlMessageKindRegistry
+
+        registry = ControlMessageKindRegistry()
+        before = registry.unmaskable_mask
+        _ = registry.unmaskable_whitelist  # 只读访问不改变状态
+        assert registry.unmaskable_mask == before == UNMASKABLE_MASK

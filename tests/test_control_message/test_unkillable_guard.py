@@ -109,3 +109,40 @@ class TestClearAndList:
         guard.declare_unkillable("agent:primary")
         guard.declare_unkillable("component:message_port", entity_type="component")
         assert len(guard.list_unkillable_entities()) == 2
+
+
+class TestEngineFatalProtection:
+    """FATAL_MASK 扩展：引擎致命（4/5/6）触发保护（CX 审核 P1-1，tasks 3.2）。"""
+
+    def test_engine_fatal_rejected(self) -> None:
+        """UNKILLABLE 实体 + 4/5/6 → REJECTED（spec §5.6.1 规则 2）。"""
+        guard = UnkillableGuard()
+        guard.declare_unkillable("agent:primary")
+        for kind in (
+            ControlMessageKind.ENGINE_FATAL_ERROR,
+            ControlMessageKind.MEMORY_SUBSYSTEM_FAILURE,
+            ControlMessageKind.SESSION_CORRUPTED,
+        ):
+            result = guard.check_protection("agent:primary", kind, force=False)
+            assert result.action is ProtectionAction.REJECTED, kind
+            assert result.reason == "CONTROL_UNKILLABLE_PROTECTED"
+
+    def test_engine_fatal_force_cleared(self) -> None:
+        """force + 4/5/6 → CLEARED（spec §5.6.1 规则 3）。"""
+        guard = UnkillableGuard()
+        for kind in (
+            ControlMessageKind.ENGINE_FATAL_ERROR,
+            ControlMessageKind.MEMORY_SUBSYSTEM_FAILURE,
+            ControlMessageKind.SESSION_CORRUPTED,
+        ):
+            guard.declare_unkillable("agent:primary")
+            result = guard.check_protection("agent:primary", kind, force=True)
+            assert result.action is ProtectionAction.CLEARED, kind
+            assert not guard.is_protected("agent:primary")
+
+    def test_non_fatal_still_proceed(self) -> None:
+        """非致命（12）仍 PROCEED（spec §5.6.1 规则 4 不变性）。"""
+        guard = UnkillableGuard()
+        guard.declare_unkillable("agent:primary")
+        result = guard.check_protection("agent:primary", ControlMessageKind.PAUSE_REPLY, force=False)
+        assert result.action is ProtectionAction.PROCEED

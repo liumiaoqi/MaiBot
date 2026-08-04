@@ -1,7 +1,7 @@
 """ZG-8 控制消息优先级 — 致命扩散引擎。
 
 对标 Linux `zap_other_threads`：
-- 会话收到致命控制消息（SESSION_DESTROY）时，向关联异步任务扩散取消信号
+- 会话收到致命控制消息（4/5/6/9，FATAL_MASK 判定）时，向关联异步任务扩散取消信号
 - 避免孤儿任务继续向已死会话写入
 - 异步下发不阻塞控制消息处理（spec §5.9.1 规则 4，ADR-09）
 """
@@ -13,9 +13,8 @@ from typing import Any, Optional
 
 
 from src.core.control_message.types import (
-
-    FATAL_MASK,
     ControlMessageKind,
+    FATAL_MASK,
     FatalDiffuseRecord,
 )
 

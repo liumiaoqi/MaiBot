@@ -226,6 +226,9 @@ class ControlMessageAdapter(ControlMessagePort):
         result = await self._force_channel.force_send(
             kind, target_session_id, target_entity, reason, caller
         )
+        # force 致命消息（4-6）也触发扩散（spec §5.9.1 规则 1 未豁免 force，CX 审核 P1-8）
+        if result.delivered and self._kind_registry.is_fatal(kind):
+            await self._fatal_diffuser.diffuse(target_session_id or "", kind)
         self._record_decision(
             kind, target_session_id, target_entity, time.monotonic(), "not_blocked",
             True, result.delivered and bool(target_entity),

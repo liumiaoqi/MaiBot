@@ -62,7 +62,9 @@ class ControlMessageKindRegistry:
                 self._unmaskable_whitelist = parsed
             elif parsed:
                 logger.warning(
-                    "不可屏蔽白名单配置不满足超集约束（期望 {1,2,3} ⊆ 配置值），实际 %s，保持默认",
+                    "CONTROL_CONFIG_UNMASKABLE_VIOLATION: 超集约束不满足，"
+                    "期望包含 %s，实际 %s，保持默认",
+                    set(_DEFAULT_UNMASKABLE_WHITELIST),
                     set(parsed),
                 )
 
@@ -104,9 +106,9 @@ class ControlMessageKindRegistry:
         return (1 << (known - 1)) & SYNCHRONOUS_MASK != 0
 
     def is_unmaskable(self, kind: object) -> bool:
-        """是否不可屏蔽（系统级强制，编号 1-3，spec §5.1.1 规则 4）。"""
+        """是否不可屏蔽（默认 1-3，白名单扩展时含扩展类别，spec §5.5.1 规则 2）。"""
         known = self._require_known(kind)
-        return (1 << (known - 1)) & UNMASKABLE_MASK != 0
+        return (1 << (known - 1)) & self.unmaskable_mask != 0
 
     def is_standard(self, kind: object) -> bool:
         """是否标准控制消息（同类去重，编号 1-14，spec §5.1.1 规则 3）。"""

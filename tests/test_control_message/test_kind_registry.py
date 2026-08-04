@@ -149,3 +149,37 @@ class TestKindRegistry:
 
         registry = ControlMessageKindRegistry(app_config_port=BadConfigPort())
         assert registry.unmaskable_whitelist == frozenset({ControlMessageKind(k) for k in (1, 2, 3)})
+
+
+class TestUnmaskableMaskDynamic:
+    """动态不可屏蔽掩码（CX 审核 P1-5，tasks 6.3）。"""
+
+    def test_default_mask_value(self) -> None:
+        """默认白名单 {1,2,3} → unmaskable_mask == UNMASKABLE_MASK == 0x7。"""
+        from src.core.control_message.types import UNMASKABLE_MASK
+
+        registry = ControlMessageKindRegistry()
+        assert registry.unmaskable_mask == UNMASKABLE_MASK == 0x7
+
+    def test_extended_mask_value(self) -> None:
+        """白名单 {1,2,3,4} → unmaskable_mask == 0xF（含 bit3）。"""
+
+        class ExtConfigPort:
+            def get_control_message_unmaskable_whitelist(self) -> set[int]:
+                return {1, 2, 3, 4}
+
+        registry = ControlMessageKindRegistry(app_config_port=ExtConfigPort())
+        assert registry.unmaskable_mask == 0xF
+
+    def test_unrelated_whitelist_rejected(self) -> None:
+        """无关非法白名单 {4,5}（不含 1-3）→ 保持默认（spec §5.5.1 规则 2）。"""
+
+        class BadConfigPort:
+            def get_control_message_unmaskable_whitelist(self) -> set[int]:
+                return {4, 5}
+
+        registry = ControlMessageKindRegistry(app_config_port=BadConfigPort())
+        assert registry.unmaskable_whitelist == frozenset(
+            {ControlMessageKind(k) for k in (1, 2, 3)}
+        )
+        assert registry.unmaskable_mask == 0x7

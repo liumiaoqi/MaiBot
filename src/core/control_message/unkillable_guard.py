@@ -12,9 +12,8 @@ from typing import Optional
 
 
 from src.core.control_message.types import (
-
-    FATAL_MASK,
     ControlMessageKind,
+    FATAL_MASK,
     ProtectionAction,
     ProtectionResult,
     UnkillableDeclaration,

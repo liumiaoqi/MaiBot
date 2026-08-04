@@ -67,6 +67,21 @@ class ControlMessagePending:
         Returns:
             EnqueueResult，达上限时 accepted=False（CONTROL_PENDING_OVERFLOW）
         """
+        bit = 1 << (kind - 1)
+
+        if self._registry.is_standard(kind) and self.kind_bitmap & bit:
+            # 已 pending 的标准消息：去重更新不占新节点（CX P2-3——必须在溢出判断之前，
+            # 否则队列满时先驱逐低优先级节点、去重分支又不占位 → 误删）
+            for i, node in enumerate(self.node_list):
+                if node.kind == kind:
+                    node.info = info
+                    node.insert_order = self._next_insert_order()
+                    moved = self.node_list[i]
+                    del self.node_list[i]
+                    self.node_list.append(moved)
+                    break
+            return EnqueueResult(accepted=True, deduplicated=True)
+
         if self.node_count >= self.max_nodes:
             evict_target = self._find_eviction_target(kind)
             if evict_target is not None:
@@ -82,20 +97,7 @@ class ControlMessagePending:
             else:
                 return EnqueueResult(accepted=False, reason="CONTROL_PENDING_OVERFLOW")
 
-        bit = 1 << (kind - 1)
-
         if self._registry.is_standard(kind):
-            if self.kind_bitmap & bit:
-                # 已 pending：更新 payload，移至链表尾（spec §5.2.1 规则 2/4）
-                for i, node in enumerate(self.node_list):
-                    if node.kind == kind:
-                        node.info = info
-                        node.insert_order = self._next_insert_order()
-                        moved = self.node_list[i]
-                        del self.node_list[i]
-                        self.node_list.append(moved)
-                        break
-                return EnqueueResult(accepted=True, deduplicated=True)
             self.kind_bitmap |= bit
             node = ControlMessagePendingNode(
                 kind=kind,

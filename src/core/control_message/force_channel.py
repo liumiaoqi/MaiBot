@@ -13,10 +13,10 @@ import time
 from src.core.control_message.mask_manager import ControlMessageMaskManager
 from src.core.control_message.two_level_pending import TwoLevelPendingManager
 from src.core.control_message.types import (
-    FORCE_ALLOWED_MASK,
     ControlMessageDeliveryResult,
     ControlMessageKind,
     DeliveryResult,
+    FORCE_ALLOWED_MASK,
 )
 from src.core.control_message.unkillable_guard import UnkillableGuard
 
@@ -84,7 +84,7 @@ class ForceChannel:
         """force 强制投递 — 绕过所有保护，必须成功投递。
 
         Args:
-            kind: 控制消息类别（必须为系统级强制 1-3）
+            kind: 控制消息类别（必须 1-6，系统级强制 + 引擎致命）
             target_session_id: 目标会话 ID
             target_entity: 目标实体标识
             reason: 强制投递原因（审计）

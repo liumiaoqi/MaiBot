@@ -157,3 +157,29 @@ class TestDiffuse:
         """无生命周期端口（未注入）跳过扩散。"""
         diffuser = FatalDiffuser(session_lifecycle_port=None)
         assert await diffuser.diffuse("s1", ControlMessageKind.SESSION_DESTROY) is None
+
+
+class TestFatalMaskExtension:
+    """FATAL_MASK 扩展：4/5/6 触发扩散、7 不触发（CX 审核 P1-2，tasks 4.2）。"""
+
+    @pytest.mark.asyncio
+    async def test_engine_fatal_kinds_diffused(self) -> None:
+        """4/5/6 → 触发扩散且记录实际 kind（spec §5.9.1 规则 1/2）。"""
+        lifecycle = _MockLifecycle([])
+        diffuser = FatalDiffuser(session_lifecycle_port=lifecycle)
+        for kind in (
+            ControlMessageKind.ENGINE_FATAL_ERROR,
+            ControlMessageKind.MEMORY_SUBSYSTEM_FAILURE,
+            ControlMessageKind.SESSION_CORRUPTED,
+        ):
+            record = await diffuser.diffuse("s1", kind)
+            assert record is not None, kind
+            assert record.kind == kind
+
+    @pytest.mark.asyncio
+    async def test_session_stop_not_diffused(self) -> None:
+        """SESSION_STOP(7) 非致命 → 不扩散（spec §5.9.1 规则 1）。"""
+        lifecycle = _MockLifecycle([])
+        diffuser = FatalDiffuser(session_lifecycle_port=lifecycle)
+        record = await diffuser.diffuse("s1", ControlMessageKind.SESSION_STOP)
+        assert record is None
