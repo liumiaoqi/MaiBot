@@ -923,9 +923,10 @@ class MainSystem:
         try:
             from src.webui.webui_server import get_threaded_webui_server
             webui = get_threaded_webui_server()
-            if webui is not None and webui.app is not None:
-                webui.app.state.scope_store = self._v2_host_endpoint._scope_store
-                webui.app.state.token_service = self._v2_host_endpoint._token_service
+            webui_inner = getattr(webui, "_server", None) if webui is not None else None
+            if webui_inner is not None and webui_inner.app is not None:
+                webui_inner.app.state.scope_store = self._v2_host_endpoint._scope_store
+                webui_inner.app.state.token_service = self._v2_host_endpoint._token_service
         except Exception:
             logger.warning("操作异常 in main.py", exc_info=True)
 
@@ -1082,7 +1083,11 @@ class MainSystem:
         dependency_kind={"config_manager": DependencyKind.WEAK},
     )
     async def _start_webui() -> None:
-        _require_main_system()._start_webui_server()
+        system = _require_main_system()
+        system._start_webui_server()
+        # V2 插件 scope 注入：webui 启动后执行（原在 SUBSYSTEMS 的 v2 启动路径，
+        # 那时 webui 未启动注入不生效——时序修复）
+        await system._inject_scope_services_to_webui()
 
     @staticmethod
     @startup_item(
