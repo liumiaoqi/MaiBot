@@ -896,6 +896,10 @@ class MainSystem:
 
     @staticmethod
     async def _inject_ipc_bridge_port() -> None:
+        # SUBSYSTEMS 阶段并行执行（orchestrator._run_subsystems_parallel），order 仅定
+        # 创建顺序不保证执行先后——本组件可能在 plugin_runtime 启动完成前执行。
+        # 安全性靠 get_plugin_runtime_manager() 懒加载同一单例兜底：PRM 未启动时
+        # is_running=False，EventBus 桥接跳过，与修复前行为等价（CX 审核 P2-6）。
         from src.core.adapters.ipc_bridge_port import IpcBridgePortAdapter
         from src.core.ipc_bridge_port_registry import set_ipc_bridge_port
         from src.plugin_runtime.integration import get_plugin_runtime_manager

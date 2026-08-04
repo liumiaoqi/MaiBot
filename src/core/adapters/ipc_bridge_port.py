@@ -8,15 +8,16 @@
 from typing import Any, Dict, Optional, Tuple
 
 from src.core.protocols import IpcBridgePort
+from src.plugin_runtime.integration import PluginRuntimeManager
 
 
 class IpcBridgePortAdapter(IpcBridgePort):
     """IPC 桥接端口适配器 — 委托 PluginRuntimeManager 实现桥接。
 
-    适配器层唯一允许导入 PluginRuntimeManager 具体类的地方。
+    适配器层唯一允许导入 PluginRuntimeManager 具体类的地方（TID251 豁免区）。
     """
 
-    def __init__(self, prm: Any) -> None:
+    def __init__(self, prm: PluginRuntimeManager) -> None:
         """构造适配器。
 
         Args:
