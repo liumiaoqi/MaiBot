@@ -118,7 +118,7 @@ class JargonLearningBatchGate:
 jargon_learning_batch_gate = JargonLearningBatchGate()
 
 
-@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=False)
 class JargonLearner:
     def __init__(self, session_id: str) -> None:
         """初始化黑话学习器。

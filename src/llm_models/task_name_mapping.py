@@ -8,18 +8,18 @@
 TASK_NAME_TO_CAPABILITIES: dict[str, frozenset[str]] = {
     "replyer": frozenset({"text_generation"}),
     "planner": frozenset({"text_generation", "tool_calling"}),
-    "utils": frozenset({"text_generation", "tool_use"}),
+    "utils": frozenset({"text_generation", "tool_calling"}),
     "memory": frozenset({"text_generation"}),
     "mid_memory": frozenset({"text_generation"}),
     "expression_use": frozenset({"text_generation"}),
-    "learner": frozenset({"text_generation", "tool_use"}),
+    "learner": frozenset({"text_generation", "tool_calling"}),
     "emoji": frozenset({"text_generation"}),
     "vlm": frozenset({"vision", "text_generation"}),
     "voice": frozenset({"voice"}),
     "embedding": frozenset({"embedding"}),
     # 配置外键（A_Memorix 域，model_routing 优先级表）
-    "lpmm_entity_extract": frozenset({"text_generation", "tool_use"}),
-    "lpmm_rdf_build": frozenset({"text_generation", "tool_use"}),
+    "lpmm_entity_extract": frozenset({"text_generation", "tool_calling"}),
+    "lpmm_rdf_build": frozenset({"text_generation", "tool_calling"}),
 }
 
 # 提示可用标签的错误信息（未知 task_name 时）

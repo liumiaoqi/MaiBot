@@ -26,7 +26,7 @@ from .services.types import KernelSearchRequest
 
 logger = get_logger("A_Memorix.SDKMemoryKernel")
 
-@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=False)
 class SDKMemoryKernel:
     def __init__(self, *, plugin_root: Path, config: Optional[Dict[str, Any]] = None, ports: Optional[Any] = None) -> None:
         self.plugin_root = Path(plugin_root).resolve()

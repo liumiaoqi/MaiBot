@@ -13,9 +13,75 @@ from src.common.logger import get_logger
 from src.common.runtime_loop import set_main_loop
 from src.config.config import global_config
 from src.core.service_manager.types import DependencyKind
+
 from src.core.startup import StartupPhase, startup_item
 from src.manager.async_task_manager import async_task_manager
 from src.prompt.prompt_manager import prompt_manager
+
+def run_model_config_check() -> int:
+    """--check-model-config：校验注册表 + @model_requirement 声明后退出。
+
+    对标 Linux device probe：声明不可满足 → 可见地不可用（不假装驱动了设备）。
+
+    Returns:
+        0 = 全部满足；1 = 非 critical 声明降级；2 = critical 声明不满足（拒绝启动）
+    """
+    from src.config.config import MODEL_CONFIG_PATH, MODEL_CONFIG_VERSION, ModelConfig, load_config_from_file
+    from src.core.adapters.model_config_port import ConfigManagerModelConfigPort as _Port
+    from src.llm_models.declaration_validator import DeclarationValidator, STATUS_FAST_FAIL
+    from src.llm_models.model_registry import ModelRegistry
+
+    # 收集全部 @model_requirement 声明（import 声明模块触发注册）
+    _DECLARATION_MODULES = (
+        "src.maisaka.agent_autonomy.thinking_organ",
+        "src.maisaka.agent_autonomy.butler",
+        "src.maisaka.agent_autonomy.reminder",
+        "src.maisaka.replyer.generator_base",
+        "src.maisaka.builtin_tool.send_emoji",
+        "src.services.embedding_service",
+        "src.emoji_system.emoji_manager",
+        "src.chat.image_system.image_manager",
+        "src.common.utils.utils_voice",
+        "src.learners.jargon_learner",
+        "src.learners.expression_learner",
+        "src.learners.jargon_miner",
+        "src.A_memorix.core.runtime.sdk_memory_kernel",
+        "src.maisaka.memory.heuristic_injector",
+        "src.services.memory_flow_service",
+        "src.maisaka.memory.mid_term",
+    )
+    import importlib
+
+    for module_name in _DECLARATION_MODULES:
+        try:
+            importlib.import_module(module_name)
+        except Exception as exc:
+            print(f"  ⚠️ 声明模块 {module_name} 导入失败（该组件声明未收集）: {exc}")
+
+    model_config, _ = load_config_from_file(
+        ModelConfig, MODEL_CONFIG_PATH, MODEL_CONFIG_VERSION, override_repr=True,
+    )
+    registry = ModelRegistry()
+    entries = [_Port._to_entry(m) for m in model_config.models]
+    registry.build_index(list(model_config.api_providers), entries)
+
+    report = DeclarationValidator().validate_all_declarations(registry)
+    print("=" * 60)
+    print("模型配置校验（--check-model-config）")
+    print("=" * 60)
+    for item in report.items:
+        mark = {"passed": "✅", "fast_fail": "❌", "degraded": "⚠️"}.get(item.status, "?")
+        detail = item.detail or f"解析到 ({item.resolved_model})"
+        print(f"  {mark} {item.component_name}: {detail}")
+    print("-" * 60)
+    print(f"结果: {report.status}（{len(report.items)} 项声明）")
+    if report.status == STATUS_FAST_FAIL:
+        print(f"  critical 声明不可满足: {report.fast_fail_components}")
+        return 2
+    if report.degraded_components:
+        return 1
+    return 0
+
 
 # from src.api.main import start_api_server
 
@@ -1245,6 +1311,12 @@ if __name__ == "__main__":
         "--skip-startup-item", type=str, default="",
         help="逗号分隔的跳过启动项名称（对标 initcall_blacklist）",
     )
+    _parser.add_argument(
+        "--check-model-config", action="store_true",
+        help="仅校验模型配置（注册表 + @model_requirement 声明）后退出，不启动系统",
+    )
     _args = _parser.parse_args()
+    if _args.check_model_config:
+        sys.exit(run_model_config_check())
     _skip = {n.strip() for n in _args.skip_startup_item.split(",") if n.strip()}
     asyncio.run(main(debug_startup=_args.debug_startup, skip_startup_items=_skip))

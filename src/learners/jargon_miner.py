@@ -124,7 +124,7 @@ def register_jargon_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
     )
 
 
-@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=False)
 class JargonMiner:
     def __init__(self, session_id: str, session_name: str) -> None:
         """初始化黑话学习器。

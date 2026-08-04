@@ -31,7 +31,7 @@ class PersonFactEvidence:
     context_messages: List[Any]
 
 
-@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=False)
 class PersonFactWritebackService:
     def __init__(self, llm_service: LLMService | None = None) -> None:
         self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=256)

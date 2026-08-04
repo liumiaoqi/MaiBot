@@ -385,6 +385,14 @@ class ModelInfo(ConfigBase):
         # visual=True 自动迁移为 vision 能力（T14）
         if getattr(self, "visual", False) and "vision" not in self.capabilities:
             self.capabilities.add("vision")
+        # capabilities 按 category 默认迁移（旧配置无新字段——不算配置写错）。
+        # 并集语义：visual 模型同时是文本模型（vision + text_generation + tool_calling）。
+        if self.category == "embedding":
+            self.capabilities.add("embedding")
+        elif self.category == "voice":
+            self.capabilities.add("voice")
+        else:
+            self.capabilities.update({"text_generation", "tool_calling"})
         return super().model_post_init(context)
 
 

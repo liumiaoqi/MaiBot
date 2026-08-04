@@ -54,7 +54,7 @@ class HeuristicMemoryContext:
     agent_id: str = ""
 
 
-@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=False)
 class HeuristicMemoryInjector:
     """根据当前聊天流印象自然拉起长期记忆。"""
 

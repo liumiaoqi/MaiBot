@@ -183,7 +183,7 @@ def register_expression_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]
     )
 
 
-@model_requirement(capabilities=["text_generation", "tool_use"], critical=False)
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=False)
 class ExpressionLearner:
     def __init__(self, session_id: str) -> None:
         """初始化表达方式学习器。
