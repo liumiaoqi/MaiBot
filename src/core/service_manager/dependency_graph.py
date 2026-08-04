@@ -257,6 +257,10 @@ class DependencyGraph:
         """查询直接依赖该组件的组件集合。"""
         return set(self._dependents.get(component_id, {}).keys())
 
+    def dependents_with_kind(self, component_id: str) -> dict[str, DependencyKind]:
+        """查询直接依赖该组件的组件及其依赖类型（ZG-10，供失败传播）。"""
+        return dict(self._dependents.get(component_id, {}))
+
     def dependencies_of(self, component_id: str) -> set[str]:
         """查询该组件直接依赖的组件集合。"""
         return set(self._dependencies.get(component_id, {}).keys())
