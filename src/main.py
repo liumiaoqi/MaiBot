@@ -877,6 +877,8 @@ class MainSystem:
         phase=StartupPhase.SUBSYSTEMS,
         order=0,
         critical=False,
+        depends_on=["llm_service_port"],
+        dependency_kind={"llm_service_port": DependencyKind.WEAK},
     )
     async def _start_plugin_runtime() -> None:
         from src.plugin_runtime.integration import get_plugin_runtime_manager
@@ -890,8 +892,11 @@ class MainSystem:
         phase=StartupPhase.SUBSYSTEMS,
         order=2,
         critical=False,
-        depends_on=["app_config_port"],
-        dependency_kind={"app_config_port": DependencyKind.STRONG},
+        depends_on=["app_config_port", "llm_service_port"],
+        dependency_kind={
+            "app_config_port": DependencyKind.STRONG,
+            "llm_service_port": DependencyKind.WEAK,
+        },
     )
     async def _start_plugin_runtime_v2() -> None:
         system = _require_main_system()
@@ -948,6 +953,8 @@ class MainSystem:
         phase=StartupPhase.SUBSYSTEMS,
         order=3,
         critical=False,
+        depends_on=["llm_service_port"],
+        dependency_kind={"llm_service_port": DependencyKind.WEAK},
     )
     async def _load_emoji() -> None:
         from src.emoji_system.emoji_manager import emoji_manager

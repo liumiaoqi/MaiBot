@@ -83,8 +83,7 @@ class StartupArbiter:
             DependencyCycleError: 依赖声明形成环
         """
         skip = set(skip_names or ())
-        active = {n: d for n, d in items.items() if n not in skip}
-        if not active:
+        if not items:
             return WavePlan()
 
         graph = DependencyGraph()
@@ -92,22 +91,30 @@ class StartupArbiter:
         barrier_id = barrier.VIRTUAL_NODE_ID
 
         # 1. 全部节点 + 依赖边（缺省 STRONG）
-        for name, desc in active.items():
+        #    skip 项保留在图中（失败传播可达），但不出现在波次中（不执行）
+        for name, desc in items.items():
             graph.add_node(name)
             for dep_name in desc.depends_on:
-                if dep_name not in active:
-                    continue  # 跳过被 skip 的依赖（视为已完成）
+                if dep_name not in items:
+                    # P1-6: 声明错误的依赖——告警而非静默丢弃
+                    from src.common.logger import get_logger
+
+                    get_logger("startup.arbiter").warning(
+                        "启动项 %s 声明了不存在的依赖: %s（声明错误或被遗漏）",
+                        name, dep_name,
+                    )
+                    continue
                 kind = desc.dependency_kind.get(dep_name, DependencyKind.STRONG)
                 graph.add_relation(DependencyRelation(name, dep_name, kind))
 
         # 2. 屏障虚拟节点：贡献组件 → 屏障（STRONG）；屏障 → 门控相位全部项（STRONG）
         graph.add_node(barrier_id)
         for cid in barrier.contributor_ids:
-            if cid in active:
+            if cid in items:
                 graph.add_relation(DependencyRelation(barrier_id, cid, DependencyKind.STRONG))
         for phase in self._BARRIER_GATED_PHASES:
-            for name, desc in active.items():
-                if desc.phase == phase:
+            for name, desc in items.items():
+                if desc.phase == phase and name not in skip:
                     graph.add_relation(DependencyRelation(name, barrier_id, DependencyKind.STRONG))
 
         # 3. 全局环检测（含屏障）
@@ -119,7 +126,8 @@ class StartupArbiter:
         phases: dict[StartupPhase, list[list[str]]] = {}
         barrier_wave: dict[StartupPhase, int] = {}
         for phase in StartupPhase:
-            phase_items = {n for n, d in active.items() if d.phase == phase}
+            phase_items = {n for n, d in items.items()
+                           if d.phase == phase and n not in skip}
             if not phase_items:
                 continue
             # 门控相位：屏障节点参与波次计算（其依赖贡献组件跨相位视为已完成）

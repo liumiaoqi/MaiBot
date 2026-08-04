@@ -93,6 +93,7 @@ class StartupOrchestrator:
         """收集声明 → 仲裁 → 逐相位逐波次执行 → 回调 → 冻结 → 摘要。"""
         self._start_time = time.monotonic()
         self._running = True
+        _registry._running = True  # P1-4: 运行期禁止装饰器注册
 
         # 1. 收集声明（装饰器 + 编程式，合并去重）
         for name, desc in _registry.drain().items():
@@ -101,7 +102,21 @@ class StartupOrchestrator:
         if not self._items:
             logger.warning("无启动项声明——启动流程为空")
             self._running = False
+            _registry._running = False
             return StartupResult(total_duration_ms=0)
+
+        # P0-3: skip 校验——核心就绪贡献组件不可跳过；未知名称告警
+        for name in self.skip_names:
+            desc = self._items.get(name)
+            if desc is None:
+                logger.warning(
+                    "--skip-startup-item 包含未注册名称: %s（忽略）", name
+                )
+                continue
+            if desc.core_readiness_flag:
+                raise ValueError(
+                    f"禁止跳过核心就绪贡献组件: {name}（{desc.core_readiness_flag}）"
+                )
 
         # 2. 仲裁（构建图 + 屏障 + 相位分波 + 环检测）
         arbiter = StartupArbiter()
@@ -118,12 +133,26 @@ class StartupOrchestrator:
             name: StartupItemRuntimeState(name=name, status=ComponentStatus.PENDING)
             for name in self._items
         }
+        propagator = FailurePropagator()
         for name in self.skip_names:
             if name in self._runtime_states:
                 self._runtime_states[name].status = ComponentStatus.SKIPPED
                 self._runtime_states[name].skip_reason = "命令行跳过"
                 skipped.append(name)
-        propagator = FailurePropagator()
+                # P0-2: 跳过视为失败——STRONG 依赖方 SKIPPED / WEAK 依赖方 DEGRADED
+                if self._graph is not None:
+                    prop = propagator.propagate(name, self._graph, {
+                        n: s.status for n, s in self._runtime_states.items()
+                    })
+                    for n, st in prop.state_updates.items():
+                        if n == CoreReadinessBarrier.VIRTUAL_NODE_ID:
+                            continue
+                        self._runtime_states[n].status = st
+                        if st == ComponentStatus.SKIPPED:
+                            skipped.append(n)
+                        elif st == ComponentStatus.DEGRADED:
+                            degraded.append(n)
+                    failure_chains.update(prop.failure_chains)
         plan = self._wave_plan
         phase_failed = False
 
@@ -163,6 +192,7 @@ class StartupOrchestrator:
         # 9. 摘要
         self._emit_startup_summary(result)
         self._running = False
+        _registry._running = False
         return result
 
     async def _run_phase_waves(
@@ -198,12 +228,26 @@ class StartupOrchestrator:
             # 波次内并行（SUBSYSTEMS 保留 safe 包装，其余直接执行）
             if phase == StartupPhase.SUBSYSTEMS:
                 await asyncio.gather(
-                    *[self._run_item_safe(name) for name in items]
+                    *[self._run_item_safe(name, wave_index) for name in items]
                 )
             else:
                 await asyncio.gather(
-                    *[self._run_item(name) for name in items]
+                    *[self._run_item(name, wave_index) for name in items]
                 )
+            # P1-1: critical 失败立即中止当前相位剩余波次（对标旧 _run_component raise）。
+            # 传播先于中止（bad 进 failed 列表 + STRONG/WEAK 依赖方标记）
+            if any(
+                self._items[n].critical
+                and self._runtime_states[n].status == ComponentStatus.FAILED
+                for n in items
+            ):
+                for n in items:
+                    if self._runtime_states[n].status == ComponentStatus.FAILED:
+                        failed.append(n)
+                logger.error(
+                    f"[启动] {phase_name} 波次{wave_index} 关键组件失败，中止当前相位"
+                )
+                return self._phase_result_failed(phase, start)
             # 失败传播
             for name in items:
                 state = self._runtime_states[name]
@@ -256,15 +300,17 @@ class StartupOrchestrator:
 
     # ── 单项执行 ─────────────────────────────────────────────────
 
-    async def _run_item(self, name: str) -> None:
+    async def _run_item(self, name: str, wave: int = 0) -> None:
         state = self._runtime_states[name]
-        if state.status != ComponentStatus.PENDING:
+        if state.status not in (ComponentStatus.PENDING, ComponentStatus.DEGRADED):
             return
+        was_degraded = state.status == ComponentStatus.DEGRADED
         state.status = ComponentStatus.IN_PROGRESS
         state.start_time = time.monotonic()
         try:
             await self._items[name].init_fn()
-            state.status = ComponentStatus.SUCCESS
+            # P0-1: WEAK 降级项仍执行；成功后保持 DEGRADED（降级运行）
+            state.status = ComponentStatus.DEGRADED if was_degraded else ComponentStatus.SUCCESS
         except Exception as exc:
             state.status = ComponentStatus.FAILED
             state.error = exc
@@ -278,21 +324,22 @@ class StartupOrchestrator:
             if self.debug_mode:
                 logger.info(
                     f"启动项 {name} | 相位={self._items[name].phase.name} "
-                    f"| 结果={state.status.value} | 耗时={state.duration_ms}ms"
+                    f"| 波次={wave} | 结果={state.status.name} | 耗时={state.duration_ms}ms"
                 )
 
-    async def _run_item_safe(self, name: str) -> None:
+    async def _run_item_safe(self, name: str, wave: int = 0) -> None:
         """子系统单项——无论成败都不传播异常（与存量 safe 语义一致）。"""
         state = self._runtime_states[name]
-        if state.status != ComponentStatus.PENDING:
+        if state.status not in (ComponentStatus.PENDING, ComponentStatus.DEGRADED):
             return
+        was_degraded = state.status == ComponentStatus.DEGRADED
         state.status = ComponentStatus.IN_PROGRESS
         state.start_time = time.monotonic()
         try:
             await asyncio.wait_for(
                 self._items[name].init_fn(), timeout=_SUBSYSTEM_TIMEOUT
             )
-            state.status = ComponentStatus.SUCCESS
+            state.status = ComponentStatus.DEGRADED if was_degraded else ComponentStatus.SUCCESS
         except asyncio.TimeoutError:
             state.status = ComponentStatus.FAILED
             state.error = f"超时 {_SUBSYSTEM_TIMEOUT}s"
@@ -311,8 +358,20 @@ class StartupOrchestrator:
             if self.debug_mode:
                 logger.info(
                     f"启动项 {name} | 相位={self._items[name].phase.name} "
-                    f"| 结果={state.status.value} | 耗时={state.duration_ms}ms"
+                    f"| 波次={wave} | 结果={state.status.name} | 耗时={state.duration_ms}ms"
                 )
+
+    def _phase_result_failed(self, phase: StartupPhase, start: float) -> PhaseResult:
+        """关键组件失败时立即返回失败相位结果（P1-1）。"""
+        end = time.monotonic()
+        return PhaseResult(
+            phase=phase,
+            status=ComponentStatus.FAILED,
+            start_time=start,
+            end_time=end,
+            duration_ms=int((end - start) * 1000),
+            components=[],
+        )
 
     # ── 核心就绪 / 冻结 / 回调 ───────────────────────────────────
 
@@ -357,9 +416,11 @@ class StartupOrchestrator:
                 robust=False,
                 nofail=True,
             )
+            # EventBus.emit 仅接受 MaiMessages，result 详情由结构化日志承载
             logger.info(
                 f"[启动] StartupCompleteEvent 已发布 | ready={result.ready} | "
-                f"耗时={result.total_duration_ms}ms"
+                f"耗时={result.total_duration_ms}ms | failed={result.failed_components} | "
+                f"skipped={result.skipped_components} | degraded={result.degraded_components}"
             )
         except Exception:
             logger.warning("StartupCompleteEvent 发布失败（不阻断启动）", exc_info=True)
@@ -386,9 +447,9 @@ class StartupOrchestrator:
             failed_components=list(dict.fromkeys(failed)),
             degraded_components=list(dict.fromkeys(degraded)),
             skipped_components=list(dict.fromkeys(skipped)),
-            ready=not any(
-                self._items[n].critical
-                and self._runtime_states[n].status == ComponentStatus.FAILED
+            ready=all(
+                not self._items[n].critical
+                or self._runtime_states[n].status == ComponentStatus.SUCCESS
                 for n in self._runtime_states
             ),
             core_ready=self._core_readiness.core_ready,

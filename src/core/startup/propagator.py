@@ -66,6 +66,10 @@ class FailurePropagator:
                 if dependent in visited:
                     # 已处理节点（含根）：不标记（根是 FAILED 不是被传播的 SKIPPED）
                     continue
+                if current_states.get(dependent) == ComponentStatus.SKIPPED:
+                    # P1-2 跨调用 STRONG 优先：已被 STRONG 标记 SKIPPED 的项
+                    # 不再被后续 WEAK 传播降级为 DEGRADED
+                    continue
                 if kind == DependencyKind.STRONG:
                     # STRONG：标记 SKIPPED + 递归传播
                     if updates.get(dependent) != ComponentStatus.SKIPPED:

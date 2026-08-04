@@ -168,3 +168,94 @@ class TestConfigFreeze:
         assert cm.frozen is True
         with pytest.raises(ConfigFrozenError):
             await cm.reload_config()
+
+
+class TestCXReviewFixes:
+    """CX 审核 P0/P1 修复验证。"""
+
+    @pytest.mark.asyncio
+    async def test_weak_dependent_still_executes(self) -> None:
+        """P0-1: WEAK 降级项仍执行 init_fn（执行后保持 DEGRADED）。"""
+        from src.core.service_manager.types import DependencyKind
+
+        executed: list[str] = []
+
+        async def boom() -> None:
+            raise RuntimeError("boom")
+
+        async def weak_init() -> None:
+            executed.append("weak")
+
+        orch = StartupOrchestrator()
+        orch.register(_desc("bad", StartupPhase.CORE_SERVICES, init_fn=boom))
+        orch.register(_desc(
+            "weak", StartupPhase.CORE_SERVICES, init_fn=weak_init,
+            depends_on=["bad"], dependency_kind={"bad": DependencyKind.WEAK},
+        ))
+        result = await orch.run()
+        assert executed == ["weak"]  # WEAK 项确实执行了
+        assert "weak" in result.degraded_components
+
+    @pytest.mark.asyncio
+    async def test_skip_triggers_propagation(self) -> None:
+        """P0-2: skip 项触发失败传播（STRONG 依赖方 SKIPPED）。"""
+        orch = StartupOrchestrator(skip_names={"bad"})
+        orch.register(_desc("bad", StartupPhase.CORE_SERVICES, critical=True))
+        orch.register(_desc("dep", StartupPhase.CORE_SERVICES, depends_on=["bad"]))
+        result = await orch.run()
+        assert "bad" in result.skipped_components
+        assert "dep" in result.skipped_components  # STRONG 依赖方被传播 SKIPPED
+
+    @pytest.mark.asyncio
+    async def test_skip_core_contributor_rejected(self) -> None:
+        """P0-3: 跳过核心就绪贡献组件 → 拒绝启动。"""
+        orch = StartupOrchestrator(skip_names={"chat_manager_adapter"})
+        orch.register(_desc(
+            "chat_manager_adapter", StartupPhase.CORE_SERVICES, critical=True,
+            core_readiness_flag="message_pipeline_ready",
+        ))
+        with pytest.raises(ValueError, match="禁止跳过核心就绪贡献组件"):
+            await orch.run()
+
+    @pytest.mark.asyncio
+    async def test_skip_critical_ready_false(self) -> None:
+        """P0-4: 跳过 critical 项后 ready=False（critical 非 SUCCESS 即未就绪）。"""
+        orch = StartupOrchestrator(skip_names={"bad"})
+        orch.register(_desc("bad", StartupPhase.CORE_SERVICES, critical=True))
+        orch.register(_desc("ok", StartupPhase.READY))
+        result = await orch.run()
+        assert result.ready is False
+        assert "bad" in result.skipped_components
+
+    @pytest.mark.asyncio
+    async def test_critical_failure_aborts_current_phase_waves(self) -> None:
+        """P1-1: critical 失败中止当前相位剩余波次。"""
+        async def boom() -> None:
+            raise RuntimeError("boom")
+
+        executed: list[str] = []
+
+        async def later() -> None:
+            executed.append("later")
+
+        # later 与 bad 同相位但不同波次（bad 无依赖先执行，later 依赖 bad）
+        orch = StartupOrchestrator()
+        orch.register(_desc("bad", StartupPhase.CORE_SERVICES, init_fn=boom, critical=True))
+        orch.register(_desc("later", StartupPhase.CORE_SERVICES, init_fn=later, depends_on=["bad"]))
+        await orch.run()
+        assert executed == []  # 波次 0 失败 → 波次 1 不执行
+
+    @pytest.mark.asyncio
+    async def test_debug_log_contains_wave(self) -> None:
+        """P1-7: debug 日志含波次与状态名（大写）。"""
+        from unittest.mock import patch
+
+        orch = StartupOrchestrator(debug_mode=True)
+        orch.register(_desc("a", StartupPhase.CORE_SERVICES))
+        with patch("src.core.startup.orchestrator.logger") as mock_logger:
+            await orch.run()
+        assert any(
+            "波次=" in (c.args[0] if c.args else "")
+            and "结果=SUCCESS" in (c.args[0] if c.args else "")
+            for c in mock_logger.info.call_args_list
+        )
