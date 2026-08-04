@@ -260,8 +260,28 @@ class ConfigManagerModelConfigPort:
             pass
 
     def _on_config_reloaded(self, changed_scopes: Sequence[str] = ()) -> None:
-        """ConfigManager 热重载完成后调用，传播给消费者。"""
-        self._registry = None  # 失效注册表缓存（热重载后重建）
+        """ConfigManager 热重载完成后调用，传播给消费者。
+
+        ZG-12 热重载链（T26）：
+        1. 重建注册表索引并 diff 出受影响组件（refresh_index）
+        2. 通过 ServiceManager 精确重启受影响组件（不动其他组件）
+        3. 传播给消费回调
+        """
+        scopes = tuple(changed_scopes or ("bot", "model"))
+        affected: set[str] = set()
+        if "model" in scopes:
+            model_config = self._config_manager.get_model_config()
+            providers = list(model_config.api_providers)
+            entries = [self._to_entry(m) for m in model_config.models]
+            if self._registry is not None:
+                affected = self._registry.refresh_index(providers, entries)
+            else:
+                registry = ModelRegistry()
+                registry.build_index(providers, entries)
+                self._registry = registry
+        else:
+            self._registry = None  # 非模型 scope：整体失效（下次查询重建）
+        self._schedule_affected_restart(affected)
         for cb in list(self._reload_callbacks):
             try:
                 try:
@@ -276,6 +296,64 @@ class ConfigManagerModelConfigPort:
                     getattr(cb, "__name__", str(cb)),
                     exc_info=True,
                 )
+
+    # ── 热重载精确重启 ─────────────────────────────────
+
+    @staticmethod
+    def _resolve_component_id(component_name: str, known_ids: set[str]) -> str | None:
+        """组件名（类名）→ ServiceManager 组件 ID（启动项名）映射。
+
+        尝试驼峰 → snake 命名（ThinkingOrgan → thinking_organ）；
+        匹配已知启动项名则返回，否则返回 None（跳过重启）。
+        """
+        import re
+
+        snake = re.sub(r"(?<!^)(?=[A-Z])", "_", component_name).lower()
+        if snake in known_ids:
+            return snake
+        return None
+
+    def _schedule_affected_restart(self, affected: set[str]) -> None:
+        """通过 ServiceManager 精确重启受影响组件（异步调度，失败仅告警）。"""
+        if not affected:
+            return
+        from src.core.service_manager_port_registry import get_service_manager_port
+
+        sm_port = get_service_manager_port()
+        if sm_port is None:
+            logger.warning(
+                "模型配置热重载影响组件 %s，但 ServiceManager 未注入，跳过精确重启",
+                sorted(affected),
+            )
+            return
+        try:
+            states = sm_port.list_states()
+            known_ids = {state.component_id for state in states} if states else set()
+        except Exception:
+            known_ids = set()
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning(
+                "模型配置热重载影响组件 %s，但当前无运行中的事件循环，跳过精确重启",
+                sorted(affected),
+            )
+            return
+        for component_name in sorted(affected):
+            component_id = self._resolve_component_id(component_name, known_ids)
+            if component_id is None:
+                logger.info(
+                    "模型配置热重载影响声明 %s，无匹配启动项（声明与启动名未对齐，T28 迁移后生效）",
+                    component_name,
+                )
+                continue
+            try:
+                loop.create_task(sm_port.restart(component_id))
+                logger.info("模型配置热重载 → 精确重启组件: %s", component_id)
+            except Exception as exc:
+                logger.warning("模型配置热重载重启组件 %s 失败: %s", component_id, exc)
 
     # ── 智能体覆盖合并 ────────────────────────────────
 

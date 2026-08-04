@@ -469,6 +469,20 @@ class ClientRegistry:
                 raise KeyError(f"'{api_provider.client_type}' 类型的 Client 未注册")
         return self.client_instance_cache[api_provider.name]
 
+    def clear_provider_cache(self, provider_name: str) -> None:
+        """按 provider 粒度清理客户端实例缓存（ZG-12 热重载精确清理）。
+
+        Args:
+            provider_name: APIProvider.name；仅清理该 provider 的缓存实例，
+                其他 provider 不受影响。
+        """
+        normalized = str(provider_name or "").strip()
+        if not normalized:
+            return
+        if normalized in self.client_instance_cache:
+            self.client_instance_cache.pop(normalized, None)
+            logger.info("配置重载，已清理 provider=%s 的客户端实例缓存", normalized)
+
     def clear_client_instance_cache(self) -> None:
         """清空客户端实例缓存。"""
         self.client_instance_cache.clear()

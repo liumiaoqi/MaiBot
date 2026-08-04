@@ -1,7 +1,7 @@
 """MCP 宿主侧大模型桥接服务。"""
 
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import json
 
@@ -32,14 +32,25 @@ logger = get_logger("mcp_host_llm_bridge")
 class MCPHostLLMBridge:
     """将 MCP Sampling 请求桥接到主程序大模型调用链。"""
 
-    def __init__(self, sampling_task_name: str = "planner", llm_service: LLMService | None = None) -> None:
+    def __init__(
+        self,
+        sampling_task_name: str = "planner",
+        llm_service: LLMService | None = None,
+        sampling_capabilities: Sequence[str] | None = None,
+    ) -> None:
         """初始化 MCP 宿主侧大模型桥接服务。
 
         Args:
-            sampling_task_name: 执行 Sampling 请求时使用的模型任务名。
+            sampling_task_name: 执行 Sampling 请求时使用的模型任务名
+                （deprecated，ZG-12 组件自治后经能力映射）。
+            sampling_capabilities: 能力标签（ZG-12 主路径，
+                提供时优先于 sampling_task_name 解析）。
         """
 
         self._sampling_task_name = sampling_task_name.strip() or "planner"
+        self._sampling_capabilities: tuple[str, ...] | None = (
+            tuple(sampling_capabilities) if sampling_capabilities else None
+        )
         self._llm_service = llm_service or get_llm_service()
 
     def build_callbacks(self) -> MCPHostCallbacks:
@@ -83,9 +94,12 @@ class MCPHostLLMBridge:
                 ),
             )
 
+            # ZG-12 组件自治：capabilities 优先（主路径），否则旧任务名（deprecated）
+            active_task_name = self._sampling_task_name
             generation_result = await self._llm_service.generate_response_with_messages(
-                self._sampling_task_name, message_factory,
+                active_task_name, message_factory,
                 LLMGenerationOptions(
+                    capabilities=self._sampling_capabilities,
                     temperature=self._coerce_float(getattr(params, "temperature", None)),
                     max_tokens=int(getattr(params, "maxTokens", 1024) or 1024),
                     tool_options=tool_definitions,
