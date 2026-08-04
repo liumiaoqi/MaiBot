@@ -62,10 +62,10 @@ def _normalize_pipe_address(pipe_name: Optional[str] = None) -> str:
     if pipe_name:
         sanitized_name = re.sub(r"[^0-9A-Za-z._-]+", "-", pipe_name).strip("-.")
     else:
-        sanitized_name = f"{_DEFAULT_PIPE_PREFIX}-{os.getpid()}-{uuid.uuid7().hex[:8]}"
+        sanitized_name = f"{_DEFAULT_PIPE_PREFIX}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
     if not sanitized_name:
-        sanitized_name = f"{_DEFAULT_PIPE_PREFIX}-{os.getpid()}-{uuid.uuid7().hex[:8]}"
+        sanitized_name = f"{_DEFAULT_PIPE_PREFIX}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
     return f"{_PIPE_PREFIX}{sanitized_name}"
 
