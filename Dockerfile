@@ -27,7 +27,7 @@ COPY pyproject.toml uv.lock ./
 
 # Install C extension build toolchain + git, then install Python dependencies
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git build-essential libffi-dev libssl-dev libsqlite3-dev \
+    && apt-get install -y --no-install-recommends git build-essential libffi-dev libssl-dev libsqlite3-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && uv sync --frozen --no-dev --no-install-project \
     && apt-get purge -y build-essential \
