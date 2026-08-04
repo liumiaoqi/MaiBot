@@ -7,6 +7,7 @@ Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
 """
 
 
+import random
 import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
@@ -14,6 +15,7 @@ from typing import Any
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.types import CycleStatus, SilenceReason, ThinkAction, ThinkContext, ThinkCycleLog, ThinkResult
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
@@ -83,15 +85,70 @@ class ThinkingOrgan:
     def is_degraded(self) -> bool:
         return self._prompt_builder.is_degraded
 
+    _REPLY_STYLE_SECTION_MAX_CHARS = 1500
+    """回复风格段最大长度（超长截断风格指令末尾，保留核心人格）"""
+
     def build_system_prompt(self, tools_section: str = "") -> str:
-        """构建角色化系统提示词。"""
+        """构建角色化系统提示词（含回复风格段，T20 思考即回复迁移）。"""
         self._autonomy_logger.log(
             self._agent_id,
             AutonomyEventType.THINKING,
             "构建角色化系统提示词",
             level="debug",
         )
-        return self._prompt_builder.build_system_prompt(tools_section)
+        base_prompt = self._prompt_builder.build_system_prompt(tools_section)
+        style_section = self._build_reply_style_section()
+        if style_section:
+            return f"{base_prompt}\n\n{style_section}"
+        return base_prompt
+
+    def _build_reply_style_section(self) -> str:
+        """构建 [回复风格] 段（personality + reply_style + 概率备用风格）。
+
+        来源与旧 replyer 同源（chat_config_port），思考即回复后
+        风格指令注入思考轮，reply 工具直接发送思考轮生成的 text。
+        """
+        try:
+            personality = get_chat_config_port().get_personality().strip()
+            reply_style = get_chat_config_port().get_reply_style_text().strip()
+            temporary_style = self._select_temporary_reply_style()
+        except Exception as exc:
+            logger.warning(f"[thinking_organ] 构建回复风格段失败: {exc}")
+            return ""
+
+        parts: list[str] = []
+        if personality:
+            parts.append(personality)
+        if reply_style:
+            parts.append(reply_style)
+        if temporary_style:
+            parts.append(temporary_style)
+        if not parts:
+            return ""
+
+        section = "[回复风格]\n" + "\n".join(parts)
+        if len(section) > self._REPLY_STYLE_SECTION_MAX_CHARS:
+            # 截断策略：截风格指令末尾，保留核心人格（personality 在最前）
+            section = section[: self._REPLY_STYLE_SECTION_MAX_CHARS].rstrip() + "…"
+        return section
+
+    @staticmethod
+    def _select_temporary_reply_style() -> str:
+        """按配置概率选择本次思考的一次性备用表达风格。"""
+        try:
+            candidate_styles = [
+                style.strip()
+                for style in get_chat_config_port().get_multiple_reply_style()
+                if style.strip()
+            ]
+            if not candidate_styles:
+                return ""
+            probability = get_chat_config_port().get_multiple_reply_probability()
+            if probability <= 0 or random.random() > probability:
+                return ""
+            return random.choice(candidate_styles)
+        except Exception:
+            return ""
 
     def build_personality_prompt(self) -> str:
         """构建角色化人格提示词。"""

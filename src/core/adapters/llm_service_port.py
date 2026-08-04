@@ -2,7 +2,7 @@
 
 
 from collections import OrderedDict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
     from src.common.data_models.llm_service_data_models import (
@@ -52,7 +52,13 @@ class LLMServiceAdapter:
     def __init__(self) -> None:
         self._client_cache: OrderedDict[str, LLMServiceClient] = OrderedDict()
 
-    def _get_or_create_client(self, task_name: str, request_type: str, session_id: str) -> LLMServiceClient:
+    def _get_or_create_client(
+        self,
+        task_name: str,
+        request_type: str,
+        session_id: str,
+        capabilities: Sequence[str] | None = None,
+    ) -> LLMServiceClient:
         from src.services.llm_service import LLMServiceClient
 
         cache_key = f"{task_name}:{request_type}:{session_id}"
@@ -61,7 +67,12 @@ class LLMServiceAdapter:
             self._client_cache.move_to_end(cache_key)
             return client
 
-        client = LLMServiceClient(task_name=task_name, request_type=request_type, session_id=session_id)
+        client = LLMServiceClient(
+            task_name=task_name,
+            request_type=request_type,
+            session_id=session_id,
+            capabilities=capabilities,
+        )
         self._client_cache[cache_key] = client
         if len(self._client_cache) > _MAX_CACHE_SIZE:
             self._client_cache.popitem(last=False)
@@ -88,7 +99,10 @@ class LLMServiceAdapter:
         request_type: str = "",
         session_id: str = "",
     ) -> LLMResponseResult:
-        client = self._get_or_create_client(task_name, request_type, session_id)
+        client = self._get_or_create_client(
+            task_name, request_type, session_id,
+            capabilities=getattr(options, "capabilities", None) if options else None,
+        )
         return await client.generate_response_with_messages(message_factory, options, session_id=session_id)
 
     async def generate_response_for_image(

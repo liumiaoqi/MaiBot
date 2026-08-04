@@ -1592,6 +1592,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         model_task_name: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
+        capabilities: Optional[Sequence[str]] = None,
     ) -> ChatResponse:
         """运行一个复制上下文的临时子代理，并在完成后立即销毁。"""
 
@@ -1622,6 +1623,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             response_format=response_format,
             tool_definitions=[] if tool_definitions is None else tool_definitions,
             max_context_size=context_message_limit,
+            capabilities=capabilities,
         )
 
     @staticmethod

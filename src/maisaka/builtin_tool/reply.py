@@ -41,6 +41,13 @@ def get_tool_spec() -> ToolSpec:
     """获取 reply 工具声明。"""
 
     properties: dict[str, Any] = {
+        "text": {
+            "type": "string",
+            "description": (
+                "本次回复的正文内容（必填）。思考轮直接生成回复文本放进此参数，"
+                "工具直接发送，不再二次调用 LLM 生成。"
+            ),
+        },
         "msg_id": {
             "type": "string",
             "description": "要回复的消息msg_id。留空或不传将自动回复最新的用户消息。不要自己编造msg_id，只在能从上下文中看到确切msg_id时才填写。",
@@ -94,11 +101,11 @@ def get_tool_spec() -> ToolSpec:
 
     return ToolSpec(
         name="reply",
-        description="根据当前思考生成并发送一条可见回复。",
+        description="发送一条可见回复。回复正文必须写在 text 参数里（思考-行动分离：直接给最终文本，不再二次生成）。",
         parameters_schema={
             "type": "object",
             "properties": properties,
-            "required": [],
+            "required": ["text"],
         },
         provider_name="maisaka_builtin",
         provider_type="builtin",
@@ -202,23 +209,24 @@ async def handle_tool(
             "Maisaka 回复生成器当前不可用。",
         )
 
+    # 思考即回复（T18）：text 参数必填——思考轮直接生成正文，
+    # reply 工具直接发送，不触发 replyer 二次 LLM 调用。
+    direct_text = str(invocation.arguments.get("text") or "").strip()
+    if not direct_text:
+        return tool_ctx.build_failure_result(
+            invocation.tool_name,
+            "reply 工具缺少 text 参数（回复正文必填：思考轮应直接把最终回复文本写入 text）。",
+        )
+
     rich_reply_enabled = bool(            get_app_config_port().get_experimental_enable_rich_reply())
     rich_reply_events: list[dict[str, Any]] = []
     rich_reply_checker_records: list[dict[str, Any]] = []
     replyer_chat_history = list(tool_ctx.runtime._chat_history)
     try:
-        success, reply_result = await replyer.generate_reply_with_context(
-            reply_reason=latest_thought,
-            stream_id=tool_ctx.runtime.session_id,
-            reply_message=target_message,
-            chat_history=replyer_chat_history,
-            reply_tool_args=reply_tool_args,
-            sub_agent_runner=lambda system_prompt: _run_expression_selector(
-                tool_ctx,
-                system_prompt,
-            ),
-            log_reply=False,
-        )
+        # text 模式：跳过 replyer 生成（零 LLM），直接构造结果
+        success, reply_result = True, ReplyGenerationResult()
+        reply_result.completion.response_text = direct_text
+        reply_result.completion.request_prompt = latest_thought
     except Exception as exc:
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 回复生成器执行异常: 目标消息编号={target_message_id} 异常={exc}"

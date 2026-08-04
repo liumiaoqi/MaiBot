@@ -156,6 +156,8 @@ class LLMServiceResult(BaseDataModel):
 class LLMGenerationOptions(BaseDataModel):
     """LLM 文本生成选项。"""
 
+    capabilities: Tuple[str, ...] | None = None
+    """能力标签（ZG-12 组件自治主路径；提供时优先于 task_name 解析）"""
     temperature: float | None = None
     max_tokens: int | None = None
     model_name: str | None = None

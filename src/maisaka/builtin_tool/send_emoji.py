@@ -17,8 +17,9 @@ from src.common.data_models.message_component_data_model import ImageComponent, 
 from src.common.logger import get_logger
 from src.core.model_config_port_registry import get_model_config_port
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.emoji_system.emoji_manager import _is_vlm_task_configured, emoji_manager
+from src.emoji_system.emoji_manager import emoji_manager
 from src.emoji_system.maisaka_tool import send_emoji_for_maisaka
+from src.llm_models.model_requirement import model_requirement
 from src.llm_models.payload_content.message import MessageBuilder, RoleType
 from src.maisaka.context.messages import (
     LLMContextMessage,
@@ -32,6 +33,12 @@ from src.prompt.prompt_manager import prompt_manager
 from .context import BuiltinToolRuntimeContext
 
 logger = get_logger("maisaka_builtin_send_emoji")
+
+
+@model_requirement(capabilities=["vision"], critical=False)
+class SendEmojiSelector:
+    """表情选择委派助手声明（ZG-12）：无 vision 模型时降级纯文本并告警。"""
+
 
 _EMOJI_SUB_AGENT_CONTEXT_LIMIT = 12
 _EMOJI_MAX_CANDIDATE_COUNT = 64
@@ -293,9 +300,6 @@ def _build_send_emoji_monitor_metadata(
     return metadata
 
 
-def _resolve_emoji_selector_model_task_name() -> str:
-    """根据 planner 模型视觉能力选择表情选择子代理的模型任务。"""
-
     port = get_model_config_port()
     if port is None:
         return "emoji"
@@ -383,9 +387,17 @@ async def _select_emoji_with_sub_agent(
     if candidate_llm_message is not None:
         request_messages.append(candidate_llm_message)
 
-    model_task_name = _resolve_emoji_selector_model_task_name()
-    if model_task_name == "vlm" and not _is_vlm_task_configured():
-        raise RuntimeError(_EMOJI_VLM_NOT_CONFIGURED_MESSAGE)
+    # ZG-12 委派工具：按 vision 能力解析委派助手模型（不再引用任务名）
+    try:
+        from src.core.model_config_port_registry import get_model_config_port
+        port = get_model_config_port()
+        if port is not None:
+            port.resolve_by_capability(["vision"])
+        else:
+            raise RuntimeError("ModelConfigPort 未注册")
+    except Exception as exc:
+        logger.warning(f"[send_emoji] 无 vision 模型，降级纯文本模式: {exc}")
+        raise RuntimeError(_EMOJI_VLM_NOT_CONFIGURED_MESSAGE) from exc
 
     selection_started_at = datetime.now()
     response = await tool_ctx.runtime.run_sub_agent(
@@ -393,7 +405,8 @@ async def _select_emoji_with_sub_agent(
         system_prompt=system_prompt,
         extra_messages=[prompt_message, candidate_message],
         request_kind="emotion",
-        model_task_name=model_task_name,
+        capabilities=["vision"],
+        model_task_name="vlm",
     )
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
 

@@ -578,7 +578,7 @@ class MaisakaChatLoopService:
             Any: 插件运行时管理器单例。
         """
 
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
+        from src.plugin_runtime.integration import get_plugin_runtime_manager  # noqa: TID251 — 既有 hook 调用点
 
         return get_plugin_runtime_manager()
 
@@ -999,11 +999,13 @@ class MaisakaChatLoopService:
         max_context_size: Optional[int] = None,
         system_prompt: Optional[str] = None,
         tail_user_messages: Sequence[str] | None = None,
+        capabilities: Sequence[str] | None = None,
     ) -> ChatResponse:
         """执行一轮 Maisaka 规划器请求。
 
         Args:
             chat_history: 当前对话历史。
+            capabilities: 能力标签（ZG-12 主路径，提供时覆盖 model_task_name 解析）。
 
         Returns:
             ChatResponse: 本轮规划器返回结果。
@@ -1097,9 +1099,12 @@ class MaisakaChatLoopService:
         model_task_name = self._resolve_model_task_name(request_kind)
         request_type = self._resolve_llm_request_type(request_kind)
         llm_started_at = time.perf_counter()
+        # ZG-12 组件自治：capabilities 优先（主路径），否则旧 task_name（deprecated）
         generation_result = await self._llm_service.generate_response_with_messages(
-            model_task_name, message_factory,
+            model_task_name if capabilities is None else "planner",
+            message_factory,
             LLMGenerationOptions(
+                capabilities=tuple(capabilities) if capabilities is not None else None,
                 tool_options=all_tools if all_tools else None,
                 response_format=response_format,
                 interrupt_flag=self._interrupt_flag,
