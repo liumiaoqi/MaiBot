@@ -227,7 +227,10 @@ class HeuristicMemoryInjector:
             chat_identity=self._format_chat_identity(context.session),
             message_window=self._format_message_window(context.recent_messages),
         )
-        result = await self._llm_service.generate_response("utils", prompt, request_type="heuristic_memory_impression")
+        result = await self._llm_service.generate_response(
+            "utils", prompt, request_type="heuristic_memory_impression",
+            capabilities=["text_generation", "tool_calling"],
+        )
         return str(result.response or "").strip()
 
     async def _search_related_memory(

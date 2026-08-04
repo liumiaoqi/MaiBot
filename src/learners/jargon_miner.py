@@ -449,7 +449,8 @@ class JargonMiner:
         prompt1 = await prompt_manager.render_prompt(prompt1_template)
 
         generation_result_1 = await get_llm_service().generate_response("learner", 
-            prompt1, options=LLMGenerationOptions(temperature=0.3), session_id=self.session_id
+            prompt1, options=LLMGenerationOptions(temperature=0.3), session_id=self.session_id,
+            capabilities=["text_generation", "tool_calling"],
         )
         llm_response_1 = generation_result_1.response
         self._log_inference_prompt_preview(

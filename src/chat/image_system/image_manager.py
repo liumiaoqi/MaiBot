@@ -461,10 +461,9 @@ class ImageManager:
         prompt = await prompt_manager.render_prompt(prompt_template)
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        generation_result = await get_llm_service().generate_response_for_image("vlm", 
-            prompt,
-            image_base64,
-            image_format,
+        generation_result = await get_llm_service().generate_response_for_image(
+            "vlm", prompt, image_base64, image_format,
+            capabilities=["vision"],
         )
         description = generation_result.response
         if not description:

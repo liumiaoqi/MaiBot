@@ -118,6 +118,7 @@ class InnerVoiceGenerator:
                 response = await asyncio.wait_for(
                     llm_service.generate_response(
                         task_name="utils",
+                        capabilities=["text_generation", "tool_calling"],
                         prompt=prompt,
                         options=options,
                     ),

@@ -86,8 +86,13 @@ class LLMServiceAdapter:
         *,
         request_type: str = "",
         session_id: str = "",
+        capabilities: Sequence[str] | None = None,
     ) -> LLMResponseResult:
-        client = self._get_or_create_client(task_name, request_type, session_id)
+        client = self._get_or_create_client(
+            task_name, request_type, session_id,
+            capabilities=capabilities if capabilities is not None
+            else (getattr(options, "capabilities", None) if options else None),
+        )
         return await client.generate_response(prompt, options, session_id=session_id)
 
     async def generate_response_with_messages(
@@ -115,8 +120,9 @@ class LLMServiceAdapter:
         *,
         request_type: str = "",
         session_id: str = "",
+        capabilities: Sequence[str] | None = None,
     ) -> LLMResponseResult:
-        client = self._get_or_create_client(task_name, request_type, session_id)
+        client = self._get_or_create_client(task_name, request_type, session_id, capabilities=capabilities)
         return await client.generate_response_for_image(prompt, image_base64, image_format, options, session_id=session_id)
 
     async def transcribe_audio(

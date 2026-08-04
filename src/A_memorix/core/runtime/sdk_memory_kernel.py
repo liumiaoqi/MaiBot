@@ -388,7 +388,7 @@ class SDKMemoryKernel:
         from ..connectionist.memory_field import MemoryField
         llm_client = None
         if self._ports and self._ports.llm_service:
-            llm_client = self._ports.llm_service.LLMServiceClient(task_name="utils")
+            llm_client = self._ports.llm_service.LLMServiceClient(task_name="utils", capabilities=["text_generation", "tool_calling"])
         self._memory_field = MemoryField(self.data_dir, llm_client=llm_client)
 
         from ..migration.migration_adapter import MigrationAdapter

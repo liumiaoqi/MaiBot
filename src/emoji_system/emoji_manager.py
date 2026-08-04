@@ -927,6 +927,7 @@ class EmojiManager:
         decision_result = await get_llm_service().generate_response("utils", 
             emoji_replace_prompt,
             session_id=session_id,
+            capabilities=["text_generation", "tool_calling"],
         )
         decision = decision_result.response
         logger.info(f"[决策] 结果: {decision}")
@@ -992,6 +993,7 @@ class EmojiManager:
                 image_base64,
                 image_format,
                 session_id=session_id,
+                capabilities=["vision"],
             )
             llm_response = filtration_result.response
         except Exception as e:

@@ -897,8 +897,10 @@ class ExpressionLearner:
             "只输出概括内容。"
         )
         try:
-            summary_result = await get_llm_service().generate_response("utils", 
-                prompt, options=LLMGenerationOptions(temperature=0.2), session_id=session_id
+            summary_result = await get_llm_service().generate_response(
+                "utils", prompt, options=LLMGenerationOptions(temperature=0.2),
+                session_id=session_id,
+                capabilities=["text_generation", "tool_calling"],
             )
             summary = summary_result.response
             if summary := summary.strip():

@@ -165,6 +165,7 @@ async def check_expression_suitability(
         prompt=prompt,
         options=LLMGenerationOptions(temperature=0.6),
         session_id=session_id,
+        capabilities=["text_generation", "tool_calling"],
     )
     response = generation_result.response
 
