@@ -40,9 +40,14 @@
 
 ## 4. 部署规则
 
-- 导出：`python step4_export_onnx.py --model scripts\embedding_finetune\output\v1`（输出 onnx_model/，int8 量化）。
-- step4 验证代码已内置 instruction + normalize（与训练一致）。
-- 本地服务：自写 fastapi（20 行 OpenAI 兼容 /v1/embeddings）或 Xinference。MaiBot 接入**零代码**（配置见调研报告 `.shared/research/2026-08/embedding_config_chain_0804.md`）。
+- 导出：`python step4_export_onnx.py --model scripts\embedding_finetune\output\v1`（输出 onnx_model/：model.onnx fp32 + model_q8.onnx int8 + tokenizer）。
+- 推理服务：`embedding_server.py`（OpenAI 兼容 /v1/embeddings，加载 model_q8.onnx）：
+  ```powershell
+  uvicorn embedding_server:app --host 127.0.0.1 --port 9997
+  ```
+- **instruction 决策（v1 现状）**：MaiBot 的 openai_client 只发 {model, input}——服务 `is_query` 恒 True = 所有文本加 instruction。query 检索侧与 v1 训练（anchor 加前缀）对齐 ✓；doc 写入侧训练没加但部署加（轻微偏移）。
+- **v2 对齐方案**：训练时去掉 instruction（step3b 的 QUERY_INSTRUCTION 置空——v1.5 官方支持无 instruction 检索），服务端 `QUERY_INSTRUCTION` 同步置空——完全对齐，零偏移。
+- MaiBot 接入**零代码**（配置见调研报告 `.shared/research/2026-08/embedding_config_chain_0804.md`）：model_config.toml 加 `LocalEmbed` provider（auth_type="none" + api_key="none"）+ embedding.model_list；bot_config.toml `dimension = 1024`。
 - **维度迁移大坑**：之前用过 2048 维（如阿里 text-embedding-v4）则存量向量库是 2048——接 1024 的 bge 前必须清空 `data/a-memorix/vectors` 重建，否则持久化被锁 + 检索降级。
 
 ## 5. 踩坑记录（2026-08-03/04）
