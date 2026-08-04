@@ -23,6 +23,9 @@ class _FakeVectorStore:
         del query, filter_deleted
         return self.ids[:k], self.scores[:k]
 
+    async def search_async(self, query: np.ndarray, k: int = 10, filter_deleted: bool = True):
+        return self.search(query, k=k, filter_deleted=filter_deleted)
+
 
 class _FakeEmbeddingManager:
     async def encode(self, text: Any, **kwargs: Any) -> np.ndarray:
