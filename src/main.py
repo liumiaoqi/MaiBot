@@ -222,20 +222,24 @@ class MainSystem:
             init_fn=self._start_plugin_runtime,
         ))
         orchestrator.register(StartupComponent(
-            name="plugin_runtime_v2", phase=StartupPhase.SUBSYSTEMS, order=1, critical=False,
+            name="ipc_bridge_port", phase=StartupPhase.SUBSYSTEMS, order=1, critical=False,
+            init_fn=self._inject_ipc_bridge_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="plugin_runtime_v2", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
             init_fn=self._start_plugin_runtime_v2,
         ))
         orchestrator.register(StartupComponent(
-            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
+            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
             init_fn=self._load_emoji,
         ))
         orchestrator.register(StartupComponent(
-            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
+            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=4, critical=False,
             init_fn=self._inject_model_config_port,
         ))
         # a_memorix 内核初始化依赖 ModelConfigPort——必须在注入之后启动
         orchestrator.register(StartupComponent(
-            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=4, critical=False,
+            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=5, critical=False,
             init_fn=self._start_a_memorix,
         ))
 
@@ -889,6 +893,15 @@ class MainSystem:
         from src.services.send_service import SendServiceMessagePortV2
 
         set_message_port_v2(SendServiceMessagePortV2())
+
+    @staticmethod
+    async def _inject_ipc_bridge_port() -> None:
+        from src.core.adapters.ipc_bridge_port import IpcBridgePortAdapter
+        from src.core.ipc_bridge_port_registry import set_ipc_bridge_port
+        from src.plugin_runtime.integration import get_plugin_runtime_manager
+
+        prm = get_plugin_runtime_manager()
+        set_ipc_bridge_port(IpcBridgePortAdapter(prm))
 
     # ── 阶段 4 闭包 ───────────────────────────────────────────
 

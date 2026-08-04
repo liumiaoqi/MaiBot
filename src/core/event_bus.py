@@ -403,16 +403,16 @@ class EventBus:
             return continue_flag, message
 
         try:
-            from src.plugin_runtime.integration import get_plugin_runtime_manager
+            from src.core.ipc_bridge_port_registry import get_ipc_bridge_port
 
-            prm = get_plugin_runtime_manager()
-            if not prm.is_running:
+            ipc_bridge = get_ipc_bridge_port()
+            if ipc_bridge is None or not ipc_bridge.is_running:
                 return continue_flag, message
 
             event_value = event_type.value if isinstance(event_type, EventType) else str(event_type)
             message_dict = message.to_transport_dict() if message else None
 
-            new_continue, modified_dict = await prm.bridge_event(
+            new_continue, modified_dict = await ipc_bridge.bridge_event(
                 event_type_value=event_value,
                 message_dict=message_dict,
             )

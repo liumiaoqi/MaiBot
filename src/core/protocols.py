@@ -9,7 +9,7 @@
 
 import asyncio
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from typing import Protocol, runtime_checkable
 
@@ -2001,3 +2001,33 @@ class TaintedMaskPort(Protocol):
 
     def get_degrade_on_taint_mask(self) -> int:
         """查询当前掩码级降级触发掩码值（只读，0=禁用）。"""
+
+
+@runtime_checkable
+class IpcBridgePort(Protocol):
+    """IPC 桥接端口接口 — 核心事件总线通过此接口桥接到插件运行时。
+
+    核心通过此接口调用桥接能力，不感知 PluginRuntimeManager 具体类。
+    仅暴露桥接所需的最小接口（bridge_event + is_running）。
+    """
+
+    @property
+    def is_running(self) -> bool:
+        """插件运行时是否处于启动状态。"""
+
+    async def bridge_event(
+        self,
+        event_type_value: str,
+        message_dict: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """桥接事件到插件运行时。
+
+        Args:
+            event_type_value: 事件类型字符串值
+            message_dict: 消息传输字典，可选
+
+        Returns:
+            (continue_flag, modified_message_dict) 元组：
+            - continue_flag: False 时请求中断事件链
+            - modified_message_dict: 插件修改后的消息字典，None 表示未修改
+        """
