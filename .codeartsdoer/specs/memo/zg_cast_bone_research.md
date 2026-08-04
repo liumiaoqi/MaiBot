@@ -73,9 +73,10 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 | 编号 | 方向 | 理由 | 层级 |
 |------|------|------|------|
-| **ZG-10** | 启动编排演进（initcall→systemd 化） | 见下方 ZG-10 子项详情 | 应用 |
+| **ZG-10** | 启动编排演进（initcall→systemd 化） | 📚 源码调研完成（混合模式设计定），见下方 ZG-10 子项详情 | 应用 |
 | **ZG-11** | 多核利用（SMP 化） | 见下方 ZG-11 子项详情 | 基础 |
 | **ZG-13** | 角色语音（TTS 输出） | 见下方 ZG-13 子项详情 | 应用 |
+| **量级二** | Linux 化扩展（ZG-15~19 候选） | 📚 调研完成（linux_kernel_borrow_0804.md：插件活体引用/记忆水位回收/错误升级梯/rescuer/落盘背压），编号 CA 定稿 | 基础 |
 
 ### 🔧 已知遗留（从已完成项中拆出）
 
@@ -91,6 +92,15 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 > 当前 ZG-1 为 Windows SCM 式集中注册（main.py 内 30 个 `orchestrator.register()`），新增组件需改编排器。
 > 演进目标：Linux 式**分层仲裁**——组件声明需求，编排器仲裁，组件无法绕过编排器。
+>
+> **2026-08-04 源码调研修正**（依据 `.shared/research/2026-08/zg10_initcall_source_0804.md`）：
+> Linux initcall **无任何运行时依赖仲裁**（顺序=编译期等级+链接顺序，失败不阻断）。设计修正为**混合模式**：
+> - **等级相位（Linux 式 fast path）**：粗粒度相位定大体顺序，相位内按声明序执行
+> - **相位内拓扑仲裁（MaiBot 式 safety net）**：TopologicalSorter 只在相位内做仲裁 + 循环检测——第三方插件的环是真实输入风险
+> - **核心就绪屏障**（对标 `_sync` 相位栅栏）：虚拟节点"入边=所有核心项、出边=后续项"，兜底未声明但隐含的先后关系
+> - **失败标记降级**（超越 Linux）：失败项让依赖它的项标记"不可运行/降级"，不无声跳过（Linux 因无图只能失败继续跑）
+> - **调试三件套**：`--debug-startup`（对标 initcall_debug，每项名称+耗时+相位）/ `--skip-startup-item`（对标 blacklist，运行时禁用）/ 启动完成回调在所有异步项 settle 后（对标 async_synchronize_full）
+> - **`__init` 回收**：启动完成后释放一次性数据（item 元数据、仲裁中间结构）+ 启动配置冻结/只读化
 
 ### 设计原则：分层仲裁（对标 Linux 内核/systemd）
 
@@ -244,6 +254,30 @@ model_list = ["ali-text-embedding-v4"]
 > 对标 Linux **alternative framework**（系统根据硬件能力选最优实现）+ **device model**（统一设备抽象）。
 > 核心问题：V1 遗留命名不反映当前架构，回退链硬编码，TaskConfig 无分化，embedding 静默失败。
 > **用户设计意图**：一次完整回复只调用一次 LLM，replyer 作为独立 task 应降级。
+
+### ComfyUI 借鉴（2026-08-04，用户提出）
+
+模型注册层学 ComfyUI 的"资源池"哲学（Ollama / LM Studio 同惯例——目录即注册）：
+
+| 借鉴 | 落地 | 对应子项 |
+|------|------|---------|
+| **目录即注册**：模型放 `models/` 约定目录自动发现，零配置 | 本地模型（bge 微调产物、TTS 等）放目录即自动注册，接入本地模型零配置 | 子项 3 分化 + "本地模型一等公民" |
+| **模型是独立资产，任务只声明引用**：ComfyUI 的 checkpoint 是资源池，工作流只写"用哪个" | TaskConfig 只引用模型 id，模型实体（provider + 标识）独立声明，任务换模型不改结构 | 子项 3 + 单一路由 |
+| **缺失可视化绝不静默**：ComfyUI 缺模型弹红标 | 启动校验**全部**被引用模型存在（不只 embedding），缺失显式告警/走声明式回退，不静默降级 | 子项 4 强化 |
+
+**不学**：节点图工作流（MaiBot 是无人值守服务，声明式 toml 即可）、GUI 中心配置、运行时随意换模型（模型是角色身份，绑定要稳定）。
+
+### 配置变更 → 组件单独重启（2026-08-04，用户提出）
+
+改配置后**单独 restart 模型组件重载模型**（对标 systemd `systemctl reload`），不重启整个 MaiBot。能力基础已具备：
+
+- **ZG-1 ServiceManager**：进程内组件 restart/recover 已实现（30s 限时、退避重试、重启风暴保护 → FAULT_MANUAL、AUTO/MANUAL_RESTART 状态）
+- **V2 Runner**：子进程级隔离先例（subprocess.Popen，kill 重启不影响主进程）
+- **接线**：`adopt_from_startup` 已纳入 main.py 全部组件 + `health_probe` + `set_service_manager_port`
+
+**设计要点**：
+- ZG-12 把"配置变更 → 组件重启"做成标准动作：配置加载成功后触发受影响组件 restart（模型组件 stop/start 钩子负责释放/重载模型资源）
+- 边界：进程内重启非干净环境（全局单例/registry/事件循环共享状态不清理）；内存泄漏/死锁靠 ZG-5/ZG-9，非重启可救
 
 ### 命名正名方案
 
@@ -571,3 +605,36 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 - **关键坑**：napcat maim_message 桥接路径只特殊处理 text 段，voice 段透传 → 需补 convert_segments 编码（现成逻辑可复用）
 - **策略**：管道优先模型次之——先跑通用语音输出口 + 音色配置，模型层留接口可换
 - **硬件**：笔记本 5060 8GB 跑 IndexTTS 2.0 勉强 → 低频场景（角色主动说话/情绪高光）才发语音，文字为主体
+
+## 部署形态设计方向（2026-08-04）
+
+> 用户决策：**保留 Docker**（环境隔离 + 可重建，NapCatQQ 回退白版本改配置重建即可，不用操心依赖）。
+> 与 Linux 化正交：Docker 管环境隔离层，ZG 系列管系统治理层——两者不冲突，容器还是 ZG-9 极端加固的天然沙箱。
+
+### 三个工程化升级
+
+1. **镜像版本标签化**：镜像打版本标签（如 `maibot:napcat-old` / `maibot:stable`），回退 = 改 tag 重建，连配置都不用动
+2. **数据卷全分离（容器无状态化）**：记忆库（A_memorix）、向量库（FAISS）、日志、配置全部放 volumes——重建容器不丢数据；MaiBot 可随时重建
+3. **模型服务独立常驻**：本地模型（bge 微调、TTS、未来 LLM）放宿主机或独立容器，MaiBot 容器通过 localhost 调——GPU 透传（Docker Desktop WSL2 nvidia-container-toolkit）搞不定的场景直接宿主机跑；架构上模型是资源池、MaiBot 是消费者（呼应 ZG-12 ComfyUI 资源池哲学）
+
+### WSL2 注意
+
+- `/mnt/e` 跨文件系统 IO 慢——容器的 volumes 别挂到 Windows 盘（数据目录放 Linux 侧或容器内），否则记忆写入拖慢
+
+### 本地模型宿主机方案（2026-08-04，用户方向）
+
+模型服务（embedding/TTS 等）跑 **Windows 宿主机**（GPU 在 Windows 侧，torch cu128 天然可用），MaiBot 容器通过 Docker Desktop 内置 `host.docker.internal` 连接：
+
+```toml
+# model_config.toml 本地模型 provider
+base_url = "http://host.docker.internal:9997/v1"
+```
+
+**步骤**：① 服务监听 0.0.0.0（勿 127.0.0.1）② Windows 防火墙放行端口 ③ 容器内 base_url 指 host.docker.internal
+
+**收益**：
+- MaiBot 容器无状态重建不影响模型服务（模型加载一次几 GB）
+- embedding 变 I/O 等待 → asyncio 天然处理，**ZG-11 Phase 2 worker 不需要实现**
+- 配置层零敏感（OpenAI 兼容接口，换服务器只改 base_url）
+
+**坑**：host.docker.internal 是 Docker Desktop 特有；迁原生 Linux Docker 时模型服务同机 localhost 直连或 `--add-host`。

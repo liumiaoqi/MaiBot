@@ -1382,7 +1382,7 @@ class ServiceManagerPort(Protocol):
         """从 StartupOrchestrator 结果接管组件。
 
         前置条件：仅在 StartupOrchestrator.run() 返回后调用一次。
-        后置条件：全部 status=success 组件状态为"运行中"。
+        后置条件：status=success 组件状态为"运行中"，degraded 组件为"降级"。
         """
 
     async def stop(

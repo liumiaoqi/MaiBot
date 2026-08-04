@@ -11,34 +11,13 @@ from src.core.service_manager.types import (
     ServiceDescriptor,
     ServiceState,
 )
-from src.core.startup.types import (
-    ComponentStatus,
-    StartupComponent,
-    StartupPhase,
-    PhaseResult,
-    StartupResult,
-)
+from src.core.startup.types import StartupPhase, StartupResult
 
 
 def _make_startup_result(names: list[str]) -> StartupResult:
-    components = []
-    for name in names:
-        comp = StartupComponent(
-            name=name,
-            phase=StartupPhase.CORE_SERVICES,
-            order=0,
-            critical=True,
-            init_fn=lambda: None,
-        )
-        comp.status = ComponentStatus.SUCCESS
-        components.append(comp)
-    phase = PhaseResult(
-        phase=StartupPhase.CORE_SERVICES,
-        status=ComponentStatus.SUCCESS,
-        components=components,
-    )
+    """构造声明化后的 StartupResult（wave_info 名称列表）。"""
     return StartupResult(
-        phases={StartupPhase.CORE_SERVICES: phase},
+        wave_info={StartupPhase.CORE_SERVICES: [names]},
         ready=True,
         core_ready=True,
     )
@@ -187,30 +166,12 @@ class TestRegression:
     @pytest.mark.asyncio
     async def test_core_readiness_preserved(self) -> None:
         """adopt 后核心就绪三标志与启动期一致。"""
-        components = []
-        for name, flag in [
-            ("msg", "message_pipeline_ready"),
-            ("agent", "agent_thinking_ready"),
-            ("reply", "reply_capability_ready"),
-        ]:
-            comp = StartupComponent(
-                name=name,
-                phase=StartupPhase.CORE_SERVICES,
-                order=0,
-                critical=True,
-                init_fn=lambda: None,
-                core_readiness_flag=flag,
-            )
-            comp.status = ComponentStatus.SUCCESS
-            components.append(comp)
-
-        phase = PhaseResult(
-            phase=StartupPhase.CORE_SERVICES,
-            status=ComponentStatus.SUCCESS,
-            components=components,
-        )
         result = StartupResult(
-            phases={StartupPhase.CORE_SERVICES: phase},
+            wave_info={
+                StartupPhase.CORE_SERVICES: [
+                    ["msg", "agent", "reply"],
+                ]
+            },
             ready=True,
             core_ready=True,
         )

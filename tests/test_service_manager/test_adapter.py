@@ -19,7 +19,6 @@ from src.core.startup.types import (
     ComponentStatus,
     StartupComponent,
     StartupPhase,
-    PhaseResult,
     StartupResult,
 )
 
@@ -44,13 +43,18 @@ def _make_component(
 def _make_startup_result(
     components: list[StartupComponent],
 ) -> StartupResult:
-    phase = PhaseResult(
-        phase=StartupPhase.CORE_SERVICES,
-        status=ComponentStatus.SUCCESS,
-        components=components,
-    )
+    """构造声明化后的 StartupResult（wave_info + list[str] 状态列表）。"""
     return StartupResult(
-        phases={StartupPhase.CORE_SERVICES: phase},
+        wave_info={StartupPhase.CORE_SERVICES: [[c.name for c in components]]},
+        failed_components=[
+            c.name for c in components if c.status == ComponentStatus.FAILED
+        ],
+        degraded_components=[
+            c.name for c in components if c.status == ComponentStatus.DEGRADED
+        ],
+        skipped_components=[
+            c.name for c in components if c.status == ComponentStatus.SKIPPED
+        ],
         ready=True,
         core_ready=True,
     )
