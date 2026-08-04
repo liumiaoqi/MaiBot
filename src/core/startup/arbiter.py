@@ -61,6 +61,10 @@ class StartupArbiter:
     # 屏障出边覆盖的相位（核心就绪后才开始）
     _BARRIER_GATED_PHASES = (StartupPhase.SESSION_RESTORE, StartupPhase.READY)
 
+    def __init__(self) -> None:
+        self.last_graph: DependencyGraph | None = None
+        """最近一次仲裁构建的依赖图（供失败传播使用）。"""
+
     def arbitrate(
         self,
         items: dict[str, StartupItemDesc],
@@ -129,4 +133,5 @@ class StartupArbiter:
                 )
 
         total_waves = max((len(w) for w in phases.values()), default=0)
+        self.last_graph = graph
         return WavePlan(phases=phases, barrier_wave=barrier_wave, total_waves=total_waves)

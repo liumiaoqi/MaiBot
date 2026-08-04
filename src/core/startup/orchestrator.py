@@ -1,24 +1,31 @@
-"""启动协调器 — 按阶段顺序执行组件初始化。"""
+"""启动协调器 — 声明收集 + 拓扑仲裁 + 波次调度执行（ZG-10）。
 
+对标 Linux initcall：相位（等级）决定大体顺序，相位内 Kahn 分波保证
+依赖正确性与并行度。核心就绪屏障确保 SESSION_RESTORE/READY 相位在
+核心贡献组件全部就绪后才开始。失败传播：STRONG→SKIPPED / WEAK→DEGRADED。
+"""
 
 import asyncio
 import time
-from typing import Awaitable, Callable
-
 
 from src.common.logger import get_logger
+from src.core.service_manager.dependency_graph import DependencyGraph
+from src.core.startup.arbiter import CoreReadinessBarrier, StartupArbiter, WavePlan
+from src.core.startup.declaration import StartupItemDesc, _registry
+from src.core.startup.propagator import FailurePropagator
 from src.core.startup.types import (
     ComponentStatus,
     CoreReadiness,
     PhaseResult,
     StartupComponent,
+    StartupItemRuntimeState,
     StartupPhase,
     StartupResult,
 )
 
 logger = get_logger("core.startup.orchestrator")
 
-# 阶段3 子系统单个组件超时（秒）
+# 子系统单个组件超时（秒，与存量行为一致）
 _SUBSYSTEM_TIMEOUT = 60.0
 
 _PHASE_NAMES: dict[StartupPhase, str] = {
@@ -32,112 +39,62 @@ _PHASE_NAMES: dict[StartupPhase, str] = {
 
 
 class StartupOrchestrator:
-    """启动流程的唯一编排入口。
+    """启动流程的唯一编排入口 — 声明式注册 + 拓扑仲裁 + 波次调度。
 
-    开发者通过 register() 声明组件，run() 按阶段顺序执行。
+    声明来源两种（共存期）：@startup_item 装饰器（模块导入期收集）+
+    编程式 register()。两者统一转为 StartupItemDesc 后进入仲裁。
     """
 
-    def __init__(self) -> None:
-        self._components: list[StartupComponent] = []
+    def __init__(
+        self,
+        debug_mode: bool = False,
+        skip_names: set[str] | None = None,
+    ) -> None:
+        self._items: dict[str, StartupItemDesc] = {}
+        self._runtime_states: dict[str, StartupItemRuntimeState] = {}
         self._phase_results: dict[StartupPhase, PhaseResult] = {}
         self._core_readiness = CoreReadiness()
         self._subsystem_status: dict[str, ComponentStatus] = {}
         self._start_time: float = 0.0
         self._core_ready_time: float = 0.0
+        self.debug_mode = debug_mode
+        self.skip_names: set[str] = set(skip_names or ())
+        self._barrier = CoreReadinessBarrier()
+        self._wave_plan: WavePlan | None = None
+        self._graph: DependencyGraph | None = None
+        self._running = False
 
-    def register(self, component: StartupComponent) -> None:
-        """注册组件。
+    # ── 注册 ─────────────────────────────────────────────────────
 
-        Raises:
-            ValueError: 组件名重复 或 phase+order 冲突
-        """
-        for existing in self._components:
-            if existing.name == component.name:
-                raise ValueError(f"组件名重复: {component.name}")
-            if existing.phase == component.phase and existing.order == component.order:
-                raise ValueError(
-                    f"组件 {component.name} 与 {existing.name} "
-                    f"在阶段 {component.phase.name} 序号 {component.order} 冲突"
-                )
-        self._components.append(component)
-
-    def register_from_descriptor(
-        self,
-        descriptor: dict,
-        init_fn: Callable[[], Awaitable[None]],
-        core_readiness_flag: str = "",
-    ) -> None:
-        """从 __service_descriptor__ 字典 + init_fn 闭包注册组件。
+    def register(self, item: StartupItemDesc | StartupComponent) -> None:
+        """注册启动项（编程式入口，与 @startup_item 等价）。
 
         Args:
-            descriptor: port_registry 模块的 __service_descriptor__ 字典
-            init_fn: 初始化函数（由 main.py 闭包提供）
-            core_readiness_flag: 核心就绪贡献标记（可选）
+            item: StartupItemDesc（新）或 StartupComponent（共存期兼容）
+
+        Raises:
+            ValueError: 名称重复
+            RuntimeError: run() 执行期间注册
         """
-        self.register(StartupComponent(
-            name=descriptor["name"],
-            phase=descriptor["phase"],
-            order=descriptor["order"],
-            critical=descriptor["critical"],
-            init_fn=init_fn,
-            core_readiness_flag=core_readiness_flag,
-        ))
+        if self._running:
+            raise RuntimeError("启动编排已开始执行，禁止注册新组件")
+        desc = self._to_desc(item)
+        if desc.name in self._items:
+            raise ValueError(f"组件名重复: {desc.name}")
+        self._items[desc.name] = desc
 
-    async def run(self) -> StartupResult:
-        """按 StartupPhase 枚举顺序执行全部 6 个阶段。"""
-        self._start_time = time.monotonic()
-
-        for phase in sorted(StartupPhase, key=lambda p: p.value):
-            result = await self._run_phase(phase)
-            self._phase_results[phase] = result
-            if result.status == ComponentStatus.FAILED and phase != StartupPhase.SUBSYSTEMS:
-                logger.error(f"启动中止: 阶段 {phase.name} 失败")
-                break
-            if phase == StartupPhase.CORE_SERVICES:
-                self._update_core_readiness(result)
-
-        total_ms = int((time.monotonic() - self._start_time) * 1000)
-        failed = [c for c in self._components if c.status == ComponentStatus.FAILED]
-        degraded = [c for c in self._components if c.status == ComponentStatus.FAILED and not c.critical]
-        critical_failed = [c for c in failed if c.critical]
-
-        core_ready_ms = 0
-        if self._core_readiness.core_ready and self._core_ready_time > 0:
-            core_ready_ms = int((self._core_ready_time - self._start_time) * 1000)
-
-        result = StartupResult(
-            total_duration_ms=total_ms,
-            phases=self._phase_results,
-            failed_components=failed,
-            degraded_components=degraded,
-            ready=len(critical_failed) == 0,
-            core_ready=self._core_readiness.core_ready,
-            core_ready_time_ms=core_ready_ms,
-            subsystem_status=self._subsystem_status,
+    def _to_desc(self, item: StartupItemDesc | StartupComponent) -> StartupItemDesc:
+        """StartupComponent → StartupItemDesc 兼容转换。"""
+        if isinstance(item, StartupItemDesc):
+            return item
+        return StartupItemDesc(
+            name=item.name,
+            phase=item.phase,
+            init_fn=item.init_fn,
+            critical=item.critical,
+            core_readiness_flag=item.core_readiness_flag,
+            order=item.order,
         )
-        self._emit_startup_summary(result)
-        return result
-
-    def _emit_startup_summary(self, result: StartupResult) -> None:
-        degraded_names = [c.name for c in result.degraded_components]
-        lines = [
-            f"[启动摘要] 总耗时={result.total_duration_ms}ms | 核心就绪={result.core_ready_time_ms}ms",
-        ]
-        for phase in sorted(StartupPhase, key=lambda p: p.value):
-            pr = result.phases.get(phase)
-            if pr is None:
-                continue
-            status = "✓" if pr.status == ComponentStatus.SUCCESS else "✗"
-            phase_name = _PHASE_NAMES.get(phase, phase.name)
-            async_mark = " (异步)" if phase == StartupPhase.SUBSYSTEMS else ""
-            lines.append(f"  阶段{phase.value} {phase_name}: {pr.duration_ms}ms {status}{async_mark}")
-            for c in pr.components:
-                c_status = "✓" if c.status == ComponentStatus.SUCCESS else "✗"
-                duration_str = "已发起" if phase == StartupPhase.SUBSYSTEMS else f"{c.duration_ms}ms"
-                lines.append(f"    {c.name}: {duration_str} {c_status}")
-        if degraded_names:
-            lines.append(f"  降级组件: {', '.join(degraded_names)}")
-        logger.info("\n".join(lines))
 
     def get_core_readiness(self) -> CoreReadiness:
         return self._core_readiness
@@ -145,126 +102,341 @@ class StartupOrchestrator:
     def get_subsystem_status(self, name: str) -> ComponentStatus:
         return self._subsystem_status.get(name, ComponentStatus.PENDING)
 
-    async def _run_phase(self, phase: StartupPhase) -> PhaseResult:
+    # ── 主流程 ───────────────────────────────────────────────────
+
+    async def run(self) -> StartupResult:
+        """收集声明 → 仲裁 → 逐相位逐波次执行 → 回调 → 冻结 → 摘要。"""
+        self._start_time = time.monotonic()
+        self._running = True
+
+        # 1. 收集声明（装饰器 + 编程式，合并去重）
+        for name, desc in _registry.drain().items():
+            if name not in self._items:
+                self._items[name] = desc
+        if not self._items:
+            logger.warning("无启动项声明——启动流程为空")
+            self._running = False
+            return StartupResult(total_duration_ms=0)
+
+        # 2. 仲裁（构建图 + 屏障 + 相位分波 + 环检测）
+        arbiter = StartupArbiter()
+        self._wave_plan = arbiter.arbitrate(self._items, skip_names=self.skip_names)
+        self._graph = arbiter.last_graph
+        self._barrier = CoreReadinessBarrier()
+
+        # 3. 运行时状态初始化
+        failed: list[str] = []
+        degraded: list[str] = []
+        skipped: list[str] = []
+        failure_chains: dict[str, str] = {}
+        self._runtime_states = {
+            name: StartupItemRuntimeState(name=name, status=ComponentStatus.PENDING)
+            for name in self._items
+        }
+        for name in self.skip_names:
+            if name in self._runtime_states:
+                self._runtime_states[name].status = ComponentStatus.SKIPPED
+                self._runtime_states[name].skip_reason = "命令行跳过"
+                skipped.append(name)
+        propagator = FailurePropagator()
+        plan = self._wave_plan
+        phase_failed = False
+
+        for phase in sorted(StartupPhase, key=lambda p: p.value):
+            if phase_failed:
+                # 前相位 critical 失败：跳过后续相位全部项
+                self._mark_phase_skipped(phase, skipped, "前相位关键组件失败")
+                continue
+            waves = plan.phases.get(phase)
+            if not waves:
+                continue
+            phase_result = await self._run_phase_waves(
+                phase, waves, propagator, failure_chains,
+                failed, degraded, skipped,
+            )
+            self._phase_results[phase] = phase_result
+            if phase_result.status == ComponentStatus.FAILED:
+                phase_failed = True
+            # 核心就绪屏障检查
+            if phase == StartupPhase.CORE_SERVICES:
+                self._update_core_readiness()
+
+        # 5. 等待异步子系统 settle（对标 async_synchronize_full）
+        await self._wait_async_settle()
+
+        # 6. 配置冻结
+        self._freeze_config()
+
+        # 7. 启动完成事件
+        result = self._build_result(failed, degraded, skipped, failure_chains)
+        await self._emit_startup_complete(result)
+
+        # 8. 释放仲裁中间结构（对标 __init 回收）
+        self._wave_plan = None
+        self._graph = None
+
+        # 9. 摘要
+        self._emit_startup_summary(result)
+        self._running = False
+        return result
+
+    async def _run_phase_waves(
+        self,
+        phase: StartupPhase,
+        waves: list[list[str]],
+        propagator: FailurePropagator,
+        failure_chains: dict[str, str],
+        failed: list[str],
+        degraded: list[str],
+        skipped: list[str],
+    ) -> PhaseResult:
+        """逐波次执行一个相位（波次内并行、波次间串行）。"""
         start = time.monotonic()
         phase_name = _PHASE_NAMES.get(phase, phase.name)
-        components = sorted(
-            [c for c in self._components if c.phase == phase],
-            key=lambda c: c.order,
+        phase_items = [
+            n for wave in waves for n in wave
+            if n != CoreReadinessBarrier.VIRTUAL_NODE_ID
+        ]
+        logger.info(
+            f"[启动] 阶段{phase.value}: {phase_name} 状态=进行中"
+            f"（{len(phase_items)} 个组件，{len(waves)} 个波次）"
         )
 
-        if not components:
-            return PhaseResult(
-                phase=phase,
-                status=ComponentStatus.SUCCESS,
-                start_time=start,
-                end_time=start,
-                duration_ms=0,
-                components=[],
-            )
+        for wave_index, wave in enumerate(waves):
+            items = [n for n in wave if n != CoreReadinessBarrier.VIRTUAL_NODE_ID]
+            if not items:
+                continue
+            if self.debug_mode:
+                logger.info(
+                    f"[启动] {phase_name} 波次{wave_index}: {', '.join(items)}"
+                )
+            # 波次内并行（SUBSYSTEMS 保留 safe 包装，其余直接执行）
+            if phase == StartupPhase.SUBSYSTEMS:
+                await asyncio.gather(
+                    *[self._run_item_safe(name) for name in items]
+                )
+            else:
+                await asyncio.gather(
+                    *[self._run_item(name) for name in items]
+                )
+            # 失败传播
+            for name in items:
+                state = self._runtime_states[name]
+                if state.status == ComponentStatus.FAILED:
+                    failed.append(name)
+                    if self._graph is not None:
+                        prop = propagator.propagate(name, self._graph, {
+                            n: s.status for n, s in self._runtime_states.items()
+                        })
+                        for n, st in prop.state_updates.items():
+                            if n == CoreReadinessBarrier.VIRTUAL_NODE_ID:
+                                continue  # 屏障虚拟节点不入运行时状态
+                            self._runtime_states[n].status = st
+                            if st == ComponentStatus.SKIPPED:
+                                skipped.append(n)
+                            elif st == ComponentStatus.DEGRADED:
+                                degraded.append(n)
+                        failure_chains.update(prop.failure_chains)
 
-        logger.info(f"[启动] 阶段{phase.value}: {phase_name} 状态=进行中（{len(components)} 个组件）")
-
-        if not self._check_phase_entry(phase):
-            raise RuntimeError(f"阶段 {phase.name} 未满足准入条件——前一阶段关键组件未全部成功")
-
-        if phase == StartupPhase.SUBSYSTEMS:
-            await self._run_subsystems_parallel(components)
-        else:
-            for component in components:
-                await self._run_component(component)
-
-        end = time.monotonic()
-        duration_ms = int((end - start) * 1000)
+        # 相位状态
         critical_failed = any(
-            c.critical and c.status != ComponentStatus.SUCCESS for c in components
+            self._runtime_states[n].status != ComponentStatus.SUCCESS
+            for n in phase_items
+            if self._items[n].critical
         )
         status = ComponentStatus.FAILED if critical_failed else ComponentStatus.SUCCESS
-
+        end = time.monotonic()
         if status == ComponentStatus.SUCCESS:
-            logger.info(f"[启动] 阶段{phase.value}: {phase_name} 状态=成功 耗时={duration_ms}ms")
+            logger.info(f"[启动] 阶段{phase.value}: {phase_name} 状态=成功")
         else:
-            logger.error(f"[启动] 阶段{phase.value}: {phase_name} 状态=失败 耗时={duration_ms}ms")
-
+            logger.error(f"[启动] 阶段{phase.value}: {phase_name} 状态=失败（关键组件未全部成功）")
         return PhaseResult(
             phase=phase,
             status=status,
             start_time=start,
             end_time=end,
-            duration_ms=duration_ms,
-            components=components,
+            duration_ms=int((end - start) * 1000),
+            components=[],
         )
 
-    async def _run_component(self, component: StartupComponent) -> None:
-        component.status = ComponentStatus.IN_PROGRESS
-        component.start_time = time.monotonic()
+    def _mark_phase_skipped(
+        self, phase: StartupPhase, skipped: list[str], reason: str
+    ) -> None:
+        """前相位失败：本相位全部项标记 SKIPPED。"""
+        for name, desc in self._items.items():
+            if desc.phase == phase and name not in skipped:
+                self._runtime_states[name].status = ComponentStatus.SKIPPED
+                self._runtime_states[name].skip_reason = reason
+                skipped.append(name)
+
+    # ── 单项执行 ─────────────────────────────────────────────────
+
+    async def _run_item(self, name: str) -> None:
+        state = self._runtime_states[name]
+        if state.status != ComponentStatus.PENDING:
+            return
+        state.status = ComponentStatus.IN_PROGRESS
+        state.start_time = time.monotonic()
         try:
-            await component.init_fn()
-            component.status = ComponentStatus.SUCCESS
+            await self._items[name].init_fn()
+            state.status = ComponentStatus.SUCCESS
         except Exception as exc:
-            component.status = ComponentStatus.FAILED
-            component.error = exc
-            if component.critical:
-                logger.error(f"[{component.name}] 关键组件初始化失败: {exc}", exc_info=True)
-                raise
-            logger.warning(f"[{component.name}] 非关键组件初始化失败（降级继续）: {exc}")
+            state.status = ComponentStatus.FAILED
+            state.error = exc
+            if self._items[name].critical:
+                logger.error(f"[{name}] 关键组件初始化失败: {exc}", exc_info=True)
+            else:
+                logger.warning(f"[{name}] 非关键组件初始化失败（降级继续）: {exc}")
         finally:
-            component.end_time = time.monotonic()
-            component.duration_ms = int((component.end_time - component.start_time) * 1000)
+            state.end_time = time.monotonic()
+            state.duration_ms = int((state.end_time - state.start_time) * 1000)
+            if self.debug_mode:
+                logger.info(
+                    f"启动项 {name} | 相位={self._items[name].phase.name} "
+                    f"| 结果={state.status.value} | 耗时={state.duration_ms}ms"
+                )
 
-    async def _run_subsystems_parallel(self, components: list[StartupComponent]) -> None:
-        tasks: list[asyncio.Task] = []
-        for component in components:
-            task = asyncio.create_task(
-                self._run_component_safe(component),
-                name=f"startup:{component.name}",
-            )
-            tasks.append(task)
-
-        for task in tasks:
-            try:
-                await asyncio.wait_for(task, timeout=_SUBSYSTEM_TIMEOUT)
-            except asyncio.TimeoutError:
-                logger.warning(f"子系统启动超时: {task.get_name()}")
-
-    async def _run_component_safe(self, component: StartupComponent) -> None:
-        """执行单个组件——无论成败都不传播异常。"""
-        component.status = ComponentStatus.IN_PROGRESS
-        component.start_time = time.monotonic()
+    async def _run_item_safe(self, name: str) -> None:
+        """子系统单项——无论成败都不传播异常（与存量 safe 语义一致）。"""
+        state = self._runtime_states[name]
+        if state.status != ComponentStatus.PENDING:
+            return
+        state.status = ComponentStatus.IN_PROGRESS
+        state.start_time = time.monotonic()
         try:
-            await component.init_fn()
-            component.status = ComponentStatus.SUCCESS
+            await asyncio.wait_for(
+                self._items[name].init_fn(), timeout=_SUBSYSTEM_TIMEOUT
+            )
+            state.status = ComponentStatus.SUCCESS
         except asyncio.TimeoutError:
-            component.status = ComponentStatus.FAILED
-            component.error = f"超时 {_SUBSYSTEM_TIMEOUT}s"
-            logger.warning(f"[{component.name}] 子系统启动超时")
-            self._subsystem_status[component.name] = ComponentStatus.FAILED
+            state.status = ComponentStatus.FAILED
+            state.error = f"超时 {_SUBSYSTEM_TIMEOUT}s"
+            self._subsystem_status[name] = ComponentStatus.FAILED
+            logger.warning(f"[{name}] 子系统启动超时")
         except Exception as exc:
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
-            component.status = ComponentStatus.FAILED
-            component.error = exc
-            logger.warning(f"[{component.name}] 子系统初始化失败（降级继续）: {exc}")
-            self._subsystem_status[component.name] = ComponentStatus.FAILED
+            state.status = ComponentStatus.FAILED
+            state.error = exc
+            self._subsystem_status[name] = ComponentStatus.FAILED
+            logger.warning(f"[{name}] 子系统初始化失败（降级继续）: {exc}")
         finally:
-            component.end_time = time.monotonic()
-            component.duration_ms = int((component.end_time - component.start_time) * 1000)
+            state.end_time = time.monotonic()
+            state.duration_ms = int((state.end_time - state.start_time) * 1000)
+            if self.debug_mode:
+                logger.info(
+                    f"启动项 {name} | 相位={self._items[name].phase.name} "
+                    f"| 结果={state.status.value} | 耗时={state.duration_ms}ms"
+                )
 
-    def _check_phase_entry(self, phase: StartupPhase) -> bool:
-        """检查前一阶段所有关键组件是否全部成功。"""
-        if phase == StartupPhase.CONFIG_LOAD:
-            return True
-        prev = StartupPhase(phase.value - 1)
-        prev_components = [c for c in self._components if c.phase == prev]
-        for c in prev_components:
-            if c.critical and c.status != ComponentStatus.SUCCESS:
-                return False
-        return True
+    # ── 核心就绪 / 冻结 / 回调 ───────────────────────────────────
 
-    def _update_core_readiness(self, result: PhaseResult) -> None:
-        """阶段 2 完成后根据组件声明的 core_readiness_flag 更新核心就绪状态。"""
-        for c in result.components:
-            if c.core_readiness_flag and c.status == ComponentStatus.SUCCESS:
-                setattr(self._core_readiness, c.core_readiness_flag, True)
+    def _update_core_readiness(self) -> None:
+        """CORE_SERVICES 完成后按 core_readiness_flag 更新核心就绪。"""
+        for name, desc in self._items.items():
+            if (
+                desc.core_readiness_flag
+                and self._runtime_states[name].status == ComponentStatus.SUCCESS
+            ):
+                setattr(self._core_readiness, desc.core_readiness_flag, True)
         if self._core_readiness.core_ready and self._core_ready_time == 0.0:
             self._core_ready_time = time.monotonic()
+        # 屏障就绪检查（贡献组件全部 SUCCESS）
+        self._barrier.check({
+            n: self._runtime_states[n].status for n in self._runtime_states
+        })
+
+    async def _wait_async_settle(self) -> None:
+        """等待异步子系统 settle（对标 Linux async_synchronize_full）。"""
+        # 当前实现：SUBSYSTEMS 波次已 gather 等待；保留钩子供未来异步回填
+        await asyncio.sleep(0)
+
+    def _freeze_config(self) -> None:
+        """配置冻结（标记只读，对标 __init 内存回收前的同步点）。"""
+        try:
+            from src.config.config import config_manager  # noqa: TID251 — 启动编排负责配置生命周期冻结
+
+            freeze = getattr(config_manager, "freeze", None)
+            if callable(freeze):
+                freeze()
+        except Exception:
+            logger.warning("配置冻结失败（不阻断启动）", exc_info=True)
+
+    async def _emit_startup_complete(self, result: StartupResult) -> None:
+        """发布启动完成事件（EventBus.emit，nofail 不阻断启动）。"""
+        try:
+            from src.core.event_bus import event_bus
+
+            await event_bus.emit(
+                "startup_complete",
+                robust=False,
+                nofail=True,
+            )
+            logger.info(
+                f"[启动] StartupCompleteEvent 已发布 | ready={result.ready} | "
+                f"耗时={result.total_duration_ms}ms"
+            )
+        except Exception:
+            logger.warning("StartupCompleteEvent 发布失败（不阻断启动）", exc_info=True)
+
+    def _build_result(
+        self,
+        failed: list[str],
+        degraded: list[str],
+        skipped: list[str],
+        failure_chains: dict[str, str],
+    ) -> StartupResult:
+        total_ms = int((time.monotonic() - self._start_time) * 1000)
+        core_ready_ms = 0
+        if self._core_readiness.core_ready and self._core_ready_time > 0:
+            core_ready_ms = int((self._core_ready_time - self._start_time) * 1000)
+        wave_info = {
+            phase: [[n for n in wave if n != CoreReadinessBarrier.VIRTUAL_NODE_ID]
+                    for wave in waves]
+            for phase, waves in (self._wave_plan.phases if self._wave_plan else {}).items()
+        }
+        return StartupResult(
+            total_duration_ms=total_ms,
+            phases=self._phase_results,
+            failed_components=list(dict.fromkeys(failed)),
+            degraded_components=list(dict.fromkeys(degraded)),
+            skipped_components=list(dict.fromkeys(skipped)),
+            ready=not any(
+                self._items[n].critical
+                and self._runtime_states[n].status == ComponentStatus.FAILED
+                for n in self._runtime_states
+            ),
+            core_ready=self._core_readiness.core_ready,
+            core_ready_time_ms=core_ready_ms,
+            subsystem_status=self._subsystem_status,
+            wave_info=wave_info,
+            failure_chains=failure_chains,
+        )
+
+    def _emit_startup_summary(self, result: StartupResult) -> None:
+        lines = [
+            f"[启动摘要] 总耗时={result.total_duration_ms}ms | "
+            f"核心就绪={result.core_ready_time_ms}ms | ready={result.ready}",
+        ]
+        for phase in sorted(StartupPhase, key=lambda p: p.value):
+            pr = result.phases.get(phase)
+            if pr is None:
+                continue
+            status = "✓" if pr.status == ComponentStatus.SUCCESS else "✗"
+            phase_name = _PHASE_NAMES.get(phase, phase.name)
+            lines.append(f"  阶段{phase.value} {phase_name}: {pr.duration_ms}ms {status}")
+            for name in self._items:
+                if self._items[name].phase == phase:
+                    st = self._runtime_states[name].status
+                    mark = {"success": "✓", "failed": "✗", "skipped": "-",
+                            "degraded": "~"}.get(st.value, "?")
+                    lines.append(f"    {name}: {mark} {st.value}")
+        if result.skipped_components:
+            lines.append(f"  跳过: {', '.join(result.skipped_components)}")
+        if result.failure_chains:
+            lines.append(
+                "  失败链: " + ", ".join(
+                    f"{k}←{v}" for k, v in result.failure_chains.items()
+                )
+            )
+        logger.info("\n".join(lines))

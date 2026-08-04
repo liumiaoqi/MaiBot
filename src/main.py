@@ -33,7 +33,9 @@ if TYPE_CHECKING:
 
 
 class MainSystem:
-    def __init__(self) -> None:
+    def __init__(self, debug_startup: bool = False, skip_startup_items: set[str] | None = None) -> None:
+        self._debug_startup = debug_startup
+        self._skip_startup_items = set(skip_startup_items or ())
         # 使用消息API替代直接的FastAPI实例
         self.app: MessageServer | None = None
         self.server: Server | None = None
@@ -125,7 +127,10 @@ class MainSystem:
         )
 
         self._init_start_time = time.time()
-        orchestrator = StartupOrchestrator()
+        orchestrator = StartupOrchestrator(
+            debug_mode=self._debug_startup,
+            skip_names=self._skip_startup_items,
+        )
 
         # 阶段 0：配置加载
         orchestrator.register(StartupComponent(
@@ -993,12 +998,20 @@ class MainSystem:
             raise
 
 
-async def main() -> None:
-    """主函数"""
+async def main(debug_startup: bool = False, skip_startup_items: set[str] | None = None) -> None:
+    """主函数
+
+    Args:
+        debug_startup: --debug-startup 启动项逐项观测
+        skip_startup_items: --skip-startup-item 跳过的启动项集合
+    """
     set_main_loop(asyncio.get_running_loop())
     from src.config.config import initialize_config
     initialize_config()
-    system = MainSystem()
+    system = MainSystem(
+        debug_startup=debug_startup,
+        skip_startup_items=skip_startup_items,
+    )
     try:
         await system.initialize()
 
@@ -1056,4 +1069,17 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import argparse as _argparse
+
+    _parser = _argparse.ArgumentParser(description="MaiBot")
+    _parser.add_argument(
+        "--debug-startup", action="store_true",
+        help="启动项逐项观测（对标 initcall_debug）",
+    )
+    _parser.add_argument(
+        "--skip-startup-item", type=str, default="",
+        help="逗号分隔的跳过启动项名称（对标 initcall_blacklist）",
+    )
+    _args = _parser.parse_args()
+    _skip = {n.strip() for n in _args.skip_startup_item.split(",") if n.strip()}
+    asyncio.run(main(debug_startup=_args.debug_startup, skip_startup_items=_skip))

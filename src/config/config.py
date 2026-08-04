@@ -238,6 +238,10 @@ def _normalize_loaded_bot_config_dict(config_data: dict[str, Any]) -> dict[str, 
     return normalized
 
 
+class ConfigFrozenError(RuntimeError):
+    """配置冻结异常 — 启动完成后配置被冻结，运行时修改被拒绝（ZG-10 T19）。"""
+
+
 class ConfigManager:
     """总配置管理类"""
 
@@ -257,6 +261,19 @@ class ConfigManager:
         self._hot_reload_timeout_s: float = 20.0
         self._last_hot_reload_monotonic: float = 0.0
         self.reload_revision: int = 0
+        self._frozen: bool = False
+
+    def freeze(self) -> None:
+        """冻结配置（启动完成后调用，对标 Linux __init 内存回收前只读化）。
+
+        冻结后 reload_config 抛 ConfigFrozenError。
+        """
+        self._frozen = True
+
+    @property
+    def frozen(self) -> bool:
+        """配置是否已冻结。"""
+        return self._frozen
 
     def initialize(self):
         logger.info(t("config.current_version", version=MMC_VERSION))
@@ -422,7 +439,12 @@ class ConfigManager:
 
         Returns:
             bool: 是否重载成功。
+
+        Raises:
+            ConfigFrozenError: 配置已冻结（ZG-10 启动完成后只读）
         """
+        if self._frozen:
+            raise ConfigFrozenError("配置已冻结（启动完成），运行时修改被拒绝")
 
         normalized_scopes = self._normalize_changed_scopes(changed_scopes)
         if not normalized_scopes:
