@@ -92,8 +92,12 @@ class EmbeddingAPIAdapter:
     def _resolve_candidate_model_names(self) -> List[str]:
         if self._model_config_port is None:
             return []
-        task_cfg = self._model_config_port.get_task_config("embedding")
-        configured = list(getattr(task_cfg, "model_list", []) or [])
+        # ZG-12 组件自治：按 embedding 能力解析（替代旧 get_task_config deprecated 路径）
+        try:
+            resolved = self._model_config_port.resolve_by_capability(["embedding"])
+            configured = [resolved.name]
+        except Exception:
+            configured = []
         if self.model_name and self.model_name != "auto":
             return [self.model_name, *[name for name in configured if name != self.model_name]]
         return configured

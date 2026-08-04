@@ -222,6 +222,27 @@ class ModelConfig(ConfigBase):
                         model_name=model.name,
                     )
                 )
+
+        # 旧配置升级迁移（ZG-12）：embedding/voice 任务引用的模型 → category 推断。
+        # 旧配置无 category/capabilities 字段，默认迁移会把 embedding 模型当文本模型——
+        # 按 model_task_config 引用修正形态（embedding 模型不是文本模型）。
+        embedding_names = {
+            str(name).strip()
+            for name in getattr(getattr(self.model_task_config, "embedding", None), "model_list", [])
+            if str(name).strip()
+        }
+        voice_names = {
+            str(name).strip()
+            for name in getattr(getattr(self.model_task_config, "voice", None), "model_list", [])
+            if str(name).strip()
+        }
+        for model in self.models:
+            if model.name in embedding_names:
+                model.category = "embedding"
+                model.capabilities = {"embedding"}
+            elif model.name in voice_names:
+                model.category = "voice"
+                model.capabilities = {"voice"}
         return super().model_post_init(context)
 
 
