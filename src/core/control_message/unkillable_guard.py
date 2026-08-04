@@ -13,6 +13,7 @@ from typing import Optional
 
 from src.core.control_message.types import (
 
+    FATAL_MASK,
     ControlMessageKind,
     ProtectionAction,
     ProtectionResult,
@@ -91,7 +92,7 @@ class UnkillableGuard:
         if decl is None or not decl.is_active:
             return ProtectionResult(action=ProtectionAction.PROCEED)
 
-        if kind == ControlMessageKind.SESSION_DESTROY:
+        if (1 << (kind - 1)) & FATAL_MASK:
             if force:
                 decl.is_active = False
                 return ProtectionResult(action=ProtectionAction.CLEARED)

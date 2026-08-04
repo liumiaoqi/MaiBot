@@ -71,14 +71,25 @@ class TestEnqueue:
         assert second is not None and second.kind == ControlMessageKind.RESUME_REPLY
         assert second.info["payload"] == {"a": 2}
 
-    def test_overflow_rejected(self) -> None:
-        """队列溢出：达 max_nodes 后拒绝（spec §5.2.1 规则 6）。"""
+    def test_overflow_low_priority_rejected(self) -> None:
+        """队列溢出：满时低优先级新消息无法驱逐任何节点被拒绝（spec §5.2.1 规则 6/7）。"""
         q = _make_queue(max_nodes=2)
-        assert q.enqueue(ControlMessageKind.URGENT_NOTICE, _info()).accepted
-        assert q.enqueue(ControlMessageKind.RATE_LIMIT_HIT, _info()).accepted
-        result = q.enqueue(ControlMessageKind.PAUSE_REPLY, _info())
+        q.enqueue(ControlMessageKind.PAUSE_REPLY, _info())
+        q.enqueue(ControlMessageKind.RESUME_REPLY, _info())
+        result = q.enqueue(ControlMessageKind.RATE_LIMIT_HIT, _info())
         assert result.accepted is False
         assert result.reason == "CONTROL_PENDING_OVERFLOW"
+
+    def test_overflow_high_priority_evicts(self) -> None:
+        """队列溢出：满时高优先级新消息驱逐低优先级节点后入队（spec §5.2.1 规则 7）。"""
+        q = _make_queue(max_nodes=2)
+        q.enqueue(ControlMessageKind.PAUSE_REPLY, _info(payload={"v": 1}))
+        q.enqueue(ControlMessageKind.RESUME_REPLY, _info(payload={"v": 2}))
+        result = q.enqueue(ControlMessageKind.EMERGENCY_STOP, _info())
+        assert result.accepted is True
+        assert q.node_count == 2
+        kinds = [n.kind for n in q.node_list]
+        assert ControlMessageKind.EMERGENCY_STOP in kinds
 
 
 class TestDequeue:

@@ -11,6 +11,7 @@
 from collections import deque
 from typing import Any, Optional
 
+from src.common.logger import get_logger
 from src.core.control_message.kind_registry import ControlMessageKindRegistry
 from src.core.control_message.types import (
     SYNCHRONOUS_MASK,
@@ -19,6 +20,8 @@ from src.core.control_message.types import (
     ControlMessagePendingNode,
     EnqueueResult,
 )
+
+logger = get_logger(__name__)
 
 
 class ControlMessagePending:
@@ -65,7 +68,19 @@ class ControlMessagePending:
             EnqueueResult，达上限时 accepted=False（CONTROL_PENDING_OVERFLOW）
         """
         if self.node_count >= self.max_nodes:
-            return EnqueueResult(accepted=False, reason="CONTROL_PENDING_OVERFLOW")
+            evict_target = self._find_eviction_target(kind)
+            if evict_target is not None:
+                self.node_list.remove(evict_target)
+                self.node_count -= 1
+                evict_bit = 1 << (evict_target.kind - 1)
+                if not any(n.kind == evict_target.kind for n in self.node_list):
+                    self.kind_bitmap &= ~evict_bit
+                logger.info(
+                    "priority_eviction: kind=%d 驱逐 kind=%d",
+                    int(kind), int(evict_target.kind),
+                )
+            else:
+                return EnqueueResult(accepted=False, reason="CONTROL_PENDING_OVERFLOW")
 
         bit = 1 << (kind - 1)
 
@@ -105,6 +120,27 @@ class ControlMessagePending:
         self.node_list.append(node)
         self.node_count += 1
         return EnqueueResult(accepted=True)
+
+    def _find_eviction_target(
+        self, new_kind: ControlMessageKind
+    ) -> Optional[ControlMessagePendingNode]:
+        """优先级感知溢出驱逐：找到可驱逐的最低优先级节点（spec §5.2.1 规则 7）。
+
+        驱逐条件：被驱逐节点编号 > 新消息编号；编号 1-3 不可驱逐。
+        同编号时驱逐最早入队的（insert_order 最小），首次找到即为目标。
+        """
+        evictable_node = None
+        evictable_kind_max = int(new_kind)
+
+        for node in self.node_list:
+            node_kind = int(node.kind)
+            if node_kind <= 3:
+                continue
+            if node_kind > evictable_kind_max:
+                evictable_kind_max = node_kind
+                evictable_node = node
+
+        return evictable_node
 
     def dequeue(
         self, blocked_mask: int, ignored_mask: int

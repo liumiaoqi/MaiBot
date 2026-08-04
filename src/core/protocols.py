@@ -1801,12 +1801,12 @@ class ControlMessagePort(Protocol):
         """force 强制投递（绕过屏蔽/忽略/UNKILLABLE 保护）。
 
         前置：caller 必须在 force_caller_whitelist 中（系统核心层）；
-        kind 必须为系统级强制类别（编号 1-3）。
+        kind 必须为系统级强制类别（编号 1-3）或引擎致命类别（编号 4-6）。
         后置：清除目标该类别屏蔽/忽略位与 UNKILLABLE 标志（若为致命），
         直接入队并记录审计。
 
         Args:
-            kind: 控制消息类别（必须 1-3）
+            kind: 控制消息类别（必须 1-6，系统级强制 + 引擎致命）
             target_session_id: 目标会话 ID
             target_entity: 目标实体标识
             reason: 强制投递原因（审计）

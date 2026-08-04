@@ -113,6 +113,12 @@ UNMASKABLE_MASK = (
     | (1 << (ControlMessageKind.FORCE_OFFLINE - 1))
 )
 
+# 致命控制消息（编号 4-6, 9）— 触发扩散，FATAL_MASK = SYNCHRONOUS_MASK ∪ {SESSION_DESTROY 位}
+FATAL_MASK = SYNCHRONOUS_MASK | (1 << (ControlMessageKind.SESSION_DESTROY - 1))
+
+# force 通道允许类别（编号 1-6）— 系统级强制 + 引擎致命
+FORCE_ALLOWED_MASK = UNMASKABLE_MASK | SYNCHRONOUS_MASK
+
 # 标准控制消息（编号 1-14）— 同类去重，对标 Linux 标准信号（1-31）
 STANDARD_MASK = (1 << 14) - 1
 

@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from src.core.control_message.types import (
 
+    FATAL_MASK,
     ControlMessageKind,
     FatalDiffuseRecord,
 )
@@ -81,8 +82,8 @@ class FatalDiffuser:
             非致命返回 None；致命且无关联任务时返回空记录；
             致命且有关联任务时返回 None（结果由后台 worker 记录）
         """
-        # 1. 致命控制消息识别（spec §5.9.1 规则 1）
-        if kind != ControlMessageKind.SESSION_DESTROY:
+        # 1. 致命控制消息识别（FATAL_MASK 位运算，spec §5.9.1 规则 1）
+        if not ((1 << (kind - 1)) & FATAL_MASK):
             return None
 
         # 2. 查询会话关联的异步任务（spec §5.9.1 规则 2）

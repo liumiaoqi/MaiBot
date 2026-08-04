@@ -48,6 +48,9 @@ class ControlMessageMaskManager:
             app_config_port: AppConfigPort（读取系统级屏蔽/忽略配置，可选）
         """
         self._kind_registry = kind_registry
+        self._effective_unmaskable_mask: int = UNMASKABLE_MASK
+        if kind_registry is not None and hasattr(kind_registry, "unmaskable_mask"):
+            self._effective_unmaskable_mask = kind_registry.unmaskable_mask
         self._system_mask = _ControlMessageMask(scope=MaskScope.SYSTEM, session_id="")
         self._session_masks: dict[str, _ControlMessageMask] = {}
         if app_config_port is not None:
@@ -65,8 +68,8 @@ class ControlMessageMaskManager:
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("系统级忽略集配置读取失败，使用默认空集", exc_info=True)
-            self._system_mask.blocked_bits &= ~UNMASKABLE_MASK
-            self._system_mask.ignored_bits &= ~UNMASKABLE_MASK
+            self._system_mask.blocked_bits &= ~self._effective_unmaskable_mask
+            self._system_mask.ignored_bits &= ~self._effective_unmaskable_mask
 
     @staticmethod
     def _kinds_to_bits(kinds: object) -> int:
@@ -104,7 +107,7 @@ class ControlMessageMaskManager:
         Returns:
             操作后该作用域屏蔽位图
         """
-        kinds_bits &= ~UNMASKABLE_MASK
+        kinds_bits &= ~self._effective_unmaskable_mask
         mask = self._get_mask(scope, session_id)
         if how is MaskOperation.BLOCK:
             mask.blocked_bits |= kinds_bits
@@ -112,7 +115,7 @@ class ControlMessageMaskManager:
             mask.blocked_bits &= ~kinds_bits
         elif how is MaskOperation.SETMASK:
             mask.blocked_bits = kinds_bits
-        mask.blocked_bits &= ~UNMASKABLE_MASK
+        mask.blocked_bits &= ~self._effective_unmaskable_mask
         mask.last_update_time = time.monotonic()
         return mask.blocked_bits
 
@@ -134,10 +137,10 @@ class ControlMessageMaskManager:
         Returns:
             操作后该作用域忽略位图
         """
-        kinds_bits &= ~UNMASKABLE_MASK
+        kinds_bits &= ~self._effective_unmaskable_mask
         mask = self._get_mask(scope, session_id)
         mask.ignored_bits = kinds_bits
-        mask.ignored_bits &= ~UNMASKABLE_MASK
+        mask.ignored_bits &= ~self._effective_unmaskable_mask
         mask.last_update_time = time.monotonic()
         return mask.ignored_bits
 

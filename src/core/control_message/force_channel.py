@@ -3,7 +3,7 @@
 对标 Linux `force_sig_info_to_task`：
 - 绕过所有屏蔽/忽略/UNKILLABLE 保护，必须成功投递（spec §4.2 可靠性 2）
 - 调用方白名单授权（系统核心层，spec §5.7.1 规则 2）
-- 只投递系统级强制类别（编号 1-3，spec §5.7.1 规则 5）
+- 只投递系统级强制和引擎致命类别（编号 1-6，spec §5.7.1 规则 5）
 - 清除屏蔽/忽略/UNKILLABLE + 直接入队 + 审计记录
 """
 
@@ -13,10 +13,10 @@ import time
 from src.core.control_message.mask_manager import ControlMessageMaskManager
 from src.core.control_message.two_level_pending import TwoLevelPendingManager
 from src.core.control_message.types import (
+    FORCE_ALLOWED_MASK,
     ControlMessageDeliveryResult,
     ControlMessageKind,
     DeliveryResult,
-    UNMASKABLE_MASK,
 )
 from src.core.control_message.unkillable_guard import UnkillableGuard
 
@@ -105,8 +105,8 @@ class ForceChannel:
                 detail="CONTROL_FORCE_PERMISSION_DENIED",
             )
 
-        # 2. 类别校验（系统级强制，编号 1-3，spec §5.7.1 规则 5）
-        if not ((1 << (int(kind) - 1)) & UNMASKABLE_MASK):
+        # 2. 类别校验（系统级强制+引擎致命，编号 1-6，spec §5.7.1 规则 5）
+        if not ((1 << (int(kind) - 1)) & FORCE_ALLOWED_MASK):
             return ControlMessageDeliveryResult(
                 delivered=False,
                 result=DeliveryResult.REJECTED,
@@ -117,8 +117,8 @@ class ForceChannel:
         self._mask_manager.clear_blocked_bit(kind, target_session_id)
         self._mask_manager.clear_ignored_bit(kind, target_session_id)
 
-        # 4. 清除目标的 UNKILLABLE 标志（force 投递系统级强制时无论是否致命均清除，
-        #    spec §5.6.1 规则 3）
+        # 4. 清除目标的 UNKILLABLE 标志（force 投递系统级强制或引擎致命时清除，
+        #    spec §5.6.1 规则 3；当前 FORCE_ALLOWED_MASK 范围内无条件清除与 spec 一致）
         if target_entity and self._unkillable_guard.is_protected(target_entity):
             self._unkillable_guard.clear_unkillable(target_entity)
             await self._emit("control.unkillable_cleared", {"entity": target_entity})

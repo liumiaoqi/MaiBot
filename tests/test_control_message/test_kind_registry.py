@@ -89,9 +89,16 @@ class TestKindRegistry:
 
     # ── 致命判定（spec §5.9.1 规则 1）──────────────────────────────
 
-    def test_is_fatal_only_session_destroy(self) -> None:
+    def test_is_fatal_covers_engine_fatal_and_session_destroy(self) -> None:
+        """FATAL_MASK 覆盖引擎致命(4-6) + SESSION_DESTROY(9)（spec §5.9.1 规则 1）。"""
+        fatal_kinds = {
+            ControlMessageKind.ENGINE_FATAL_ERROR,
+            ControlMessageKind.MEMORY_SUBSYSTEM_FAILURE,
+            ControlMessageKind.SESSION_CORRUPTED,
+            ControlMessageKind.SESSION_DESTROY,
+        }
         for kind in ControlMessageKind:
-            assert self.registry.is_fatal(kind) is (kind == ControlMessageKind.SESSION_DESTROY)
+            assert self.registry.is_fatal(kind) is (kind in fatal_kinds)
 
     # ── 编号越界（spec §5.1.2 异常场景 1）──────────────────────────
 
@@ -125,11 +132,20 @@ class TestKindRegistry:
         registry = ControlMessageKindRegistry(app_config_port=FakeConfigPort())
         assert registry.unmaskable_whitelist == frozenset({ControlMessageKind(k) for k in (1, 2, 3)})
 
-    def test_conflicting_whitelist_config_rejected(self) -> None:
-        # 配置含不可屏蔽之外类别或缺失 → 拒绝该配置项，保持默认白名单
-        class BadConfigPort:
+    def test_superset_whitelist_config_accepted(self) -> None:
+        """超集配置被接受：{1,2,3,12} ⊇ {1,2,3} → 使用配置值（spec §5.5.1 规则 2）。"""
+        class SupersetConfigPort:
             def get_control_message_unmaskable_whitelist(self) -> set[int]:
                 return {1, 2, 3, 12}
+
+        registry = ControlMessageKindRegistry(app_config_port=SupersetConfigPort())
+        assert registry.unmaskable_whitelist == frozenset({ControlMessageKind(k) for k in (1, 2, 3, 12)})
+
+    def test_non_superset_whitelist_config_rejected(self) -> None:
+        """非超集配置被拒绝：{1,2} ⊉ {1,2,3} → 保持默认（spec §5.5.1 规则 2）。"""
+        class BadConfigPort:
+            def get_control_message_unmaskable_whitelist(self) -> set[int]:
+                return {1, 2}
 
         registry = ControlMessageKindRegistry(app_config_port=BadConfigPort())
         assert registry.unmaskable_whitelist == frozenset({ControlMessageKind(k) for k in (1, 2, 3)})

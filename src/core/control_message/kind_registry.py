@@ -10,6 +10,7 @@
 
 from src.core.control_message.types import (
 
+    FATAL_MASK,
     REALTIME_MASK,
     STANDARD_MASK,
     SYNCHRONOUS_MASK,
@@ -56,9 +57,24 @@ class ControlMessageKindRegistry:
                 mark_exception_swallowed()
                 logger.warning("不可屏蔽白名单配置读取失败，使用默认 {1,2,3}", exc_info=True)
                 parsed = frozenset()
-            # 配置必须恰好覆盖默认白名单，否则拒绝该配置项保持默认（spec §5.1.2）
-            if parsed == _DEFAULT_UNMASKABLE_WHITELIST:
+            # 配置必须为默认白名单的超集（{1,2,3} ⊆ 配置值），否则拒绝该配置项保持默认（spec §5.5.1 规则 2）
+            if parsed.issuperset(_DEFAULT_UNMASKABLE_WHITELIST):
                 self._unmaskable_whitelist = parsed
+            elif parsed:
+                logger.warning(
+                    "不可屏蔽白名单配置不满足超集约束（期望 {1,2,3} ⊆ 配置值），实际 %s，保持默认",
+                    set(parsed),
+                )
+
+        # 计算动态不可屏蔽掩码（遍历白名单累加位图）
+        self._unmaskable_mask = UNMASKABLE_MASK
+        for k in self._unmaskable_whitelist:
+            self._unmaskable_mask |= 1 << (k - 1)
+
+    @property
+    def unmaskable_mask(self) -> int:
+        """动态不可屏蔽掩码（白名单扩展时自动包含新类别位）。"""
+        return self._unmaskable_mask
 
     def _require_known(self, kind: object) -> ControlMessageKind:
         """校验编号合法（1-16），越界抛 CONTROL_KIND_UNKNOWN（spec §5.1.2 异常场景 1）。"""
@@ -103,9 +119,9 @@ class ControlMessageKindRegistry:
         return (1 << (known - 1)) & REALTIME_MASK != 0
 
     def is_fatal(self, kind: object) -> bool:
-        """是否致命控制消息（触发扩散，固定为 SESSION_DESTROY=9，spec §5.9.1）。"""
+        """是否致命控制消息（触发扩散，FATAL_MASK 位运算 O(1)，spec §5.1.1 规则 3）。"""
         known = self._require_known(kind)
-        return known == ControlMessageKind.SESSION_DESTROY
+        return (1 << (known - 1)) & FATAL_MASK != 0
 
     @property
     def unmaskable_whitelist(self) -> frozenset[ControlMessageKind]:
