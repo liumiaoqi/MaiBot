@@ -9,7 +9,6 @@ import tomlkit
 from src.common.logger import get_logger
 from src.common.utils.utils_config import AMemorixConfigUtils
 from src.config.official_configs import AMemorixConfig
-from src.core.types import AMemorixIntegrationSnapshot
 from src.webui.utils.toml_utils import _update_toml_doc
 
 from .paths import repo_root, schema_path
@@ -682,20 +681,26 @@ class AMemorixHostService:
             return dict(self._config_cache)
 
         try:
-            config_model = _get_app_config_port().get_a_memorix_integration_config()
+            # 完整配置（含 storage/embedding/retrieval 等）——integration 快照
+            # 缺 storage 曾导致 data_dir 回落默认 ./data（记忆检索空结果回归）
+            config_dict = _get_app_config_port().get_a_memorix_full_config()
         except Exception as exc:
             logger.warning(f"读取 A_Memorix 主配置失败，使用默认值: {exc}")
             defaults = self._build_default_config()
             self._config_cache = defaults
             return dict(defaults)
 
-        self._config_cache = self._config_model_to_runtime_dict(config_model)
+        self._config_cache = self._config_model_to_runtime_dict(config_dict)
         return dict(self._config_cache)
 
     @staticmethod
-    def _config_model_to_runtime_dict(config_model: AMemorixIntegrationSnapshot) -> Dict[str, Any]:
+    def _config_model_to_runtime_dict(config_model: Any) -> Dict[str, Any]:
         import dataclasses
-        payload = dataclasses.asdict(config_model)
+        payload = (
+            dataclasses.asdict(config_model)
+            if not isinstance(config_model, dict)
+            else dict(config_model)
+        )
         web_config = payload.get("web")
         if isinstance(web_config, dict) and "import_config" in web_config:
             web_config["import"] = web_config.pop("import_config")

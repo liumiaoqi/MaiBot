@@ -177,6 +177,14 @@ class GlobalConfigAppConfigPort:
 
         )
 
+    def get_a_memorix_full_config(self) -> dict:
+        """获取完整 a_memorix 配置字典（含 storage/embedding/retrieval 等全字段）。
+
+        ZG-10 记忆检索回归修复：integration 快照缺 storage 字段导致 kernel
+        data_dir 回落默认 ./data——恢复完整配置读取。
+        """
+        return self._get_cfg().a_memorix.model_dump()
+
     def get_a_memorix_integration_config(self) -> AMemorixIntegrationSnapshot:
         ami = self._get_cfg().a_memorix.integration
         return AMemorixIntegrationSnapshot(
