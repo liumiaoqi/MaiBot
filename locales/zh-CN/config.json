@@ -35,5 +35,7 @@
   "config.removed_count": "移除配置数量: {count}",
   "config.removed_item": "移除配置项: {attribute}",
   "config.version_update_detected": "检测到配置版本更新，热重载仅更新内存数据",
-  "config.write_unsupported_type": "配置写入只支持 ConfigBase 子类"
+  "config.write_unsupported_type": "配置写入只支持 ConfigBase 子类",
+  "config.model_category_empty": "模型类别（category）不能为空",
+  "config.model_category_name_duplicate": "重复模型标识 (category, name): ({category}, {name})"
 }

@@ -35,5 +35,7 @@
   "config.removed_count": "Number of config entries removed: {count}",
   "config.removed_item": "Config entry removed: {attribute}",
   "config.version_update_detected": "Config version update detected, hot reload will only update in-memory data",
-  "config.write_unsupported_type": "Config write only supports subclasses of ConfigBase"
+  "config.write_unsupported_type": "Config write only supports subclasses of ConfigBase",
+  "config.model_category_empty": "Model category cannot be empty",
+  "config.model_category_name_duplicate": "Duplicate model key (category, name): ({category}, {name})"
 }

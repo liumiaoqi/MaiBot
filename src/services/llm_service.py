@@ -4,7 +4,7 @@
 `src.llm_models` 中的底层请求调度器。
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import hashlib
 import inspect
@@ -50,21 +50,38 @@ class LLMServiceClient:
     - `embed_text`（兼容入口，推荐改用 `EmbeddingServiceClient`）
     """
 
-    def __init__(self, task_name: str, request_type: str = "", session_id: str = "") -> None:
+    def __init__(
+        self,
+        task_name: str,
+        request_type: str = "",
+        session_id: str = "",
+        capabilities: Sequence[str] | None = None,
+    ) -> None:
         """初始化 LLM 服务门面。
 
         Args:
-            task_name: 任务配置名称，对应 `model_task_config` 下的字段名。
+            task_name: 旧任务配置名称（ZG-12 组件自治后经能力映射）。
             request_type: 当前请求的业务类型标识。
+            capabilities: 能力标签（ZG-12 主路径，提供时优先于 task_name）。
         """
-        self.task_name = _resolve_task_name(task_name)
+        self.task_name = task_name.strip()
+        self._capabilities = tuple(capabilities) if capabilities else self._resolve_capabilities(self.task_name)
         self.request_type = request_type
         self.session_id = str(session_id or "").strip()
         self._orchestrator = LLMOrchestrator(
-            task_name=self.task_name,
+            capabilities=self._capabilities,
             request_type=request_type,
             session_id=self.session_id,
         )
+
+    @staticmethod
+    def _resolve_capabilities(task_name: str) -> tuple[str, ...]:
+        """旧任务名 → 能力标签（空则默认 text_generation）。"""
+        if task_name:
+            from src.llm_models.task_name_mapping import resolve_legacy_task_name
+
+            return tuple(resolve_legacy_task_name(task_name))
+        return ("text_generation",)
 
     def _resolve_effective_session_id(self, session_id: str = "") -> str:
         """解析本次请求用于统计归属的聊天流 ID。"""
@@ -655,6 +672,7 @@ async def generate(request: LLMServiceRequest) -> LLMServiceResult:
         task_name=request.task_name,
         request_type=request.request_type,
         session_id=request.session_id,
+        capabilities=request.capabilities,
     )
     if request.message_factory is not None:
         active_message_factory = request.message_factory

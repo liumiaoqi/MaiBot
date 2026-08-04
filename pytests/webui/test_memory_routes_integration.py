@@ -461,6 +461,16 @@ def integration_state(tmp_path_factory: pytest.TempPathFactory) -> Generator[Dic
 
             return _Config()
 
+        def resolve_by_capability(self, capabilities, *, agent_id="", options=None):
+            # ZG-12 组件自治：假端口提供默认解析（测试用）
+            from src.llm_models.model_requirement import ResolvedModel
+
+            return ResolvedModel(
+                category="llm", name="fake-model",
+                model_identifier="fake-model", api_provider="fake-provider",
+                capabilities=frozenset(capabilities),
+            )
+
     from src.core.model_config_port_registry import register_model_config_port
 
     register_model_config_port(_FakeModelConfigPort())

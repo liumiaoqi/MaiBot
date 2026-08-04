@@ -6,10 +6,21 @@
 
 import copy
 from src.common.logger import get_logger
-from typing import Callable, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 from src.config.config import ConfigManager, ModelConfig
 from src.config.model_configs import APIProvider, ModelInfo, ModelTaskConfig, TaskConfig
+from src.llm_models.model_registry import ModelRegistry
+from src.llm_models.model_requirement import (
+    DEFAULT_SOURCE,
+    OPTIONS_SOURCE,
+    EffectiveResolution,
+    ModelEntry,
+    ResolutionOptions,
+    ResolvedModel,
+    get_all_declarations,
+)
+from src.llm_models.task_name_mapping import resolve_legacy_task_name
 
 logger = get_logger("core.adapters.model_config_port")
 
@@ -38,19 +49,182 @@ class ConfigManagerModelConfigPort:
         self._config_manager = config_manager
         self._agent_config_resolver = agent_config_resolver
         self._reload_callbacks: list[Callable] = []
+        self._registry: ModelRegistry | None = None
         config_manager.register_reload_callback(self._on_config_reloaded)
 
     # ── 查询接口 ──────────────────────────────────────
 
     def get_task_config(self, task_name: str, *, agent_id: str = "") -> TaskConfig:
-        """按任务名查询任务配置，支持智能体级覆盖。"""
-        model_config = self._config_manager.get_model_config()
-        task_cfg = self._resolve_task_config(model_config.model_task_config, task_name)
+        """按任务名查询任务配置，支持智能体级覆盖。
 
+        .. deprecated::
+            ZG-12 组件自治后任务名不做配置键——本方法经
+            resolve_legacy_task_name → resolve_by_capability 兼容。
+        """
+        logger.warning(
+            "get_task_config 已弃用（ZG-12 组件自治），调用方应改用 "
+            "resolve_by_capability；task_name=%s", task_name,
+        )
+        capabilities = resolve_legacy_task_name(task_name)
+        resolved = self.resolve_by_capability(capabilities, agent_id=agent_id)
+        return TaskConfig(
+            model_list=[resolved.name],
+            max_tokens=resolved.max_tokens,
+            temperature=resolved.temperature,
+            selection_strategy=resolved.selection_strategy,
+            hard_timeout=resolved.hard_timeout,
+            slow_threshold=resolved.slow_threshold,
+        )
+
+    # ── 能力化查询（ZG-12 主路径）───────────────────────────
+
+    def resolve_by_capability(
+        self,
+        capabilities: list[str] | tuple[str, ...],
+        *,
+        agent_id: str = "",
+        options: Any | None = None,
+    ) -> ResolvedModel:
+        """按能力需求解析模型 — 委托 ModelRegistry + 智能体覆盖 + 调用点 options。"""
+        registry = self._build_registry()
+        prefer = self._resolve_agent_prefer(capabilities, agent_id)
+        merged_options = self._merge_options(prefer, options)
+        return registry.query_by_capability(capabilities, prefer=merged_options.prefer, options=merged_options)
+
+    def get_effective_config(self, component_name: str) -> EffectiveResolution:
+        """查询组件的生效解析结果（含参数来源追踪）。"""
+        registry = self._build_registry()
+        declarations = get_all_declarations()
+        declaration = declarations.get(component_name)
+        if declaration is None:
+            return EffectiveResolution(
+                component_name=component_name,
+                status="unknown",
+            )
+        try:
+            resolved = registry.query_by_capability(
+                declaration.capabilities,
+                prefer=declaration.defaults.prefer if declaration.defaults else (),
+            )
+            status = "satisfied"
+        except Exception as exc:
+            from src.llm_models.model_requirement import DeclarationError
+            if not isinstance(exc, DeclarationError):
+                raise
+            status = "fast_fail" if declaration.critical else "degraded"
+            return EffectiveResolution(
+                component_name=component_name,
+                capabilities=declaration.capabilities,
+                resolved_model=None,
+                status=status,
+                fallback_candidates=(),
+            )
+        param_sources = {
+            "temperature": OPTIONS_SOURCE if (declaration.defaults and declaration.defaults.temperature is not None) else DEFAULT_SOURCE,
+            "max_tokens": OPTIONS_SOURCE if (declaration.defaults and declaration.defaults.max_tokens is not None) else DEFAULT_SOURCE,
+        }
+        return EffectiveResolution(
+            component_name=component_name,
+            capabilities=declaration.capabilities,
+            resolved_model=resolved,
+            param_sources=param_sources,
+            fallback_candidates=resolved.fallback_candidates,
+            status=status,
+        )
+
+    def get_all_providers(self) -> list[APIProvider]:
+        """列出全部已注册的 API provider。"""
+        return list(self._config_manager.get_model_config().api_providers)
+
+    def get_models_by_capability(self, capability: str) -> list[ModelInfo]:
+        """按能力列出模型（供 WebUI 渲染/插件枚举）。"""
+        registry = self._build_registry()
+        entries = registry._capability_index.get(capability, [])  # noqa: SLF001 — 适配器层访问注册表内部
+        names = {entry.name for entry in entries}
+        return [m for m in self._config_manager.get_model_config().models if m.name in names]
+
+    # ── 注册表构建 ──────────────────────────────────────────
+
+    def _build_registry(self) -> ModelRegistry:
+        """从 ModelConfig 构建 ModelRegistry（缓存，热重载时失效）。"""
+        if self._registry is None:
+            model_config = self._config_manager.get_model_config()
+            registry = ModelRegistry()
+            entries = [self._to_entry(m) for m in model_config.models]
+            registry.build_index(list(model_config.api_providers), entries)
+            self._registry = registry
+        return self._registry
+
+    @staticmethod
+    def _to_entry(model_info: ModelInfo) -> ModelEntry:
+        """ModelInfo → ModelEntry（能力 + 采样参数默认值）。"""
+        extra_params = dict(model_info.extra_params or {})
+        temperature = float(extra_params.pop("temperature", 0.3) or 0.3)
+        max_tokens = int(extra_params.pop("max_tokens", 4096) or 4096)
+        return ModelEntry(
+            category=model_info.category or "llm",
+            name=model_info.name,
+            model_identifier=model_info.model_identifier,
+            api_provider=model_info.api_provider,
+            capabilities=frozenset(model_info.capabilities or set()),
+            price_in=model_info.price_in,
+            price_out=model_info.price_out,
+            cache=model_info.cache,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            force_stream_mode=getattr(model_info, "force_stream_mode", False),
+            extra_params=extra_params,
+        )
+
+    def _resolve_agent_prefer(
+        self,
+        capabilities: list[str] | tuple[str, ...],
+        agent_id: str,
+    ) -> tuple[tuple[str, str], ...]:
+        """智能体 model_config_override 中匹配能力的模型列表 → prefer 元组。"""
         if not agent_id:
-            return copy.deepcopy(task_cfg)
+            return ()
+        agent_cfg = self._agent_config_resolver(agent_id)
+        if agent_cfg is None:
+            return ()
+        override_raw = getattr(agent_cfg, "model_config_override", None)
+        if not isinstance(override_raw, dict):
+            return ()
+        preferred: list[tuple[str, str]] = []
+        required = frozenset(capabilities)
+        registry = self._build_registry()
+        for task_override in override_raw.values():
+            if not isinstance(task_override, dict):
+                continue
+            model_list = task_override.get("model_list")
+            if not isinstance(model_list, list):
+                continue
+            for model_name in model_list:
+                if not isinstance(model_name, str):
+                    continue
+                for entry in registry._model_index.values():  # noqa: SLF001
+                    if entry.name == model_name and required.issubset(entry.capabilities):
+                        preferred.append(entry.key)
+                        break
+        return tuple(dict.fromkeys(preferred))
 
-        return self._apply_agent_override(task_cfg, task_name, agent_id)
+    @staticmethod
+    def _merge_options(
+        prefer: tuple[tuple[str, str], ...],
+        options: Any | None,
+    ) -> ResolutionOptions:
+        """合并智能体 prefer 与调用点 options。"""
+        if options is None:
+            return ResolutionOptions(prefer=prefer)
+        merged_prefer = tuple(prefer) + tuple(getattr(options, "prefer", ()))
+        return ResolutionOptions(
+            prefer=merged_prefer,
+            temperature=getattr(options, "temperature", None),
+            max_tokens=getattr(options, "max_tokens", None),
+            selection_strategy=getattr(options, "selection_strategy", "balance"),
+            hard_timeout=getattr(options, "hard_timeout", 240.0),
+            slow_threshold=getattr(options, "slow_threshold", 15.0),
+        )
 
     def get_model_info(self, model_name: str) -> ModelInfo:
         """按模型名查询模型信息。"""
@@ -87,6 +261,7 @@ class ConfigManagerModelConfigPort:
 
     def _on_config_reloaded(self, changed_scopes: Sequence[str] = ()) -> None:
         """ConfigManager 热重载完成后调用，传播给消费者。"""
+        self._registry = None  # 失效注册表缓存（热重载后重建）
         for cb in list(self._reload_callbacks):
             try:
                 try:

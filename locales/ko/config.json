@@ -35,5 +35,7 @@
   "config.removed_count": "제거된 설정 수: {count}",
   "config.removed_item": "설정 항목 제거됨: {attribute}",
   "config.version_update_detected": "설정 버전 업데이트가 감지되었습니다. 핫 리로드는 메모리 데이터만 업데이트합니다",
-  "config.write_unsupported_type": "설정 쓰기는 ConfigBase 의 하위 클래스만 지원합니다"
+  "config.write_unsupported_type": "설정 쓰기는 ConfigBase 의 하위 클래스만 지원합니다",
+  "config.model_category_empty": "모델 카테고리는 비어 있을 수 없습니다",
+  "config.model_category_name_duplicate": "중복 모델 식별자: ({category}, {name})"
 }

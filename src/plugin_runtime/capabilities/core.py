@@ -516,12 +516,13 @@ class RuntimeCoreCapabilityMixin:
 
         try:
             prompt = _normalize_prompt_arg(args.get("prompt"))
-            task_name = llm_api.resolve_task_name(str(args.get("model", "") or args.get("model_name", "")))
+            resolved = llm_api.resolve_task_name(str(args.get("model", "") or args.get("model_name", "")))
             result = await llm_api.generate(
                 llm_api.LLMServiceRequest(
-                    task_name=task_name,
+                    task_name=str(resolved.name),
                     request_type=f"plugin.{plugin_id}",
                     prompt=prompt,
+                    capabilities=tuple(resolved.capabilities),
                     temperature=args.get("temperature"),
                     max_tokens=args.get("max_tokens"),
                 )
@@ -551,13 +552,14 @@ class RuntimeCoreCapabilityMixin:
 
         try:
             prompt = _normalize_prompt_arg(args.get("prompt"))
-            task_name = llm_api.resolve_task_name(str(args.get("model", "") or args.get("model_name", "")))
+            resolved = llm_api.resolve_task_name(str(args.get("model", "") or args.get("model_name", "")))
             result = await llm_api.generate(
                 llm_api.LLMServiceRequest(
-                    task_name=task_name,
+                    task_name=str(resolved.name),
                     request_type=f"plugin.{plugin_id}",
                     prompt=prompt,
                     tool_options=tool_options,
+                    capabilities=tuple(resolved.capabilities),
                     temperature=args.get("temperature"),
                     max_tokens=args.get("max_tokens"),
                 )
@@ -574,7 +576,6 @@ class RuntimeCoreCapabilityMixin:
         from src.services.embedding_service import EmbeddingServiceClient
         from src.services.llm_service import resolve_task_name
 
-
         try:
             text = _normalize_embedding_text_arg(args)
             texts = _normalize_embedding_texts_arg(args)
@@ -583,12 +584,13 @@ class RuntimeCoreCapabilityMixin:
             if text is not None and texts:
                 return {"success": False, "error": "text 与 texts 只能提供一个"}
 
-            task_name = resolve_task_name(
+            resolved = resolve_task_name(
                 str(args.get("task_name", "") or args.get("model", "") or args.get("model_name", "") or "embedding")
             )
             embedding_client = EmbeddingServiceClient(
-                task_name=task_name,
+                task_name="embedding",
                 request_type=f"plugin.{plugin_id}",
+                capabilities=tuple(resolved.capabilities),
             )
 
             if text is not None:
@@ -613,15 +615,14 @@ class RuntimeCoreCapabilityMixin:
 
         del capability
         from src.core.adapters.llm_service_port import get_llm_service
-        from src.services.llm_service import resolve_task_name
 
         try:
             audio_base64 = _normalize_audio_base64_arg(args)
             if audio_base64 is None:
                 return {"success": False, "error": "缺少必要参数 audio_base64 或 voice_base64"}
 
-            task_name = resolve_task_name(
-                str(args.get("task_name", "") or args.get("model", "") or args.get("model_name", "") or "voice")
+            task_name = str(
+                args.get("task_name", "") or args.get("model", "") or args.get("model_name", "") or "voice"
             )
             request_type = f"plugin.{plugin_id}.asr"
             result = await get_llm_service().transcribe_audio(

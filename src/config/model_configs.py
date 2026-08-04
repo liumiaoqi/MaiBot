@@ -232,6 +232,27 @@ class ModelInfo(ConfigBase):
     _validate_any: bool = False
     suppress_any_warning: bool = True
 
+    category: str = Field(
+        default="llm",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "folder",
+            "options": ["llm", "embedding", "voice"],
+        },
+    )
+    """能力域粗分（llm/embedding/voice），仅用于组织分组，(category, name) 组合唯一。
+    能力筛选以 capabilities 为准（ZG-12 组件自治）。"""
+
+    capabilities: set[str] = Field(
+        default_factory=set,
+        json_schema_extra={
+            "x-widget": "custom",
+            "x-icon": "badge",
+        },
+    )
+    """模型能力标签集（text_generation / tool_calling / vision / embedding / voice）。
+    visual=True 会自动迁移为含 "vision"；字段集以 ZG-16 调研结论为准。"""
+
     model_identifier: str = Field(
         default="",
         json_schema_extra={
@@ -359,6 +380,11 @@ class ModelInfo(ConfigBase):
             raise ValueError(t("config.model_name_empty"))
         if not self.api_provider:
             raise ValueError(t("config.model_api_provider_empty"))
+        if not self.category:
+            raise ValueError(t("config.model_category_empty"))
+        # visual=True 自动迁移为 vision 能力（T14）
+        if getattr(self, "visual", False) and "vision" not in self.capabilities:
+            self.capabilities.add("vision")
         return super().model_post_init(context)
 
 

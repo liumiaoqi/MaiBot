@@ -5,14 +5,13 @@
 """
 
 
-from typing import Any, Coroutine, List, TypeVar
+from typing import Any, Coroutine, List, Sequence, TypeVar
 
 import asyncio
 
 from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.logger import get_logger
 from src.llm_models.utils_model import LLMOrchestrator
-from src.services.service_task_resolver import resolve_task_name
 
 logger = get_logger("embedding_service")
 
@@ -22,22 +21,37 @@ _CoroutineReturnT = TypeVar("_CoroutineReturnT")
 class EmbeddingServiceClient:
     """面向上层模块的 Embedding 服务对象式门面。"""
 
-    def __init__(self, task_name: str = "embedding", request_type: str = "", session_id: str = "") -> None:
+    def __init__(
+        self,
+        task_name: str = "embedding",
+        request_type: str = "",
+        session_id: str = "",
+        capabilities: Sequence[str] | None = None,
+    ) -> None:
         """初始化 Embedding 服务门面。
 
         Args:
-            task_name: 任务配置名称，对应 `model_task_config` 下的字段名。
+            task_name: 旧任务配置名称（ZG-12 组件自治后经能力映射）。
             request_type: 当前请求的业务类型标识。
             session_id: 当前请求归属的真实聊天流 ID；非聊天上下文为空。
+            capabilities: 能力标签（ZG-12 主路径，提供时优先于 task_name）。
         """
-        self.task_name = resolve_task_name(task_name)
+        self.task_name = task_name.strip() or "embedding"
+        self._capabilities = tuple(capabilities) if capabilities else self._resolve_capabilities(self.task_name)
         self.request_type = request_type
         self.session_id = str(session_id or "").strip()
         self._orchestrator = LLMOrchestrator(
-            task_name=self.task_name,
+            capabilities=self._capabilities,
             request_type=request_type,
             session_id=self.session_id,
         )
+
+    @staticmethod
+    def _resolve_capabilities(task_name: str) -> tuple[str, ...]:
+        """旧任务名 → 能力标签（embedding 任务固定 embedding 能力）。"""
+        from src.llm_models.task_name_mapping import resolve_legacy_task_name
+
+        return tuple(resolve_legacy_task_name(task_name))
 
     def _resolve_effective_session_id(self, session_id: str = "") -> str:
         """解析本次请求用于统计归属的聊天流 ID。"""

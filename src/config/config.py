@@ -200,10 +200,14 @@ class ModelConfig(ConfigBase):
         if len(provider_names) != len(set(provider_names)):
             raise ValueError(t("config.api_provider_name_duplicate"))
 
-        # 检查模型名称是否重复
-        model_names = [model.name for model in self.models]
-        if len(model_names) != len(set(model_names)):
-            raise ValueError(t("config.model_name_duplicate"))
+        # 检查 (category, name) 组合是否重复（ZG-12 组件自治寻址；
+        # 组合唯一覆盖旧 name 唯一——不同 category 同名合法）
+        model_keys = [(model.category, model.name) for model in self.models]
+        if len(model_keys) != len(set(model_keys)):
+            duplicate = next(key for key in model_keys if model_keys.count(key) > 1)
+            raise ValueError(
+                t("config.model_category_name_duplicate", category=duplicate[0], name=duplicate[1])
+            )
 
         api_providers_dict = {provider.name: provider for provider in self.api_providers}
 

@@ -5,7 +5,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, TypeAlias
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Tuple, TypeAlias
 
 import asyncio
 
@@ -34,6 +34,8 @@ class LLMServiceRequest(BaseDataModel):
     task_name: str
     request_type: str
     session_id: str = ""
+    capabilities: Tuple[str, ...] | None = None
+    """能力标签（ZG-12 组件自治主路径；提供时优先于 task_name 解析）"""
     prompt: PromptInput | None = None
     message_factory: MessageFactory | None = None
     model_name: str | None = None

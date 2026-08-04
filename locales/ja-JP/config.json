@@ -35,5 +35,7 @@
   "config.removed_count": "削除された設定数: {count}",
   "config.removed_item": "設定項目が削除されました: {attribute}",
   "config.version_update_detected": "設定バージョンの更新を検出しました。ホットリロードはメモリデータのみを更新します",
-  "config.write_unsupported_type": "設定の書き込みは ConfigBase のサブクラスのみサポートしています"
+  "config.write_unsupported_type": "設定の書き込みは ConfigBase のサブクラスのみサポートしています",
+  "config.model_category_empty": "カテゴリは空にできません",
+  "config.model_category_name_duplicate": "モデル識別子が重複しています: ({category}, {name})"
 }

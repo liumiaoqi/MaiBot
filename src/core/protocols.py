@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from src.common.data_models.message_component_data_model import MessageSequence
     from src.config.config import ModelConfig
     from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
+    from src.llm_models.model_requirement import EffectiveResolution, ResolvedModel
     from src.common.memory_types import ProfileView, RecallItem, RecallResult, ReflectResult
     from src.common.data_models.llm_service_data_models import (
         LLMAudioTranscriptionResult,
@@ -804,8 +805,15 @@ class ModelConfigPort(Protocol):
     3. 查询为纯内存操作，≤1ms
     """
 
+    # deprecated（ZG-12 组件自治后任务名不做配置键）：
+    # 过渡期经 resolve_legacy_task_name → resolve_by_capability 兼容；
+    # 新代码一律使用 resolve_by_capability / get_effective_config。
     def get_task_config(self, task_name: str, *, agent_id: str = "") -> TaskConfig:
         """按任务名查询任务配置，支持智能体级覆盖。
+
+        .. deprecated::
+            ZG-12 组件自治后任务名不做配置键，调用方应改用
+            :meth:`resolve_by_capability`。本方法保留为过渡期兼容路径。
 
         Args:
             task_name: 任务配置名称（replyer/planner/memory/utils/vlm/embedding 等）
@@ -860,6 +868,56 @@ class ModelConfigPort(Protocol):
     def list_model_names(self) -> list[str]:
         """列出所有已配置的模型名称。"""
         ...
+
+    def resolve_by_capability(
+        self,
+        capabilities: list[str] | tuple[str, ...],
+        *,
+        agent_id: str = "",
+        options: Any | None = None,
+    ) -> "ResolvedModel":
+        """按能力需求解析模型（ZG-12 组件自治主路径）。
+
+        Args:
+            capabilities: 所需能力标签列表（多能力取交集）
+            agent_id: 智能体 ID，非空时应用该智能体的模型偏好覆盖
+            options: 调用点解析选项（ResolutionOptions：prefer/温度/长度/超时）
+
+        Returns:
+            ResolvedModel：选中的模型 + 生效采样参数
+
+        Raises:
+            DeclarationError: 声明不可满足（prefer 不存在/缺能力/无候选）
+            RuntimeError: 配置未初始化时
+        """
+
+    def get_effective_config(self, component_name: str) -> "EffectiveResolution":
+        """查询组件的生效解析结果（含参数来源追踪）。
+
+        Args:
+            component_name: 组件名（@model_requirement 声明的类名）
+
+        Returns:
+            EffectiveResolution：状态（satisfied/fast_fail/degraded）+
+            解析模型 + 参数来源
+
+        Raises:
+            RuntimeError: 配置未初始化时
+        """
+
+    def get_all_providers(self) -> list[APIProvider]:
+        """列出全部已注册的 API provider。"""
+        ...
+
+    def get_models_by_capability(self, capability: str) -> list[ModelInfo]:
+        """按能力列出模型（供 WebUI 渲染/插件枚举）。
+
+        Args:
+            capability: 能力标签（text_generation/embedding/vision/voice/tool_calling）
+
+        Returns:
+            具备该能力的 ModelInfo 列表
+        """
 
     def register_reload_callback(self, callback: Any) -> None:
         """注册配置热重载回调。

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import asyncio
 import inspect
@@ -29,6 +29,7 @@ from src.llm_models.exceptions import (
     RespNotOkException,
     RespParseException,
 )
+from src.llm_models.model_requirement import ResolutionOptions, ResolvedModel
 from src.llm_models.model_client import ensure_configured_clients_loaded
 from src.llm_models.model_client.base_client import (
     APIResponse,
@@ -68,11 +69,6 @@ DATA_URI_LIMIT_PATTERN = re.compile(
 )
 DATA_URI_RETRY_MARGIN_BYTES = 128 * 1024
 MIN_COMPRESSED_IMAGE_TARGET_SIZE_BYTES = 512 * 1024
-EMPTY_TASK_FALLBACKS = {
-    "expression_use": "utils",
-    "learner": "utils",
-    "mid_memory": "planner",
-}
 
 
 class RequestType(Enum):
@@ -96,28 +92,46 @@ class LLMOrchestrator:
 
     def __init__(
         self,
-        task_name: str,
+        task_name: str = "",
         request_type: str = "",
         session_id: str = "",
         model_config_port: ModelConfigPort | None = None,
+        capabilities: Optional[Sequence[str]] = None,
+        options: Optional[ResolutionOptions] = None,
     ) -> None:
         """初始化 LLM 请求调度器。
 
         Args:
-            task_name: 任务配置名称，对应 `model_task_config` 下的字段名。
+            task_name: 旧任务配置名称（deprecated，ZG-12 组件自治后任务名
+                不做配置键——经 resolve_legacy_task_name 映射到能力）。
             request_type: 当前请求的业务类型标识。
             session_id: 当前请求归属的真实聊天流 ID；非聊天上下文为空。
             model_config_port: 模型配置查询端口，为 None 时使用模块级端口。
+            capabilities: 所需能力标签列表（ZG-12 主路径，替代 task_name）。
+            options: 调用点解析选项（ResolutionOptions：prefer/温度/长度/超时）。
         """
-        self.task_name = task_name.strip()
+        if capabilities is not None:
+            self._capabilities: frozenset[str] = frozenset(capabilities)
+        elif task_name and task_name.strip():
+            from src.llm_models.task_name_mapping import resolve_legacy_task_name
+
+            self._capabilities = resolve_legacy_task_name(task_name)
+            get_logger("llm_models.utils_model").warning(
+                "LLMOrchestrator(task_name=%s) 已弃用（ZG-12 组件自治），"
+                "应改用 capabilities 参数", task_name,
+            )
+        else:
+            self._capabilities = frozenset({"text_generation"})
+        self.task_name = (task_name or "").strip()
         self.request_type = request_type
         self.session_id = str(session_id or "").strip()
+        self._options = options
         self._model_config_port = model_config_port or get_model_config_port()
         # 过渡期兼容：初始化时不强求端口已注入，首次请求时才检查
         if self._model_config_port is not None:
-            self.model_for_task = self._get_task_config_or_raise()
+            self.model_for_task = self._resolve_model()
             self.model_usage: Dict[str, Tuple[int, int, int]] = {
-                model: (0, 0, 0) for model in self.model_for_task.model_list
+                model: (0, 0, 0) for model in self._model_pool()
             }
         else:
             self.model_for_task = None  # type: ignore[assignment]
@@ -129,46 +143,38 @@ class LLMOrchestrator:
 
         return str(session_id or self.session_id or "").strip()
 
-    def _get_task_config_or_raise(self) -> TaskConfig:
-        """获取当前任务名对应的最新任务配置。"""
-        if not self.task_name:
-            raise ValueError("任务配置名称不能为空")
+    def _resolve_model(self) -> ResolvedModel:
+        """按能力需求解析当前模型（ZG-12 主路径）。
 
-        model_config = self._model_config_port.get_model_config()
-        task_config = getattr(model_config.model_task_config, self.task_name, None)
-        if not isinstance(task_config, TaskConfig):
-            raise ValueError(f"未找到名为 '{self.task_name}' 的任务配置")
-        if not any(str(model_name).strip() for model_name in task_config.model_list):
-            fallback_task_name = EMPTY_TASK_FALLBACKS.get(self.task_name, "")
-            if fallback_task_name:
-                fallback_task_config = getattr(model_config.model_task_config, fallback_task_name, None)
-                if isinstance(fallback_task_config, TaskConfig):
-                    return fallback_task_config
-        return task_config
-
-    def _refresh_task_config(self) -> TaskConfig:
-        """刷新并同步任务配置缓存。
-
-        Returns:
-            TaskConfig: 刷新后的任务配置对象。
+        Raises:
+            DeclarationError: 声明不可满足（prefer 不存在/缺能力/无候选）
         """
         if self._model_config_port is None:
-            port = get_model_config_port()
-            if port is not None:
-                self._model_config_port = port
-            else:
-                raise RuntimeError(
-                    f"LLMOrchestrator[{self.task_name}]: ModelConfigPort 未注入，"
-                    f"请先调用 set_model_config_port()"
-                )
+            raise RuntimeError(
+                f"LLMOrchestrator[{self.task_name or self._capabilities}]: "
+                "ModelConfigPort 未注入，请先调用 set_model_config_port()"
+            )
+        return self._model_config_port.resolve_by_capability(
+            self._capabilities, options=self._options,
+        )
+
+    def _model_pool(self) -> list[str]:
+        """可用模型池 = 主选模型 + 同能力 fallback 候选（失败切换用）。"""
         if self.model_for_task is None:
-            self.model_for_task = self._get_task_config_or_raise()
-            self.model_usage = {model: (0, 0, 0) for model in self.model_for_task.model_list}
-        latest = self._get_task_config_or_raise()
-        if latest is not self.model_for_task:
+            return []
+        return [self.model_for_task.name, *list(self.model_for_task.fallback_candidates)]
+
+    def _refresh_task_config(self) -> ResolvedModel:
+        """刷新并同步模型解析缓存。
+
+        Returns:
+            ResolvedModel: 刷新后的模型解析结果。
+        """
+        latest = self._resolve_model()
+        if latest != self.model_for_task:
             self.model_for_task = latest
-        if list(self.model_usage.keys()) != latest.model_list:
-            self.model_usage = {model: self.model_usage.get(model, (0, 0, 0)) for model in latest.model_list}
+        if list(self.model_usage.keys()) != self._model_pool():
+            self.model_usage = {model: self.model_usage.get(model, (0, 0, 0)) for model in self._model_pool()}
         return self.model_for_task
 
     def _check_slow_request(self, time_cost: float, model_name: str) -> None:
@@ -762,7 +768,7 @@ class LLMOrchestrator:
         elif strategy == "sequential":
             # 顺序优先策略：按照配置顺序选择第一个尚未失败的模型。
             selected_model_name = next(
-                model_name for model_name in self.model_for_task.model_list if model_name in available_models
+                model_name for model_name in self._model_pool() if model_name in available_models
             )
         elif strategy == "balance":
             # 负载均衡策略：根据总tokens和惩罚值选择
@@ -1008,7 +1014,7 @@ class LLMOrchestrator:
             LLMExecutionResult: 单次模型执行结果对象。
         """
         failed_models_this_request: Set[str] = set()
-        max_attempts = 1 if str(model_name or "").strip() else len(self.model_for_task.model_list)
+        max_attempts = 1 if str(model_name or "").strip() else len(self._model_pool())
         last_exception: Optional[Exception] = None
 
         for _ in range(max_attempts):
