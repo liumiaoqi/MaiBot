@@ -4,12 +4,14 @@
 不依赖任何组件具体实现。
 """
 
+from src.core.startup.declaration import StartupItemDesc, startup_item
 from src.core.startup.orchestrator import StartupOrchestrator
 from src.core.startup.types import (
     ComponentStatus,
     CoreReadiness,
     PhaseResult,
     StartupComponent,
+    StartupItemRuntimeState,
     StartupPhase,
     StartupResult,
 )
@@ -19,7 +21,10 @@ __all__ = [
     "CoreReadiness",
     "PhaseResult",
     "StartupComponent",
+    "StartupItemDesc",
+    "StartupItemRuntimeState",
     "StartupOrchestrator",
     "StartupPhase",
     "StartupResult",
+    "startup_item",
 ]

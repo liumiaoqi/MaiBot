@@ -25,6 +25,7 @@ class ComponentStatus(str, Enum):
     SUCCESS = "success"
     FAILED = "failed"
     SKIPPED = "skipped"
+    DEGRADED = "degraded"
 
 
 @dataclass
@@ -48,6 +49,19 @@ class StartupComponent:
 
 
 @dataclass
+class StartupItemRuntimeState:
+    """单个启动项运行时状态。"""
+
+    name: str
+    status: ComponentStatus
+    start_time: float = 0.0
+    end_time: float = 0.0
+    duration_ms: int = 0
+    error: BaseException | None = None
+    skip_reason: str = ""
+
+
+@dataclass
 class PhaseResult:
     """单个启动阶段的执行结果。"""
 
@@ -65,8 +79,11 @@ class StartupResult:
 
     total_duration_ms: int = 0
     phases: dict[StartupPhase, PhaseResult] = field(default_factory=dict)
-    failed_components: list[StartupComponent] = field(default_factory=list)
-    degraded_components: list[StartupComponent] = field(default_factory=list)
+    failed_components: list[str] = field(default_factory=list)
+    degraded_components: list[str] = field(default_factory=list)
+    skipped_components: list[str] = field(default_factory=list)
+    wave_info: dict[StartupPhase, list[list[str]]] = field(default_factory=dict)
+    failure_chains: dict[str, str] = field(default_factory=dict)
     ready: bool = False
     core_ready: bool = False
     core_ready_time_ms: int = 0
