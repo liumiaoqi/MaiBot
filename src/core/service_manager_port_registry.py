@@ -53,6 +53,8 @@ def reset_health_probe_registry() -> None:
     _health_probe_registry.clear()
 
 
+# 已废弃（ZG-10 T31）：启动项元数据已由 @startup_item/StartupItemDesc 承载。
+# 保留仅为过渡期兼容，禁止新代码读取。
 __service_descriptor__: dict[str, Any] = {
     "name": "service_manager_port",
     "phase": StartupPhase.READY,

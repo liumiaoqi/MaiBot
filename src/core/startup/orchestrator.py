@@ -17,7 +17,6 @@ from src.core.startup.types import (
     ComponentStatus,
     CoreReadiness,
     PhaseResult,
-    StartupComponent,
     StartupItemRuntimeState,
     StartupPhase,
     StartupResult,
@@ -41,8 +40,8 @@ _PHASE_NAMES: dict[StartupPhase, str] = {
 class StartupOrchestrator:
     """启动流程的唯一编排入口 — 声明式注册 + 拓扑仲裁 + 波次调度。
 
-    声明来源两种（共存期）：@startup_item 装饰器（模块导入期收集）+
-    编程式 register()。两者统一转为 StartupItemDesc 后进入仲裁。
+    声明来源两种：@startup_item 装饰器（模块导入期收集）+
+    编程式 register(StartupItemDesc)。两者统一进入仲裁。
     """
 
     def __init__(
@@ -66,11 +65,11 @@ class StartupOrchestrator:
 
     # ── 注册 ─────────────────────────────────────────────────────
 
-    def register(self, item: StartupItemDesc | StartupComponent) -> None:
+    def register(self, item: StartupItemDesc) -> None:
         """注册启动项（编程式入口，与 @startup_item 等价）。
 
         Args:
-            item: StartupItemDesc（新）或 StartupComponent（共存期兼容）
+            item: StartupItemDesc 启动项声明
 
         Raises:
             ValueError: 名称重复
@@ -78,23 +77,9 @@ class StartupOrchestrator:
         """
         if self._running:
             raise RuntimeError("启动编排已开始执行，禁止注册新组件")
-        desc = self._to_desc(item)
-        if desc.name in self._items:
-            raise ValueError(f"组件名重复: {desc.name}")
-        self._items[desc.name] = desc
-
-    def _to_desc(self, item: StartupItemDesc | StartupComponent) -> StartupItemDesc:
-        """StartupComponent → StartupItemDesc 兼容转换。"""
-        if isinstance(item, StartupItemDesc):
-            return item
-        return StartupItemDesc(
-            name=item.name,
-            phase=item.phase,
-            init_fn=item.init_fn,
-            critical=item.critical,
-            core_readiness_flag=item.core_readiness_flag,
-            order=item.order,
-        )
+        if item.name in self._items:
+            raise ValueError(f"组件名重复: {item.name}")
+        self._items[item.name] = item
 
     def get_core_readiness(self) -> CoreReadiness:
         return self._core_readiness

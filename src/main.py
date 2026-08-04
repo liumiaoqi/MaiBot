@@ -138,10 +138,9 @@ class MainSystem:
         """使用 StartupOrchestrator 按 6 阶段执行初始化。
 
         启动项已迁移为 init_fn 定义处的 @startup_item 装饰器声明
-        （ZG-10 T20-T29）；StartupComponent 编程式注册入口保留
-        （共存期，批 11 清理）。
+        （ZG-10 T20-T29）；StartupComponent 兼容注册入口已在收尾批次移除。
         """
-        from src.core.startup import StartupComponent, StartupOrchestrator  # noqa: F401
+        from src.core.startup import StartupOrchestrator
 
         self._init_start_time = time.time()
         orchestrator = StartupOrchestrator(

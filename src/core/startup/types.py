@@ -33,6 +33,9 @@ class StartupComponent:
     """单个启动组件。
 
     封装初始化逻辑和运行时状态。init_fn 无参数，通过闭包或实例属性获取依赖。
+
+    已废弃（ZG-10 T32）：启动项声明请改用 StartupItemDesc/@startup_item。
+    本类型仅保留兼容（如 PhaseResult.components 旧形态），按需从本模块导入。
     """
 
     name: str

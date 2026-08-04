@@ -135,7 +135,8 @@ class ServiceManagerAdapter:
     ) -> AdoptionResult:
         """从 StartupOrchestrator 结果接管组件。
 
-        1. 遍历 result.phases 中 status=SUCCESS 的组件，按 descriptors 匹配创建快照
+        1. 从 result.wave_info（StartupItemDesc 声明的组件名）读取元数据，
+           SUCCESS/DEGRADED 组件按 descriptors 匹配创建快照
         2. 构建 DependencyGraph，检测环
         3. 识别悬空依赖
         4. 创建引擎实例，启动健康检查循环
@@ -151,22 +152,45 @@ class ServiceManagerAdapter:
                 core_readiness_map[desc.identifier] = desc.core_readiness_flag
         core_readiness_components = set(core_readiness_map.keys())
 
-        # 从 StartupResult 接管 SUCCESS 组件
-        total_components = 0
+        # 声明化后：组件名来自 StartupResult.wave_info（StartupItemDesc），
+        # 状态由 failed/degraded/skipped_components 三个 list[str] 表达
+        statuses = dict.fromkeys(
+            (
+                name
+                for waves in result.wave_info.values()
+                for wave in waves
+                for name in wave
+            ),
+            ComponentStatus.SUCCESS,
+        )
+        statuses.update(
+            dict.fromkeys(result.skipped_components, ComponentStatus.SKIPPED)
+        )
+        statuses.update(
+            dict.fromkeys(result.failed_components, ComponentStatus.FAILED)
+        )
+        statuses.update(
+            dict.fromkeys(result.degraded_components, ComponentStatus.DEGRADED)
+        )
+
+        total_components = len(statuses)
         adopted_count = 0
-        for phase_result in result.phases.values():
-            for component in phase_result.components:
-                total_components += 1
-                if component.status == ComponentStatus.SUCCESS:
-                    desc = self._descriptors.get(component.name)
-                    if desc is not None:
-                        self._registry[component.name] = ServiceStateSnapshot(
-                            identifier=component.name,
-                            display_name=desc.display_name,
-                            state=ServiceState.RUNNING,
-                            health_mode=desc.health_mode,
-                        )
-                        adopted_count += 1
+        for name, status in statuses.items():
+            if status not in (ComponentStatus.SUCCESS, ComponentStatus.DEGRADED):
+                continue
+            desc = self._descriptors.get(name)
+            if desc is not None:
+                self._registry[name] = ServiceStateSnapshot(
+                    identifier=name,
+                    display_name=desc.display_name,
+                    state=(
+                        ServiceState.DEGRADED
+                        if status == ComponentStatus.DEGRADED
+                        else ServiceState.RUNNING
+                    ),
+                    health_mode=desc.health_mode,
+                )
+                adopted_count += 1
 
         skipped_count = total_components - adopted_count
 

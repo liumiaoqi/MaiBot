@@ -5,12 +5,10 @@ import pytest
 from src.core.adapters.ipc_bridge_port import IpcBridgePortAdapter
 from src.core.protocols import IpcBridgePort
 from src.core.ipc_bridge_port_registry import (
-    __service_descriptor__,
     get_ipc_bridge_port,
     reset_ipc_bridge_port,
     set_ipc_bridge_port,
 )
-from src.core.startup.types import StartupPhase
 
 
 class _FakePRM:
@@ -74,17 +72,6 @@ def test_registry_reset():
     set_ipc_bridge_port(IpcBridgePortAdapter(prm))
     reset_ipc_bridge_port()
     assert get_ipc_bridge_port() is None
-
-
-def test_service_descriptor_fields():
-    """__service_descriptor__ 字段值正确。"""
-    assert __service_descriptor__["name"] == "ipc_bridge_port"
-    assert __service_descriptor__["phase"] == StartupPhase.SUBSYSTEMS
-    assert __service_descriptor__["order"] == 1
-    assert __service_descriptor__["critical"] is False
-    assert __service_descriptor__["protocol"] is IpcBridgePort
-    assert __service_descriptor__["register_fn"] is set_ipc_bridge_port
-    assert __service_descriptor__["depends_on"] == ("plugin_runtime",)
 
 
 # ── T6.3 Adapter 测试 ─────────────────────────────────────────

@@ -130,6 +130,8 @@ def get_message_registry_port() -> Optional[MessageRegistryPort]:
     return _registry_port
 
 
+# 已废弃（ZG-10 T31）：启动项元数据已由 @startup_item/StartupItemDesc 承载。
+# 保留仅为过渡期兼容，禁止新代码读取。
 __service_descriptor__: dict[str, Any] = {
     "name": "chat_manager_adapter",
     "phase": StartupPhase.CORE_SERVICES,

@@ -26,6 +26,8 @@ def reset_ipc_bridge_port() -> None:
     _port_instance = None
 
 
+# 已废弃（ZG-10 T31）：启动项元数据已由 @startup_item/StartupItemDesc 承载。
+# 保留仅为过渡期兼容，禁止新代码读取。
 __service_descriptor__: dict[str, Any] = {
     "name": "ipc_bridge_port",
     "phase": StartupPhase.SUBSYSTEMS,

@@ -1,6 +1,6 @@
-"""组件描述符与依赖声明 — 27 个组件的 ServiceDescriptor + DependencyRelation。
+"""组件描述符与依赖声明 — 33 个组件的 ServiceDescriptor + DependencyRelation。
 
-identifier 与 main.py 中 StartupComponent.name 完全一致。
+identifier 与 main.py 中 @startup_item 的 name 完全一致。
 """
 
 
@@ -13,7 +13,7 @@ from src.core.service_manager.types import (
 
 
 def get_service_descriptors() -> list[ServiceDescriptor]:
-    """返回全部 27 个组件的 ServiceDescriptor。"""
+    """返回全部 33 个组件的 ServiceDescriptor。"""
     return [
         # 阶段 0: CONFIG_LOAD
         ServiceDescriptor(
@@ -119,10 +119,20 @@ def get_service_descriptors() -> list[ServiceDescriptor]:
             display_name="提示词管理器",
             health_mode=HealthCheckMode.PASSIVE_HEARTBEAT,
         ),
+        ServiceDescriptor(
+            identifier="message_port_v2",
+            display_name="消息端口V2",
+            health_mode=HealthCheckMode.PASSIVE_HEARTBEAT,
+        ),
         # 阶段 3: SUBSYSTEMS
         ServiceDescriptor(
             identifier="plugin_runtime",
             display_name="插件运行时",
+            health_mode=HealthCheckMode.PASSIVE_HEARTBEAT,
+        ),
+        ServiceDescriptor(
+            identifier="ipc_bridge_port",
+            display_name="IPC桥接端口",
             health_mode=HealthCheckMode.PASSIVE_HEARTBEAT,
         ),
         ServiceDescriptor(

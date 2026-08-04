@@ -27,6 +27,8 @@ def set_message_port_v2(port: MessagePortV2) -> None:
     _port_v2_instance = port
 
 
+# 已废弃（ZG-10 T31）：启动项元数据已由 @startup_item/StartupItemDesc 承载。
+# 保留仅为过渡期兼容，禁止新代码读取。
 __service_descriptor__: dict[str, Any] = {
     "name": "message_port_v2",
     "phase": StartupPhase.CORE_SERVICES,

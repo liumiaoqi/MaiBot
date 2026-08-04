@@ -57,6 +57,8 @@ def get_chat_runtime_factory() -> Optional[ChatRuntimeFactory]:
     return _factory
 
 
+# 已废弃（ZG-10 T31）：启动项元数据已由 @startup_item/StartupItemDesc 承载。
+# 保留仅为过渡期兼容，禁止新代码读取。
 __service_descriptor__: dict[str, Any] = {
     "name": "runtime_port",
     "phase": StartupPhase.CORE_SERVICES,
