@@ -18,7 +18,6 @@ from .model_routing import (
     ResolvedLLMModel,
     generate_with_resolved_model,
     get_text_generation_model_tasks,
-    pick_text_generation_task,
     resolve_text_generation_model_selector,
 )
 
@@ -48,10 +47,7 @@ class EpisodeSegmentationService:
         return hasattr(obj, "model_list") and bool(getattr(obj, "model_list", []))
 
     def _pick_template_task(self, available_tasks: Dict[str, Any]) -> Any:
-        _, task_config = pick_text_generation_task(
-            available_tasks,
-            preferred=("memory", "utils", "replyer", "planner", "tool_use"),
-        )
+        _, task_config = _resolve_model_task_value(self._llm_api)
         return task_config
 
     def _resolve_model_config(self) -> Tuple[Optional[ResolvedLLMModel], str]:
@@ -78,16 +74,13 @@ class EpisodeSegmentationService:
 
             logger.warning(f"episode.segmentation_model='{selector}' 不可用，回退 auto")
 
-        task_name, task_config = pick_text_generation_task(
-            available_tasks,
-            preferred=("memory", "utils", "replyer", "planner", "tool_use"),
-        )
+        task_name, task_config = _resolve_model_task_value(self._llm_api)
         if task_name and task_config:
             return ResolvedLLMModel(task_name=task_name, task_config=task_config), task_name
 
         fallback = self._pick_template_task(available_tasks)
         if fallback is not None:
-            task_name, task_config = pick_text_generation_task(available_tasks)
+            task_name, task_config = _resolve_model_task_value(self._llm_api)
             if task_name and task_config:
                 return ResolvedLLMModel(task_name=task_name, task_config=task_config), "auto"
         return None, "unavailable"
@@ -304,3 +297,10 @@ class EpisodeSegmentationService:
             "segmentation_model": model_label,
             "segmentation_version": self.SEGMENTATION_VERSION,
         }
+
+
+def _resolve_model_task_value(llm_api) -> tuple:
+    """ZG-12 迁移 helper：能力解析 → (task_name, task_config) 兼容元组。"""
+    from src.A_memorix.core.utils.model_routing import resolve_text_generation_task
+    resolved = resolve_text_generation_task(llm_api)
+    return resolved.task_name, resolved.task_config

@@ -1,26 +1,19 @@
-"""A_Memorix 内部模型任务选择工具。"""
+"""A_Memorix 内部模型任务选择工具（ZG-12 能力化改造）。
+
+旧任务名路由（NON_TEXT_GENERATION_TASK_NAMES / A_MEMORIX_TEXT_TASK_PRIORITY /
+pick_text_generation_task）已废弃——统一走 ModelConfigPort.resolve_by_capability。
+"""
 
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from src.common.logger import get_logger
 from src.common.data_models.llm_service_data_models import LLMServiceResult
+from src.core.model_config_port_registry import get_model_config_port
+from src.llm_models.model_requirement import ResolutionOptions
 
 
 logger = get_logger("A_Memorix.ModelRouting")
-
-NON_TEXT_GENERATION_TASK_NAMES = {"embedding", "voice", "vlm"}
-A_MEMORIX_TEXT_TASK_PRIORITY = (
-    "memory",
-    "utils",
-    "lpmm_entity_extract",
-    "lpmm_rdf_build",
-    "planner",
-    "replyer",
-    "learner",
-    "emoji",
-    "tool_use",
-)
 
 
 @dataclass(frozen=True)
@@ -36,6 +29,57 @@ class ResolvedLLMModel:
         return bool(self.selected_model_name)
 
 
+def resolve_text_generation_task(
+    llm_api: Any,
+    *,
+    prefer: tuple[tuple[str, str], ...] = (),
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> ResolvedLLMModel:
+    """按 text_generation 能力解析 A_Memorix 的文本生成模型（ZG-12 主路径）。
+
+    Args:
+        llm_api: LLM 服务 API 模块（提供 resolve_by_capability / LLMServiceClient）。
+        prefer: 偏好模型 (category, name) 元组序列。
+        temperature / max_tokens: 调用点采样参数覆盖。
+
+    Returns:
+        ResolvedLLMModel：解析结果（task_name=模型名，兼容旧调用契约）。
+
+    Raises:
+        RuntimeError: ModelConfigPort 未注册或无可满足能力的模型时。
+    """
+    port = get_model_config_port()
+    if port is None:
+        raise RuntimeError("ModelConfigPort 未注册，无法解析文本生成模型")
+    options = ResolutionOptions(
+        prefer=prefer,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    resolved = port.resolve_by_capability(("text_generation",), options=options)
+    compat_task_config = _to_compat_task_config(resolved)
+    return ResolvedLLMModel(
+        task_name=resolved.name,
+        task_config=compat_task_config,
+        selected_model_name=resolved.name,
+    )
+
+
+def _to_compat_task_config(resolved: Any) -> Any:
+    """ResolvedModel → TaskConfig 兼容格式（旧调用契约过渡期用）。"""
+    from src.config.model_configs import TaskConfig
+
+    return TaskConfig(
+        model_list=[resolved.name],
+        max_tokens=resolved.max_tokens,
+        temperature=resolved.temperature,
+        slow_threshold=resolved.slow_threshold,
+        selection_strategy=resolved.selection_strategy,
+        hard_timeout=resolved.hard_timeout,
+    )
+
+
 def task_has_model_list(task_config: Any) -> bool:
     """判断任务配置是否有可用模型候选。"""
 
@@ -43,42 +87,30 @@ def task_has_model_list(task_config: Any) -> bool:
     return any(str(model_name).strip() for model_name in (model_list or []))
 
 
-def is_text_generation_task_name(task_name: str) -> bool:
-    """判断任务名是否适合 A_Memorix 的普通文本生成调用。"""
-
-    return str(task_name or "").strip().lower() not in NON_TEXT_GENERATION_TASK_NAMES
-
-
 def get_text_generation_model_tasks(llm_api: Any, *, include_empty: bool = False) -> Dict[str, Any]:
-    """从宿主 LLM API 中读取 A_Memorix 可用的文本生成任务配置。"""
+    """获取 A_Memorix 可用的文本生成任务配置（deprecated，ZG-12 后统一走能力解析）。
 
-    models = llm_api.get_available_models() or {}
-    return {
-        task_name: task_config
-        for task_name, task_config in models.items()
-        if is_text_generation_task_name(task_name) and (include_empty or task_has_model_list(task_config))
-    }
-
-
-def _iter_preferred_task_names(available_tasks: Dict[str, Any], preferred: Iterable[str]) -> Iterable[str]:
-    yielded: set[str] = set()
-    for task_name in preferred:
-        if task_name in available_tasks:
-            yielded.add(task_name)
-            yield task_name
-    for task_name in available_tasks:
-        if task_name not in yielded:
-            yield task_name
+    返回 {模型名: 兼容 TaskConfig}——保留旧调用方遍历契约。
+    """
+    del include_empty
+    try:
+        resolved = resolve_text_generation_task(llm_api)
+    except Exception as exc:
+        logger.warning(f"[A_Memorix.ModelRouting] 能力解析失败，返回空任务表: {exc}")
+        return {}
+    return {resolved.task_name: resolved.task_config}
 
 
 def pick_text_generation_task(
     available_tasks: Dict[str, Any],
-    preferred: Iterable[str] = A_MEMORIX_TEXT_TASK_PRIORITY,
+    preferred: Iterable[str] = (),
 ) -> Tuple[Optional[str], Optional[Any]]:
-    """按 A_Memorix 优先级选择文本生成任务。"""
+    """按优先级选择文本生成任务（deprecated——preferred 任务名语义已废弃）。
 
-    for task_name in _iter_preferred_task_names(available_tasks, preferred):
-        task_config = available_tasks.get(task_name)
+    保留旧签名：从 available_tasks（能力解析结果）中取首个可用项。
+    """
+    del preferred
+    for task_name, task_config in available_tasks.items():
         if task_has_model_list(task_config):
             return task_name, task_config
     return None, None

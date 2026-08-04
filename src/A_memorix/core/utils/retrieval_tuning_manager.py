@@ -24,7 +24,6 @@ from .model_routing import (
     ResolvedLLMModel,
     generate_with_resolved_model,
     get_text_generation_model_tasks,
-    pick_text_generation_task,
     resolve_text_generation_model_selector,
 )
 from .search_execution_service import SearchExecutionRequest, SearchExecutionService
@@ -1577,10 +1576,7 @@ class RetrievalTuningManager:
                     selected_model_name=selected_model_name,
                 )
             logger.warning(f"advanced.extraction_model={cfg_model!r} 不可用于文本生成，已回退自动选择")
-        task_name, task_config = pick_text_generation_task(
-            models,
-            preferred=("memory", "utils", "planner", "tool_use", "replyer"),
-        )
+        task_name, task_config = _resolve_model_task_value(self._llm_api)
         if task_name and task_config:
             return ResolvedLLMModel(task_name=task_name, task_config=task_config)
         return None
@@ -2315,3 +2311,10 @@ class RetrievalTuningManager:
             f"- 未参与自动调优但影响召回的参数: {', '.join(NON_TUNED_RETRIEVAL_INFLUENCERS)}",
         ]
         return "\n".join(lines).strip() + "\n"
+
+
+def _resolve_model_task_value(llm_api) -> tuple:
+    """ZG-12 迁移 helper：能力解析 → (task_name, task_config) 兼容元组。"""
+    from src.A_memorix.core.utils.model_routing import resolve_text_generation_task
+    resolved = resolve_text_generation_task(llm_api)
+    return resolved.task_name, resolved.task_config

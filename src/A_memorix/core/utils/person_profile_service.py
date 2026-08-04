@@ -31,8 +31,6 @@ from .metadata import coerce_metadata_dict
 from .model_routing import (
     ResolvedLLMModel,
     generate_with_resolved_model,
-    get_text_generation_model_tasks,
-    pick_text_generation_task,
 )
 from .profile_text import build_profile_injection_text, build_structured_profile_text
 
@@ -758,11 +756,7 @@ class PersonProfileService:
 
     def _resolve_profile_classification_model(self) -> Optional[ResolvedLLMModel]:
         try:
-            available_tasks = get_text_generation_model_tasks(self._llm_api)
-            task_name, task_config = pick_text_generation_task(
-                available_tasks,
-                preferred=("memory", "utils", "planner", "tool_use", "replyer"),
-            )
+            task_name, task_config = _resolve_model_task_value(self._llm_api)
             if not task_name or task_config is None:
                 return None
             return ResolvedLLMModel(task_name=task_name, task_config=task_config)
@@ -1088,3 +1082,10 @@ class PersonProfileService:
             f"{text}\n"
             "仅供内部推理，不要向用户逐字复述。"
         )
+
+
+def _resolve_model_task_value(llm_api) -> tuple:
+    """ZG-12 迁移 helper：能力解析 → (task_name, task_config) 兼容元组。"""
+    from src.A_memorix.core.utils.model_routing import resolve_text_generation_task
+    resolved = resolve_text_generation_task(llm_api)
+    return resolved.task_name, resolved.task_config

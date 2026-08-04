@@ -25,7 +25,6 @@ from ..embedding import EmbeddingAPIAdapter
 from .model_routing import (
     find_text_generation_task_for_model,
     get_text_generation_model_tasks,
-    pick_text_generation_task,
 )
 from .relation_write_service import RelationWriteService
 from .runtime_self_check import ensure_runtime_self_check, run_embedding_runtime_self_check
@@ -279,10 +278,7 @@ class SummaryImporter:
         选择总结默认任务，避免错误落到 embedding/voice/vlm 等非文本生成任务。
         优先级：memory > utils > planner > tool_use > replyer > 其他文本生成任务。
         """
-        return pick_text_generation_task(
-            available_tasks,
-            preferred=("memory", "utils", "planner", "tool_use", "replyer"),
-        )
+        return _resolve_model_task_value(self._llm_api)
 
     def _current_model_dict(self) -> Dict[str, Any]:
         try:
@@ -739,3 +735,10 @@ class SummaryImporter:
 
         logger.info(f"总结导入完成: hash={hash_value[:8]}")
         return hash_value
+
+
+def _resolve_model_task_value(llm_api) -> tuple:
+    """ZG-12 迁移 helper：能力解析 → (task_name, task_config) 兼容元组。"""
+    from src.A_memorix.core.utils.model_routing import resolve_text_generation_task
+    resolved = resolve_text_generation_task(llm_api)
+    return resolved.task_name, resolved.task_config

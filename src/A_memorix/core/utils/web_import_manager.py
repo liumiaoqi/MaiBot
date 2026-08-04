@@ -42,7 +42,6 @@ from ..utils.model_routing import (
     ResolvedLLMModel,
     generate_with_resolved_model,
     get_text_generation_model_tasks,
-    pick_text_generation_task,
     resolve_text_generation_model_selector,
 )
 from ..utils.relation_write_service import RelationWriteService
@@ -3799,18 +3798,7 @@ class ImportTaskManager:
                 )
             logger.warning(f"advanced.extraction_model={config_model!r} 不可用于文本生成，已回退自动选择")
 
-        task_name, task_config = pick_text_generation_task(
-            models,
-            preferred=(
-                "memory",
-                "utils",
-                "lpmm_entity_extract",
-                "lpmm_rdf_build",
-                "replyer",
-                "planner",
-                "tool_use",
-            ),
-        )
+        task_name, task_config = _resolve_model_task_value(self.plugin._ports.require_llm_service())
         if task_name and task_config:
             return ResolvedLLMModel(task_name=task_name, task_config=task_config)
         raise RuntimeError("没有可用 LLM 模型")
@@ -4300,3 +4288,10 @@ JSON schema:
         task.finished_at = _now()
         task.updated_at = _now()
         self._recompute_task_progress(task)
+
+
+def _resolve_model_task_value(llm_api) -> tuple:
+    """ZG-12 迁移 helper：能力解析 → (task_name, task_config) 兼容元组。"""
+    from src.A_memorix.core.utils.model_routing import resolve_text_generation_task
+    resolved = resolve_text_generation_task(llm_api)
+    return resolved.task_name, resolved.task_config
