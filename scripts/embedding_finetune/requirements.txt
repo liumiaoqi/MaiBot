@@ -1,0 +1,15 @@
+# Embedding 微调环境依赖
+#
+# 安装顺序：
+#   1. pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#      （cu128 必需：RTX 50 系 Blackwell sm_120 的 kernel 只在 cu128+ 轮子中；
+#        cu126 会报 "no kernel image is available for execution on the device"）
+#   2. pip install -r requirements.txt
+
+sentence-transformers[training]>=3.0
+accelerate>=1.1.0
+optimum[onnxruntime]>=1.20
+onnx>=1.16
+onnxscript
+onnxruntime>=1.18
+tomlkit
