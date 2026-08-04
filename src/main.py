@@ -12,6 +12,8 @@ from src.common.i18n import t
 from src.common.logger import get_logger
 from src.common.runtime_loop import set_main_loop
 from src.config.config import global_config
+from src.core.service_manager.types import DependencyKind
+from src.core.startup import StartupPhase, startup_item
 from src.manager.async_task_manager import async_task_manager
 from src.prompt.prompt_manager import prompt_manager
 
@@ -25,6 +27,19 @@ install(extra_lines=3)
 
 logger = get_logger("main")
 
+# ZG-10 迁移适配：@startup_item 在类定义期收集零参 init_fn（StartupItemDesc 无参约定）。
+# MainSystem 方法若需实例状态，通过模块级 _main_system 闭包引用取当前实例——
+# 生产路径 main()/bot.py 均为"先构造 MainSystem 再 initialize()"，单实例场景成立。
+_main_system: "MainSystem | None" = None
+
+
+def _require_main_system() -> "MainSystem":
+    """返回当前 MainSystem 实例（零参 init_fn 的实例状态入口）。"""
+    system = _main_system
+    if system is None:
+        raise RuntimeError("MainSystem 实例尚未创建，启动项无法访问实例状态")
+    return system
+
 
 if TYPE_CHECKING:
     from maim_message import MessageServer
@@ -34,6 +49,8 @@ if TYPE_CHECKING:
 
 class MainSystem:
     def __init__(self, debug_startup: bool = False, skip_startup_items: set[str] | None = None) -> None:
+        global _main_system
+        _main_system = self
         self._debug_startup = debug_startup
         self._skip_startup_items = set(skip_startup_items or ())
         # 使用消息API替代直接的FastAPI实例
@@ -118,13 +135,13 @@ class MainSystem:
     # ── 启动编排（SSD-4 startup_reform T2.2）──────────────────
 
     async def _init_components(self) -> None:
-        """使用 StartupOrchestrator 按 6 阶段执行初始化。"""
-        from src.core.startup import (
+        """使用 StartupOrchestrator 按 6 阶段执行初始化。
 
-            StartupComponent,
-            StartupOrchestrator,
-            StartupPhase,
-        )
+        启动项已迁移为 init_fn 定义处的 @startup_item 装饰器声明
+        （ZG-10 T20-T29）；StartupComponent 编程式注册入口保留
+        （共存期，批 11 清理）。
+        """
+        from src.core.startup import StartupComponent, StartupOrchestrator  # noqa: F401
 
         self._init_start_time = time.time()
         orchestrator = StartupOrchestrator(
@@ -132,162 +149,14 @@ class MainSystem:
             skip_names=self._skip_startup_items,
         )
 
-        # 阶段 0：配置加载
-        orchestrator.register(StartupComponent(
-            name="config_manager", phase=StartupPhase.CONFIG_LOAD, order=0, critical=True,
-            init_fn=self._noop_config_loaded,
-        ))
-        orchestrator.register(StartupComponent(
-            name="config_validator", phase=StartupPhase.CONFIG_LOAD, order=1, critical=True,
-            init_fn=self._validate_startup_config,
-        ))
-
-        # 阶段 1：基础设施
-        orchestrator.register(StartupComponent(
-            name="file_watcher", phase=StartupPhase.INFRASTRUCTURE, order=0, critical=True,
-            init_fn=self._start_file_watcher,
-        ))
-        orchestrator.register(StartupComponent(
-            name="tool_record_vacuum", phase=StartupPhase.INFRASTRUCTURE, order=1, critical=False,
-            init_fn=self._run_tool_vacuum,
-        ))
-
-        # 阶段 2：核心服务
-        orchestrator.register(StartupComponent(
-            name="agent_registry", phase=StartupPhase.CORE_SERVICES, order=0, critical=True,
-            init_fn=self._init_agent_registry,
-            core_readiness_flag="agent_thinking_ready",
-        ))
-        orchestrator.register(StartupComponent(
-            name="session_submodules", phase=StartupPhase.CORE_SERVICES, order=1, critical=True,
-            init_fn=self._init_session_submodules,
-        ))
-        orchestrator.register(StartupComponent(
-            name="chat_manager_adapter", phase=StartupPhase.CORE_SERVICES, order=2, critical=True,
-            init_fn=self._init_adapter_and_ports,
-            core_readiness_flag="message_pipeline_ready",
-        ))
-        orchestrator.register(StartupComponent(
-            name="replyer_port", phase=StartupPhase.CORE_SERVICES, order=3, critical=True,
-            init_fn=self._init_replyer_port,
-            core_readiness_flag="reply_capability_ready",
-        ))
-        orchestrator.register(StartupComponent(
-            name="image_port", phase=StartupPhase.CORE_SERVICES, order=4, critical=True,
-            init_fn=self._init_image_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="runtime_port", phase=StartupPhase.CORE_SERVICES, order=5, critical=True,
-            init_fn=self._init_runtime_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="model_config_port", phase=StartupPhase.CORE_SERVICES, order=6, critical=True,
-            init_fn=self._init_model_config_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="llm_service_port", phase=StartupPhase.CORE_SERVICES, order=7, critical=True,
-            init_fn=self._init_llm_service_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="message_ingestion_port", phase=StartupPhase.CORE_SERVICES, order=8, critical=True,
-            init_fn=self._init_message_ingestion_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="person_info_port", phase=StartupPhase.CORE_SERVICES, order=9, critical=True,
-            init_fn=self._init_person_info_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="bot_config_port", phase=StartupPhase.CORE_SERVICES, order=10, critical=True,
-            init_fn=self._init_bot_config_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="chat_config_port", phase=StartupPhase.CORE_SERVICES, order=11, critical=True,
-            init_fn=self._init_chat_config_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="app_config_port", phase=StartupPhase.CORE_SERVICES, order=12, critical=True,
-            init_fn=self._init_app_config_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="event_bus_port", phase=StartupPhase.CORE_SERVICES, order=13, critical=True,
-            init_fn=self._init_event_bus_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=14, critical=True,
-            init_fn=self._load_prompts,
-        ))
-        orchestrator.register(StartupComponent(
-            name="message_port_v2", phase=StartupPhase.CORE_SERVICES, order=15, critical=True,
-            init_fn=self._inject_message_port_v2,
-        ))
-
-        # 阶段 3：子系统
-        orchestrator.register(StartupComponent(
-            name="plugin_runtime", phase=StartupPhase.SUBSYSTEMS, order=0, critical=False,
-            init_fn=self._start_plugin_runtime,
-        ))
-        orchestrator.register(StartupComponent(
-            name="ipc_bridge_port", phase=StartupPhase.SUBSYSTEMS, order=1, critical=False,
-            init_fn=self._inject_ipc_bridge_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="plugin_runtime_v2", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
-            init_fn=self._start_plugin_runtime_v2,
-        ))
-        orchestrator.register(StartupComponent(
-            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
-            init_fn=self._load_emoji,
-        ))
-        orchestrator.register(StartupComponent(
-            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=4, critical=False,
-            init_fn=self._inject_model_config_port,
-        ))
-        # a_memorix 内核初始化依赖 ModelConfigPort——必须在注入之后启动
-        orchestrator.register(StartupComponent(
-            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=5, critical=False,
-            init_fn=self._start_a_memorix,
-        ))
-
-        # 阶段 4：会话恢复
-        orchestrator.register(StartupComponent(
-            name="session_lifecycle", phase=StartupPhase.SESSION_RESTORE, order=0, critical=True,
-            init_fn=self._restore_sessions,
-        ))
-        orchestrator.register(StartupComponent(
-            name="memory_automation", phase=StartupPhase.SESSION_RESTORE, order=1, critical=False,
-            init_fn=self._start_memory_automation,
-        ))
-
-        # 阶段 5：就绪
-        orchestrator.register(StartupComponent(
-            name="message_handlers", phase=StartupPhase.READY, order=0, critical=True,
-            init_fn=self._register_handlers,
-        ))
-        orchestrator.register(StartupComponent(
-            name="on_start_event", phase=StartupPhase.READY, order=1, critical=True,
-            init_fn=self._emit_on_start,
-        ))
-        orchestrator.register(StartupComponent(
-            name="webui_server", phase=StartupPhase.READY, order=2, critical=False,
-            init_fn=self._start_webui,
-        ))
-        orchestrator.register(StartupComponent(
-            name="scheduled_tasks", phase=StartupPhase.READY, order=3, critical=False,
-            init_fn=self._add_scheduled_tasks,
-        ))
-        orchestrator.register(StartupComponent(
-            name="interaction_scheduler", phase=StartupPhase.READY, order=4, critical=False,
-            init_fn=self._start_interaction_scheduler,
-        ))
-
         self._orchestrator = orchestrator
         self._startup_result = await orchestrator.run()
 
         if not self._startup_result.ready:
-            failed_names = [c.name for c in self._startup_result.failed_components if c.critical]
+            failed_names = list(self._startup_result.failed_components)
             if failed_names:
                 raise RuntimeError(f"关键组件初始化失败: {failed_names}")
-            logger.warning(f"系统降级启动，失败组件: {[c.name for c in self._startup_result.failed_components]}")
+            logger.warning(f"系统降级启动，失败组件: {failed_names}")
 
         # ZG-1: 服务管理器接管运行时组件
         from src.core.adapters.service_manager_adapter import ServiceManagerAdapter
@@ -340,14 +209,6 @@ class MainSystem:
             notify_timeout=sys_state_cfg.notify_timeout,
         )
 
-        # ZG-4: EventBus 装配注入（配置已加载后；configure 幂等，未注入项保持默认）
-        from src.core.event_bus import event_bus as _core_event_bus
-
-        event_bus_cfg = _cm.get_global_config().event_bus
-        _core_event_bus.configure(
-            rollback_timeout=event_bus_cfg.rollback_timeout,
-            vote_history_capacity=event_bus_cfg.vote_history_capacity,
-        )
         self._lifecycle_adapter = SystemLifecycleAdapter(
             state_machine=self._lifecycle_sm,
             core_readiness_port=CoreReadinessPortAdapter(orchestrator.get_core_readiness()),
@@ -664,11 +525,27 @@ class MainSystem:
 
     # ── 阶段 0 闭包 ───────────────────────────────────────────
 
-    async def _noop_config_loaded(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="config_manager",
+        phase=StartupPhase.CONFIG_LOAD,
+        order=0,
+        critical=True,
+    )
+    async def _noop_config_loaded() -> None:
         """阶段0占位：config_manager 已在模块级初始化，T5.1 将改为延迟初始化。"""
         pass
 
-    async def _validate_startup_config(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="config_validator",
+        phase=StartupPhase.CONFIG_LOAD,
+        order=1,
+        critical=True,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.STRONG},
+    )
+    async def _validate_startup_config() -> None:
         from src.config.config import config_manager as _cm
         from src.core.startup.validator import StartupValidator
         errors = StartupValidator.validate(global_config, _cm.get_model_config())
@@ -677,17 +554,43 @@ class MainSystem:
 
     # ── 阶段 1 闭包 ───────────────────────────────────────────
 
-    async def _start_file_watcher(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="file_watcher",
+        phase=StartupPhase.INFRASTRUCTURE,
+        order=0,
+        critical=True,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.STRONG},
+    )
+    async def _start_file_watcher() -> None:
         from src.config.config import config_manager as _cm
         await _cm.start_file_watcher()
 
-    async def _run_tool_vacuum(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="tool_record_vacuum",
+        phase=StartupPhase.INFRASTRUCTURE,
+        order=1,
+        critical=False,
+    )
+    async def _run_tool_vacuum() -> None:
         from src.services.tool_record_cleanup_service import run_startup_tool_record_vacuum_if_needed
         await asyncio.to_thread(run_startup_tool_record_vacuum_if_needed)
 
     # ── 阶段 2 闭包 ───────────────────────────────────────────
 
-    async def _init_session_submodules(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="session_submodules",
+        phase=StartupPhase.CORE_SERVICES,
+        order=1,
+        critical=True,
+        depends_on=["agent_registry"],
+        dependency_kind={"agent_registry": DependencyKind.STRONG},
+    )
+    async def _init_session_submodules() -> None:
+        system = _require_main_system()
         from src.chat.message_receive.session_store import SessionStore
         from src.chat.message_receive.message_registry import MessageRegistry
         from src.chat.message_receive.session_name_cache import SessionNameCache
@@ -697,17 +600,33 @@ class MainSystem:
         from src.maisaka.agent.router import AgentRouter
         from src.core.adapters.agent_config_port import get_agent_config_provider
 
-        self._session_store = SessionStore()
-        self._message_registry = MessageRegistry(self._session_store)
-        self._session_store.set_message_registry(self._message_registry)
-        self._name_cache = SessionNameCache(self._session_store)
-        self._resolver = SessionResolver(self._session_store)
+        system._session_store = SessionStore()
+        system._message_registry = MessageRegistry(system._session_store)
+        system._session_store.set_message_registry(system._message_registry)
+        system._name_cache = SessionNameCache(system._session_store)
+        system._resolver = SessionResolver(system._session_store)
         agent_router = AgentRouter(get_agent_config_provider())
-        self._binding_restorer = BindingRestorer(agent_router)
-        self._session_lifecycle = SessionLifecycle(self._session_store, self._message_registry, agent_router)
-        self._agent_router = agent_router
+        system._binding_restorer = BindingRestorer(agent_router)
+        system._session_lifecycle = SessionLifecycle(
+            system._session_store, system._message_registry, agent_router
+        )
+        system._agent_router = agent_router
 
-    async def _init_adapter_and_ports(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="chat_manager_adapter",
+        phase=StartupPhase.CORE_SERVICES,
+        order=2,
+        critical=True,
+        depends_on=["session_submodules", "agent_registry"],
+        dependency_kind={
+            "session_submodules": DependencyKind.STRONG,
+            "agent_registry": DependencyKind.STRONG,
+        },
+        core_readiness_flag="message_pipeline_ready",
+    )
+    async def _init_adapter_and_ports() -> None:
+        system = _require_main_system()
         from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
         from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
         from src.core.session_port_registry import (
@@ -718,33 +637,53 @@ class MainSystem:
         )
         from src.core.routing_port_registry import register_routing_service
 
-        routing_adapter = ChatManagerRoutingAdapter(self._agent_router)
+        routing_adapter = ChatManagerRoutingAdapter(system._agent_router)
         register_routing_service(routing_adapter)
         _adapter = ChatManagerAdapter(
             routing_service=routing_adapter,
-            session_store=self._session_store,
-            message_registry=self._message_registry,
-            name_cache=self._name_cache,
-            resolver=self._resolver,
-            binding_restorer=self._binding_restorer,
-            session_lifecycle=self._session_lifecycle,
+            session_store=system._session_store,
+            message_registry=system._message_registry,
+            name_cache=system._name_cache,
+            resolver=system._resolver,
+            binding_restorer=system._binding_restorer,
+            session_lifecycle=system._session_lifecycle,
         )
-        self._chat_manager_adapter = _adapter
+        system._chat_manager_adapter = _adapter
         register_session_info_port(_adapter)
         register_session_lifecycle_port(_adapter)
         register_session_query_port(_adapter)
         register_message_registry_port(_adapter)
 
-    async def _init_replyer_port(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="replyer_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=3,
+        critical=True,
+        depends_on=["chat_manager_adapter", "agent_registry"],
+        dependency_kind={
+            "chat_manager_adapter": DependencyKind.STRONG,
+            "agent_registry": DependencyKind.STRONG,
+        },
+        core_readiness_flag="reply_capability_ready",
+    )
+    async def _init_replyer_port() -> None:
+        system = _require_main_system()
         from src.chat.replyer.replyer_manager import replyer_manager
         from src.core.adapters.replyer_service_adapter import ReplyerServiceAdapter
         from src.core.replyer_port_registry import register_replyer_service_port
 
         adapter = ReplyerServiceAdapter(replyer_manager)
-        self._replyer_adapter = adapter
+        system._replyer_adapter = adapter
         register_replyer_service_port(adapter)
 
     @staticmethod
+    @startup_item(
+        name="image_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=4,
+        critical=True,
+    )
     async def _init_image_port() -> None:
         from src.chat.image_system.image_manager import image_manager
         from src.core.adapters.image_description_adapter import ImageDescriptionAdapter
@@ -753,6 +692,12 @@ class MainSystem:
         register_image_description_port(ImageDescriptionAdapter(image_manager))
 
     @staticmethod
+    @startup_item(
+        name="runtime_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=5,
+        critical=True,
+    )
     async def _init_runtime_port() -> None:
         from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
         from src.chat.heart_flow.heartflow_manager import heartflow_manager
@@ -765,81 +710,192 @@ class MainSystem:
         register_chat_runtime_registry(HeartflowRuntimeRegistry(heartflow_manager))
         register_chat_runtime_factory(MaisakaRuntimeFactory())
 
-    async def _init_agent_registry(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="agent_registry",
+        phase=StartupPhase.CORE_SERVICES,
+        order=0,
+        critical=True,
+        core_readiness_flag="agent_thinking_ready",
+    )
+    async def _init_agent_registry() -> None:
+        system = _require_main_system()
         from src.maisaka.agent.registry import AgentConfigRegistry
 
-        self._agent_registry = AgentConfigRegistry.get_instance()
-        self._agent_registry.load()
+        system._agent_registry = AgentConfigRegistry.get_instance()
+        system._agent_registry.load()
 
         from src.core.adapters.agent_config_port import AgentConfigProviderAdapter, set_agent_config_provider
-        set_agent_config_provider(AgentConfigProviderAdapter(self._agent_registry))
+        set_agent_config_provider(AgentConfigProviderAdapter(system._agent_registry))
 
-    async def _init_model_config_port(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="model_config_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=6,
+        critical=True,
+        depends_on=["agent_registry", "config_manager"],
+        dependency_kind={
+            "agent_registry": DependencyKind.STRONG,
+            "config_manager": DependencyKind.STRONG,
+        },
+    )
+    async def _init_model_config_port() -> None:
+        system = _require_main_system()
         from src.A_memorix.host_service import a_memorix_host_service
         from src.config.config import config_manager as _cm
         from src.core.adapters.model_config_port import ConfigManagerModelConfigPort
 
-        self._model_config_port = ConfigManagerModelConfigPort(
+        system._model_config_port = ConfigManagerModelConfigPort(
             config_manager=_cm,
-            agent_config_resolver=lambda aid: self._agent_registry.get_agent(aid) if self._agent_registry.has_agent(aid) else None,
+            agent_config_resolver=lambda aid: (
+                system._agent_registry.get_agent(aid)
+                if system._agent_registry.has_agent(aid)
+                else None
+            ),
         )
-        a_memorix_host_service.set_model_config_port(self._model_config_port)
+        a_memorix_host_service.set_model_config_port(system._model_config_port)
 
     @staticmethod
+    @startup_item(
+        name="llm_service_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=7,
+        critical=True,
+    )
     async def _init_llm_service_port() -> None:
         from src.core.adapters.llm_service_port import LLMServiceAdapter, set_llm_service
         set_llm_service(LLMServiceAdapter())
 
     @staticmethod
+    @startup_item(
+        name="message_ingestion_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=8,
+        critical=True,
+        depends_on=["chat_manager_adapter"],
+        dependency_kind={"chat_manager_adapter": DependencyKind.STRONG},
+    )
     async def _init_message_ingestion_port() -> None:
         from src.chat.message_receive.bot import chat_bot
         from src.core.adapters.message_ingestion_port import ChatBotMessageIngestionPort, set_message_ingestion_port
         set_message_ingestion_port(ChatBotMessageIngestionPort(chat_bot))
 
     @staticmethod
+    @startup_item(
+        name="person_info_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=9,
+        critical=True,
+    )
     async def _init_person_info_port() -> None:
         from src.core.adapters.person_info_port import PersonInfoPortAdapter
         from src.core.person_info_port_registry import set_person_info_port
         set_person_info_port(PersonInfoPortAdapter())
 
     @staticmethod
+    @startup_item(
+        name="bot_config_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=10,
+        critical=True,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.STRONG},
+    )
     async def _init_bot_config_port() -> None:
         from src.core.adapters.bot_config_port import GlobalConfigBotConfigPort
         from src.core.bot_config_port_registry import set_bot_config_port
         set_bot_config_port(GlobalConfigBotConfigPort())
 
     @staticmethod
+    @startup_item(
+        name="chat_config_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=11,
+        critical=True,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.STRONG},
+    )
     async def _init_chat_config_port() -> None:
         from src.core.adapters.chat_config_port import GlobalConfigChatConfigPort
         from src.core.chat_config_port_registry import set_chat_config_port
         set_chat_config_port(GlobalConfigChatConfigPort())
 
     @staticmethod
+    @startup_item(
+        name="app_config_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=12,
+        critical=True,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.STRONG},
+    )
     async def _init_app_config_port() -> None:
         from src.core.adapters.app_config_port import GlobalConfigAppConfigPort
         from src.core.app_config_port_registry import set_app_config_port
         set_app_config_port(GlobalConfigAppConfigPort())
 
     @staticmethod
+    @startup_item(
+        name="event_bus_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=13,
+        critical=True,
+    )
     async def _init_event_bus_port() -> None:
         from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus
         from src.core.event_bus_port_registry import set_event_bus_port
+
         set_event_bus_port(AutonomyEventBus())
 
+        # ZG-4: EventBus 装配注入（配置已加载后；configure 幂等，未注入项保持默认）。
+        # P1-1 修复：configure 从 run() 之后移入 CORE_SERVICES 相位，保证 on_start_event
+        # 触发时 EventBus 已配置完成（T22/T24）。
+        from src.config.config import config_manager as _cm
+        from src.core.event_bus import event_bus as _core_event_bus
+
+        event_bus_cfg = _cm.get_global_config().event_bus
+        _core_event_bus.configure(
+            rollback_timeout=event_bus_cfg.rollback_timeout,
+            vote_history_capacity=event_bus_cfg.vote_history_capacity,
+        )
+
     @staticmethod
+    @startup_item(
+        name="prompt_manager",
+        phase=StartupPhase.CORE_SERVICES,
+        order=14,
+        critical=True,
+    )
     async def _load_prompts() -> None:
         prompt_manager.load_prompts()
 
     # ── 阶段 3 闭包 ───────────────────────────────────────────
 
     @staticmethod
+    @startup_item(
+        name="plugin_runtime",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=0,
+        critical=False,
+    )
     async def _start_plugin_runtime() -> None:
         from src.plugin_runtime.integration import get_plugin_runtime_manager
 
         manager = get_plugin_runtime_manager()
         await manager.start()
 
-    async def _start_plugin_runtime_v2(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="plugin_runtime_v2",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=2,
+        critical=False,
+        depends_on=["app_config_port"],
+        dependency_kind={"app_config_port": DependencyKind.STRONG},
+    )
+    async def _start_plugin_runtime_v2() -> None:
+        system = _require_main_system()
         from src.core.app_config_port_registry import get_app_config_port
 
         app_port = get_app_config_port()
@@ -849,8 +905,8 @@ class MainSystem:
         try:
             from src.plugin_runtime_v2.bootstrap import init_v2_host_endpoint
 
-            self._v2_host_endpoint = await init_v2_host_endpoint(app_port)
-            await self._inject_scope_services_to_webui()
+            system._v2_host_endpoint = await init_v2_host_endpoint(app_port)
+            await system._inject_scope_services_to_webui()
             logger.info("v2 插件运行时已启动")
         except Exception as e:
             logger.error("v2 插件运行时启动失败: %s", e)
@@ -868,6 +924,17 @@ class MainSystem:
             logger.warning("操作异常 in main.py", exc_info=True)
 
     @staticmethod
+    @startup_item(
+        name="a_memorix",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=5,
+        critical=False,
+        depends_on=["model_config_port_inject", "model_config_port"],
+        dependency_kind={
+            "model_config_port_inject": DependencyKind.STRONG,
+            "model_config_port": DependencyKind.STRONG,
+        },
+    )
     async def _start_a_memorix() -> None:
         from src.A_memorix.host_service import a_memorix_host_service
         from src.common.service_registry import service_registry
@@ -877,22 +944,42 @@ class MainSystem:
         await a_memorix_host_service.start()
 
     @staticmethod
+    @startup_item(
+        name="emoji_manager",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=3,
+        critical=False,
+    )
     async def _load_emoji() -> None:
         from src.emoji_system.emoji_manager import emoji_manager
 
         await asyncio.to_thread(emoji_manager.load_emojis_from_db)
 
-    async def _inject_model_config_port(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="model_config_port_inject",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=4,
+        critical=False,
+    )
+    async def _inject_model_config_port() -> None:
+        system = _require_main_system()
         from src.llm_models import model_client
         from src.llm_models import utils_model
         from src.services import service_task_resolver
 
-        utils_model.set_model_config_port(self._model_config_port)
-        model_client.base_client.set_model_config_port(self._model_config_port)
-        model_client.set_model_config_port(self._model_config_port)
-        service_task_resolver.set_model_config_port(self._model_config_port)
+        utils_model.set_model_config_port(system._model_config_port)
+        model_client.base_client.set_model_config_port(system._model_config_port)
+        model_client.set_model_config_port(system._model_config_port)
+        service_task_resolver.set_model_config_port(system._model_config_port)
 
     @staticmethod
+    @startup_item(
+        name="message_port_v2",
+        phase=StartupPhase.CORE_SERVICES,
+        order=15,
+        critical=True,
+    )
     async def _inject_message_port_v2() -> None:
         from src.core.message_port_registry import set_message_port_v2
         from src.services.send_service import SendServiceMessagePortV2
@@ -900,11 +987,17 @@ class MainSystem:
         set_message_port_v2(SendServiceMessagePortV2())
 
     @staticmethod
+    @startup_item(
+        name="ipc_bridge_port",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=1,
+        critical=False,
+        depends_on=["plugin_runtime"],
+        dependency_kind={"plugin_runtime": DependencyKind.STRONG},
+    )
     async def _inject_ipc_bridge_port() -> None:
-        # SUBSYSTEMS 阶段并行执行（orchestrator._run_subsystems_parallel），order 仅定
-        # 创建顺序不保证执行先后——本组件可能在 plugin_runtime 启动完成前执行。
-        # 安全性靠 get_plugin_runtime_manager() 懒加载同一单例兜底：PRM 未启动时
-        # is_running=False，EventBus 桥接跳过，与修复前行为等价（CX 审核 P2-6）。
+        # SUBSYSTEMS 波次依赖保证 plugin_runtime 先于本组件执行，但保留懒加载
+        # 单例兜底：PRM 未启动时 is_running=False，EventBus 桥接跳过（CX 审核 P2-6）。
         from src.core.adapters.ipc_bridge_port import IpcBridgePortAdapter
         from src.core.ipc_bridge_port_registry import set_ipc_bridge_port
         from src.plugin_runtime.integration import get_plugin_runtime_manager
@@ -915,6 +1008,14 @@ class MainSystem:
     # ── 阶段 4 闭包 ───────────────────────────────────────────
 
     @staticmethod
+    @startup_item(
+        name="session_lifecycle",
+        phase=StartupPhase.SESSION_RESTORE,
+        order=0,
+        critical=True,
+        depends_on=["chat_manager_adapter"],
+        dependency_kind={"chat_manager_adapter": DependencyKind.STRONG},
+    )
     async def _restore_sessions() -> None:
         from src.core.session_port_registry import get_session_lifecycle_port
 
@@ -923,6 +1024,14 @@ class MainSystem:
         asyncio.create_task(lifecycle_port.regularly_save_sessions())
 
     @staticmethod
+    @startup_item(
+        name="memory_automation",
+        phase=StartupPhase.SESSION_RESTORE,
+        order=1,
+        critical=False,
+        depends_on=["a_memorix"],
+        dependency_kind={"a_memorix": DependencyKind.WEAK},
+    )
     async def _start_memory_automation() -> None:
         from src.services.memory_flow_service import memory_automation_service
 
@@ -930,27 +1039,70 @@ class MainSystem:
 
     # ── 阶段 5 闭包 ───────────────────────────────────────────
 
-    async def _register_handlers(self) -> None:
-        self._register_message_handlers()
+    @staticmethod
+    @startup_item(
+        name="message_handlers",
+        phase=StartupPhase.READY,
+        order=0,
+        critical=True,
+        depends_on=["message_ingestion_port"],
+        dependency_kind={"message_ingestion_port": DependencyKind.STRONG},
+    )
+    async def _register_handlers() -> None:
+        _require_main_system()._register_message_handlers()
 
     @staticmethod
+    @startup_item(
+        name="on_start_event",
+        phase=StartupPhase.READY,
+        order=1,
+        critical=True,
+    )
     async def _emit_on_start() -> None:
         from src.core.event_bus import event_bus
         from src.core.types import EventType
 
         await event_bus.emit(event_type=EventType.ON_START)
 
-    async def _start_webui(self) -> None:
-        self._start_webui_server()
+    @staticmethod
+    @startup_item(
+        name="webui_server",
+        phase=StartupPhase.READY,
+        order=2,
+        critical=False,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.WEAK},
+    )
+    async def _start_webui() -> None:
+        _require_main_system()._start_webui_server()
 
     @staticmethod
+    @startup_item(
+        name="scheduled_tasks",
+        phase=StartupPhase.READY,
+        order=3,
+        critical=False,
+    )
     async def _add_scheduled_tasks() -> None:
         from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 
         await async_task_manager.add_task(OnlineTimeRecordTask())
         await async_task_manager.add_task(StatisticOutputTask())
 
-    async def _start_interaction_scheduler(self) -> None:
+    @staticmethod
+    @startup_item(
+        name="interaction_scheduler",
+        phase=StartupPhase.READY,
+        order=4,
+        critical=False,
+        depends_on=["a_memorix", "message_handlers"],
+        dependency_kind={
+            "a_memorix": DependencyKind.WEAK,
+            "message_handlers": DependencyKind.STRONG,
+        },
+    )
+    async def _start_interaction_scheduler() -> None:
+        system = _require_main_system()
         try:
             from src.maisaka.agent_interaction.bootstrap import build_interaction_scheduler
             from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
@@ -961,7 +1113,7 @@ class MainSystem:
                 relationship_mgr = AgentRelationshipManager()
                 await relationship_mgr.initialize_from_config()
                 await scheduler.start()
-                self._interaction_scheduler = scheduler
+                system._interaction_scheduler = scheduler
                 logger.info(t("startup.agent_interaction_started"))
         except Exception as e:
             logger.warning(t("startup.agent_interaction_failed", error=e))
