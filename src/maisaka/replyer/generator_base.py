@@ -27,6 +27,7 @@ from src.common.data_models.reply_generation_data_models import (
 )
 from src.common.i18n import get_locale
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.common.utils.utils_config import ChatConfigUtils
 
 from src.core.bot_config_port_registry import get_bot_config_port
@@ -84,6 +85,7 @@ class RichReplyCheckResult:
     total_tokens: int = 0
 
 
+@model_requirement(capabilities=["text_generation"], critical=True)
 class BaseMaisakaReplyGenerator:
     """Maisaka replyer 的共享实现。"""
 
@@ -814,7 +816,7 @@ class BaseMaisakaReplyGenerator:
 
     @staticmethod
     def _get_runtime_manager() -> Any:
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
+        from src.plugin_runtime.integration import get_plugin_runtime_manager  # noqa: TID251 — 既有 hook 调用点
 
         return get_plugin_runtime_manager()
 

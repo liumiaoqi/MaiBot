@@ -17,6 +17,7 @@ from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.types import CycleStatus, SilenceReason, ThinkAction, ThinkContext, ThinkCycleLog, ThinkResult
+from src.llm_models.model_requirement import model_requirement
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
 
@@ -40,6 +41,10 @@ class ToolCycleResult:
     reply_failed: bool = False
 
 
+PLANNER_CAPABILITIES = ("text_generation", "tool_calling")
+
+
+@model_requirement(capabilities=["text_generation", "tool_calling"], critical=True)
 class ThinkingOrgan:
     """思维器官——以角色内部视角运行 Planner。
 
@@ -270,6 +275,7 @@ class ThinkingOrgan:
                     request_kind=request_kind,
                     tool_definitions=tool_definitions if tool_definitions else None,
                     system_prompt=self.build_system_prompt(),
+                    capabilities=PLANNER_CAPABILITIES,
                 )
             except Exception as exc:
                 logger.error(f"[thinking_organ] LLM 调用失败: agent={self._agent_id} round={round_idx} error={exc}")
