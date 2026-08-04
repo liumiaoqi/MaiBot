@@ -403,6 +403,67 @@ def integration_state(tmp_path_factory: pytest.TempPathFactory) -> Generator[Dic
         "src.A_memorix.core.runtime.lifecycle_orchestrator.create_embedding_api_adapter",
         lambda **kwargs: _FakeEmbeddingManager(dimension=64),
     )
+
+    # A_memorix 服务端口注入（config_manager 未初始化——测试走 _read_config patch 绕过，
+    # 注入"存在即可"的最小 config_manager，避免 _build_service_ports 内 import config_manager 失败）
+    def _fake_build_service_ports() -> Any:
+        from src.A_memorix.core.ports import AMemorixServicePorts
+        from src.common.database.database import get_db_session
+        from src.common.database.database_model import PersonInfo
+        from src.common.data_models.llm_service_data_models import LLMServiceResult
+        from src.core.session_port_registry import get_session_info_port
+        from src.llm_models.exceptions import NetworkConnectionError
+        from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry
+        from src.services import llm_service as llm_api
+        from src.services import message_service as message_api
+
+        class _MinimalConfigManager:
+            """最小 config_manager：测试走 _read_config patch 后不应深度依赖。"""
+
+            def __getattr__(self, name: str) -> Any:
+                raise RuntimeError(f"测试环境 config_manager 方法被调用: {name}（fixture 应 patch _read_config 覆盖）")
+
+        return AMemorixServicePorts(
+            llm_service=llm_api,
+            message_service=message_api,
+            config_manager=_MinimalConfigManager(),
+            model_config_port=None,
+            db_session_factory=get_db_session,
+            db_person_info_model=PersonInfo,
+            llm_models_client_registry=client_registry,
+            llm_models_exceptions=NetworkConnectionError,
+            llm_models_base_client=EmbeddingRequest,
+            llm_data_models=LLMServiceResult,
+            build_profile_injection_text=lambda raw_text: raw_text,
+            session_info_port=get_session_info_port(),
+        )
+
+    patches.setattr(
+        host_service_module.AMemorixHostService,
+        "_build_service_ports",
+        staticmethod(_fake_build_service_ports),
+    )
+
+    # ModelConfigPort：kernel.initialize 创建 LLMServiceClient(task_name="utils")，
+    # resolve_task_name 需要 model_task_config.utils 存在（llm_enabled=False 不真正调用 LLM）
+    class _FakeModelConfigPort:
+        def get_model_config(self) -> Any:
+            from src.config.model_configs import TaskConfig
+
+            class _TaskConfigs:
+                utils = TaskConfig()
+                memory = TaskConfig()
+                embedding = TaskConfig()
+
+            class _Config:
+                models: list = []
+                model_task_config = _TaskConfigs()
+
+            return _Config()
+
+    from src.core.model_config_port_registry import register_model_config_port
+
+    register_model_config_port(_FakeModelConfigPort())
     patches.setattr(memory_router_module, "STAGING_ROOT", staging_dir)
     patches.setattr(tuning_manager_module, "artifacts_root", lambda: artifacts_dir)
 

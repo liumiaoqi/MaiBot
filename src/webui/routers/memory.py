@@ -153,7 +153,8 @@ def _prefetch_latest_messages_by_session(db_session: Any, session_ids: list[str]
 
 def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
-    chat_id = str(normalized.get("chat_id")).strip()
+    # str(None) 陷阱：缺 chat_id 时 str(None)="None" 非空，误入存在性校验（踩坑 16 第 5 次）
+    chat_id = str(normalized.get("chat_id") or "").strip()
     if not chat_id:
         normalized.pop("chat_id", None)
         return normalized
