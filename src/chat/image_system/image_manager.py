@@ -12,6 +12,7 @@ from src.common.data_models.image_data_model import MaiImage
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.core.model_config_port_registry import get_model_config_port
 from src.prompt.prompt_manager import prompt_manager
@@ -45,6 +46,7 @@ def _is_vlm_task_configured() -> bool:
         return False
 
 
+@model_requirement(capabilities=["vision"], critical=False)
 class ImageManager:
     """图片描述管理器。"""
 

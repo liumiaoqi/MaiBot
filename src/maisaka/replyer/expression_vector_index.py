@@ -254,7 +254,7 @@ class ExpressionVectorIndex:
             from src.services.embedding_service import EmbeddingServiceClient
 
             embedding_client = EmbeddingServiceClient(
-                task_name="embedding",
+                capabilities=["embedding"],
                 request_type="expression.selection.profile_probe",
                 session_id=session_id,
             )
@@ -955,7 +955,7 @@ class ExpressionVectorIndex:
         from src.services.embedding_service import EmbeddingServiceClient
 
         embedding_client = EmbeddingServiceClient(
-            task_name="embedding",
+            capabilities=["embedding"],
             request_type="expression.selection.index_batch",
             session_id=embedding_session_id,
         )
@@ -1304,7 +1304,7 @@ class ExpressionVectorIndex:
         from src.services.embedding_service import EmbeddingServiceClient
 
         embedding_client = EmbeddingServiceClient(
-            task_name="embedding",
+            capabilities=["embedding"],
             request_type="expression.selection.vector_query",
             session_id=session_id,
         )

@@ -348,7 +348,7 @@ async def build_mid_term_memory_reference_message(
     from src.services.embedding_service import EmbeddingServiceClient
 
     embedding_client = EmbeddingServiceClient(
-        task_name="embedding",
+        capabilities=["embedding"],
         request_type="maisaka.mid_term_memory_recall",
         session_id=session_id,
     )
@@ -679,7 +679,7 @@ async def _build_recall_cue_embeddings(
     from src.services.embedding_service import EmbeddingServiceClient
 
     embedding_client = EmbeddingServiceClient(
-        task_name="embedding",
+        capabilities=["embedding"],
         request_type="maisaka.mid_term_memory_recall_cue",
         session_id=session_id,
     )

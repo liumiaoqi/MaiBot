@@ -16,6 +16,7 @@ from src.common.data_models.image_data_model import MaiEmoji
 from src.common.database.database import get_db_session, get_db_session_manual
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.common.utils.utils_image import ImageUtils
 from src.core.protocols import AppConfigPort, ModelConfigPort
@@ -142,7 +143,7 @@ def _get_runtime_manager() -> Any:
         Any: 插件运行时管理器单例。
     """
 
-    from src.plugin_runtime.integration import get_plugin_runtime_manager
+    from src.plugin_runtime.integration import get_plugin_runtime_manager  # noqa: TID251 — 既有 hook 调用点
 
     return get_plugin_runtime_manager()
 
@@ -260,6 +261,7 @@ def _is_collected_emoji_size_allowed(size_bytes: int) -> bool:
     return max_size_bytes <= 0 or size_bytes <= max_size_bytes
 
 
+@model_requirement(capabilities=["text_generation", "vision"], critical=False)
 class EmojiManager:
     """
     表情包管理器

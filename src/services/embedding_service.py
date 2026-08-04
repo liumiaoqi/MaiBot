@@ -11,6 +11,7 @@ import asyncio
 
 from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.logger import get_logger
+from src.llm_models.model_requirement import model_requirement
 from src.llm_models.utils_model import LLMOrchestrator
 
 logger = get_logger("embedding_service")
@@ -18,6 +19,7 @@ logger = get_logger("embedding_service")
 _CoroutineReturnT = TypeVar("_CoroutineReturnT")
 
 
+@model_requirement(capabilities=["embedding"], critical=False)
 class EmbeddingServiceClient:
     """面向上层模块的 Embedding 服务对象式门面。"""
 
