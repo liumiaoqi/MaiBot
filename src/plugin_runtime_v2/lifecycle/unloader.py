@@ -48,23 +48,29 @@ class PluginUnloader:
     async def unload_plugin(self, *, timeout_s: float = 30.0) -> UnloadResult:
         """执行完整卸载流程。
 
+        幂等：GOING 状态下调用（如 _handle_shutdown 预置后）继续执行剩余步骤，
+        不提前返回 ALREADY_GOING（CX 审查 P0-1：预置 GOING 后必须真正卸载）。
+
         Returns:
-            UnloadResult(success=True) 或 NOT_FOUND / ALREADY_GOING / DRAIN_TIMEOUT
+            UnloadResult(success=True) 或 NOT_FOUND / ALREADY_GOING（已 UNFORMED）
         """
         plugin = self._loader.instance
         if plugin is None:
             return UnloadResult(success=False, reason="NOT_FOUND")
 
-        # 1. 设 GOING（对标 try_stop_module）
-        if self._refcount.state == PluginState.GOING:
+        # 1. 设 GOING（对标 try_stop_module；已 GOING 则幂等继续）
+        if self._refcount.state == PluginState.UNFORMED:
             return UnloadResult(success=False, reason="ALREADY_GOING")
-        has_inflight = not self._refcount.mark_going()
+        if self._refcount.state == PluginState.GOING:
+            has_inflight = self._refcount.refcount > 0
+        else:
+            has_inflight = not self._refcount.mark_going()
 
         # 2. 等待在途引用清零（对标 async_synchronize_full + module_wq）
+        # 超时不中断（CX 审查 P1）：best-effort 继续 cancel/on_unload/mark_unformed，
+        # 避免状态永久卡在 GOING 无恢复路径
         if has_inflight:
-            drained = await self._refcount.wait_drained(timeout_s=timeout_s)
-            if not drained:
-                return UnloadResult(success=False, reason="DRAIN_TIMEOUT")
+            await self._refcount.wait_drained(timeout_s=timeout_s)
 
         # 3. 取消自启任务（硬契约：on_unload 前清理后台 task）
         if self._ctx is not None:

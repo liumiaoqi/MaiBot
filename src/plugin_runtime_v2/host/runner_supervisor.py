@@ -307,12 +307,13 @@ class RunnerSupervisor:
             elif not killed:
                 logger.warning("Runner %s 旧进程已不在，跳过终止", runner_id)
 
-            # 5. spawn 新进程
+            # 5. spawn 新进程——复用 supervisor.spawn（LogForwarder + 健康登记，
+            #    CX 审查 P1：裸 spawn 会让重载后的 Runner 失去日志转发可见性）
             self._registry.unregister(runner_id)
             plugin_dir = self._spawner._plugin_dirs.get(runner_id)
             if plugin_dir is None:
                 return ReloadResult(runner_id=runner_id, success=False, reason="no_plugin_dir")
-            await self._spawner.spawn(runner_id, plugin_dir)
+            await self.spawn(runner_id, plugin_dir)
             return ReloadResult(runner_id=runner_id, success=True)
         except Exception as exc:
             logger.warning("操作异常 in runner_supervisor.py", exc_info=True)
@@ -364,6 +365,14 @@ class RunnerSupervisor:
                         # 进程已死 = 已排空
                         logger.info("Runner %s 进程不可达，视为已排空", runner_id)
                         return True
+                    if code == grpc.StatusCode.DEADLINE_EXCEEDED:
+                        # 单次查询超时（CX 审查 P1）——瞬时错误，继续轮询
+                        logger.debug("Runner %s GetInflightCount 超时，继续轮询", runner_id)
+                    else:
+                        # 其余瞬时错误同样继续轮询（不中断 reload）
+                        logger.debug(
+                            "Runner %s GetInflightCount 错误 %s，继续轮询",
+                            runner_id, code.name)
                 if _time.monotonic() >= deadline:
                     return False
                 await asyncio.sleep(0.15)

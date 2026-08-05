@@ -54,6 +54,10 @@ class PluginRefcount:
     """插件活体引用计数器 — 对标 try_module_get/put。
 
     单事件循环内同步检查 + inc/dec 无锁；free-threaded 构建下用 threading.Lock。
+    线程模型声明（CX 审查 P1）：**所有状态访问限定在同一事件循环线程**——
+    acquire/release/mark_going 由 asyncio 任务调用；同步 handler 的 worker
+    线程不得直接触碰 refcount（其生命周期经 done callback 回事件循环处理）。
+    在此前提下标准分支无 TOCTOU，Lock 分支仅作 free-threaded 兜底。
     """
 
     # 自由线程检测结果（类级缓存，避免每次实例化都查）
@@ -104,7 +108,8 @@ class PluginRefcount:
         return self._try_acquire_locked(tool_name, runner_id)
 
     def _try_acquire_locked(self, tool_name: str, runner_id: str) -> bool:
-        if self._state == PluginState.GOING:
+        # CX 审查 P1：UNFORMED 是终态——仅 LIVE/COMING 允许 acquire
+        if self._state != PluginState.LIVE and self._state != PluginState.COMING:
             return False
         # LIVE/COMING：inc（同步，无交错窗口）
         self._refcount += 1
@@ -160,6 +165,9 @@ class PluginRefcount:
         return self._mark_going_locked()
 
     def _mark_going_locked(self) -> bool:
+        # CX 审查 P1：UNFORMED 是终态——禁止 UNFORMED→GOING 回退
+        if self._state == PluginState.UNFORMED:
+            return False
         if self._state == PluginState.GOING:
             return self._refcount == 0
         self._state = PluginState.GOING

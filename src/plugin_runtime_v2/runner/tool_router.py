@@ -88,6 +88,15 @@ class ToolRouter:
 
         # acquire 后所有路径（参数校验失败/超时/异常）都必须 release——
         # 泄漏 acquire 会让 refcount 永不归零，卸载卡 wait_drained
+        released = False
+
+        def _release() -> None:
+            """幂等 release（防双重释放 + 防漏释放）。"""
+            nonlocal released
+            if refcount is not None and not released:
+                refcount.release()
+                released = True
+
         try:
             # 参数校验
             if declaration is not None and declaration.parameters_schema is not None:
@@ -99,16 +108,28 @@ class ToolRouter:
                         error=f"PARAMETER_VALIDATION_FAILED: {exc.message}",
                     )
 
-            # 执行处理函数（带超时）——finally 中 release（对标 module_put）
+            # 执行处理函数（带超时）
             if inspect.iscoroutinefunction(handler):
+                # 协程 handler：wait_for 超时会真正取消协程，finally release 安全
                 result = await asyncio.wait_for(
                     handler(plugin, args), timeout=timeout_ms / 1000.0,
                 )
             else:
-                result = await asyncio.wait_for(
-                    asyncio.to_thread(handler, plugin, args),
-                    timeout=timeout_ms / 1000.0,
-                )
+                # 同步 handler：wait_for 超时只取消 Future，底层线程仍在运行
+                # （CX 审查 P0-3）——引用保留到线程真正结束（done callback
+                # release），避免卸载与幽灵线程并发；线程结束前 refcount 不归零，
+                # 卸载 wait_drained 会等待（或排空超时由进程强杀兜底）
+                thread_future = asyncio.ensure_future(
+                    asyncio.to_thread(handler, plugin, args))
+                try:
+                    result = await asyncio.wait_for(
+                        thread_future, timeout=timeout_ms / 1000.0,
+                    )
+                except asyncio.TimeoutError:
+                    thread_future.add_done_callback(lambda _f: _release())
+                    return plugin_runner_pb2.InvokeToolResponse(
+                        success=False, error="TIMEOUT",
+                    )
         except asyncio.TimeoutError:
             return plugin_runner_pb2.InvokeToolResponse(
                 success=False, error="TIMEOUT",
@@ -123,8 +144,7 @@ class ToolRouter:
                 error=f"EXECUTION_ERROR: {exc.__class__.__name__}: {exc}",
             )
         finally:
-            if refcount is not None:
-                refcount.release()
+            _release()
 
         return plugin_runner_pb2.InvokeToolResponse(
             success=True, result=json.dumps(result, ensure_ascii=False),

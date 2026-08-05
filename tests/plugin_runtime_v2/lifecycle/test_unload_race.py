@@ -114,7 +114,7 @@ async def test_race_B_reload_drain_polls_to_zero() -> None:
 
     sv._poll_inflight = types.MethodType(fake_poll, sv)  # type: ignore[method-assign]
     sv._spawner.kill_runner = _async_return(True)
-    sv._spawner.spawn = _async_return(None)
+    sv._spawner.spawn = _async_return(_FakeProc())
     sv._spawner._plugin_dirs = {"r1": "plugins/p"}
 
     mock_conn = types.SimpleNamespace(state=types.SimpleNamespace(value="ready"),
@@ -147,7 +147,7 @@ async def test_race_B_unavailable_means_drained() -> None:
 
     sv._poll_inflight = types.MethodType(fake_poll, sv)  # type: ignore[method-assign]
     sv._spawner.kill_runner = _async_return(True)
-    sv._spawner.spawn = _async_return(None)
+    sv._spawner.spawn = _async_return(_FakeProc())
     sv._spawner._plugin_dirs = {"r1": "plugins/p"}
     mock_conn = types.SimpleNamespace(state=types.SimpleNamespace(value="ready"),
                                       runner_listen_address="")
@@ -258,7 +258,7 @@ async def test_reload_timeout_force_kill() -> None:
 
     sv._poll_inflight = types.MethodType(fake_poll, sv)  # type: ignore[method-assign]
     sv._spawner.kill_runner = _async_return(True)
-    sv._spawner.spawn = _async_return(None)
+    sv._spawner.spawn = _async_return(_FakeProc())
     sv._spawner._plugin_dirs = {"r1": "plugins/p"}
     mock_conn = types.SimpleNamespace(state=types.SimpleNamespace(value="ready"),
                                       runner_listen_address="localhost:9999")
@@ -269,3 +269,70 @@ async def test_reload_timeout_force_kill() -> None:
 
     result = await sv.reload_one("r1")
     assert result.success is True  # 超时强杀后仍 spawn
+
+
+class _FakeProc:
+    """supervisor.spawn 需要的假进程（stdout/stderr=None 跳过日志读取）。"""
+
+    def __init__(self) -> None:
+        self.stdout = None
+        self.stderr = None
+        self.pid = 12345
+
+
+# ── CX 审查 P0-1 回归：预置 GOING 后卸载必须继续 ─────────────────
+
+@pytest.mark.asyncio
+async def test_unload_plugin_when_already_going_continues() -> None:
+    """_handle_shutdown 预置 GOING（无在途）后，unload_plugin 必须继续执行。
+
+    CX 审查 P0-1：旧实现见 GOING 立即返回 ALREADY_GOING，
+    cancel_all_tasks/on_unload/mark_unformed 全部被跳过——插件假装卸载了。
+    """
+    from src.plugin_runtime_v2.lifecycle.unloader import PluginUnloader
+
+    plugin = DummyPlugin()
+    rc = PluginRefcount("p1")
+    loader = DummyLoader(plugin)
+    rc.mark_going()  # 模拟 _handle_shutdown 预置 GOING
+    unloader = PluginUnloader(rc, loader)
+    result = await unloader.unload_plugin()
+    assert result.success is True
+    assert plugin.unloaded is True
+    assert rc.state == PluginState.UNFORMED
+
+
+@pytest.mark.asyncio
+async def test_unload_plugin_when_going_with_inflight() -> None:
+    """预置 GOING + 在途引用：unload_plugin 等待排空后继续卸载（P0-1 回归）。"""
+    from src.plugin_runtime_v2.lifecycle.unloader import PluginUnloader
+
+    plugin = DummyPlugin()
+    rc = PluginRefcount("p1")
+    loader = DummyLoader(plugin)
+    handle = PluginHandle(plugin, rc)
+    unloader = PluginUnloader(rc, loader)
+
+    handler_entered = asyncio.Event()
+    release_handler = asyncio.Event()
+
+    async def inflight() -> None:
+        async with handle.acquire(tool_name="inflight"):
+            handler_entered.set()
+            await release_handler.wait()
+
+    task = asyncio.create_task(inflight())
+    await handler_entered.wait()
+    rc.mark_going()  # 预置 GOING（有在途）
+
+    task_unload = asyncio.create_task(unloader.unload_plugin())
+    await asyncio.sleep(0.01)  # 让 unload_plugin 进入 wait_drained
+    assert rc.state == PluginState.GOING
+    assert not task_unload.done()  # 排空等待中
+
+    release_handler.set()
+    await task
+    result = await task_unload
+    assert result.success is True
+    assert plugin.unloaded is True
+    assert rc.state == PluginState.UNFORMED

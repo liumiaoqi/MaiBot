@@ -90,8 +90,9 @@ async def _graceful_shutdown(
     endpoint: RunnerEndpoint,
     loader: PluginLoader,
 ) -> None:
-    if loader.instance is not None:
-        await loader.unload(loader.instance)
+    # CX 审查 P0-2：不在此处直接 loader.unload()——endpoint.stop() 内的
+    # PluginUnloader 是唯一卸载入口（否则 SIGTERM 路径双重执行 on_unload，
+    # 且第一次执行发生在排空/取消任务之前）
     await endpoint.stop()
 
 

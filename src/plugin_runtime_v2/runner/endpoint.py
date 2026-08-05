@@ -71,8 +71,13 @@ class RunnerEndpoint:
     # ── 公共 API ────────────────────────────────────────────────
 
     def is_going(self) -> bool:
-        """插件是否处于 GOING 状态（ZG-15：ctx.register_task 拒新检查）。"""
-        return self._refcount is not None and self._refcount.state.value == "going"
+        """插件是否处于 GOING/UNFORMED 状态（ZG-15：ctx.register_task 拒新检查）。
+
+        CX 审查 P1：UNFORMED（已卸载）同样拒新——卸载后 register_task 不放行。
+        """
+        if self._refcount is None:
+            return False
+        return self._refcount.state.value in ("going", "unformed")
 
     async def start(self) -> None:
         """启动 Runner：连接 Host、握手、注册、进入接收循环。
