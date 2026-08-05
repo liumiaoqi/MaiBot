@@ -17,7 +17,7 @@
 | | 实际内核（运行层） | 理念内核（思考层） |
 |---|---|---|
 | 负责什么 | MaiBot 的**运行**——启动/生命周期/资源/故障/插件 | MaiBot 的**思考**——人格/记忆/欲望/情绪/决策 |
-| 对应计划 | **铸骨（ZG）**，Linux 化系列 | **铸魂（Thinking Kernel）**，独立计划（见 `.shared/decisions/2026-08/thinking_kernel_plan_0806.md`） |
+| 对应计划 | **铸骨（ZG）**，Linux 化系列 | **铸魂（Thinking Kernel）**，独立计划（见 `.shared/decisions/ZH_Plan/thinking_kernel_plan_0806.md`） |
 | 现状 | 已系统化（ZG-1~19 对标 Linux 的骨架） | 散件就位（人格四层/记忆融合/vitality/thinking_organ），缺统一架构蓝图 |
 
 **分层关系**：理念内核（"想干什么"）调实际内核（"可靠地做到"）——铸骨保证思考的底座不塌，铸魂决定思考本身的样子。两者正交：Linux 化与"更像人"无直接关系，但理念内核想好好思考，底下必须有不塌的骨架。
