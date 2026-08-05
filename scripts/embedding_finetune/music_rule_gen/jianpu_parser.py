@@ -23,9 +23,10 @@ from pathlib import Path
 
 import numpy as np
 
-# 12/8 拍：♩=336 → 8 分音符时长（秒）
-BPM_QUARTER = 336
-EIGHTH_S = 60.0 / BPM_QUARTER / 2.0  # 8 分音符 = 四分音符的一半
+# 12/8 拍：♩=336，以 8 分音符为一拍记 → 8 分音符 = 336/分
+# （之前按四分 336 渲染快了一倍——用户反馈"节奏非常快"修正）
+EIGHTH_BPM = 336
+EIGHTH_S = 60.0 / EIGHTH_BPM
 
 # 简谱 1=C，中音区 1 = C4
 BASE_FREQ = {1: 261.63, 2: 293.66, 3: 329.63, 4: 349.23,
@@ -76,30 +77,48 @@ def pitch_freq(grade: int, sharp: bool, octave: int) -> float:
     return freq
 
 
-def render(notes: list[tuple[int, bool, int, float]], out_path: Path) -> None:
+def render(notes: list[tuple[int, bool, int, float]], out_path: Path,
+           octave_shift: int = 0) -> None:
     """渲染 WAV（钢琴音色：正弦+谐波+指数包络）。"""
     sample_rate = 22050
     total_dur = sum(d for _, _, _, d in notes) * EIGHTH_S + 1.0
     n_samples = int(total_dur * sample_rate)
     audio = np.zeros(n_samples)
     t_cursor = 0.0
+    t_units = 0.0  # 小节内累积 8 分单位（力度动态用）
     for grade, sharp, octave, dur in notes:
-        freq = pitch_freq(grade, sharp, octave)
+        freq = pitch_freq(grade, sharp, octave + octave_shift)
         length = int(dur * EIGHTH_S * sample_rate)
         start = int(t_cursor * sample_rate)
         if freq <= 0:  # 休止
             t_cursor += dur * EIGHTH_S
+            t_units += dur
             continue
+        # 小节边界呼吸：每 12 个 8 分（1 小节）起点前加 1/4 拍停顿（乐句感）
+        if 0 < (t_units % 12.0) < 0.05:
+            start += int(0.5 * EIGHTH_S * sample_rate)
+        # 力度动态（用户反馈"音量缺少起伏"）：
+        # 1. 节拍重音：12/8 每组三连音第一拍（每 3 个 8 分）强
+        strong_beat = (t_units % 3.0) < 0.05 or (t_units % 3.0) > 2.95
+        dyn = 1.25 if strong_beat else 0.85
+        # 2. 音高加权：高音稍强、低音稍弱
+        pitch_amp = 0.85 + 0.12 * (grade / 7.0) + 0.1 * (octave + octave_shift)
+        amp = 0.12 * dyn * pitch_amp
         if start + length > n_samples:
             length = max(0, n_samples - start)
+        # 每音短 22%：音符间留明显呼吸间隙（用户反馈"急促没停顿"）
+        length = int(length * 0.78)
         t = np.arange(length) / sample_rate
+        # 柔和音色：弱谐波 + 中速衰减（收尾快=音符分明）
         wave = (np.sin(2 * np.pi * freq * t)
-                + 0.4 * np.sin(2 * np.pi * freq * 2 * t)
-                + 0.15 * np.sin(2 * np.pi * freq * 3 * t))
-        envelope = np.exp(-t * 4.0)
-        audio[start:start + length] += wave * envelope * 0.3
+                + 0.2 * np.sin(2 * np.pi * freq * 2 * t)
+                + 0.06 * np.sin(2 * np.pi * freq * 3 * t))
+        envelope = np.exp(-t * 3.0)
+        audio[start:start + length] += wave * envelope * amp
         t_cursor += dur * EIGHTH_S
-    audio = audio / (np.max(np.abs(audio)) + 1e-9)
+        t_units += dur
+    peak = np.max(np.abs(audio)) + 1e-9
+    audio = audio / peak * 0.5  # 半幅：整体音量明显降低
     data = (audio * 32767).astype(np.int16)
     import wave
 
@@ -141,6 +160,9 @@ def main() -> None:
     parser.add_argument("--file", type=str, default="output/liyue_jianpu.txt")
     parser.add_argument("--section", type=str, default="part1", choices=["part1", "part2", "part3"])
     parser.add_argument("--wav", type=str, default="")
+    parser.add_argument("--bpm", type=int, default=EIGHTH_BPM, help="8 分音符速度（默认 336）")
+    parser.add_argument("--octave-shift", type=int, default=0,
+                        help="整体八度偏移（负=降八度，如 -1 试听音区）")
 
     args = parser.parse_args()
 
@@ -150,10 +172,12 @@ def main() -> None:
     if not section_text.strip():
         raise SystemExit(f"未找到章节 {args.section}")
 
+    global EIGHTH_S
+    EIGHTH_S = 60.0 / args.bpm
     notes = parse_notes(section_text)
     total_units = sum(n[3] for n in notes)
     print(f"解析音符: {len(notes)} 个，总时长 {total_units:.1f} 个 8 分"
-          f"（{total_units * EIGHTH_S:.1f}s @ ♩={BPM_QUARTER}）")
+          f"（{total_units * EIGHTH_S:.1f}s @ 8分={args.bpm}/分）")
     # 预览前 40 个（含八度/升号标记）
     def fmt(n):
         g, sharp, octv, d = n
@@ -165,7 +189,8 @@ def main() -> None:
     print(f"预览: {preview}")
 
     if args.wav:
-        render(notes, Path(__file__).resolve().parent / args.wav)
+        render(notes, Path(__file__).resolve().parent / args.wav,
+               octave_shift=args.octave_shift)
 
 
 if __name__ == "__main__":
