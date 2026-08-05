@@ -93,6 +93,9 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收），见下方详情 | 基础 |
 | **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸），见下方详情 | 基础 |
 | **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
+| **ZG-21** | 事件回调预算（ksoftirqd 化） | 📚 调研完成（zg_ksoftirqd_budget_survey：延迟处理 + 单次预算防回调风暴），见下方 Linux 化扩展 2 详情 | 基础 |
+| **ZG-22** | 无锁读延迟回收（RCU 化） | 📚 调研完成（zg_rcu_grace_period_survey：宽限期 + call_rcu 延迟释放），见下方 Linux 化扩展 2 详情 | 基础 |
+| **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
 ### 🔧 已知遗留（从已完成项中拆出）
 
@@ -411,6 +414,16 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 | **ZG-18** | workqueue rescuer 自死锁逃逸（`zg18_workqueue_rescuer_survey_0805.md`） | 后台任务并发上限 + 救援线程：任务依赖链形成死锁时逃逸（对标 asyncio 后台任务池） | P2 | — |
 | **ZG-19** | 两级 dirty 阈值写者节流（`zg19_dirty_threshold_survey_0805.md`） | 落盘背压：DB 写入量超阈值时写者节流 + 批量提交时间对齐（round_jiffies_up） | P2 | 数据库写入管线（A_memorix/统计） |
 
+### Linux 化扩展 2（ZG-21/22/23，2026-08-06 编排）
+
+> 来源：Linux 全量清单调研（编号 3a/4b + 剩余项），源码基准 Linux 7.2.0-rc6。
+
+| 编号 | Linux 机制（调研文件） | MaiBot 借鉴设计 | 优先级 | 依赖/前置 |
+|------|----------------------|----------------|--------|----------|
+| **ZG-21** | ksoftirqd 延迟处理 + 单次预算（`zg_ksoftirqd_budget_survey_0806.md`，2ms/10 次重启） | 事件回调批量处理：`EventBus._fire_and_forget`（每次 emit 创建 Task，无限制）改 pending 队列 + drainer Task 批量处理 + 单轮时间/次数预算；日志广播 call_soon_threadsafe 风暴同治理 | **P1** | EventBus（ZG-4 已增强） |
+| **ZG-22** | RCU 宽限期 + call_rcu + rcu_barrier（`zg_rcu_grace_period_survey_0806.md`） | 无锁读 + 延迟回收：VectorStore FAISS 索引（RLock 串行化读写 → search 无锁读旧快照 + add 原子替换 + 旧索引延迟释放）；VectorRebuildService 重建期间不降级；ModelRegistry/ConfigManager 热重载原子替换 | **P1** | VectorStore/A_memorix |
+| **ZG-23** | 剩余项综合（`zg_remaining_items_survey_0806.md`，1c/2c/2d/3b/4c/5b/6b/7a/8a） | 低价值项合并：fsync/fdatasync 分层 + sync_file_range、OOM 评分注册、kswapd 回收线程等——逐项按调研评估裁决（多数不落地，记录理由） | P3 | — |
+
 ### 优先级逻辑（2026-08-06 用户拍板）
 
 - **P1（ZG-15 插件活体引用 + ZG-14 错误升级梯）**：直接关系"平稳运行"——插件卸载竞态和错误升级是运行期最常踩的坑
@@ -468,6 +481,10 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 批次6（Linux 化扩展）⏳ 调研完成待 SSD
   ZG-15 插件活体引用 → ZG-14 错误升级梯 → 审阅清理
   （ZG-17/18/19 为 P2，随主线推进）
+
+批次7（Linux 化扩展 2）⏳ 调研完成待 SSD
+  ZG-21 事件回调预算 → ZG-22 无锁读延迟回收 → 审阅清理
+  （ZG-23 剩余项综合为 P3，裁决式处理）
 ```
 
 ### 当前优先级排序
@@ -477,9 +494,12 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 3. **ZG-15 插件活体引用**（2026-08-06 新排）— 插件卸载竞态治理，系统平稳运行底座，调研完成待 SSD
 4. **ZG-14 错误升级梯**（2026-08-06 新排）— 错误分级处理升级语义，调研完成待 SSD
 5. **ZG-8 控制消息优先级** — P1，独立可做
-6. **ZG-7 P0 遗漏** — `degrade_on_taint_mask` 掩码级触发，小范围
-7. **ZG-17/18/19** — P2 资源管理深化（记忆水位/任务救援/落盘背压），调研完成，随主线推进
-8. **ZG-10/ZG-11** — P2 未来方向，不急
+6. **ZG-21 事件回调预算**（2026-08-06 新排）— 回调风暴治理（EventBus 批量 drainer），调研完成待 SSD
+7. **ZG-22 无锁读延迟回收**（2026-08-06 新排）— VectorStore 读写互斥/热重载原子替换，调研完成待 SSD
+8. **ZG-7 P0 遗漏** — `degrade_on_taint_mask` 掩码级触发，小范围
+9. **ZG-17/18/19** — P2 资源管理深化（记忆水位/任务救援/落盘背压），调研完成，随主线推进
+10. **ZG-23 剩余项综合** — P3 低价值项裁决式处理
+11. **ZG-10/ZG-11** — P2 未来方向，不急
 
 ### 附加成果（非 ZG 编号但随 ZG 推进完成）
 
