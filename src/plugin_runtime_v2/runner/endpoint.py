@@ -20,6 +20,7 @@ from src.plugin_runtime_v2.proto.plugin_runner_pb2_grpc import (
 from src.plugin_runtime_v2.runner.reconnect import ReconnectPolicy, RunnerEndpointConfig
 from src.plugin_runtime_v2.runner.servicer import _PluginRunnerServicer
 from src.plugin_runtime_v2.runner.tool_router import ToolRouter
+from src.plugin_runtime_v2.lifecycle.refcount import PluginRefcount
 
 logger = get_logger("plugin_runtime_v2.runner.endpoint")
 
@@ -63,6 +64,8 @@ class RunnerEndpoint:
         self._plugin_loader = plugin_loader
         self._plugin_instance = None
         self._granted_scopes: set[str] = set()
+        # ZG-15：插件活体引用（加载成功后创建，注入 servicer/loader）
+        self._refcount: PluginRefcount | None = None
 
     # ── 公共 API ────────────────────────────────────────────────
 
@@ -80,6 +83,9 @@ class RunnerEndpoint:
                 self._config.tools = tools
                 self._config.events = events
                 self._plugin_instance = plugin_instance
+                # ZG-15：创建活体引用并注入 servicer（拒新 + GetInflightCount）
+                self._refcount = PluginRefcount(self._config.plugin_id)
+                self._servicer.set_refcount(self._refcount)
                 # 注入 PluginContext
                 from src.plugin_runtime_v2.sdk.context import PluginContext
                 ctx = PluginContext(

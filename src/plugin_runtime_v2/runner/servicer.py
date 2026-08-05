@@ -11,6 +11,7 @@ from src.common.logger import get_logger
 from src.plugin_runtime_v2.proto import plugin_runner_pb2
 from src.plugin_runtime_v2.proto.plugin_runner_pb2_grpc import PluginRunnerServicer
 from src.plugin_runtime_v2.runner.tool_router import ToolRouter
+from src.plugin_runtime_v2.lifecycle.refcount import PluginRefcount
 
 logger = get_logger("plugin_runtime_v2.runner.servicer")
 
@@ -24,6 +25,12 @@ class _PluginRunnerServicer(PluginRunnerServicer):
     def __init__(self, tool_router: ToolRouter | None = None) -> None:
         self._tool_router = tool_router
         self._shutting_down: bool = False
+        # ZG-15：插件活体引用（RunnerEndpoint 加载成功后注入）
+        self._refcount: PluginRefcount | None = None
+
+    def set_refcount(self, refcount: "PluginRefcount") -> None:
+        """注入插件活体引用（加载后由 RunnerEndpoint 调用）。"""
+        self._refcount = refcount
 
     async def InvokeTool(
         self,
