@@ -239,26 +239,21 @@ class LearnedRuleEngine:
                 else:
                     # 节奏型：总和 12 个 8 分单位
                     rhythm = self.rng.choice(RHYTHMS_12_8)
+                    chord = PROGRESSION[bar_i % len(PROGRESSION)]
                     pitches: list[int] = []
                     if seg_motif:
-                        pitches = list(seg_motif)
-                    prev = pitches[-1] if pitches else 3
+                        # 动机铺进（高八度起点，保留推理链）
+                        pitches = [pitch_value(m, 1) for m in seg_motif[:len(rhythm)]]
+                    prev = pitches[-1] if pitches else pitch_value(3, 1)
                     while len(pitches) < len(rhythm):
                         last_step = pitches[-1] - pitches[-2] if len(pitches) > 1 else 0
-                        grade = pitches[-1] if pitches else 3
-                        # 归纳转移（音级层）
-                        counter = self.transitions.get(grade)
-                        if counter and self.rng.random() > jump_rate:
-                            items = list(counter.items())
-                            weights = [c for _, c in items]
-                            nxt = self.rng.choices([n for n, _ in items], weights=weights)[0]
-                        else:
-                            nxt = max(1, min(7, grade + self.rng.choice([-3, -2, 2, 3])))
-                        # 跳进补偿
-                        if abs(last_step) >= 4:
-                            nxt = max(1, min(7, grade - (1 if last_step > 0 else -1)))
+                        # v2 推理：归纳转移 + 八度跳进 + 和弦锚定（有起伏）
+                        nxt = self._next_pitch(prev, chord, jump_rate)
+                        nxt = self._compensate(nxt, last_step)
                         pitches.append(nxt)
-                    bar_notes = [(p, False, 1, d) for p, d in zip(pitches, rhythm, strict=False)]
+                        prev = nxt
+                    bar_notes = [(pitch_info(p)[0], False, pitch_info(p)[1], d)
+                                 for p, d in zip(pitches, rhythm, strict=False)]
                 notes.extend(bar_notes)
         return notes
 
