@@ -70,6 +70,10 @@ class RunnerEndpoint:
 
     # ── 公共 API ────────────────────────────────────────────────
 
+    def is_going(self) -> bool:
+        """插件是否处于 GOING 状态（ZG-15：ctx.register_task 拒新检查）。"""
+        return self._refcount is not None and self._refcount.state.value == "going"
+
     async def start(self) -> None:
         """启动 Runner：连接 Host、握手、注册、进入接收循环。
 

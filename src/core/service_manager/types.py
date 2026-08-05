@@ -35,7 +35,7 @@ class ServiceState(str, Enum):
     FAULT_MANUAL = "fault_manual"
     """故障需人工（重启风暴保护触发）"""
 
-    STOPPING = "stopping"
+    STOPPING = "stopping"  # ZG-15: 等效 PluginState.GOING——新 acquire 原子失败
     """停止中"""
 
     STOPPED = "stopped"

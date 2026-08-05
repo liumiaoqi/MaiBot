@@ -5,6 +5,8 @@
 """
 
 
+import asyncio
+
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -124,6 +126,8 @@ class PluginContext:
         self._logger = LoggerContext(plugin_id)
         self._runner = runner_endpoint
         self._homecard_registry = homecard_registry
+        # ZG-15：自启任务登记（on_unload 前 cancel_all_tasks 统一取消）
+        self._registered_tasks: set[asyncio.Task] = set()
 
     @property
     def send(self) -> SendContext:
@@ -171,3 +175,43 @@ class PluginContext:
         """更新已授权的 scope 集合（Host 拒绝部分 scope 后调用）。"""
         self._send._granted_scopes = new_scopes
         self._storage._granted_scopes = new_scopes
+
+    # ── ZG-15：自启任务登记 ─────────────────────────────────────
+
+    def register_task(self, task: "asyncio.Task") -> None:
+        """登记插件自启的后台任务（硬契约：on_unload 前由 cancel_all_tasks 统一取消）。
+
+        GOING 状态后拒绝新登记——卸载已开始，新任务会成为孤儿。
+
+        Args:
+            task: 插件 on_load 中创建的 asyncio.Task
+        """
+        if self._runner.is_going():
+            self._logger.warning(
+                "GOING 状态下 register_task 被拒绝（任务将成为孤儿）")
+            return
+        self._registered_tasks.add(task)
+        task.add_done_callback(self._registered_tasks.discard)
+
+    async def cancel_all_tasks(self, timeout_s: float = 5.0) -> None:
+        """取消所有已登记的自启任务（卸载前调用）。
+
+        - 已完成的 task 自动移除（done callback）
+        - 拒绝取消（捕获 CancelledError 未退出）的任务等待超时后继续，输出 WARNING
+        """
+        if not self._registered_tasks:
+            return
+        tasks = list(self._registered_tasks)
+        for task in tasks:
+            task.cancel()
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout_s,
+            )
+        except asyncio.TimeoutError:
+            self._logger.warning(
+                "自启任务取消超时（%ss），继续卸载：%d 个任务未退出",
+                timeout_s, len(self._registered_tasks),
+            )
+        self._registered_tasks.clear()

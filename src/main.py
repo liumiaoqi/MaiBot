@@ -229,6 +229,7 @@ class MainSystem:
             get_dependency_relations,
             get_service_descriptors,
         )
+        from src.core.service_manager.lifecycle import ComponentActions
 
         # 构建核心组件健康探针
         probe_functions: dict = {}
@@ -252,6 +253,15 @@ class MainSystem:
         self._service_manager = ServiceManagerAdapter(
             probe_functions=probe_functions,
             lifecycle_state_getter=_system_shutting_down,
+            # ZG-15: plugin_runtime_v2 组件 stop 内嵌排空——
+            # HostEndpoint.stop 发 ShutdownRequest → Runner 端 mark_going +
+            # wait_drained + on_unload（引用计数驱动，非固定 sleep）
+            component_actions={
+                "plugin_runtime_v2": ComponentActions(
+                    stop_fn=self._stop_plugin_runtime_v2,
+                    start_fn=self._start_plugin_runtime_v2_stub,
+                ),
+            },
         )
         await self._service_manager.adopt_from_startup(
             self._startup_result,
@@ -982,6 +992,23 @@ class MainSystem:
             logger.info("v2 插件运行时已启动")
         except Exception as e:
             logger.error("v2 插件运行时启动失败: %s", e)
+
+    async def _stop_plugin_runtime_v2(self) -> None:
+        """ZG-15：plugin_runtime_v2 组件 stop——发 ShutdownRequest 排空 + 停 endpoint。
+
+        Runner 端 _handle_shutdown 已改造为 mark_going → wait_drained →
+        unload_plugin（引用计数驱动排空，非固定 sleep）。
+        """
+        endpoint = getattr(self, "_v2_host_endpoint", None)
+        if endpoint is None:
+            return
+        try:
+            await endpoint.stop()
+        except Exception as exc:
+            logger.warning("v2 插件运行时停止异常: %s", exc)
+
+    async def _start_plugin_runtime_v2_stub(self) -> None:
+        """ZG-15：start_fn 占位（组件由 startup_item 启动，start_fn 仅满足 actions 契约）。"""
 
     async def _inject_scope_services_to_webui(self) -> None:
         if self._v2_host_endpoint is None:
