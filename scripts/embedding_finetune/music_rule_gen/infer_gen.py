@@ -43,6 +43,16 @@ RHYTHMS = [
     [0.75, 0.25, 1, 1, 1],       # 附点
 ]
 
+# 12/8 拍节奏型（每小节 **总和必须 = 12 个 8 分单位**——璃月原谱密度）
+RHYTHMS_12_8 = [
+    [1] * 12,                                        # 均匀 8 分流动
+    [0.5, 0.5, 1] * 6,                               # 16 分密集交替（18 音）
+    [1, 1, 1, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 1],     # 短音点缀（13 音）
+    [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],               # 长音开头（11 音）
+    [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1],               # 长音中间（12 音）
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],            # 均匀（同上）
+]
+
 # 和弦走向（I-V-vi-IV 循环，每小节锚定）
 PROGRESSION = [1, 5, 6, 4]
 CHORD_TONES = {1: [1, 3, 5], 5: [5, 7, 2], 6: [6, 1, 3], 4: [4, 6, 1]}
@@ -187,6 +197,90 @@ class LearnedRuleEngine:
             if abs(bar_beats - 4.0) < 0.01:
                 parts.append("|")
                 bar_beats = 0.0
+        return " ".join(parts)
+
+
+    # ── v3：12/8 密集流动生成（璃月原谱形态）─────────────────
+
+    def generate_12_8(self, bars: int = 16, motif: list[int] | None = None,
+                      jump_rate: float = 0.3) -> list[tuple[int, int, int, float]]:
+        """12/8 拍生成：(音级, 升号, 八度偏移, 8分单位时值)。
+
+        每小节 12 个 8 分单位（璃月原谱密度），节奏型从库中选，
+        音高由归纳规则推理链填充，小节末终止式 3-2-1。
+        """
+        base = motif or (self.usable_motifs[0] if self.usable_motifs else [3, 2, 5])
+        seg_len = max(1, bars // 4)
+        notes: list[tuple[int, int, int, float]] = []
+        bar_pos = 0  # 小节内已用单位
+
+        for seg_idx, seg_kind in enumerate(["A1", "A2", "B", "A3"]):
+            seg_motif = None
+            if seg_kind == "A1":
+                seg_motif = list(base)
+            elif seg_kind == "A2":
+                shift = self.rng.choice([-1, 1])
+                seg_motif = [max(1, min(7, m + shift)) for m in base]
+            elif seg_kind == "B":
+                seg_motif = [max(1, min(7, m + 2)) for m in base]
+
+            for bar_i in range(seg_len):
+                is_seg_end = (bar_i == seg_len - 1)
+                bar_notes: list[tuple[int, int, int, float]] = []
+                if is_seg_end:
+                    # 终止式小节：3-2-1（各 1 个 8 分）前补动机
+                    end_m = self.end_motif
+                    bar_notes = [(end_m[0], False, 1, 1.0),
+                                 (end_m[1], False, 1, 1.0),
+                                 (end_m[2], False, 1, 2.0)]
+                    # 前面补 9 个单位（3 个音 × 3 单位节奏）
+                    lead = [(m, False, 1, 1.0) for m in (seg_motif or [3, 2, 5])[:3]]
+                    bar_notes = lead + bar_notes
+                else:
+                    # 节奏型：总和 12 个 8 分单位
+                    rhythm = self.rng.choice(RHYTHMS_12_8)
+                    pitches: list[int] = []
+                    if seg_motif:
+                        pitches = list(seg_motif)
+                    prev = pitches[-1] if pitches else 3
+                    while len(pitches) < len(rhythm):
+                        last_step = pitches[-1] - pitches[-2] if len(pitches) > 1 else 0
+                        grade = pitches[-1] if pitches else 3
+                        # 归纳转移（音级层）
+                        counter = self.transitions.get(grade)
+                        if counter and self.rng.random() > jump_rate:
+                            items = list(counter.items())
+                            weights = [c for _, c in items]
+                            nxt = self.rng.choices([n for n, _ in items], weights=weights)[0]
+                        else:
+                            nxt = max(1, min(7, grade + self.rng.choice([-3, -2, 2, 3])))
+                        # 跳进补偿
+                        if abs(last_step) >= 4:
+                            nxt = max(1, min(7, grade - (1 if last_step > 0 else -1)))
+                        pitches.append(nxt)
+                    bar_notes = [(p, False, 1, d) for p, d in zip(pitches, rhythm, strict=False)]
+                notes.extend(bar_notes)
+        return notes
+
+    def to_12_8_text(self, notes: list[tuple[int, int, int, float]]) -> str:
+        """12/8 音符序列 → 约定格式简谱文本（jianpu_parser 可解析）。"""
+        parts: list[str] = ["1=C 12/8", ""]
+        bar_units = 0.0
+        parts.append("|")
+        for grade, sharp, octave, dur in notes:
+            mark = "''" if octave == 2 else "'" if octave == 1 else "," if octave == -1 else ""
+            name = f"{'#' if sharp else ''}{grade}{mark}"
+            parts.append(name)
+            if dur == 0.5:
+                parts.append("_")
+            elif dur == 2.0:
+                parts.append("-")
+            elif dur >= 3.0:
+                parts.extend(["-"] * (int(dur) - 1))
+            bar_units += dur
+            if abs(bar_units - 12.0) < 0.05:
+                parts.append("|")
+                bar_units = 0.0
         return " ".join(parts)
 
     def show_rules(self) -> None:

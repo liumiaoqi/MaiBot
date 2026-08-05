@@ -41,6 +41,8 @@ def parse_notes(text: str) -> list[tuple[int, bool, int, float]]:
     音级 0 = 休止。弧线 v1 忽略（tie 时值合并后续版本）。
     """
     notes: list[tuple[int, bool, int, float]] = []
+    # 去掉小节编号 (n)（否则被误解析为音符）
+    text = re.sub(r"\(\d+\)", "", text)
     # token 正则：可选 # 前缀 + 数字/0 + 可选八度标记 + 可选下划线 + 可选附点 + 可选延长
     token_re = re.compile(
         r"(#)?([1-7]|0)((?:'''|''|'|,)?)(_+)?(\.|·)?(-+)?")
