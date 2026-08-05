@@ -95,7 +95,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
 | **ZG-21** | 事件回调预算（ksoftirqd 化） | 📚 调研完成（zg_ksoftirqd_budget_survey：延迟处理 + 单次预算防回调风暴），见下方 Linux 化扩展 2 详情 | 基础 |
 | **ZG-22** | 无锁读延迟回收（RCU 化） | 📚 调研完成（zg_rcu_grace_period_survey：宽限期 + call_rcu 延迟释放），见下方 Linux 化扩展 2 详情 | 基础 |
-| **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 正式立项，用户拍板） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | **P1** | 插件运行时 + agent 自主性 |
+| **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 立项） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | P2（发布前必做） | 插件运行时 + agent 自主性 |
 | **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
 ### 🔧 已知遗留（从已完成项中拆出）
@@ -420,6 +420,8 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 > 来源：ZG-15 补充调研发现（bootstrap.py:120-129 `_get_tool_registry` import 目标
 > `src.maisaka.agent_autonomy.tool_registry` 全仓不存在 → ImportError 回退孤立实例）。
 > 用户拍板：**不能不管**（v2 插件工具对 agent 不可见 = 插件功能失效）。
+> 2026-08-06 用户表态：**不着急**——MaiBot 离发布到社区至少半年，
+> 插件问题按发布节奏排（发布前完成即可），降为 P2 不阻塞近期主线。
 
 **现状链路**：
 - `runtime.py:220`：会话级自建 `ToolRegistry()`（每会话一个）；`:1437-1441` 注册
