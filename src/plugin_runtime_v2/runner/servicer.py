@@ -11,7 +11,7 @@ from src.common.logger import get_logger
 from src.plugin_runtime_v2.proto import plugin_runner_pb2
 from src.plugin_runtime_v2.proto.plugin_runner_pb2_grpc import PluginRunnerServicer
 from src.plugin_runtime_v2.runner.tool_router import ToolRouter
-from src.plugin_runtime_v2.lifecycle.refcount import PluginRefcount
+from src.plugin_runtime_v2.lifecycle.refcount import PluginRefcount, PluginState
 
 logger = get_logger("plugin_runtime_v2.runner.servicer")
 
@@ -32,13 +32,32 @@ class _PluginRunnerServicer(PluginRunnerServicer):
         """注入插件活体引用（加载后由 RunnerEndpoint 调用）。"""
         self._refcount = refcount
 
+    async def GetInflightCount(
+        self,
+        request: plugin_runner_pb2.GetInflightCountRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> plugin_runner_pb2.GetInflightCountResponse:
+        """查询当前在途 Tool 调用数（ZG-15 排空轮询）。
+
+        单一计数源：直接返回 PluginRefcount.refcount——
+        ToolRouter.execute 的 try_acquire/release 就是 refcount 操作。
+        """
+        if self._refcount is None:
+            return plugin_runner_pb2.GetInflightCountResponse(count=0)
+        return plugin_runner_pb2.GetInflightCountResponse(count=self._refcount.refcount)
+
     async def InvokeTool(
         self,
         request: plugin_runner_pb2.InvokeToolRequest,
         context: grpc.aio.ServicerContext,
     ) -> plugin_runner_pb2.InvokeToolResponse:
         """根据 tool_name 执行路由。"""
-        if self._shutting_down:
+        # ZG-15：拒新判断读 PluginRefcount.state（GOING 语义，对标 module_is_live）
+        if self._refcount is not None and self._refcount.state == PluginState.GOING:
+            return plugin_runner_pb2.InvokeToolResponse(
+                success=False, error="SHUTTING_DOWN",
+            )
+        if self._shutting_down:  # 进程级关停信号（保留，用于 stream cancel 等）
             return plugin_runner_pb2.InvokeToolResponse(
                 success=False, error="SHUTTING_DOWN",
             )

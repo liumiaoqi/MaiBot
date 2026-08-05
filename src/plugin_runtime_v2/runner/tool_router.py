@@ -18,7 +18,8 @@ from src.plugin_runtime_v2.sdk.plugin import MaiBotPlugin
 
 logger = get_logger("plugin_runtime_v2.runner.tool_router")
 
-HandlerEntry = tuple[MaiBotPlugin, Callable, ToolDeclaration | None]
+# ZG-15：四元组——refcount 为插件活体引用（None 时兼容未注入场景，跳过 acquire）
+HandlerEntry = tuple[MaiBotPlugin, Callable, ToolDeclaration | None, object | None]
 
 
 class ToolRouter:
@@ -33,9 +34,15 @@ class ToolRouter:
         plugin: MaiBotPlugin,
         handler: Callable,
         declaration: ToolDeclaration | None = None,
+        refcount: object | None = None,
     ) -> None:
-        """注册 Tool 处理函数。"""
-        self._handlers[tool_name] = (plugin, handler, declaration)
+        """注册 Tool 处理函数。
+
+        Args:
+            refcount: ZG-15 插件活体引用（PluginRefcount）——execute 时
+                try_acquire/release；None 时跳过引用计数（向后兼容）。
+        """
+        self._handlers[tool_name] = (plugin, handler, declaration, refcount)
         logger.debug("ToolRouter 注册: %s", tool_name)
 
     def unregister(self, tool_name: str) -> None:
@@ -69,20 +76,30 @@ class ToolRouter:
                 success=False, error="TOOL_NOT_FOUND",
             )
 
-        plugin, handler, declaration = entry
+        plugin, handler, declaration, refcount = entry
 
-        # 参数校验
-        if declaration is not None and declaration.parameters_schema is not None:
-            try:
-                jsonschema.validate(args, declaration.parameters_schema)
-            except jsonschema.ValidationError as exc:
+        # ZG-15：执行前 acquire 活体引用（对标 try_module_get）
+        if refcount is not None:
+            if not refcount.try_acquire(tool_name=tool_name):
+                logger.info("Tool %s 被拒绝：插件 GOING 中", tool_name)
                 return plugin_runner_pb2.InvokeToolResponse(
-                    success=False,
-                    error=f"PARAMETER_VALIDATION_FAILED: {exc.message}",
+                    success=False, error="PLUGIN_GOING",
                 )
 
-        # 执行处理函数（带超时）
+        # acquire 后所有路径（参数校验失败/超时/异常）都必须 release——
+        # 泄漏 acquire 会让 refcount 永不归零，卸载卡 wait_drained
         try:
+            # 参数校验
+            if declaration is not None and declaration.parameters_schema is not None:
+                try:
+                    jsonschema.validate(args, declaration.parameters_schema)
+                except jsonschema.ValidationError as exc:
+                    return plugin_runner_pb2.InvokeToolResponse(
+                        success=False,
+                        error=f"PARAMETER_VALIDATION_FAILED: {exc.message}",
+                    )
+
+            # 执行处理函数（带超时）——finally 中 release（对标 module_put）
             if inspect.iscoroutinefunction(handler):
                 result = await asyncio.wait_for(
                     handler(plugin, args), timeout=timeout_ms / 1000.0,
@@ -105,6 +122,9 @@ class ToolRouter:
                 success=False,
                 error=f"EXECUTION_ERROR: {exc.__class__.__name__}: {exc}",
             )
+        finally:
+            if refcount is not None:
+                refcount.release()
 
         return plugin_runner_pb2.InvokeToolResponse(
             success=True, result=json.dumps(result, ensure_ascii=False),

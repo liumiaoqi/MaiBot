@@ -12,6 +12,8 @@ import "common.proto";
 service PluginRunner {
   // Tool 调用：Host 请求 Runner 执行指定 Tool
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
+  // ZG-15：查询当前在途 Tool 调用数（Host 排空轮询用）
+  rpc GetInflightCount(GetInflightCountRequest) returns (GetInflightCountResponse);
 }
 
 // ============================================================
@@ -30,4 +32,16 @@ message InvokeToolResponse {
   bool success = 1;   // 是否成功（必填）
   string result = 2;  // 执行结果（JSON 字符串）
   string error = 3;   // 错误信息
+}
+
+// ============================================================
+// 在途调用查询（ZG-15）
+// ============================================================
+
+// 在途计数查询请求（空消息）
+message GetInflightCountRequest {}
+
+// 在途计数查询响应
+message GetInflightCountResponse {
+  int32 count = 1;  // 当前在途 Tool 调用数（= PluginRefcount.refcount）
 }

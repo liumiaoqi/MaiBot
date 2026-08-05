@@ -44,6 +44,11 @@ class PluginRunnerStub:
                 request_serializer=plugin__runner__pb2.InvokeToolRequest.SerializeToString,
                 response_deserializer=plugin__runner__pb2.InvokeToolResponse.FromString,
                 _registered_method=True)
+        self.GetInflightCount = channel.unary_unary(
+                '/maibot.plugin.v2.PluginRunner/GetInflightCount',
+                request_serializer=plugin__runner__pb2.GetInflightCountRequest.SerializeToString,
+                response_deserializer=plugin__runner__pb2.GetInflightCountResponse.FromString,
+                _registered_method=True)
 
 
 class PluginRunnerServicer:
@@ -61,6 +66,13 @@ class PluginRunnerServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetInflightCount(self, request, context):
+        """ZG-15：查询当前在途 Tool 调用数（Host 排空轮询用）
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PluginRunnerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -68,6 +80,11 @@ def add_PluginRunnerServicer_to_server(servicer, server):
                     servicer.InvokeTool,
                     request_deserializer=plugin__runner__pb2.InvokeToolRequest.FromString,
                     response_serializer=plugin__runner__pb2.InvokeToolResponse.SerializeToString,
+            ),
+            'GetInflightCount': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetInflightCount,
+                    request_deserializer=plugin__runner__pb2.GetInflightCountRequest.FromString,
+                    response_serializer=plugin__runner__pb2.GetInflightCountResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -102,6 +119,33 @@ class PluginRunner:
             '/maibot.plugin.v2.PluginRunner/InvokeTool',
             plugin__runner__pb2.InvokeToolRequest.SerializeToString,
             plugin__runner__pb2.InvokeToolResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetInflightCount(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/maibot.plugin.v2.PluginRunner/GetInflightCount',
+            plugin__runner__pb2.GetInflightCountRequest.SerializeToString,
+            plugin__runner__pb2.GetInflightCountResponse.FromString,
             options,
             channel_credentials,
             insecure,

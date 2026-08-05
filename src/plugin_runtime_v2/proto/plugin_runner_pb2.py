@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from src.plugin_runtime_v2.proto import common_pb2 as common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13plugin_runner.proto\x12\x10maibot.plugin.v2\x1a\x0c\x63ommon.proto\"H\n\x11InvokeToolRequest\x12\x11\n\ttool_name\x18\x01 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x02 \x01(\t\x12\x12\n\ntimeout_ms\x18\x03 \x01(\x05\"D\n\x12InvokeToolResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0e\n\x06result\x18\x02 \x01(\t\x12\r\n\x05\x65rror\x18\x03 \x01(\t2g\n\x0cPluginRunner\x12W\n\nInvokeTool\x12#.maibot.plugin.v2.InvokeToolRequest\x1a$.maibot.plugin.v2.InvokeToolResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13plugin_runner.proto\x12\x10maibot.plugin.v2\x1a\x0c\x63ommon.proto\"H\n\x11InvokeToolRequest\x12\x11\n\ttool_name\x18\x01 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x02 \x01(\t\x12\x12\n\ntimeout_ms\x18\x03 \x01(\x05\"D\n\x12InvokeToolResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0e\n\x06result\x18\x02 \x01(\t\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"\x19\n\x17GetInflightCountRequest\")\n\x18GetInflightCountResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\x32\xd2\x01\n\x0cPluginRunner\x12W\n\nInvokeTool\x12#.maibot.plugin.v2.InvokeToolRequest\x1a$.maibot.plugin.v2.InvokeToolResponse\x12i\n\x10GetInflightCount\x12).maibot.plugin.v2.GetInflightCountRequest\x1a*.maibot.plugin.v2.GetInflightCountResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,6 +36,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_INVOKETOOLREQUEST']._serialized_end=127
   _globals['_INVOKETOOLRESPONSE']._serialized_start=129
   _globals['_INVOKETOOLRESPONSE']._serialized_end=197
-  _globals['_PLUGINRUNNER']._serialized_start=199
-  _globals['_PLUGINRUNNER']._serialized_end=302
+  _globals['_GETINFLIGHTCOUNTREQUEST']._serialized_start=199
+  _globals['_GETINFLIGHTCOUNTREQUEST']._serialized_end=224
+  _globals['_GETINFLIGHTCOUNTRESPONSE']._serialized_start=226
+  _globals['_GETINFLIGHTCOUNTRESPONSE']._serialized_end=267
+  _globals['_PLUGINRUNNER']._serialized_start=270
+  _globals['_PLUGINRUNNER']._serialized_end=480
 # @@protoc_insertion_point(module_scope)

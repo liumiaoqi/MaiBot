@@ -100,6 +100,7 @@ class RunnerEndpoint:
                         tool_name=tool_entry["name"],
                         plugin=self._plugin_instance,
                         handler=tool_entry["handler"],
+                        refcount=self._refcount,
                     )
                 # 调用 on_load
                 try:
