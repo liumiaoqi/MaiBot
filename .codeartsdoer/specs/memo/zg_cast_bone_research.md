@@ -76,7 +76,11 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-10** | 启动编排演进（initcall→systemd 化） | 📚 源码调研完成（混合模式设计定），见下方 ZG-10 子项详情 | 应用 |
 | **ZG-11** | 多核利用（SMP 化） | 见下方 ZG-11 子项详情 | 基础 |
 | **ZG-13** | 角色语音（TTS 输出） | 见下方 ZG-13 子项详情 | 应用 |
-| **量级二** | Linux 化扩展（ZG-15~19 候选） | 📚 调研完成（linux_kernel_borrow_0804.md：插件活体引用/记忆水位回收/错误升级梯/rescuer/落盘背压），编号 CA 定稿 | 基础 |
+| **ZG-15** | 插件活体引用（try_module_get 化） | 📚 调研完成（zg15_try_module_get_survey：四态机 + 原子 acquire 防卸载竞态），见下方 Linux 化扩展详情 | 基础 |
+| **ZG-14** | 错误升级梯（WARN→oops→panic 化） | 📚 调研完成（zg14_error_escalation_survey：错误最小代价处理 + 配置开关升级），见下方详情 | 基础 |
+| **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收），见下方详情 | 基础 |
+| **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸），见下方详情 | 基础 |
+| **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
 
 ### 🔧 已知遗留（从已完成项中拆出）
 
@@ -345,6 +349,68 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 - 子项 4（启动自检）：`kernel_initializer` +1 检查函数，~15 行
 - 子项 3/5/6/7/8：各 ~50-100 行，可渐进
 
+## ZG-16 模型能力全景 — 子项详情（2026-08-05 新立）
+
+> 来源：ZG-12 设计讨论中用户提出"不同厂商不同模型的参数要求都不同，如何充分利用"（2026-08-05）。
+> **用户决定独立立项**：ZG-12 管"组件自治 + 需求校验 + 适配器框架"（正确性），ZG-16 管"能力数据 + 适配器实现 + 动态最优"（充分利用）。
+> **资料准备**：用户将收集市面上常见厂商/模型的 API 文档作为参考学习语料。
+> **2026-08-05 策略转变（用户提出）**：厂商文档"复杂的要死"，自己啃边际收益低——**参考开源项目已整理的 provider 适配层**：OpenClaw（30+ 内置 provider、`<provider>/<model-id>` 扁平寻址、custom provider 声明带 contextWindow/maxTokens、fallback 链配置层）、LiteLLM / OneAPI 备选。用户已收集文档作对照，不再从零啃。
+> **OpenClaw 源码位置**：`openclaw/`（工作区根目录，早期克隆，commit cb2965d；JS/TS 项目，provider 适配在 packages/ 下）——调研直接读本地，不用再克隆。
+
+### 要解决的问题（ZG-12 保证边界中划出的结构性限制）
+
+1. **厂商参数差异全景**：DeepSeek think 温度无效 / OpenAI 0-2 + top_p / Anthropic 0-1 + extended thinking / Gemini top_k / embedding 无温度——参数语义挂模型不挂任务
+2. **厂商独有能力**：Gemini grounding（联网搜索）、Anthropic prompt caching、OpenAI 强制 JSON schema——统一语义表达不了
+3. **动态最优**：静态声明 vs 时变最优（高峰用贵模型/低谷用便宜模型，对标 Linux cpufreq governor）
+4. **能力实测**：capability 手写 vs 真实 API 行为漂移（Linux device probe 对标）
+5. **效果评测**：哪个模型组合产出更好（A/B / 使用统计）
+
+### 阶段划分
+
+- **Phase 0（资料）**：开源 provider 适配层参考（OpenClaw 30+ provider 内置实现为主 + LiteLLM/OneAPI 备选 + 用户已收集文档作对照）→ 能力对比表（provider/参数范围/独有能力/窗口/价格档）。**不做**：从零啃厂商原始文档（策略转变 2026-08-05）
+- **Phase 1（数据）**：能力全景数据模型（capability 字段集、参数 schema、vendor_only 扩展声明）——喂给 ZG-12 注册表
+- **Phase 2（实现）**：provider 适配器族（每个厂商一个翻译层）+ 能力探测（启动实测 vs 声明校验）
+- **Phase 3（策略）**：动态选择策略（价格/性能档切换）、效果评测（使用统计/A-B）
+
+### DeepSeek 针对性优化（2026-08-05 用户提出）
+
+生产环境实际只有 DeepSeek（主 LLM）+ 阿里（embedding/TTS/ASR）——**DeepSeek 域做深，其他厂商保持 OpenAI 兼容通用适配**（现有 `client_type` 机制已覆盖，不重复投入）：
+- DeepSeek 深化项：think 模式参数语义（temperature 无效 → capability 翻译）、FLASH/PRO 分层（model_scheduler 现有物）、v4 系列 reasoning 参数、**错误码表**（404/401/402/400/422/429 等——错误码驱动验证的数据源，用户已收集链接：`docs/API 文档/`，含 api-docs.deepseek.com 页面清单）
+- 通用层保持：OpenAI 兼容端点 + OpenClaw 参考适配（其他厂商仅骨架）
+- 数据源：用户收集的 `docs/API 文档/`（30+ 链接，DeepSeek/阿里等）+ `openclaw/src/model-catalog/provider-index/openclaw-provider-index.ts`（含 deepseek 条目 reasoning/contextWindow 声明）
+
+### 与 ZG-12 边界
+
+- ZG-12 定义注册表/需求声明/适配器**框架与契约**（字段、校验、错误策略）
+- ZG-16 提供**真实数据与实现**（各厂商能力表、适配器、探测、策略）
+- 顺序：ZG-12 框架先行（P0），ZG-16 数据/实现跟进（P1）；Phase 0 资料收集可与 ZG-12 SSD 并行
+
+## Linux 化扩展（ZG-14/15、17~19）— 子项详情（2026-08-06 规划）
+
+> **定位（用户 2026-08-06）**：Linux 化与"角色更像人"没有直接关系，但计算机系统要**平稳运行和长久发展**不可少这一步——系统底座工程，与人格层并行。
+> **调研全部完成**（2026-08-05，CA）：5 份源码级调研报告在 `.shared/research/2026-08/`，基准 Linux 7.2.0-rc6。
+> **编号冲突记录**：CA 调研错误升级梯时自定 ZG-16，与用户已立项的"ZG-16 模型能力全景"撞号 → **改号 ZG-14**（空缺编号），调研文件同步改名。教训：调研派发须带 MaiBot 侧正式编号。
+
+| 编号 | Linux 机制（调研文件） | MaiBot 借鉴设计 | 优先级 | 依赖/前置 |
+|------|----------------------|----------------|--------|----------|
+| **ZG-15** | try_module_get/put 原子活体引用（`zg15_try_module_get_survey_0805.md`） | 插件生命周期：四态机（LIVE/COMING/GOING/UNFORMED）+ 原子引用计数——插件被引用时禁止卸载，卸载中 acquire 原子失败（无 TOCTOU） | **P1** | 插件运行时（plugin_runtime_v2） |
+| **ZG-14** | WARN→oops→panic 升级梯（`zg14_error_escalation_survey_0805.md`） | 错误分级处理：最小代价动作（记录/降级）为默认，配置开关逐级升级（→终止/重启组件），错误升级路径可配置 | **P1** | 现有 error_classifier 的 404/429 分类之上加"升级梯"语义 |
+| **ZG-17** | watermark 水位 + 两相 shrinker（`zg17_watermark_shrinker_survey_0805.md`） | 记忆库内存管理：低/中/高水位分级，两级回收（可回收对象先回收、不可回收后处理），与 ZG-5 资源限制衔接 | P2 | ZG-5（ResourceCounter 已有四层限制） |
+| **ZG-18** | workqueue rescuer 自死锁逃逸（`zg18_workqueue_rescuer_survey_0805.md`） | 后台任务并发上限 + 救援线程：任务依赖链形成死锁时逃逸（对标 asyncio 后台任务池） | P2 | — |
+| **ZG-19** | 两级 dirty 阈值写者节流（`zg19_dirty_threshold_survey_0805.md`） | 落盘背压：DB 写入量超阈值时写者节流 + 批量提交时间对齐（round_jiffies_up） | P2 | 数据库写入管线（A_memorix/统计） |
+
+### 优先级逻辑（2026-08-06 用户拍板）
+
+- **P1（ZG-15 插件活体引用 + ZG-14 错误升级梯）**：直接关系"平稳运行"——插件卸载竞态和错误升级是运行期最常踩的坑
+- **P2（ZG-17/18/19）**：资源管理深化，依赖 ZG-5 底座，随主线推进
+
+### 与既有 ZG 的关系
+
+- ZG-15 插件活体引用 → ZG-1 ServiceManager 的组件 restart/recover 语义扩展（引用计数防"用中卸载"）
+- ZG-14 错误升级梯 → ZG-6 状态机的 DEGRADING 触发语义细化（什么错误升到降级/终止）
+- ZG-17 记忆水位回收 → ZG-5 资源限制的会话级配额衔接
+- ZG-18/19 → 后台任务与写放大治理（审计清理主线的系统层配套）
+
 ## ZG-9 极端环境加固 — 子项详情
 
 > 来源：`.shared/decisions/ubuntu2604_extreme_tuning.md`（2026-07-30）
@@ -386,14 +452,22 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 批次5（P1 配置重写）⏳ 待启动
   ZG-12 模型配置重写 → 审阅清理
   前置：ZG-11 Phase 0 ✅（embedding 阿里 API 已接入）+ embedding 微调 ✅（ONNX 量化完成）
+
+批次6（Linux 化扩展）⏳ 调研完成待 SSD
+  ZG-15 插件活体引用 → ZG-14 错误升级梯 → 审阅清理
+  （ZG-17/18/19 为 P2，随主线推进）
 ```
 
 ### 当前优先级排序
 
 1. **ZG-12 模型配置重写** — 唯一 P0 剩余，建议走 SDD 流程
-2. **ZG-8 控制消息优先级** — P1，独立可做
-3. **ZG-7 P0 遗漏** — `degrade_on_taint_mask` 掩码级触发，小范围
-4. **ZG-10/ZG-11** — P2 未来方向，不急
+2. **ZG-16 模型能力全景**（2026-08-05 新立）— "充分利用不同厂商模型能力"独立立项：厂商文档语料（用户收集）→ 能力全景 → provider 适配器体系 → 动态策略。与 ZG-12 边界：ZG-12 管"组件自治 + 需求校验 + 适配器框架"，ZG-16 管"能力数据 + 适配器实现 + 动态最优"
+3. **ZG-15 插件活体引用**（2026-08-06 新排）— 插件卸载竞态治理，系统平稳运行底座，调研完成待 SSD
+4. **ZG-14 错误升级梯**（2026-08-06 新排）— 错误分级处理升级语义，调研完成待 SSD
+5. **ZG-8 控制消息优先级** — P1，独立可做
+6. **ZG-7 P0 遗漏** — `degrade_on_taint_mask` 掩码级触发，小范围
+7. **ZG-17/18/19** — P2 资源管理深化（记忆水位/任务救援/落盘背压），调研完成，随主线推进
+8. **ZG-10/ZG-11** — P2 未来方向，不急
 
 ### 附加成果（非 ZG 编号但随 ZG 推进完成）
 
