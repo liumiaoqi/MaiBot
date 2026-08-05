@@ -18,6 +18,9 @@ version = "0.1.0"
 description = "MaiBot 本地 embedding 模型微调工作区（与主项目隔离，3.12 + cu128）"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    # torch 必须显式声明为直接依赖——[tool.uv.sources] 只对直接依赖生效，
+    # 否则 uv 从 PyPI 解析 CPU 版（传递依赖），GPU 永远装不上
+    "torch>=2.13",
     "sentence-transformers[training]>=3.0",
     "accelerate>=1.1.0",
     "optimum[onnxruntime]>=1.20",
@@ -38,11 +41,11 @@ py-modules = []
 exclude = ["data*", "output*", "onnx_model*"]
 
 [tool.uv]
-# torch 从 cu128 专用索引安装（PyPI 主索引没有 cu128 轮子）
+# torch 从 cu130 专用索引安装（RTX 5060 Blackwell sm_120 需要 cu128+，cu130 有 2.13.0）
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu128" }
+torch = { index = "pytorch-cu130" }

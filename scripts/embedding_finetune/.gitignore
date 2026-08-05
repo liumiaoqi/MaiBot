@@ -8,3 +8,6 @@ C++/
 .venv/
 __pycache__/
 *.pyc
+# 训练产物（可重训再生，不入库）
+checkpoints/
+engines/
