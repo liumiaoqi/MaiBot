@@ -107,8 +107,9 @@ STATES = {
 class HierarchicalEngine:
     """分层引擎：意图 → 状态 → 模板 → 填词。"""
 
-    def __init__(self, character: str = "希儿") -> None:
+    def __init__(self, character: str = "希儿", use_net: bool = False) -> None:
         self.character = character
+        self.use_net = use_net
         # 分词词库：角色词库 + 角色名 + n-gram 表全部词（最长匹配）
         vocab_path = Path(__file__).resolve().parent / "vocab" / f"role_{character}.txt"
         self.seg_vocab = set(NAMES)
@@ -137,6 +138,8 @@ class HierarchicalEngine:
             self.seg_vocab.add(w)
             self.seg_vocab.update(self.bigram[w])
         self.seg_vocab.discard(" ")  # 过滤空白
+        if use_net:
+            self._load_filler()
 
     # ── 状态机 ────────────────────────────────────────────────────
 
@@ -150,9 +153,27 @@ class HierarchicalEngine:
 
     # ── 填词（n-gram 条件分布查表）──────────────────────────────
 
+    def _load_filler(self) -> None:
+        """加载第三层填词网络（filler_net.py --train 产出）。"""
+        import torch
+
+        import filler_net
+        ckpt_path = Path(__file__).resolve().parent / "checkpoints" / "filler_net.pt"
+        if not ckpt_path.exists():
+            raise SystemExit("填词网络不存在，先跑 filler_net.py --train")
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+        self.net_candidates: list[str] = ckpt["candidates"]
+        net_vocab: list[str] = ckpt["vocab"]
+        self.net_stoi = {w: i for i, w in enumerate(net_vocab)}
+        self.net = filler_net.FillerNet(len(net_vocab), len(STATES), len(self.net_candidates))
+        self.net.load_state_dict(ckpt["state_dict"])
+        self.net.eval()
+        self._state_names = list(STATES)
+
     def _fill_action(self, state: str, context_words: list[str]) -> str:
-        """{action} 槽位：状态动作域优先（语义约束），n-gram 条件分布补充，
-        两者都没有才随机。"""
+        """{action} 槽位：第三层网络打分（情境选择）优先，状态动作域约束兜底。"""
+        if self.use_net:
+            return self._fill_action_net(state, context_words)
         actions = STATES[state]["actions"]
         # 1) 上下文词在动作域里 → 直接用
         for w in context_words:
@@ -173,6 +194,28 @@ class HierarchicalEngine:
                     return top
         # 3) 状态动作域随机
         return random.choice(actions)
+
+    def _fill_action_net(self, state: str, context_words: list[str]) -> str:
+        """网络填词：state + 上下文词 → 候选打分。
+
+        融合：网络 top3 里优先取状态动作域内的词（预装语义约束兜底），
+        都越界才用网络 top1（网络学到的情境选择优先）。"""
+        import torch
+
+        ctx_ids = [self.net_stoi.get(w, 0) for w in context_words
+                   if w not in "的了她是在想要今天我去来"][-8:]
+        ctx_ids = [0] * (8 - len(ctx_ids)) + ctx_ids
+        state_id = self._state_names.index(state)
+        with torch.no_grad():
+            logits = self.net(
+                torch.tensor([ctx_ids], dtype=torch.long),
+                torch.tensor([state_id], dtype=torch.long))
+        top10 = logits[0].topk(10).indices.tolist()
+        for i in top10:
+            if self.net_candidates[i] in STATES[state]["actions"]:
+                return self.net_candidates[i]
+        # 网络 top10 无状态域词：回退状态动作域随机（语义约束兜底，绝不用网络越界词）
+        return random.choice(STATES[state]["actions"])
 
     def _fill_word(self, context_words: list[str]) -> str:
         """{word} 槽位：优先输入里的实词（非标点非角色名），n-gram 查表补充，
@@ -240,13 +283,15 @@ def main() -> None:
     parser.add_argument("--reply", type=str, default="", help="输入对话（关键词 → 状态 → 回复）")
     parser.add_argument("--context", type=str, default="", help="上下文补充")
     parser.add_argument("--intent", type=str, default="", help="直接指定意图关键词")
+    parser.add_argument("--use-net", action="store_true",
+                        help="第三层填词网络（filler_net.py --train 产出）")
     parser.add_argument("--demo", action="store_true", help="多输入演示")
     args = parser.parse_args()
 
     if args.demo:
         demo()
     elif args.reply or args.intent:
-        engine = HierarchicalEngine()
+        engine = HierarchicalEngine(use_net=args.use_net)
         intent = args.intent or args.reply
         state = engine.match_state(intent, args.context)
         print(f"[{state}] {engine.reply(intent, args.context)}")
