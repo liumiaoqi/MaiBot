@@ -95,6 +95,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
 | **ZG-21** | 事件回调预算（ksoftirqd 化） | 📚 调研完成（zg_ksoftirqd_budget_survey：延迟处理 + 单次预算防回调风暴），见下方 Linux 化扩展 2 详情 | 基础 |
 | **ZG-22** | 无锁读延迟回收（RCU 化） | 📚 调研完成（zg_rcu_grace_period_survey：宽限期 + call_rcu 延迟释放），见下方 Linux 化扩展 2 详情 | 基础 |
+| **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 正式立项，用户拍板） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | **P1** | 插件运行时 + agent 自主性 |
 | **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
 ### 🔧 已知遗留（从已完成项中拆出）
@@ -413,6 +414,27 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 | **ZG-17** | watermark 水位 + 两相 shrinker（`zg17_watermark_shrinker_survey_0805.md`） | 记忆库内存管理：低/中/高水位分级，两级回收（可回收对象先回收、不可回收后处理），与 ZG-5 资源限制衔接 | P2 | ZG-5（ResourceCounter 已有四层限制） |
 | **ZG-18** | workqueue rescuer 自死锁逃逸（`zg18_workqueue_rescuer_survey_0805.md`） | 后台任务并发上限 + 救援线程：任务依赖链形成死锁时逃逸（对标 asyncio 后台任务池） | P2 | — |
 | **ZG-19** | 两级 dirty 阈值写者节流（`zg19_dirty_threshold_survey_0805.md`） | 落盘背压：DB 写入量超阈值时写者节流 + 批量提交时间对齐（round_jiffies_up） | P2 | 数据库写入管线（A_memorix/统计） |
+
+## ZG-20 v2 插件 ToolRegistry 连通 — 子项详情（2026-08-06 正式立项）
+
+> 来源：ZG-15 补充调研发现（bootstrap.py:120-129 `_get_tool_registry` import 目标
+> `src.maisaka.agent_autonomy.tool_registry` 全仓不存在 → ImportError 回退孤立实例）。
+> 用户拍板：**不能不管**（v2 插件工具对 agent 不可见 = 插件功能失效）。
+
+**现状链路**：
+- `runtime.py:220`：会话级自建 `ToolRegistry()`（每会话一个）；`:1437-1441` 注册
+  PluginToolProvider + 传给 thinking_organ（v1 插件路径正常）；`:2242` 注册 MCPToolProvider
+- `v2 bootstrap.py:45`：`_get_tool_registry()` → import 失败 → 孤立 `ToolRegistry()`
+- `host_bridge.py:80`：v2 插件 provider 注册进**孤立实例**——thinking_organ（runtime 的
+  registry）永远看不到 v2 插件工具
+
+**本质**：全局 v2 工具 vs 会话级 registry 的生命周期架构问题——
+"全局注册一次的工具，挂到哪个会话的 registry？"候选方案：
+a) registry 全局共享（单例/共享层，agent 工具发现走全局）
+b) v2 启动时挂到所有会话 registry（动态加入/移除）
+c) 与 ZG-12 委派工具模式命名化合并设计（CA 裁决曾提及）
+
+**优先级**：P1（插件功能可用性）；批次：随插件域推进（可与 ZG-15 编码同期设计）
 
 ### Linux 化扩展 2（ZG-21/22/23，2026-08-06 编排）
 
