@@ -149,17 +149,23 @@ class TestReload:
     @pytest.mark.asyncio
     async def test_reload_one_success(self):
         sv = RunnerSupervisor(RunnerSupervisorConfig(drain_ms=0), MagicMock(), host_listen_address="localhost:0")
-        sv._spawner.restart_failed = AsyncMock()
+        # ZG-15：排空重写后——kill + spawn（restart_failed 不再用于 reload）
+        sv._spawner.kill_runner = AsyncMock(return_value=True)
+        sv._spawner.spawn = AsyncMock()
+        sv._spawner._plugin_dirs = {"r1": "plugins/test-plugin"}
         sv._log_forwarders["r1"] = MagicMock()
         sv._log_forwarders["r1"].stop = AsyncMock()
         mock_conn = MagicMock()
         mock_conn.state.value = "ready"
+        mock_conn.runner_listen_address = ""  # ZG-15：空地址 → 跳过轮询视为已排空
         sv._registry.get.return_value = mock_conn
         sv._registry.unregister = AsyncMock()
 
         result = await sv.reload_one("r1")
         assert result.success
         assert "r1" not in sv._reloading
+        sv._spawner.kill_runner.assert_awaited_once()
+        sv._spawner.spawn.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_reload_one_not_ready(self):

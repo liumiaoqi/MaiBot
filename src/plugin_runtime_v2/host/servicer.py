@@ -430,11 +430,14 @@ class _PluginHostServicer(PluginHostServicer):
                 exc_info=True,
             )
 
+        # ZG-15 修复：先读 plugin_id 再 unregister——原顺序在 unregister 后
+        # get 恒返回 None，on_runner_disconnected 恒收空 id，MCPToolProvider
+        # 永不注销（每次断连泄漏一个 provider + channel）
+        conn = self._registry.get(runner_id)
+        plugin_id = conn.plugin_id if conn else ""
         self._registry.unregister(runner_id)
         self._outboxes.pop(runner_id, None)
         if self._host_bridge is not None:
-            conn = self._registry.get(runner_id)
-            plugin_id = conn.plugin_id if conn else ""
             asyncio.create_task(
                 self._host_bridge.on_runner_disconnected(runner_id, plugin_id),
                 name=f"bridge-disconnect-{runner_id}",

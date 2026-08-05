@@ -165,6 +165,8 @@ class HostEndpoint:
         return self._token_service
 
     def set_supervisor(self, supervisor) -> None:
+        # ZG-15：双向注入——supervisor 需要 servicer（发 ShutdownRequest 排空）
+        supervisor.set_servicer(self._servicer)
         """正式注入 RunnerSupervisor。"""
         self._supervisor = supervisor
         if hasattr(self, "_servicer") and self._servicer is not None:

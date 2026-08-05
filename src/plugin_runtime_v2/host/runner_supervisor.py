@@ -83,6 +83,8 @@ class RunnerSupervisor:
         self._started_at: dict[str, float] = {}
         self._shutdown_event: asyncio.Event = asyncio.Event()
         self._health_task: asyncio.Task | None = None
+        # ZG-15：Host servicer（发 ShutdownRequest 用，bootstrap 装配时注入）
+        self._servicer = None
 
     # ── 生命周期 ──────────────────────────────────────────────
 
@@ -263,8 +265,16 @@ class RunnerSupervisor:
             results[runner_id] = await self.reload_one(runner_id, drain_ms)
         return results
 
+    def set_servicer(self, servicer) -> None:
+        """注入 Host servicer（发 ShutdownRequest 用，bootstrap 装配时调用）。"""
+        self._servicer = servicer
+
     async def reload_one(self, runner_id: str, drain_ms: int = 0) -> ReloadResult:
-        """重载单个 Runner：关停 → 等待排空 → 重启。"""
+        """重载单个 Runner：置拒新 → 引用计数驱动排空 → 杀旧 → spawn 新。
+
+        ZG-15：固定 sleep 排空替换为 GetInflightCount 轮询（100-200ms 间隔，
+        上限 drain_ms），超时强杀。GetInflightCount 不可用时回退固定 sleep。
+        """
         if drain_ms == 0:
             drain_ms = self._config.drain_ms
         if runner_id in self._reloading:
@@ -272,24 +282,93 @@ class RunnerSupervisor:
         conn = self._registry.get(runner_id)
         if conn is None or conn.state.value != "ready":
             return ReloadResult(runner_id=runner_id, success=False, reason="not_ready")
+        listen_address = conn.runner_listen_address
 
         self._reloading.add(runner_id)
         try:
-            # 停止旧进程
+            # 1. 停止 LogForwarder
             lf = self._log_forwarders.pop(runner_id, None)
             if lf is not None:
                 await lf.stop()
-            self._registry.unregister(runner_id)
 
-            # 等待排空 + 重启
-            await asyncio.sleep(drain_ms / 1000.0)
-            await self._spawner.restart_failed()
+            # 2. 置 Runner 拒新（Runner 端 mark_going + 开始排空）
+            if self._servicer is not None:
+                self._servicer.request_shutdown(
+                    runner_id, reason="plugin_reload", drain_ms=drain_ms)
+
+            # 3. 轮询 GetInflightCount 至零（上限 drain_ms）
+            drained = await self._poll_inflight(runner_id, listen_address, drain_ms)
+
+            # 4. 杀旧进程（排空完成或超时强杀）
+            killed = await self._spawner.kill_runner(runner_id, timeout_sec=5.0)
+            if not drained:
+                logger.warning(
+                    "Runner %s 排空超时（%dms），强杀旧进程", runner_id, drain_ms)
+            elif not killed:
+                logger.warning("Runner %s 旧进程已不在，跳过终止", runner_id)
+
+            # 5. spawn 新进程
+            self._registry.unregister(runner_id)
+            plugin_dir = self._spawner._plugin_dirs.get(runner_id)
+            if plugin_dir is None:
+                return ReloadResult(runner_id=runner_id, success=False, reason="no_plugin_dir")
+            await self._spawner.spawn(runner_id, plugin_dir)
             return ReloadResult(runner_id=runner_id, success=True)
         except Exception as exc:
             logger.warning("操作异常 in runner_supervisor.py", exc_info=True)
             return ReloadResult(runner_id=runner_id, success=False, reason=str(exc))
         finally:
             self._reloading.discard(runner_id)
+
+    async def _poll_inflight(
+        self, runner_id: str, listen_address: str, drain_ms: int,
+    ) -> bool:
+        """轮询 Runner 在途计数至零。
+
+        - count==0 → 排空完成
+        - UNAVAILABLE → 进程已死，视为已排空
+        - UNIMPLEMENTED → 旧 Runner 兼容，回退固定 sleep 排空
+        - 超时（drain_ms）→ 返回 False（调用方强杀）
+        """
+        if not listen_address:
+            return True
+        import time as _time
+
+        import grpc
+        from src.plugin_runtime_v2.proto import (
+            plugin_runner_pb2,
+            plugin_runner_pb2_grpc,
+        )
+
+        deadline = _time.monotonic() + drain_ms / 1000.0
+        channel = grpc.aio.insecure_channel(listen_address)
+        stub = plugin_runner_pb2_grpc.PluginRunnerStub(channel)
+        try:
+            while True:
+                try:
+                    resp = await stub.GetInflightCount(
+                        plugin_runner_pb2.GetInflightCountRequest(), timeout=0.2)
+                    if resp.count == 0:
+                        logger.info("Runner %s 排空完成（inflight=0）", runner_id)
+                        return True
+                except grpc.aio.AioRpcError as exc:
+                    code = exc.code()
+                    if code == grpc.StatusCode.UNIMPLEMENTED:
+                        # 旧 Runner 未实现：回退固定 sleep（兼容模式）
+                        logger.warning(
+                            "Runner %s 不支持 GetInflightCount，回退固定 sleep 排空",
+                            runner_id)
+                        await asyncio.sleep(drain_ms / 1000.0)
+                        return True
+                    if code == grpc.StatusCode.UNAVAILABLE:
+                        # 进程已死 = 已排空
+                        logger.info("Runner %s 进程不可达，视为已排空", runner_id)
+                        return True
+                if _time.monotonic() >= deadline:
+                    return False
+                await asyncio.sleep(0.15)
+        finally:
+            await channel.close()
 
     # ── 状态查询 ─────────────────────────────────────────────
 

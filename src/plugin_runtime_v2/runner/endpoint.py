@@ -66,6 +66,7 @@ class RunnerEndpoint:
         self._granted_scopes: set[str] = set()
         # ZG-15：插件活体引用（加载成功后创建，注入 servicer/loader）
         self._refcount: PluginRefcount | None = None
+        self._unloader = None
 
     # ── 公共 API ────────────────────────────────────────────────
 
@@ -95,6 +96,13 @@ class RunnerEndpoint:
                     homecard_registry=homecard_registry,
                 )
                 self._plugin_instance.ctx = ctx
+                # ZG-15：卸载编排器（三条卸载路径统一走 PluginUnloader）
+                from src.plugin_runtime_v2.lifecycle.unloader import PluginUnloader
+                self._unloader = PluginUnloader(
+                    refcount=self._refcount,
+                    loader=self._plugin_loader,
+                    ctx=ctx,
+                )
                 for tool_entry in tools:
                     self._tool_router.register(
                         tool_name=tool_entry["name"],
@@ -147,9 +155,14 @@ class RunnerEndpoint:
                 await asyncio.sleep(delay)
 
     async def stop(self) -> None:
-        """停止 Runner：关闭双向流、停服务端、关通道。"""
+        """停止 Runner：卸载插件（若未卸载）→ 关闭双向流、停服务端、关通道。"""
         self._shutting_down = True
         self._servicer._shutting_down = True
+        # ZG-15：SIGTERM 路径统一走 PluginUnloader（若 ShutdownRequest 路径已卸载则跳过）
+        if (self._unloader is not None and self._refcount is not None
+                and self._refcount.state.value != "unformed"):
+            await self._unloader.unload_plugin()
+            self._plugin_instance = None
         if self._recv_task is not None:
             self._recv_task.cancel()
             self._recv_task = None
@@ -332,16 +345,30 @@ class RunnerEndpoint:
                 self._transition(ConnectionState.DISCONNECTED)
 
     async def _handle_shutdown(self, drain_timeout_ms: int) -> None:
-        """优雅关停：停止接受新调用，等待排空，关闭流。"""
+        """优雅关停：置 GOING 拒新 → 等待在途排空 → 卸载插件 → 关闭流。
+
+        ZG-15：固定 sleep 替换为 wait_drained（引用计数驱动排空）。
+        """
         self._shutting_down = True
         self._servicer._shutting_down = True
         self._transition(ConnectionState.CLOSING)
 
-        if drain_timeout_ms > 0:
-            try:
-                await asyncio.sleep(drain_timeout_ms / 1000.0)
-            except asyncio.CancelledError:
-                pass
+        if self._refcount is not None:
+            # 置 GOING（对标 try_stop_module），新 acquire 立即失败
+            self._refcount.mark_going()
+            if drain_timeout_ms > 0:
+                drained = await self._refcount.wait_drained(
+                    timeout_s=drain_timeout_ms / 1000.0)
+                if not drained:
+                    logger.warning(
+                        "Runner %s 排空超时（%dms），强制关停",
+                        self._config.runner_id, drain_timeout_ms,
+                    )
+
+        # 卸载插件（on_unload + 自启任务取消，对标 mod->exit()）
+        if self._plugin_instance is not None and self._unloader is not None:
+            await self._unloader.unload_plugin()
+            self._plugin_instance = None
 
         if self._stream_call is not None:
             self._stream_call.cancel()
