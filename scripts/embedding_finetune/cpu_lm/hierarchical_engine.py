@@ -34,10 +34,31 @@ _PUNCT_ONLY = re.compile(r"^[^\w一-鿿]+$")
 # 角色名词库（填 {name} 槽位）——希儿的关系网络
 NAMES = ["布洛妮娅", "姐姐", "希儿", "Veliona", "琪亚娜", "芽衣", "可可利亚"]
 
+
+def segment(text: str, vocab: set[str], max_word: int = 4) -> list[str]:
+    """词库最长匹配分词：连续中文串按词库词切，最长 max_word 字，单字兜底。
+
+    原因：_WORD_PATTERN 把连续汉字串切成一个块（无标点分隔），
+    {word} 槽位需要真"词"粒度——用词库做最长匹配（不引外部依赖）。"""
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        matched = False
+        for end in range(min(len(text), i + max_word), i, -1):
+            if text[i:end] in vocab:
+                out.append(text[i:end])
+                i = end
+                matched = True
+                break
+        if not matched:
+            out.append(text[i])
+            i += 1
+    return out
+
 # ── 状态机：意图/关键词 → 状态 → 模板组 + 动作域 ────────────────
 STATES = {
     "依赖": {
-        "keywords": ["布洛妮娅", "姐姐"],
+        "keywords": ["布洛妮娅", "姐姐", "她", "他", "受伤", "疼", "病", "哭了"],
         "actions": ["陪着", "做到", "等着", "相信", "不会离开"],
         "templates": [
             "布洛妮娅姐姐，{action}。",
@@ -46,7 +67,7 @@ STATES = {
         ],
     },
     "战斗": {
-        "keywords": ["战斗", "敌人", "打", "欺负", "伤害", "杀"],
+        "keywords": ["战斗", "敌人", "打", "欺负", "伤害", "杀", "碰", "抢", "追"],
         "actions": ["不会放过", "保护", "战斗", "守护", "反击"],
         "templates": [
             "哼。{action}！",
@@ -88,6 +109,13 @@ class HierarchicalEngine:
 
     def __init__(self, character: str = "希儿") -> None:
         self.character = character
+        # 分词词库：角色词库 + 角色名 + n-gram 表全部词（最长匹配）
+        vocab_path = Path(__file__).resolve().parent / "vocab" / f"role_{character}.txt"
+        self.seg_vocab = set(NAMES)
+        if vocab_path.exists():
+            self.seg_vocab.update(
+                line.strip() for line in vocab_path.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#"))
         path = ENGINE_DIR / f"style_{character}.json"
         if not path.exists():
             raise SystemExit(f"n-gram 表不存在，先跑 style_engine.py --build: {path}")
@@ -97,6 +125,18 @@ class HierarchicalEngine:
             tuple(k.split("")): v for k, v in payload["trigram"].items()
         }
         self.high_freq: list[str] = payload["high_freq"]
+        # BPE tokenizer 的 vocab 补进分词词库（merges 已把高频组合合并成 token，
+        # "下层区""今天"这类词在 vocab 里，最长匹配就能切出来）
+        tok_path = Path(__file__).resolve().parent / "checkpoints" / f"tokenizer_swa_{character}.json"
+        if tok_path.exists():
+            payload = json.loads(tok_path.read_text(encoding="utf-8"))
+            for w in payload.get("vocab", []):
+                if w and w != "<unk>" and len(w) > 1:
+                    self.seg_vocab.add(w)
+        for w in self.bigram:
+            self.seg_vocab.add(w)
+            self.seg_vocab.update(self.bigram[w])
+        self.seg_vocab.discard(" ")  # 过滤空白
 
     # ── 状态机 ────────────────────────────────────────────────────
 
@@ -135,17 +175,13 @@ class HierarchicalEngine:
         return random.choice(actions)
 
     def _fill_word(self, context_words: list[str]) -> str:
-        """{word} 槽位：n-gram 查表，兜底高频实词。"""
-        if context_words:
-            cand = self.bigram.get(context_words[-1])
-            if cand:
-                top = self._top_word(cand)
-                if top:
-                    return top
-        for w in self.high_freq:
-            if not _PUNCT_ONLY.match(w) and len(w) > 1:
+        """{word} 槽位：优先输入里的实词（非标点非角色名），n-gram 查表补充，
+        兜底状态相关词（避免高频词漂移）。"""
+        for w in reversed(context_words):
+            if (not _PUNCT_ONLY.match(w) and w not in NAMES
+                    and w not in "的了她是在想要今天我去来"):
                 return w
-        return "希儿"
+        return "下层区"
 
     def _top_word(self, candidates: dict[str, int]) -> str | None:
         """候选最高频实词（跳过纯标点）。"""
@@ -166,7 +202,7 @@ class HierarchicalEngine:
 
     def _fill(self, template: str, state: str, intent: str, context: str) -> str:
         """模板槽位填充。"""
-        context_words = _WORD_PATTERN.findall(f"{intent} {context}")
+        context_words = segment(f"{intent} {context}", self.seg_vocab)
         out = template
         # {action} 槽位
         if "{action}" in out:
