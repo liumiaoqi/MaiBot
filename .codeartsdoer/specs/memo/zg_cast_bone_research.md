@@ -93,8 +93,8 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收），见下方详情 | 基础 |
 | **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸），见下方详情 | 基础 |
 | **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
-| **ZG-21** | 事件回调预算（ksoftirqd 化） | 📚 调研完成（zg_ksoftirqd_budget_survey：延迟处理 + 单次预算防回调风暴），见下方 Linux 化扩展 2 详情 | 基础 |
-| **ZG-22** | 无锁读延迟回收（RCU 化） | 📚 调研完成（zg_rcu_grace_period_survey：宽限期 + call_rcu 延迟释放），见下方 Linux 化扩展 2 详情 | 基础 |
+| **ZG-21** | 事件回调预算（ksoftirqd 化） | 📚 调研完成（zg_ksoftirqd_budget_survey：延迟处理 + 单次预算防回调风暴）🔬 **需算法实验**（回调风暴基准→预算参数依据），见下方详情 | 基础 |
+| **ZG-22** | 无锁读延迟回收（RCU 化） | 📚 调研完成（zg_rcu_grace_period_survey：宽限期 + call_rcu 延迟释放）🔬 **需算法实验**（FAISS 读写互斥实测→RCU 收益验证），见下方详情 | 基础 |
 | **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 立项） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | P2（发布前必做） | 插件运行时 + agent 自主性 |
 | **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
@@ -445,7 +445,9 @@ c) 与 ZG-12 委派工具模式命名化合并设计（CA 裁决曾提及）
 | 编号 | Linux 机制（调研文件） | MaiBot 借鉴设计 | 优先级 | 依赖/前置 |
 |------|----------------------|----------------|--------|----------|
 | **ZG-21** | ksoftirqd 延迟处理 + 单次预算（`zg_ksoftirqd_budget_survey_0806.md`，2ms/10 次重启） | 事件回调批量处理：`EventBus._fire_and_forget`（每次 emit 创建 Task，无限制）改 pending 队列 + drainer Task 批量处理 + 单轮时间/次数预算；日志广播 call_soon_threadsafe 风暴同治理 | **P1** | EventBus（ZG-4 已增强） |
+> 🔬 **SSD 前算法实验**：回调风暴基准——大量事件同时 emit，当前 create_task 实现 vs 批量 drainer 的调度延迟对比；预算参数（单轮时间/次数）以数据定（Linux 2ms 是内核值，MaiBot 需实测） |
 | **ZG-22** | RCU 宽限期 + call_rcu + rcu_barrier（`zg_rcu_grace_period_survey_0806.md`） | 无锁读 + 延迟回收：VectorStore FAISS 索引（RLock 串行化读写 → search 无锁读旧快照 + add 原子替换 + 旧索引延迟释放）；VectorRebuildService 重建期间不降级；ModelRegistry/ConfigManager 热重载原子替换 | **P1** | VectorStore/A_memorix |
+> 🔬 **SSD 前算法实验**：FAISS 读写互斥实测——并发 search+add 的真实阻塞延迟（当前 RLock 串行化），验证改造收益；索引原子替换可行性（替换瞬间并发读是否安全） |
 | **ZG-23** | 剩余项综合（`zg_remaining_items_survey_0806.md`，1c/2c/2d/3b/4c/5b/6b/7a/8a） | 低价值项合并：fsync/fdatasync 分层 + sync_file_range、OOM 评分注册、kswapd 回收线程等——逐项按调研评估裁决（多数不落地，记录理由） | P3 | — |
 
 ### 优先级逻辑（2026-08-06 用户拍板）
