@@ -133,6 +133,11 @@ class RuntimeDataCapabilityMixin:
                 return {"success": False, "error": f"不支持的 query_type: {query_type}"}
             return result
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "数据库查询失败", exception=e)
             logger.error(f"[cap.database.query] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -159,6 +164,11 @@ class RuntimeDataCapabilityMixin:
             )
             return result
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "数据库保存失败", exception=e)
             logger.error(f"[cap.database.save] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -185,6 +195,11 @@ class RuntimeDataCapabilityMixin:
             )
             return result
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "数据库获取失败", exception=e)
             logger.error(f"[cap.database.get] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -208,6 +223,11 @@ class RuntimeDataCapabilityMixin:
             result = await database_service.db_delete(model_class=model_class, filters=filters)
             return result
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "数据库删除失败", exception=e)
             logger.error(f"[cap.database.delete] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -228,6 +248,11 @@ class RuntimeDataCapabilityMixin:
             result = await database_service.db_count(model_class=model_class, filters=args.get("filters"))
             return result
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "数据库计数失败", exception=e)
             logger.error(f"[cap.database.count] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -277,6 +302,11 @@ class RuntimeDataCapabilityMixin:
             streams = self._list_sessions(platform=platform)
             return {"success": True, "streams": [self._serialize_stream(item) for item in streams]}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取聊天流列表失败", exception=e)
             logger.error(f"[cap.chat.get_all_streams] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -286,6 +316,11 @@ class RuntimeDataCapabilityMixin:
             streams = self._list_sessions(platform=platform, is_group_session=True)
             return {"success": True, "streams": [self._serialize_stream(item) for item in streams]}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取群聊天流失败", exception=e)
             logger.error(f"[cap.chat.get_group_streams] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -295,6 +330,11 @@ class RuntimeDataCapabilityMixin:
             streams = self._list_sessions(platform=platform, is_group_session=False)
             return {"success": True, "streams": [self._serialize_stream(item) for item in streams]}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取私聊聊天流失败", exception=e)
             logger.error(f"[cap.chat.get_private_streams] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -347,6 +387,11 @@ class RuntimeDataCapabilityMixin:
                 **serialized_stream,
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "打开聊天流失败", exception=e)
             logger.error(f"[cap.chat.open_session] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -367,6 +412,11 @@ class RuntimeDataCapabilityMixin:
             )
             return {"success": True, "stream": None if stream is None else self._serialize_stream(stream)}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取群会话失败", exception=e)
             logger.error(f"[cap.chat.get_stream_by_group_id] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -387,6 +437,11 @@ class RuntimeDataCapabilityMixin:
             )
             return {"success": True, "stream": None if stream is None else self._serialize_stream(stream)}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取用户会话失败", exception=e)
             logger.error(f"[cap.chat.get_stream_by_user_id] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -429,6 +484,11 @@ class RuntimeDataCapabilityMixin:
             )
             return {"success": True, "message": serialized_message}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取消息失败", exception=e)
             logger.error(f"[cap.message.get_by_id] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -451,6 +511,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "按时间获取消息失败", exception=e)
             logger.error(f"[cap.message.get_by_time] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -479,6 +544,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取会话消息失败", exception=e)
             logger.error(f"[cap.message.get_by_time_in_chat] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -510,6 +580,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取最近消息失败", exception=e)
             logger.error(f"[cap.message.get_recent] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -530,6 +605,11 @@ class RuntimeDataCapabilityMixin:
             )
             return {"success": True, "count": count}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "统计新消息失败", exception=e)
             logger.error(f"[cap.message.count_new] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -556,6 +636,11 @@ class RuntimeDataCapabilityMixin:
             )
             return {"success": True, "text": readable}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "构建可读消息失败", exception=e)
             logger.error(f"[cap.message.build_readable] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -571,6 +656,11 @@ class RuntimeDataCapabilityMixin:
             pid = get_person_info_port().get_person_id(platform, str(user_id))
             return {"success": True, "person_id": pid}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取人物 ID 失败", exception=e)
             logger.error(f"[cap.person.get_id] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -588,6 +678,11 @@ class RuntimeDataCapabilityMixin:
                 value = args.get("default")
             return {"success": True, "value": value}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取人物属性失败", exception=e)
             logger.error(f"[cap.person.get_value] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -602,6 +697,11 @@ class RuntimeDataCapabilityMixin:
             pid = get_person_info_port().get_person_id_by_name(person_name)
             return {"success": True, "person_id": pid}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "按名称获取人物 ID 失败", exception=e)
             logger.error(f"[cap.person.get_id_by_name] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -624,6 +724,11 @@ class RuntimeDataCapabilityMixin:
                 "emoji": serialized,
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "按描述获取表情失败", exception=e)
             logger.error(f"[cap.emoji.get_by_description] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -649,6 +754,11 @@ class RuntimeDataCapabilityMixin:
                     emojis.append(serialized)
             return {"success": True, "emojis": emojis}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "随机获取表情失败", exception=e)
             logger.error(f"[cap.emoji.get_random] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -658,6 +768,11 @@ class RuntimeDataCapabilityMixin:
 
             return {"success": True, "count": len(emoji_manager.emojis)}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取表情数量失败", exception=e)
             logger.error(f"[cap.emoji.get_count] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -677,6 +792,11 @@ class RuntimeDataCapabilityMixin:
             )
             return {"success": True, "emotions": emotions}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取表情情绪失败", exception=e)
             logger.error(f"[cap.emoji.get_emotions] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -693,6 +813,11 @@ class RuntimeDataCapabilityMixin:
                     emojis.append(serialized)
             return {"success": True, "emojis": emojis}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取全部表情失败", exception=e)
             logger.error(f"[cap.emoji.get_all] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -712,6 +837,11 @@ class RuntimeDataCapabilityMixin:
                 },
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取表情信息失败", exception=e)
             logger.error(f"[cap.emoji.get_info] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -771,6 +901,11 @@ class RuntimeDataCapabilityMixin:
                 "hash": None if new_emoji is None else new_emoji.file_hash,
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "注册表情失败", exception=e)
             logger.error(f"[cap.emoji.register] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -796,6 +931,11 @@ class RuntimeDataCapabilityMixin:
             emoji_manager._emoji_num = len(emoji_manager.emojis)
             return {"success": True, "message": f"成功删除表情包: {emoji_hash}", "hash": emoji_hash, "keep_desc": keep_desc}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "删除表情失败", exception=e)
             logger.error(f"[cap.emoji.delete] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -820,6 +960,11 @@ class RuntimeDataCapabilityMixin:
             value = await self._get_frequency_adjust_value(chat_id) * ChatConfigUtils.get_talk_value(chat_id)
             return {"success": True, "value": value}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取当前发言值失败", exception=e)
             logger.error(f"[cap.frequency.get_current_talk_value] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -839,6 +984,11 @@ class RuntimeDataCapabilityMixin:
                     runtime.adjust_talk_frequency(float(value))
             return {"success": True}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "设置发言调节失败", exception=e)
             logger.error(f"[cap.frequency.set_adjust] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -851,6 +1001,11 @@ class RuntimeDataCapabilityMixin:
             value = await self._get_frequency_adjust_value(chat_id)
             return {"success": True, "value": value}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取发言调节失败", exception=e)
             logger.error(f"[cap.frequency.get_adjust] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -864,6 +1019,11 @@ class RuntimeDataCapabilityMixin:
                 "tools": [{"name": name, "definition": info.get_llm_definition()} for name, info in tools.items()],
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取工具定义失败", exception=e)
             logger.error(f"[cap.tool.get_definitions] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1029,6 +1189,11 @@ class RuntimeDataCapabilityMixin:
                 ],
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取本地模型统计失败", exception=e)
             logger.error("[cap.statistics.local.models] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1088,6 +1253,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取模型趋势失败", exception=e)
             logger.error("[cap.statistics.local.model_trend] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1176,6 +1346,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取 Token 趋势失败", exception=e)
             logger.error("[cap.statistics.local.token_trend] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1213,6 +1388,11 @@ class RuntimeDataCapabilityMixin:
                 },
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取 Token 分布失败", exception=e)
             logger.error("[cap.statistics.local.token_distribution] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1267,6 +1447,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取消息趋势失败", exception=e)
             logger.error("[cap.statistics.local.message_trend] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1317,6 +1502,11 @@ class RuntimeDataCapabilityMixin:
                 ),
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取工具趋势失败", exception=e)
             logger.error("[cap.statistics.local.tool_trend] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1351,6 +1541,11 @@ class RuntimeDataCapabilityMixin:
                 },
             }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "获取在线时长趋势失败", exception=e)
             logger.error("[cap.statistics.local.online_time_trend] 执行失败: %s", e, exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -1395,5 +1590,10 @@ class RuntimeDataCapabilityMixin:
             content = f"你知道这些知识: {knowledge_info}" if knowledge_info else f"你不太了解有关{query}的知识"
             return {"success": True, "content": content}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "知识库搜索失败", exception=e)
             logger.error(f"[cap.knowledge.search] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

@@ -97,11 +97,21 @@ def _coerce_int(value: Any, default: int) -> int:
     try:
         return int(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "解析整数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 def _coerce_float(value: Any, default: float) -> float:
     try:
         return float(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "解析浮点数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 def _coerce_bool(value: Any, default: bool) -> bool:
     if value is None:
@@ -194,6 +204,11 @@ def _parse_optional_positive_int(value: Any, field_name: str) -> Optional[int]:
     try:
         parsed = int(text)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "解析正整数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
     if parsed <= 0:
         raise ValueError(f"{field_name} 必须 > 0")
@@ -209,6 +224,11 @@ def _parse_optional_non_negative_int(value: Any, field_name: str) -> Optional[in
     try:
         parsed = int(text)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "解析非负整数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
     if parsed < 0:
         raise ValueError(f"{field_name} 必须 >= 0")
@@ -400,6 +420,11 @@ class ImportTaskManager:
             if asyncio.iscoroutine(maybe_awaitable):
                 await maybe_awaitable
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "写入变更回调失败", exception=e)
             logger.warning(f"写入变更回调执行失败: {e}")
 
     def _resolve_temp_root(self) -> Path:
@@ -504,10 +529,20 @@ class ImportTaskManager:
             self.plugin.enqueue_paragraph_vector_backfill(paragraph_hash, error=error)
             return
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "回填向量队列失败", exception=exc)
             logger.warning(f"回填入队失败（runtime facade）: {exc}")
         try:
             self.plugin.metadata_store.enqueue_paragraph_vector_backfill(paragraph_hash, error=error)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "回填向量队列失败", exception=exc)
             logger.warning(f"回填入队失败（metadata_store）: {exc}")
 
     async def _enqueue_paragraph_backfill_locked(self, paragraph_hash: str, *, error: str = "") -> None:
@@ -662,6 +697,11 @@ class ImportTaskManager:
                     bump_retry=bump_retry,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "设置关系向量状态失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
     async def _write_paragraph_vector_or_enqueue(
         self,
@@ -921,6 +961,11 @@ class ImportTaskManager:
             else:
                 self._manifest_cache = {}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "加载导入清单失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         return self._manifest_cache
 
@@ -1094,6 +1139,11 @@ class ImportTaskManager:
                 rows = metadata_store.get_paragraphs_by_source(source)
                 return any(not bool(row.get("is_deleted", 0)) for row in rows if isinstance(row, dict))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "校验导入清单来源失败", exception=exc)
             logger.warning(f"校验导入清单来源失败: source={source}, err={exc}")
         return False
 
@@ -1884,6 +1934,11 @@ class ImportTaskManager:
                     try:
                         retry_indexes.append(int(chunk.index))
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, "解析失败分块索引失败", exception=exc)
                         logger.warning("操作异常: %s", exc)
                 else:
                     has_non_retryable = True
@@ -2128,6 +2183,11 @@ class ImportTaskManager:
             except asyncio.CancelledError:
                 pass
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "停止导入任务失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
 
         self._cleanup_temp_root()
@@ -2144,6 +2204,11 @@ class ImportTaskManager:
                     child.rmdir()
             self._temp_root.rmdir()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "清理临时导入目录失败", exception=e)
             logger.warning(f"清理临时导入目录失败: {e}")
 
     async def _worker_loop(self) -> None:
@@ -2174,6 +2239,11 @@ class ImportTaskManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "执行导入任务失败", exception=e)
                 logger.error(f"导入任务执行失败 task={task_id}: {e}\n{traceback.format_exc()}")
                 async with self._lock:
                     task = self._tasks.get(task_id)
@@ -2206,6 +2276,11 @@ class ImportTaskManager:
                     child.rmdir()
             task_dir.rmdir()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "清理任务临时文件失败", exception=e)
             logger.warning(f"清理任务临时文件失败 task={task_id}: {e}")
 
     def _task_report_path(self, task_id: str) -> Path:
@@ -2300,6 +2375,11 @@ class ImportTaskManager:
             try:
                 self._write_task_report(task)
             except Exception as report_err:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "写入任务报告失败", exception=report_err)
                 logger.warning(f"写入任务报告失败 task={task_id}: {report_err}")
             task_kind = str(task.params.get("task_kind") or task.source).strip().lower()
             write_task_kinds = {"upload", "paste", "raw_scan", "lpmm_openie", "maibot_migration", "lpmm_convert"}
@@ -2425,6 +2505,11 @@ class ImportTaskManager:
         try:
             payload = json.loads(state_path.read_text(encoding="utf-8"))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "读取迁移进度失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         stats = payload.get("stats", {}) if isinstance(payload, dict) else {}
         if not isinstance(stats, dict):
@@ -2477,6 +2562,11 @@ class ImportTaskManager:
             process.terminate()
             await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_terminate_seconds"])
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "终止迁移进程失败", exception=exc)
             logger.warning("操作失败", exc_info=True)
             try:
                 process.kill()
@@ -2491,11 +2581,21 @@ class ImportTaskManager:
                     if store.has_data():
                         store.load()
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "重载向量存储失败", exception=e)
                     logger.warning(f"迁移后重载 VectorStore 失败: {e}")
             try:
                 if self.plugin.graph_store and self.plugin.graph_store.has_data():
                     self.plugin.graph_store.load()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "重载图存储失败", exception=e)
                 logger.warning(f"迁移后重载 GraphStore 失败: {e}")
 
     async def _process_maibot_migration(self, task_id: str, file_record: ImportFileRecord) -> None:
@@ -2583,6 +2683,11 @@ class ImportTaskManager:
             try:
                 report = json.loads(report_path.read_text(encoding="utf-8"))
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "读取转换报告失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
         stats = report.get("stats", {}) if isinstance(report, dict) else {}
         if not isinstance(stats, dict):
@@ -2645,6 +2750,11 @@ class ImportTaskManager:
             try:
                 shutil.rmtree(old, ignore_errors=True)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "清理转换备份失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
 
     def _verify_convert_output(self, output_dir: Path) -> Dict[str, Any]:
@@ -2688,6 +2798,11 @@ class ImportTaskManager:
                 timeout=self._timeout_config()["convert_preflight_seconds"],
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "依赖预检失败", exception=e)
             logger.warning(f"依赖预检执行失败: {e}", exc_info=True)
             return False, f"依赖预检执行失败: {e}"
 
@@ -2866,6 +2981,11 @@ class ImportTaskManager:
                 shutil.move(str(src_new), str(src_current))
             switched = True
         except Exception as switch_err:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "切换转换存储失败", exception=switch_err)
             logger.warning("操作失败", exc_info=True)
             rollback_info["error"] = str(switch_err)
             # 尝试回滚
@@ -2874,6 +2994,11 @@ class ImportTaskManager:
                     try:
                         shutil.move(str(src_backup), str(dst_original))
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, "回滚转换存储失败", exception=exc)
                         logger.warning("操作异常: %s", exc)
             rollback_info["restored"] = True
             async with self._lock:
@@ -2894,6 +3019,11 @@ class ImportTaskManager:
             try:
                 await self._reload_stores_after_external_migration()
             except Exception as reload_err:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "转换后重载存储失败", exception=reload_err)
                 logger.warning(f"转换后重载存储失败: {reload_err}")
 
         await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
@@ -2956,6 +3086,11 @@ class ImportTaskManager:
             try:
                 store.close()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "关闭时间回填存储失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
 
         async with self._lock:
@@ -3042,6 +3177,11 @@ class ImportTaskManager:
                         async with self._lock:
                             self._record_manifest_import(file_record, content_hash, dedupe_policy, task_id)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "处理导入文件失败", exception=e)
                 logger.warning("操作失败", exc_info=True)
                 await self._set_file_failed(task_id, file_record.file_id, str(e))
 
@@ -3093,6 +3233,11 @@ class ImportTaskManager:
                 try:
                     retry_index_set.add(int(idx))
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "解析重试分块索引失败", exception=exc)
                     logger.warning("操作异常: %s", exc)
             selected_chunks = [chunk for chunk in chunks if int(chunk.chunk.index) in retry_index_set]
             if not selected_chunks:
@@ -3200,6 +3345,11 @@ class ImportTaskManager:
                 elif chunk.type == StrategyKnowledgeType.QUOTE:
                     processed = await current_strategy.extract(chunk)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "抽取导入分块失败", exception=e)
                 logger.warning("操作失败", exc_info=True)
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"抽取失败: {e}")
                 return
@@ -3225,6 +3375,11 @@ class ImportTaskManager:
                 )
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "写入导入分块失败", exception=e)
                 logger.warning("操作失败", exc_info=True)
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"写入失败: {e}")
 
@@ -3580,6 +3735,11 @@ class ImportTaskManager:
                     await self._append_file_warnings(task_id, file_record.file_id, chunk_warnings)
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "写入 JSON 导入分块失败", exception=e)
                 logger.warning("操作失败", exc_info=True)
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"写入失败: {e}")
 
@@ -3744,6 +3904,11 @@ class ImportTaskManager:
                 try:
                     self.plugin.metadata_store.set_relation_vector_state(rel_hash, "none")
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "设置关系向量状态失败", exception=exc)
                     logger.warning("操作异常: %s", exc)
                 return rel_hash
             target_store = self._graph_vector_store()
@@ -3777,6 +3942,11 @@ class ImportTaskManager:
                 await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
                 logger.warning(f"关系向量写入失败，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "写入关系向量失败", exception=exc)
             logger.warning("操作失败", exc_info=True)
             await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
             logger.warning(f"关系向量写入降级，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
@@ -3836,8 +4006,18 @@ class ImportTaskManager:
                 try:
                     return _coerce_import_data_dict(json.loads(txt), context="LLM 抽取结果")
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "解析 LLM 抽取结果失败", exception=exc)
                     logger.warning("操作异常: %s", exc)
             except Exception as err:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "LLM 抽取失败", exception=err)
                 logger.warning("操作失败", exc_info=True)
                 last_error = err
                 if attempt >= retries:
@@ -3904,6 +4084,11 @@ JSON schema:
         try:
             result = await self._llm_call(prompt, resolved_model)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "抽取聊天记录时间失败", exception=e)
             logger.warning(f"chat_log 时间语义抽取失败: {e}")
             return None
 
@@ -3919,6 +4104,11 @@ JSON schema:
         try:
             normalized = normalize_time_meta(raw_time_meta)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "归一化时间元数据失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         has_effective = any(k in normalized for k in ("event_time", "event_time_start", "event_time_end"))
         if not has_effective:
