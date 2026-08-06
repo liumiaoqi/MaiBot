@@ -35,8 +35,12 @@ if TYPE_CHECKING:
         ServiceDescriptor,
         ServiceState,
         ServiceStateSnapshot,
+        SystemHealthLevel,
         SystemHealthView,
     )
+    from src.core.error_escalation.config import ErrorEscalationConfig
+    from src.core.error_escalation.escalator import ErrorEscalationStats
+    from src.core.error_escalation.types import ErrorLevel
     from src.core.startup.types import CoreReadiness, StartupResult
     from src.core.control_message.types import (
         ControlMessage,
@@ -2092,3 +2096,90 @@ class IpcBridgePort(Protocol):
             - continue_flag: False 时请求中断事件链
             - modified_message_dict: 插件修改后的消息字典，None 表示未修改
         """
+
+
+@runtime_checkable
+class ErrorEscalationPort(Protocol):
+    """错误升级梯接口（ZG-14）— 统一错误分级 + 升级梯判定 + 动作分派。
+
+    核心通过此接口上报错误，不依赖 ZG-14 具体实现。适配器层
+    （ErrorEscalationAdapter）是唯一允许导入具体类的地方。
+    对标 Linux __warn / oops_enter / panic + panic_on_* 参数。
+    """
+
+    def report(
+        self,
+        level: "ErrorLevel",
+        message: str,
+        *,
+        component_id: Optional[str] = None,
+        exception: Optional[Exception] = None,
+        taint_flag: Optional["TaintFlag"] = None,
+        once: bool = False,
+    ) -> None:
+        """统一错误上报入口。
+
+        前置条件：level 为 ErrorLevel 枚举（非枚举按 WARN 兜底）；message 非空
+        后置条件：同步动作（LOG/TAINT/COUNT）完成；异步动作（DEGRADE/
+        REPORT_FAULT/CRASH_DUMP/RESTART_COMPONENT/STOP_CORE）create_task
+        派发；NOTIFY（CRITICAL/FATAL 级）发 error.escalation 事件
+        """
+
+    def report_warn(self, count: int, mask_matched: bool = False) -> None:
+        """ZG-7 warn_count 委托入口（warn_count 达阈时调用）。
+
+        前置条件：count ≥ 0；由 ZG-7 在 warn_count 达阈时调用
+        后置条件：ZG-14 执行 DEGRADE 动作（mask_matched=False 时）；
+        ZG-7 不重复触发
+        """
+
+    def get_stats(self) -> "ErrorEscalationStats":
+        """查询当前各等级计数 + 配置开关状态 + 最近升级事件。"""
+
+    def update_config(self, config: "ErrorEscalationConfig") -> None:
+        """运行时热更新配置（对标 sysctl，立即生效不重启）。
+
+        后置条件：后续 report 按新配置判定；审计日志记录变更
+        """
+
+
+@runtime_checkable
+class CrashDumpPort(Protocol):
+    """崩溃快照导出接口（ZG-14 P0-1）— 核心不依赖 crash_dump 具体类。
+
+    - export_on_crash：一次性导出（signal/excepthook 调用，保留原语义）
+    - export_snapshot：多次导出（ZG-14 CRASH_DUMP 动作调用，含上下文）
+    """
+
+    def export_on_crash(self, reason: str) -> None:
+        """一次性导出（首次调用后后续直接返回，spec §5.5.1 规则 1）。"""
+
+    def export_snapshot(self, reason: str, context: Optional[dict] = None) -> None:
+        """多次导出（快照含等级/计数/配置/日志缓冲，规则 3）。"""
+
+
+@runtime_checkable
+class RateLimiterPort(Protocol):
+    """日志抑制联动接口（ZG-14 P1-5）— 对标 Linux console_verbose。
+
+    CRITICAL/FATAL 级上报时临时提高日志显示阈值，确保关键错误不被
+    RateLimiter 采样降级。
+    """
+
+    def set_min_level(self, level: int) -> None:
+        """设置日志最小显示级别（CRITICAL/FATAL 级突破抑制）。"""
+
+
+@runtime_checkable
+class SystemStateMachinePort(Protocol):
+    """系统状态机接口（ZG-6 衔接）— DEGRADE / STOP_CORE 动作委托。
+
+    新增原因：ZG-6 无现有 Protocol（SystemStateMachine 具体类 +
+    SystemLifecycleAdapter 适配器），ZG-14 核心隔离需要 Port 声明。
+    """
+
+    async def trigger_health_level_change(self, new_level: "SystemHealthLevel") -> None:
+        """健康等级变更驱动 READY↔DEGRADING（BOOTING/SHUTTING_DOWN 忽略）。"""
+
+    async def trigger_shutdown(self) -> None:
+        """SHUTDOWN_SIGNAL 幂等守卫，优雅停机（不杀进程，N2 裁决）。"""
