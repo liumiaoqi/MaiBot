@@ -395,7 +395,6 @@ agentlite/
 MiMo-Code
 maibot-plugin-sdk
 skills
-lab
 MemoryConstellations/
 tmp_logs.txt
 check_logger*.py
@@ -405,3 +404,4 @@ memclone
 Science-Discovery/
 importantClone/
 scientific-agent-skills/
+docs/API 文档
