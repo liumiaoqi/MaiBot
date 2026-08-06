@@ -380,11 +380,11 @@ class AgentOrchestrator:
         if not thought_summary:
             return
         try:
-            from src.common.database.database_manager import get_session
+            from src.common.database.database import get_db_session
             from src.common.database.database_model import AgentAutonomyActivity
             from datetime import datetime
 
-            with get_session() as db:
+            with get_db_session() as db:
                 activity = db.query(AgentAutonomyActivity).filter(
                     AgentAutonomyActivity.session_id == self._session_id,
                     AgentAutonomyActivity.agent_id == agent_id,
@@ -405,11 +405,11 @@ class AgentOrchestrator:
     async def _load_thought_summary(self, agent_id: str) -> tuple[str, float]:
         """LS-0: 从 AgentAutonomyActivity 读取 thought_summary 和距上次思考的秒数。"""
         try:
-            from src.common.database.database_manager import get_session
+            from src.common.database.database import get_db_session
             from src.common.database.database_model import AgentAutonomyActivity
             from datetime import datetime
 
-            with get_session() as db:
+            with get_db_session() as db:
                 activity = db.query(AgentAutonomyActivity).filter(
                     AgentAutonomyActivity.session_id == self._session_id,
                     AgentAutonomyActivity.agent_id == agent_id,
@@ -525,10 +525,10 @@ class AgentOrchestrator:
 
                 inner_need_summary = ""
                 try:
-                    from src.common.database.database_manager import get_session
+                    from src.common.database.database import get_db_session
                     from src.common.database.database_model import AgentAutonomyActivity
 
-                    with get_session() as db:
+                    with get_db_session() as db:
                         activity = db.query(AgentAutonomyActivity).filter(
                             AgentAutonomyActivity.session_id == self._session_id,
                             AgentAutonomyActivity.agent_id == self._primary_agent_id,

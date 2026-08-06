@@ -47,37 +47,36 @@ def test_runner_main_fallback_reports_and_keeps_default(tmp_path) -> None:
     reset_error_escalation_port()
 
 
-async def test_orchestrator_fallback_reports_and_keeps_default() -> None:
+async def test_orchestrator_fallback_reports_and_keeps_default(
+    monkeypatch,
+) -> None:
     """orchestrator 降级路径上报 ERROR 且返回原默认 ("", 0.0)。
 
-    注：orchestrator 的 `from src.common.database.database_manager import
-    get_session` 是全 src 不存在的既有坏 import（try 内静默 fallback）——
-    测试用 sys.modules 假模块注入 db 故障，验证 report 被调 + fallback 不变。
+    注：orchestrator 的 database_manager 坏 import 已修复为
+    `src.common.database.database.get_db_session`（contextmanager）——
+    测试 patch get_db_session 注入 db 故障，验证 report 被调 + fallback 不变。
     """
-    import sys
-    import types
+    import contextlib
 
+    import src.common.database.database as database_mod
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
-    def _db_down() -> None:
+    @contextlib.contextmanager
+    def _db_down():
         raise RuntimeError("db down")
+        yield  # pragma: no cover
 
-    fake = types.ModuleType("src.common.database.database_manager")
-    fake.get_session = _db_down
-    sys.modules["src.common.database.database_manager"] = fake
-    try:
-        port = MagicMock()
-        set_error_escalation_port(port)
-        orchestrator = object.__new__(AgentOrchestrator)
-        orchestrator._session_id = "test_session"
+    monkeypatch.setattr(database_mod, "get_db_session", _db_down)
+    port = MagicMock()
+    set_error_escalation_port(port)
+    orchestrator = object.__new__(AgentOrchestrator)
+    orchestrator._session_id = "test_session"
 
-        result = await orchestrator._load_thought_summary("agent_id")
+    result = await orchestrator._load_thought_summary("agent_id")
 
-        assert result == ("", 0.0)
-        _assert_report(port, ErrorLevel.ERROR, "读取思考摘要失败")
-    finally:
-        sys.modules.pop("src.common.database.database_manager", None)
-        reset_error_escalation_port()
+    assert result == ("", 0.0)
+    _assert_report(port, ErrorLevel.ERROR, "读取思考摘要失败")
+    reset_error_escalation_port()
 
 
 async def test_data_capability_fallback_reports_and_keeps_default(
