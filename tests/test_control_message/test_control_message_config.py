@@ -19,7 +19,12 @@ class TestControlMessageSectionConfig:
         assert cfg.system_ignored_kinds == []
         assert cfg.delivery_history_limit == 100
         assert cfg.diffuse_timeout_sec == 5.0
-        assert cfg.force_caller_whitelist == ["watchdog", "service_manager", "system_state_machine"]
+        assert cfg.force_caller_whitelist == [
+            "watchdog",
+            "service_manager",
+            "system_state_machine",
+            "error_escalation",  # ZG-14：FATAL 级 STOP_CORE 前扩散取消信号
+        ]
 
     def test_custom_values(self) -> None:
         cfg = ControlMessageSectionConfig(
@@ -72,4 +77,5 @@ class TestAppConfigPortForwarding:
             "watchdog",
             "service_manager",
             "system_state_machine",
+            "error_escalation",  # ZG-14：FATAL 级 STOP_CORE 前扩散取消信号
         }
