@@ -6977,7 +6977,12 @@ class ControlMessageSectionConfig(ConfigBase):
     """致命扩散超时（秒）。"""
 
     force_caller_whitelist: list[str] = Field(
-        default_factory=lambda: ["watchdog", "service_manager", "system_state_machine"]
+        default_factory=lambda: [
+            "watchdog",
+            "service_manager",
+            "system_state_machine",
+            "error_escalation",  # ZG-14：FATAL 级 STOP_CORE 前扩散取消信号
+        ]
     )
     """force 通道调用方白名单（系统核心层；插件和 WebUI 普通接口不可调用）。"""
 
@@ -7004,6 +7009,49 @@ class TaintedMaskSectionConfig(ConfigBase):
 
     degrade_on_taint_mask: int = Field(default=0)
     """掩码级降级触发掩码（0=禁用，对标 Linux panic_on_taint bitmask 语义）。"""
+
+
+class ErrorEscalationSectionConfig(ConfigBase):
+    """错误升级梯配置类（ZG-14）。
+
+    对标 Linux panic_on_warn / warn_limit / panic_on_oops 参数；9 配置项
+    与 ErrorEscalationConfig 一一对应，全部带默认值。N2 裁决：无任何
+    杀进程语义配置项（最高动作 STOP_CORE 优雅停机）。
+    """
+    __ui_label__ = "错误升级梯"
+    __ui_order__ = 90
+    __ui_parent__ = "system_state"
+
+
+    version: int = Field(default=1)
+    """配置版本号（版本化升级，只改模板 + 新增版本号，不改动 legacy_migration）。"""
+
+    error_on_warn: bool = Field(default=False)
+    """True 时 WARN 上报升级 ERROR（对标 Linux panic_on_warn）。"""
+
+    warn_error_threshold: int = Field(default=0)
+    """WARN 累计达阈升级 ERROR（0=禁用；>0 按计数窗口累计）。"""
+
+    critical_on_error: bool = Field(default=False)
+    """True 时 ERROR 上报升级 CRITICAL（对标 Linux panic_on_oops）。"""
+
+    error_critical_threshold: int = Field(default=0)
+    """ERROR 累计达阈升级 CRITICAL（0=禁用）。"""
+
+    critical_fatal_threshold: int = Field(default=0)
+    """CRITICAL 累计达阈升级 FATAL（0=禁用）。"""
+
+    level_actions: dict[str, list[str]] | None = Field(default=None)
+    """按等级覆盖默认动作集（如 {"warn": ["log"]}；None=用默认动作集）。"""
+
+    count_window_sec: float = Field(default=0.0)
+    """计数窗口（秒；0=全局累计不归零，>0 按窗口归零）。"""
+
+    crash_dump_min_level: str = Field(default="critical")
+    """主动快照最低触发等级（warn/error/critical/fatal）。"""
+
+    storm_min_threshold: int = Field(default=100)
+    """风暴检测独立下限阈值（计数阈值=0 时风暴检测仍用此值）。"""
 
 
 class SystemStateSectionConfig(ConfigBase):

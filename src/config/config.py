@@ -29,6 +29,7 @@ from .official_configs import (
     ControlMessageSectionConfig,
     DebugConfig,
     EmojiConfig,
+    ErrorEscalationSectionConfig,
     ExperimentalConfig,
     ExpressionConfig,
     JargonConfig,
@@ -146,6 +147,9 @@ class Config(ConfigBase):
 
     tainted_mask: TaintedMaskSectionConfig = Field(default_factory=TaintedMaskSectionConfig)
     """污染标记配置类（ZG-7）"""
+
+    error_escalation: ErrorEscalationSectionConfig = Field(default_factory=ErrorEscalationSectionConfig)
+    """错误升级梯配置类（ZG-14）"""
 
     system_state: SystemStateSectionConfig = Field(default_factory=SystemStateSectionConfig)
     """系统生命周期状态机配置类（ZG-6）"""
