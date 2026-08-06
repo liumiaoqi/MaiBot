@@ -1,6 +1,6 @@
 # 铸骨（ZhuGu / ZG）— 研究备忘
 
-> 2026-07-30 创建，CA 整理；2026-08-04 修订，全面刷新进度与路线；2026-08-06 修订，双内核认知
+> 2026-07-30 创建，CA 整理；2026-08-04 修订，全面刷新进度与路线；2026-08-06 修订，双内核认知；2026-08-07 修订，体积异常现状刷新（子代理调研）
 
 ## 计划定义
 
@@ -628,12 +628,18 @@ services:
 
 ### 🟠 体积异常（>1000 行）
 
-9. `official_configs.py` 6,189 行
-10. `web_import_manager.py` 3,901 行
-11. `statistic.py` 2,611 行（与 statistics_service.py 重叠）
-12. `metadata_store.py` 2,626 行
-13. `runtime.py` 1,945 行
-14. `webui/routers/memory.py` 2,399 行
+> 2026-08-07 子代理调研刷新：全部文件一年内 +9%~+18%（无瘦身趋势）；statistic.py 记录过时（已拆好）；拆分优先级见下表。
+
+| # | 文件 | 现状行数（记录） | 判定 | 拆分建议 |
+|---|------|----------------|------|---------|
+| 9 | `src/config/official_configs.py` | 7,090（6,189） | 大但健康：82 个独立配置类，无相互依赖 | 不拆（零行为收益；测试 direct 依赖） |
+| 10 | `src/A_memorix/core/utils/web_import_manager.py` | 4,487（3,901，**已移到 A_memorix**） | 该拆：单类 `ImportTaskManager`（157 方法）堆 7 套导入管道 | **中优先**：按管道拆策略类/mixin（共享实例状态多） |
+| 11 | `src/webui/routers/statistic.py` | **已删除**（2,611） | 重叠问题已解决：拆成 `routers/statistics.py`（169 薄路由）+ `services/statistics_service.py`（525 重服务） | 无需动；**真正剩余大文件：`src/chat/utils/statistic.py`（2,929 行，`StatisticOutputTask` ~2,490 行 HTML 报告生成）**，低优先 |
+| 12 | `src/A_memorix/core/storage/metadata_store.py` | 2,861（2,626） | god class：单类 `MetadataStore` 230 方法覆盖 8 领域 | 中优先但**高风险**：FTS 方法名是 `sparse_bm25.py` 硬契约（`fts_search_bm25` 等）；12+ 调用方依赖单类接口；先拆最孤立的 episode/vector 队列段试水 |
+| 13 | `src/maisaka/runtime.py` | 2,298（1,945） | 大但内聚：对话循环主状态机（`MaisakaHeartFlowChatting` 125 方法） | 低优先：已有 mixin 先例（`focus/`、`display/`），可继续抽 monitor/proactive/deferred 为 mixin |
+| 14 | `src/webui/routers/memory.py` | 2,720（2,399） | 该拆：一个文件聚合 10 个子系统（87 端点 + 1,800 行 helper，比例 1:4） | **高优先**：按端点前缀拆子 router（graph/import/tuning/timeline...）；无外部模块依赖（仅 routes.py 引 router/compat_router），风险最低 |
+
+**共同风险**：metadata_store FTS 方法名 = sparse_bm25 硬契约；official_configs 有测试 direct 依赖；runtime/web_import_manager 是内核活跃调用点——拆分需保留公开接口或加兼容层。
 
 ### ⚪ NotImplementedError/桩实现
 
