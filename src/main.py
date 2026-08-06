@@ -339,6 +339,9 @@ class MainSystem:
         # ZG-7: 污染标记接线（适配器实例化 + 注册 + CrashDump 注入）
         await self._init_tainted_mask()
 
+        # ZG-14: 错误升级梯接线（依赖 ZG-7/ZG-8 已注入）
+        await self._init_error_escalation()
+
         # ZG-5: 资源限制接线（引擎 75 测试零接线收尾——registry + 实例化 + kill 回调）
         await self._init_resource_limit()
 
@@ -431,6 +434,47 @@ class MainSystem:
 
         # TAINT_PORT_BYPASS（位0）运行时守卫：检查核心模块是否违规导入禁止项
         self._check_port_bypass_violations()
+
+    async def _init_error_escalation(self) -> None:
+        """ZG-14 错误升级梯接线（适配器实例化 + 各 Port 注入 + 注册 + ZG-7 委托）。
+
+        依赖：app_config / tainted_mask / lifecycle_sm / service_manager /
+        event_bus / control_message / crash_dump / rate_limiter 均已就绪
+        （在 _init_control_message 与 _init_tainted_mask 之后接线）。
+        注入失败时 ZG-7 回退独立运行（spec §5.9.3 异常场景 1）。
+        """
+        try:
+            from src.common.logger import _crash_dump, _rate_limiter
+            from src.core.app_config_port_registry import get_app_config_port
+            from src.core.control_message_port_registry import get_control_message_port
+            from src.core.error_escalation.adapter import ErrorEscalationAdapter
+            from src.core.error_escalation_port_registry import set_error_escalation_port
+            from src.core.event_bus_port_registry import get_event_bus_port
+        except Exception:
+            logger.warning("ZG-14 接线依赖导入失败，已降级跳过（ZG-7 独立运行）", exc_info=True)
+            return
+
+        adapter = ErrorEscalationAdapter(
+            app_config_port=get_app_config_port(),
+            taint_mask_port=self._taint_mask,
+            state_machine_port=self._lifecycle_sm,
+            service_manager_port=self._service_manager,
+            event_bus_port=get_event_bus_port(),
+            crash_dump_port=_crash_dump,
+            rate_limiter_port=_rate_limiter,
+            control_message_port=get_control_message_port(),
+        )
+        self._error_escalation = adapter
+        set_error_escalation_port(adapter)
+
+        # ZG-7 委托注入：warn_count 达阈委托升级梯（spec §5.9.1）
+        if self._taint_mask is not None:
+            try:
+                self._taint_mask.set_error_escalation_port(adapter)
+            except Exception:
+                logger.warning("ZG-7 委托注入失败，回退独立运行", exc_info=True)
+
+        logger.info("ZG-14 错误升级梯已接线")
 
     def _check_port_bypass_violations(self) -> None:
         """ZG-7 位0 守卫：运行时检测核心模块绕过 Protocol 直接导入禁止项。

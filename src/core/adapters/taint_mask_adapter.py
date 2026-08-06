@@ -26,6 +26,7 @@ class TaintMaskAdapter(TaintedMaskPort):
         self,
         state_machine_port: Any = None,
         app_config_port: Any = None,
+        error_escalation_port: Any = None,
     ) -> None:
         """初始化适配器并加载配置。
 
@@ -34,6 +35,8 @@ class TaintMaskAdapter(TaintedMaskPort):
                 None 时降级为 WARN）
             app_config_port: AppConfigPort（加载 on_taint / warn_limit / preset_mask，
                 None 时使用默认值）
+            error_escalation_port: ZG-14 ErrorEscalationPort（warn_count 达阈委托，
+                None 时保留原 TRIGGER_DEGRADE 兜底，spec §5.9.1 规则 2）
         """
         self._state_machine_port = state_machine_port
         self._app_config_port = app_config_port
@@ -49,6 +52,7 @@ class TaintMaskAdapter(TaintedMaskPort):
             state_machine_port=state_machine_port,
             preset_mask=preset_mask,
             degrade_on_taint_mask=degrade_on_taint_mask,
+            error_escalation_port=error_escalation_port,
         )
 
     def _load_on_taint_config(self) -> dict[TaintFlag, Any]:
@@ -104,6 +108,12 @@ class TaintMaskAdapter(TaintedMaskPort):
             mark_exception_swallowed()
             logger.warning("degrade_on_taint_mask 配置读取失败，使用默认 0", exc_info=True)
             return 0
+
+    # ── 委托注入 ───────────────────────────────────────────────
+
+    def set_error_escalation_port(self, port: Any) -> None:
+        """运行时注入 ZG-14 ErrorEscalationPort（ZG-14 T3.4 启动接线）。"""
+        self._tainted_mask.set_error_escalation_port(port)
 
     # ── TaintedMaskPort 委托 ─────────────────────────────────────
 

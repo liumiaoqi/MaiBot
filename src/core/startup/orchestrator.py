@@ -9,6 +9,7 @@ import asyncio
 import time
 
 from src.common.logger import get_logger
+from src.core.error_escalation.types import ErrorLevel
 from src.core.service_manager.dependency_graph import DependencyGraph
 from src.core.startup.arbiter import CoreReadinessBarrier, StartupArbiter, WavePlan
 from src.core.startup.declaration import StartupItemDesc, _registry
@@ -254,6 +255,10 @@ class StartupOrchestrator:
                 state = self._runtime_states[name]
                 if state.status == ComponentStatus.FAILED:
                     failed.append(name)
+                    # ZG-14 接入（design §1.1.2）：启动失败上报 CRITICAL，
+                    # 由升级梯分派 RESTART_COMPONENT；FailurePropagator
+                    # 现有 STRONG→SKIPPED / WEAK→DEGRADED 语义不变
+                    self._report_startup_failure(name)
                     if self._graph is not None:
                         prop = propagator.propagate(name, self._graph, {
                             n: s.status for n, s in self._runtime_states.items()
@@ -288,6 +293,25 @@ class StartupOrchestrator:
             duration_ms=int((end - start) * 1000),
             components=[],
         )
+
+    def _report_startup_failure(self, component_id: str) -> None:
+        """经 registry 获取 ZG-14 Port 上报启动失败（未注入跳过不影响传播）。
+
+        通过 Protocol + 运行时注入获取，不直接导入 ZG-14 具体类
+        （spec §5.7.1 规则 9）；上报失败仅记日志。
+        """
+        try:
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(
+                    ErrorLevel.CRITICAL,
+                    f"启动失败: {component_id}",
+                    component_id=component_id,
+                )
+        except Exception as e:
+            logger.warning("ZG-14 启动失败上报出错，传播继续: %s", e)
 
     def _mark_phase_skipped(
         self, phase: StartupPhase, skipped: list[str], reason: str

@@ -222,6 +222,11 @@ class AgentOrchestrator:
                     f"agent={mentioned_agent_id} emotion=happy delta=5.0"
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "更新插话提及情绪失败", exception=exc)
                 logger.warning(
                     f"[agent_autonomy] 插话提及情绪更新失败: "
                     f"agent={mentioned_agent_id} error={exc}"
@@ -268,6 +273,11 @@ class AgentOrchestrator:
                     f"event_id={result.event_id}"
                 )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插话反哺交互失败", exception=exc)
             logger.warning(
                 f"[agent_autonomy] 插话反哺交互失败: error={exc}"
             )
@@ -355,7 +365,12 @@ class AgentOrchestrator:
                 self._experience_writer.write_experience(
                     result, self._session_id, agent_id, emotion_state,
                 )
-            except Exception:
+            except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "写入体验失败", exception=e)
                 logger.warning(
                     "体验写入发起失败: agent=%s", agent_id, exc_info=True,
                 )
@@ -379,7 +394,12 @@ class AgentOrchestrator:
                     activity.thought_summary = thought_summary[:500]
                     activity.last_think_at = datetime.now()
                     db.commit()
-        except Exception:
+        except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "持久化思考摘要失败", exception=e)
             logger.debug("thought_summary 持久化跳过: agent=%s", agent_id, exc_info=True)
 
     async def _load_thought_summary(self, agent_id: str) -> tuple[str, float]:
@@ -400,7 +420,12 @@ class AgentOrchestrator:
                     if activity.last_think_at:
                         elapsed = (datetime.now() - activity.last_think_at).total_seconds()
                     return activity.thought_summary, elapsed
-        except Exception:
+        except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "读取思考摘要失败", exception=e)
             logger.debug("thought_summary 读取跳过: agent=%s", agent_id, exc_info=True)
         return "", 0.0
 
@@ -475,6 +500,11 @@ class AgentOrchestrator:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "提醒心跳执行失败", exception=exc)
                 logger.warning(f"[agent_autonomy] 提醒心跳异常: error={exc}")
 
     async def _desire_tick_loop(self) -> None:
@@ -506,7 +536,12 @@ class AgentOrchestrator:
                         ).first()
                         if activity is not None and activity.inner_need_summary:
                             inner_need_summary = activity.inner_need_summary
-                except Exception:
+                except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "读取欲求摘要失败", exception=e)
                     pass
 
                 if not inner_need_summary:
@@ -561,6 +596,11 @@ class AgentOrchestrator:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "欲求心跳执行失败", exception=exc)
                 logger.warning(f"[agent_autonomy] 欲求心跳异常: error={exc}")
 
     @property
@@ -618,7 +658,12 @@ class AgentOrchestrator:
                 control_port = get_control_message_port()
                 if control_port is not None:
                     await control_port.declare_unkillable(agent_id, "agent")
-            except Exception:
+            except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "声明智能体不可杀失败", exception=e)
                 pass
 
             # 注入共居状态摘要生成器到 PromptBuilder
@@ -664,6 +709,11 @@ class AgentOrchestrator:
 
             return True
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "激活智能体失败", exception=exc)
             logger.error(
                 f"[agent_autonomy] agent={agent_id} action=activate_failed "
                 f"error={exc}"
@@ -727,7 +777,12 @@ class AgentOrchestrator:
             control_port = get_control_message_port()
             if control_port is not None:
                 await control_port.clear_unkillable(agent_id)
-        except Exception:
+        except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "清除智能体不可杀声明失败", exception=e)
             pass
 
         self._lifecycle_manager.transition(
@@ -871,6 +926,11 @@ class AgentOrchestrator:
                             f"context={reminder.context}"
                         )
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "创建管家提醒失败", exception=exc)
                     logger.warning(f"[agent_autonomy] 管家提醒创建异常: error={exc}")
 
             session_message_event = SessionMessageEvent(
@@ -933,6 +993,11 @@ class AgentOrchestrator:
                                 if new_primary:
                                     await self._trigger_new_primary_think(new_primary, content)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "管家发言权转移决策失败", exception=exc)
                     logger.warning(f"[agent_autonomy] 管家发言权转移决策异常: error={exc}")
 
 
@@ -1104,6 +1169,11 @@ class AgentOrchestrator:
                                     )
                         return ""
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "发言权转移评估失败", exception=exc)
                     logger.warning(f"[agent_autonomy] 发言权转移评估异常: error={exc}")
                     # 降级：管家接管
                     if self._butler is not None and content:
@@ -1115,6 +1185,11 @@ class AgentOrchestrator:
                             if butler_sent:
                                 self._butler.update_primary_status("butler_takeover")
                         except Exception as exc2:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.ERROR, "管家接管发言失败", exception=exc2)
                             logger.warning(f"[agent_autonomy] 管家接管异常: error={exc2}")
             return ""
         return ""
@@ -1167,6 +1242,11 @@ class AgentOrchestrator:
                 f"session={self._session_name} sender={sender_id}"
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理环境通知失败", exception=exc)
             logger.warning(f"[agent_autonomy] ambient_notice处理异常: {exc}")
 
     async def handle_interaction_signal(self, event: Any) -> None:
@@ -1208,6 +1288,11 @@ class AgentOrchestrator:
                     self._persist_behavior_intent(target_agent_id, intent)
 
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理交互信号失败", exception=exc)
             logger.warning(
                 f"[agent_autonomy] 交互信号处理异常: session={self._session_name} error={exc}"
             )
@@ -1243,6 +1328,11 @@ class AgentOrchestrator:
                 expired_at=expired_at,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "持久化行为意图失败", exception=exc)
             logger.warning(
                 f"[agent_autonomy] 行为意图持久化失败: agent={agent_id} error={exc}"
             )
@@ -1289,6 +1379,11 @@ class AgentOrchestrator:
                         f"session={self._session_name}"
                     )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "评估感知规则失败", exception=exc)
                 logger.warning(f"[agent_autonomy] 感知规则评估异常: error={exc}")
 
         tasks: list[tuple[str, asyncio.Task]] = []
@@ -1310,6 +1405,11 @@ class AgentOrchestrator:
                     self.report_intent(agent_id, intent)
                     self._persist_behavior_intent(agent_id, intent)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "收集行为意图失败", exception=exc)
                 logger.warning(
                     f"[agent_autonomy] 行为意图收集异常: "
                     f"agent={agent_id} error={exc}"
@@ -1410,6 +1510,11 @@ class AgentOrchestrator:
                         f"speaker={speaker_agent_id} mentioned={agent.agent_id}"
                     )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "检测插话提及失败", exception=exc)
             logger.warning(
                 f"[agent_autonomy] 插话提及检测异常: error={exc}"
             )
@@ -1480,6 +1585,11 @@ class AgentOrchestrator:
                 if cleaned > 0:
                     session.commit()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "清理过期意图失败", exception=exc)
             logger.warning(f"[agent_autonomy] 清理过期意图异常: error={exc}")
 
         if cleaned > 0:
@@ -1536,7 +1646,12 @@ class AgentOrchestrator:
             if isinstance(items, list) and items:
                 memory_snippets = self._format_layered_memory_snippets(items)
             intuition_context = getattr(recall_result, "intuition", None)
-        except Exception:
+        except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "记忆检索失败", exception=e)
             logger.warning("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
 
         # LS-0: 读取上次思考摘要
@@ -1696,4 +1811,9 @@ class AgentOrchestrator:
                         await rel_manager.update_coactivation(primary_id, aid, _COACTIVATION_DELTA_MENTION)
                         await rel_manager.update_coactivation(aid, primary_id, _COACTIVATION_DELTA_MENTION)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "更新共激活状态失败", exception=exc)
             logger.debug(f"[agent_autonomy] 共激活更新跳过: error={exc}")

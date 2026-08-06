@@ -335,6 +335,11 @@ def _install_shutdown_signal_handlers(
         try:
             target_loop.add_signal_handler(sig, mark_runner_shutting_down)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "注册信号处理器失败", exception=exc)
             if not isinstance(exc, (NotImplementedError, RuntimeError)):
                 raise
             logger.warning(f"当前事件循环不支持注册 Runner 信号处理器: {exc}")
@@ -579,6 +584,11 @@ class PluginRunner:
             with open(debug_file, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "写入 RPC 诊断文件失败", exception=exc, component_id=self._runner_group)
             logger.warning(f"写入 Runner RPC 诊断文件失败: {exc}")
 
     async def _write_debug_event(self, event: str, payload: Dict[str, Any]) -> None:
@@ -885,6 +895,11 @@ class PluginRunner:
             try:
                 cast(_ConfigAwarePlugin, instance).set_plugin_config(plugin_config)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.CRITICAL, "注入插件配置失败", exception=exc, component_id=self._runner_group)
                 logger.warning(f"插件 {meta.plugin_id} 配置注入失败: {exc}")
         return plugin_config
 
@@ -925,6 +940,11 @@ class PluginRunner:
                 elif not raw_config:
                     config_for_normalize = rebuild_plugin_config_data(latest_default_config, {})
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "检查插件配置版本失败", exception=exc, component_id=self._runner_group)
             if not suppress_errors:
                 raise
             logger.warning(f"插件配置版本检查失败，将回退为原始配置: {exc}")
@@ -946,6 +966,11 @@ class PluginRunner:
                 config_for_normalize
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "归一化插件配置失败", exception=exc, component_id=self._runner_group)
             if not suppress_errors:
                 raise
             logger.warning(f"插件配置归一化失败，将回退为原始配置: {exc}")
@@ -1098,6 +1123,11 @@ class PluginRunner:
                         handle.write(tomlkit.dumps(existing_document))
                     return
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.CRITICAL, "保留插件配置注释失败", exception=exc)
                 logger.warning(f"保留插件配置注释失败，将回退为整文件重写: {config_path}: {exc}")
 
         with config_path.open("w", encoding="utf-8") as handle:
@@ -1115,6 +1145,11 @@ class PluginRunner:
             with config_path.open("rb") as handle:
                 loaded = tomllib.load(handle)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "读取插件配置失败", exception=exc)
             logger.warning(f"读取插件配置失败 {config_path}: {exc}")
             return {}
 
@@ -1165,6 +1200,11 @@ class PluginRunner:
         try:
             meta = self._loader.load_candidate(plugin_id, candidate)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析插件元数据失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return None, False, str(exc)
         if meta is None:
@@ -1304,6 +1344,11 @@ class PluginRunner:
                 raise RuntimeError(response.error.get("message", "插件 bootstrap 失败"))
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "插件 bootstrap 失败", exception=e, component_id=self._runner_group)
             logger.error(f"插件 {meta.plugin_id} bootstrap 失败: {e}")
             return False
 
@@ -1418,6 +1463,11 @@ class PluginRunner:
             logger.info(f"插件 {meta.plugin_id} 注册完成")
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "注册插件失败", exception=e, component_id=self._runner_group)
             logger.error(f"插件 {meta.plugin_id} 注册失败: {e}")
             return False
 
@@ -1437,6 +1487,11 @@ class PluginRunner:
         try:
             default_config = cast(_ConfigAwarePlugin, instance).get_default_config()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "读取插件默认配置失败", exception=exc)
             logger.warning(f"读取插件默认配置失败: {exc}")
             return {}
         return default_config if isinstance(default_config, dict) else {}
@@ -1464,6 +1519,11 @@ class PluginRunner:
                 plugin_author=meta.manifest.author.name,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "构造插件配置 Schema 失败", exception=exc)
             logger.warning(f"构造插件配置 Schema 失败: {exc}")
             return {}
         return schema if isinstance(schema, dict) else {}
@@ -1484,6 +1544,11 @@ class PluginRunner:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "注销插件失败", exception=exc, component_id=self._runner_group)
             logger.warning(f"插件 {plugin_id} 注销通知失败: {exc}")
 
     async def _invoke_plugin_on_load(self, meta: PluginMeta) -> bool:
@@ -1503,6 +1568,11 @@ class PluginRunner:
             await self._invoke_plugin_callable(instance.on_load)
             return True
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "执行插件加载回调失败", exception=exc, component_id=self._runner_group)
             logger.error(f"插件 {meta.plugin_id} on_load 失败: {exc}", exc_info=True)
             return False
 
@@ -1519,6 +1589,11 @@ class PluginRunner:
         try:
             await self._invoke_plugin_callable(instance.on_unload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "执行插件卸载回调失败", exception=exc, component_id=self._runner_group)
             logger.error(f"插件 {meta.plugin_id} on_unload 失败: {exc}", exc_info=True)
 
     async def _activate_plugin(self, meta: PluginMeta) -> PluginActivationStatus:
@@ -1538,6 +1613,11 @@ class PluginRunner:
             self._loader.purge_plugin_modules(meta.plugin_id, meta.plugin_dir)
             return PluginActivationStatus.FAILED
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "加载插件配置失败", exception=exc, component_id=self._runner_group)
             logger.error(f"插件 {meta.plugin_id} 配置加载失败: {exc}", exc_info=True)
             self._loader.purge_plugin_modules(meta.plugin_id, meta.plugin_dir)
             return PluginActivationStatus.FAILED
@@ -1888,6 +1968,11 @@ class PluginRunner:
                         purge_modules=False,
                     )
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.CRITICAL, "插件重载回滚失败", exception=exc, component_id=self._runner_group)
                     logger.warning("操作异常 in runner_main.py", exc_info=True)
                     rollback_failures[reloaded_plugin_id] = f"清理失败: {exc}"
                 finally:
@@ -1901,6 +1986,11 @@ class PluginRunner:
                 try:
                     restored = await self._activate_plugin(rollback_meta)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.CRITICAL, "插件重载回滚失败", exception=exc, component_id=self._runner_group)
                     logger.warning("操作异常 in runner_main.py", exc_info=True)
                     rollback_failures[rollback_plugin_id] = str(exc)
                     continue
@@ -1962,6 +2052,11 @@ class PluginRunner:
         try:
             invoke = InvokePayload.model_validate(envelope.payload)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析插件调用请求失败", exception=e, component_id=self._runner_group)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(e))
 
         plugin_id = envelope.plugin_id
@@ -1988,6 +2083,11 @@ class PluginRunner:
                     resp_payload = InvokeResultPayload(success=True, result=result)
                     return envelope.make_response(payload=resp_payload.model_dump())
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.CRITICAL, "执行插件组件调用失败", exception=e, component_id=self._runner_group)
                     logger.error(f"插件 {plugin_id} 组件 {component_name} (legacy) 执行异常: {e}", exc_info=True)
                     resp_payload = InvokeResultPayload(success=False, result=str(e))
                     return envelope.make_response(payload=resp_payload.model_dump())
@@ -2003,6 +2103,11 @@ class PluginRunner:
                 resp_payload = InvokeResultPayload(success=True, result=result)
                 return envelope.make_response(payload=resp_payload.model_dump())
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.CRITICAL, "执行插件组件调用失败", exception=e, component_id=self._runner_group)
                 logger.error(f"插件 {plugin_id} 组件 {component_name} 执行异常: {e}", exc_info=True)
                 resp_payload = InvokeResultPayload(success=False, result=str(e))
                 return envelope.make_response(payload=resp_payload.model_dump())
@@ -2021,6 +2126,11 @@ class PluginRunner:
         try:
             invoke = LLMProviderInvokePayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析 LLM 调用请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -2050,6 +2160,11 @@ class PluginRunner:
             resp_payload = InvokeResultPayload(success=True, result=result)
             return envelope.make_response(payload=resp_payload.model_dump())
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "调用 LLM Provider 失败", exception=exc, component_id=self._runner_group)
             logger.error(
                 f"插件 {plugin_id} LLM Provider {invoke.client_type} 执行异常: {exc}",
                 exc_info=True,
@@ -2069,6 +2184,11 @@ class PluginRunner:
         try:
             invoke = InvokePayload.model_validate(envelope.payload)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析事件处理请求失败", exception=e, component_id=self._runner_group)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(e))
 
         plugin_id = envelope.plugin_id
@@ -2110,6 +2230,11 @@ class PluginRunner:
 
             return envelope.make_response(payload=result)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "执行插件事件处理失败", exception=e, component_id=self._runner_group)
             logger.error(f"插件 {plugin_id} event_handler {component_name} 执行异常: {e}", exc_info=True)
             return envelope.make_response(payload={"success": False, "continue_processing": True})
         finally:
@@ -2127,6 +2252,11 @@ class PluginRunner:
         try:
             invoke = InvokePayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析 Hook 调用请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -2151,6 +2281,11 @@ class PluginRunner:
             try:
                 raw = await self._invoke_plugin_callable(handler_method, **invoke.args)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.CRITICAL, "执行插件 Hook 失败", exception=exc, component_id=self._runner_group)
                 logger.error(f"插件 {plugin_id} hook_handler {component_name} 执行异常: {exc}", exc_info=True)
                 return envelope.make_response(
                     payload={
@@ -2220,6 +2355,11 @@ class PluginRunner:
         try:
             payload = ConfigUpdatedPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析配置更新请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -2240,6 +2380,11 @@ class PluginRunner:
                     payload.config_version,
                 )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.CRITICAL, "更新插件配置失败", exception=e, component_id=self._runner_group)
                 logger.error(f"插件 {plugin_id} 配置更新失败: {e}")
                 return envelope.make_error_response(ErrorCode.E_UNKNOWN.value, str(e))
             finally:
@@ -2259,6 +2404,11 @@ class PluginRunner:
         try:
             payload = InspectPluginConfigPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析配置检查请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -2279,6 +2429,11 @@ class PluginRunner:
                 enforce_version=not payload.use_provided_config,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "检查插件配置失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
         finally:
@@ -2300,6 +2455,11 @@ class PluginRunner:
         try:
             payload = ValidatePluginConfigPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析配置校验请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -2320,6 +2480,11 @@ class PluginRunner:
                 enforce_version=True,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "校验插件配置失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
         finally:
@@ -2345,6 +2510,11 @@ class PluginRunner:
         try:
             payload = ReloadPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析重载请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -2368,6 +2538,11 @@ class PluginRunner:
         try:
             payload = ReloadPluginsPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "解析批量重载请求失败", exception=exc, component_id=self._runner_group)
             logger.warning("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 

@@ -1,7 +1,7 @@
 """GlobalConfigAppConfigPort — 从 global_config 各域读取应用配置。"""
 
 
-from typing import Any
+from typing import Any, Optional
 
 from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
 from src.core.types import CacheCleanupConfig, MaimMessageConfigSnapshot, PluginRuntimeRenderSnapshot, PluginRuntimeSnapshot
@@ -397,6 +397,24 @@ class GlobalConfigAppConfigPort:
 
     def get_control_message_force_caller_whitelist(self) -> set[str]:
         return set(self._get_cfg().control_message.force_caller_whitelist)
+
+    def get_error_escalation_config(self) -> Optional[dict]:
+        """获取错误升级梯配置域（ZG-14；字段缺失按默认，异常回退 None 全默认）。"""
+        try:
+            section = self._get_cfg().error_escalation
+        except AttributeError:
+            return None
+        return {
+            "error_on_warn": section.error_on_warn,
+            "warn_error_threshold": section.warn_error_threshold,
+            "critical_on_error": section.critical_on_error,
+            "error_critical_threshold": section.error_critical_threshold,
+            "critical_fatal_threshold": section.critical_fatal_threshold,
+            "level_actions": section.level_actions,
+            "count_window_sec": section.count_window_sec,
+            "crash_dump_min_level": section.crash_dump_min_level,
+            "storm_min_threshold": section.storm_min_threshold,
+        }
 
     def get_taint_on_taint(self) -> dict[str, str]:
         """获取污染动作映射（key=标志名，value=动作；缺省仅记录，默认空 dict）。"""

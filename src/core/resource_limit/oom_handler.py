@@ -12,6 +12,7 @@ import uuid
 from collections import deque
 from typing import Any, Callable, Optional
 
+from src.core.error_escalation.types import ErrorLevel
 from src.core.resource_limit.types import (
     OOMAction,
     OOMDecision,
@@ -120,7 +121,12 @@ class OOMHandler:
         # ── 锁外：所有 await（CX 审查 P3 修正）──────────────────
 
         if unresolved:
-            # 无可用受害者：锁外发布事件后返回
+            # 无可用受害者：上报 FATAL（OOM 无法处置）+ 锁外发布事件后返回
+            self._report_oom(
+                ErrorLevel.FATAL,
+                "OOM 无可用受害者（全受保护或树空），系统资源无法回收",
+                component_id=None,
+            )
             if self._event_bus:
                 try:
                     await self._event_bus.emit("resource.oom_unresolvable", {
@@ -164,6 +170,16 @@ class OOMHandler:
                 mark_exception_swallowed()
                 logger.error("故障上报失败，OOM 流程继续: %s", e)
 
+        # ZG-14 接入（design §1.1.2）：KILL 处置前上报 CRITICAL。
+        # 代码当前仅 KILL 路径（OOMAction.DEGRADE 未启用），KILL 前按
+        # 烈度上报 CRITICAL；DEGRADE 路径启用后在其前补 report(WARN)。
+        if decision is not None and victim is not None:
+            self._report_oom(
+                ErrorLevel.CRITICAL,
+                "OOM 触发 KILL 处置",
+                component_id=decision.victim_plugin_id,
+            )
+
         # 异步处置（oom_lock 已释放）
         if decision is not None and record is not None:
             task = asyncio.create_task(
@@ -172,6 +188,21 @@ class OOMHandler:
             self._reap_tasks[decision.decision_id] = task
 
         return decision
+
+    def _report_oom(self, level: ErrorLevel, message: str, *, component_id: Optional[str]) -> None:
+        """经 registry 获取 ZG-14 Port 上报（未注入跳过，不影响原 OOM 处置）。
+
+        通过 Protocol + 运行时注入获取，不直接导入 ZG-14 具体类
+        （spec §5.7.1 规则 9）；上报失败仅记日志不影响原处置。
+        """
+        try:
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(level, message, component_id=component_id)
+        except Exception as e:
+            logger.warning("ZG-14 上报失败，OOM 处置继续: %s", e)
 
     def _select_victim(self, dimension: ResourceDimension) -> Optional[Any]:
         """选受害者：跳过 usage < min 的硬保护插件，选资源消耗最大者。"""

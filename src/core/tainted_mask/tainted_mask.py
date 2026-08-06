@@ -42,6 +42,7 @@ class TaintedMask:
         time_func: Callable[[], float] = time.time,
         preset_mask: int = 0,
         degrade_on_taint_mask: int = 0,
+        error_escalation_port: Any = None,
     ) -> None:
         """初始化污染位图。
 
@@ -53,6 +54,8 @@ class TaintedMask:
             time_func: 时间函数注入点（测试可替换，spec §5.3 规则 4）
             preset_mask: 预置位掩码（对标 CONFIG_RANDSTRUCT 预置，spec §2.1.1 规则 4）
             degrade_on_taint_mask: 掩码级降级触发掩码（0=禁用，对标 Linux panic_on_taint）
+            error_escalation_port: ZG-14 ErrorEscalationPort（warn_count 达阈时
+                委托升级梯，spec §5.9.1；None 时保留原 TRIGGER_DEGRADE 兜底）
 
         Raises:
             ValueError: preset_mask 或 degrade_on_taint_mask 超范围（> TAINT_FLAGS_MAX）
@@ -70,6 +73,15 @@ class TaintedMask:
         self._time_func = time_func
         self._state_machine_port = state_machine_port
         self._degrade_on_taint_mask: int = degrade_on_taint_mask
+        self._error_escalation_port = error_escalation_port
+
+    def set_error_escalation_port(self, port: Any) -> None:
+        """运行时注入 ZG-14 ErrorEscalationPort（启动接线顺序依赖，ZG-14 T3.4）。
+
+        与 state_machine_port 同理：模块级实例在启动早期创建，Port 后期
+        才实例化，用 setter 注入而非构造参数。
+        """
+        self._error_escalation_port = port
 
     # ── 置位 / 查询 ──────────────────────────────────────────────
 
@@ -150,6 +162,18 @@ class TaintedMask:
             return
         self._warn_count += 1
         if self._warn_limit > 0 and self._warn_count >= self._warn_limit:
+            # ZG-14 委托（spec §5.9.1 规则 1/3）：port 注入时达阈委托升级梯，
+            # mask_matched 原样传递（ZG-14 跳过重复 DEGRADE）；未注入时保留
+            # 原 TRIGGER_DEGRADE 兜底（规则 2，不退化）
+            if self._error_escalation_port is not None:
+                logger.info(
+                    "warn_count=%d 达到 warn_limit=%d，委托 ZG-14 升级梯（mask_matched=%s）",
+                    self._warn_count,
+                    self._warn_limit,
+                    mask_matched,
+                )
+                self._error_escalation_port.report_warn(count=self._warn_count, mask_matched=mask_matched)
+                return
             if mask_matched:
                 logger.info(
                     "warn_count=%d 达到 warn_limit=%d，但掩码已触发降级，跳过阈值降级",

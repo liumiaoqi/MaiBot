@@ -148,6 +148,11 @@ async def list_agents():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取智能体列表失败", exception=e)
         logger.error(f"获取智能体列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体列表失败") from e
 
@@ -163,6 +168,11 @@ async def get_agent_detail(agent_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取智能体详情失败", exception=e)
         logger.error(f"获取智能体详情失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体详情失败") from e
 
@@ -192,6 +202,11 @@ async def get_agent_emotion(agent_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取智能体情绪状态失败", exception=e)
         logger.error(f"获取智能体情绪状态失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体情绪状态失败") from e
 
@@ -224,6 +239,11 @@ async def get_agent_relationships(agent_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取智能体关系概览失败", exception=e)
         logger.error(f"获取智能体关系概览失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体关系概览失败") from e
 
@@ -247,6 +267,11 @@ async def get_session_binding(session_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取会话绑定失败", exception=e)
         logger.error(f"获取会话绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取会话绑定失败") from e
 
@@ -269,6 +294,11 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
                     db_session.agent_id = primary_agent
                     db.add(db_session)
         except Exception as db_exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "绑定会话写入数据库失败", exception=db_exc)
             agent_router.unbind_session(session_id, request.agent_id)
             logger.error(f"绑定写入数据库失败，已回滚内存绑定: session={session_id}, agent={request.agent_id}, error={db_exc}")
             raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定写入数据库失败") from db_exc
@@ -281,6 +311,11 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
             if orchestrator is not None:
                 orchestrator.activate_agent(request.agent_id, "manual_binding", is_primary=is_primary)
         except Exception as orch_exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "绑定触发智能体激活失败", exception=orch_exc)
             logger.warning(f"绑定触发Orchestrator激活失败（不影响绑定结果）: session={session_id}, agent={request.agent_id}, error={orch_exc}")
 
         try:
@@ -293,6 +328,11 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
                 activation_reason="manual_binding",
             )
         except Exception as act_exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "绑定写入活动记录失败", exception=act_exc)
             logger.warning(f"绑定写入Activity记录失败（不影响绑定结果）: session={session_id}, agent={request.agent_id}, error={act_exc}")
 
         registry = _get_registry()
@@ -306,6 +346,11 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "绑定会话智能体失败", exception=e)
         logger.error(f"绑定会话智能体失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定会话智能体失败") from e
 
@@ -324,6 +369,11 @@ async def unbind_session_agent(session_id: str):
                 if orchestrator is not None and aid in orchestrator._active_agents:
                     orchestrator.deactivate_agent(aid, "manual_unbind")
             except Exception as orch_exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARN, "解绑时智能体退场失败", exception=orch_exc)
                 logger.warning(f"解绑时Orchestrator退场失败（继续清除）: session={session_id}, agent={aid}, error={orch_exc}")
 
             try:
@@ -331,6 +381,11 @@ async def unbind_session_agent(session_id: str):
 
                 AgentActivityStore().deactivate(session_id, aid, "manual_unbind")
             except Exception as act_exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARN, "解绑时活动记录关闭失败", exception=act_exc)
                 logger.warning(f"解绑时Activity关闭失败（继续清除）: session={session_id}, agent={aid}, error={act_exc}")
 
         agent_router.unbind_session(session_id)
@@ -346,6 +401,11 @@ async def unbind_session_agent(session_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "解除会话绑定失败", exception=e)
         logger.error(f"解除会话绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除会话绑定失败") from e
 
@@ -362,6 +422,11 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
             if orchestrator is not None and agent_id in orchestrator._active_agents:
                 orchestrator.deactivate_agent(agent_id, "manual_unbind")
         except Exception as orch_exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "解绑时智能体退场失败", exception=orch_exc)
             logger.warning(f"解绑时Orchestrator退场失败（继续清除）: session={session_id}, agent={agent_id}, error={orch_exc}")
 
         try:
@@ -369,6 +434,11 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
 
             AgentActivityStore().deactivate(session_id, agent_id, "manual_unbind")
         except Exception as act_exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "解绑时活动记录关闭失败", exception=act_exc)
             logger.warning(f"解绑时Activity关闭失败（继续清除）: session={session_id}, agent={agent_id}, error={act_exc}")
 
         agent_router.unbind_session(session_id, agent_id)
@@ -385,6 +455,11 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "解除指定智能体绑定失败", exception=e)
         logger.error(f"解除指定智能体绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除指定智能体绑定失败") from e
 
@@ -421,6 +496,11 @@ async def batch_bind_sessions(request: BatchBindRequest):
                 if orchestrator is not None:
                     orchestrator.activate_agent(item.agent_id, "manual_binding", is_primary=is_primary)
             except Exception as orch_exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARN, "批量绑定触发智能体激活失败", exception=orch_exc)
                 logger.warning(f"批量绑定触发Orchestrator激活失败: session={item.session_id}, agent={item.agent_id}, error={orch_exc}")
 
             try:
@@ -433,12 +513,22 @@ async def batch_bind_sessions(request: BatchBindRequest):
                     activation_reason="manual_binding",
                 )
             except Exception as act_exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARN, "批量绑定写入活动记录失败", exception=act_exc)
                 logger.warning(f"批量绑定写入Activity记录失败: session={item.session_id}, agent={item.agent_id}, error={act_exc}")
 
             succeeded += 1
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "批量绑定会话失败", exception=e)
             errors.append(BatchBindError(session_id=item.session_id, error=str(e)))
             failed += 1
             logger.warning(f"批量绑定 — 会话 {item.session_id} 绑定失败: {e}")
@@ -463,6 +553,11 @@ async def list_group_bindings():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取群绑定列表失败", exception=e)
         logger.error(f"获取群绑定列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取群绑定列表失败") from e
 
@@ -487,6 +582,11 @@ async def bind_group_agent(request: BindGroupRequest):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "绑定群智能体失败", exception=e)
         logger.error(f"绑定群智能体失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定群智能体失败") from e
 
@@ -500,6 +600,11 @@ async def unbind_group_agent(group_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "解除群绑定失败", exception=e)
         logger.error(f"解除群绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除群绑定失败") from e
 
@@ -579,6 +684,11 @@ async def get_sessions_by_agent(agent_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取智能体会话列表失败", exception=e)
         logger.error(f"获取智能体会话列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体会话列表失败") from e
 
@@ -597,6 +707,11 @@ async def reload_agents():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "重新加载智能体配置失败", exception=e)
         logger.error(f"重新加载智能体配置失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "重新加载智能体配置失败") from e
 
@@ -647,6 +762,11 @@ async def list_subagent_records(
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取子智能体记录失败", exception=e)
         logger.error(f"获取子智能体记录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体记录失败") from e
 
@@ -679,6 +799,11 @@ async def get_subagent_stats():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取子智能体统计失败", exception=e)
         logger.error(f"获取子智能体统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体统计失败") from e
 
@@ -705,6 +830,11 @@ async def get_emotion_behavior_rules(agent_id: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取情绪行为映射规则失败", exception=e)
         logger.error(f"获取情绪-行为映射规则失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取情绪-行为映射规则失败") from e
 
@@ -735,11 +865,21 @@ async def batch_get_emotions():
             except AppError:
                 raise
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARN, "批量获取智能体情绪失败", exception=e)
                 logger.warning(f"批量获取情绪 — 智能体 {agent.agent_id} 失败: {e}")
         return ApiResponse(data=BatchEmotionResponse(success=True, data=result))
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "批量获取情绪状态失败", exception=e)
         logger.error(f"批量获取情绪状态失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取情绪状态失败") from e
 
@@ -780,12 +920,22 @@ async def batch_get_relationships():
                 except AppError:
                     raise
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARN, "批量获取智能体关系失败", exception=e)
                     logger.warning(f"批量获取关系 — 智能体 {agent.agent_id} 失败: {e}")
                     result[agent.agent_id] = []
         return ApiResponse(data=BatchRelationshipResponse(success=True, data=result, internal_relationships_summary=internal_summary))
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "批量获取关系概览失败", exception=e)
         logger.error(f"批量获取关系概览失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取关系概览失败") from e
 
@@ -807,12 +957,22 @@ async def batch_get_session_counts():
                 except AppError:
                     raise
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARN, "批量获取会话数量失败", exception=e)
                     logger.warning(f"批量获取会话数 — 智能体 {aid} 失败: {e}")
                     result[aid] = 0
         return ApiResponse(data=BatchSessionCountResponse(success=True, data=result))
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "批量获取会话数量失败", exception=e)
         logger.error(f"批量获取会话数量失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取会话数量失败") from e
 
@@ -847,12 +1007,22 @@ async def batch_get_latest_subagent_records():
                 except AppError:
                     raise
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARN, "批量获取子智能体记录失败", exception=e)
                     logger.warning(f"批量获取子智能体记录 — 智能体 {aid} 失败: {e}")
                     result[aid] = None
         return ApiResponse(data=BatchLatestSubAgentResponse(success=True, data=result))
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "批量获取子智能体记录失败", exception=e)
         logger.error(f"批量获取子智能体记录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取子智能体记录失败") from e
 
@@ -1474,6 +1644,11 @@ async def get_state_awareness(session_id: str):
     try:
         preview = orch._summary_generator.generate_preview(session_id)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "生成状态互知预览失败", exception=exc)
         logger.warning(f"状态互知预览生成失败: session={session_id} error={exc}")
         preview = {"cohabitant_entries": [], "summary_texts": {}}
 
