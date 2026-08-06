@@ -166,7 +166,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         # Keep all original messages for batching and later learning.
         self.message_cache: list[SessionMessage] = []
         self._last_processed_index = 0
-        self._internal_turn_queue: asyncio.Queue[Literal["message", "timeout", "proactive"]] = asyncio.Queue()
+        self._internal_turn_queue: asyncio.Queue[Literal["message", "timeout", "proactive"]] = asyncio.Queue(maxsize=32)
         self._proactive_trigger_message: Optional[SessionMessage] = None
         self._focus_cooldown_wakeup_scheduled = False
         self._focus_cooldown_timer_task: Optional[asyncio.Task[None]] = None
@@ -725,7 +725,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         self._proactive_trigger_message = trigger_message
         self._resume_from_wait_for_proactive_trigger()
-        self._internal_turn_queue.put_nowait("proactive")
+        try:
+            self._internal_turn_queue.put_nowait("proactive")
+        except asyncio.QueueFull:
+            logger.warning("内部轮次队列已满（maxsize=32），丢弃 proactive 触发")
 
     def _consume_proactive_trigger_message(self) -> Optional[SessionMessage]:
         """消费当前主动触发消息。"""
@@ -1243,7 +1246,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         """投递一次消息触发的内部循环。"""
         self._cancel_deferred_message_turn_task()
         self._message_turn_scheduled = True
-        self._internal_turn_queue.put_nowait("message")
+        try:
+            self._internal_turn_queue.put_nowait("message")
+        except asyncio.QueueFull:
+            logger.warning("内部轮次队列已满（maxsize=32），丢弃 message 触发")
 
     def _defer_message_turn_check(self, delay_seconds: float) -> None:
         """延迟后重新检查是否应投递消息触发。"""
