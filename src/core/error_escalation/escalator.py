@@ -430,13 +430,23 @@ class ErrorEscalator:
             description: 动作描述（审计日志）
             coro_factory: 协程工厂（返回待调度协程）
             on_done: 任务完成回调（如嵌套防护标志重置）
+
+        Raises:
+            TypeError: coro_factory 返回非协程（如误传同步方法）——调用方
+                负责保证工厂返回协程；本方法对 create_task 自身异常兜底
         """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             logger.warning("ERROR_NO_LOOP: 无运行中事件循环，跳过异步动作 %s", description)
             return
-        task = loop.create_task(coro_factory())
+        try:
+            task = loop.create_task(coro_factory())
+        except Exception as exc:
+            # create_task 兜底（spec §5.3.3 异常场景 2）：非协程/循环关闭等
+            # 不阻断 report 主流程（CX 审查 P1 修复——原实现未包 try）
+            logger.warning("ERROR_ACTION_DISPATCH_FAILED: %s: %s", description, exc)
+            return
 
         def _on_done(t: asyncio.Task) -> None:
             if on_done is not None:
@@ -534,6 +544,9 @@ class ErrorEscalator:
     ) -> None:
         """CRASH_DUMP：半异步主动快照（独立限流 1 分钟 3 次，spec §5.5.1 规则 4）。
 
+        export_snapshot 本身是同步方法（CrashDumpPort 同步签名，design
+        §2.1.3.2 "半异步"），**直接同步调用**——之前误入 create_task 派发
+        导致生产注入同步 CrashDump 时抛 TypeError（CX 审查 P1 发现）。
         IOError 等失败在 export_snapshot 内捕获，不阻塞其他动作
         （spec §5.5.1 规则 5）；只读导出不修改全局状态（规则 6）。
         """
@@ -543,8 +556,7 @@ class ErrorEscalator:
         if not self._crash_dump_limiter.allow():
             logger.debug("ERROR_CRASH_DUMP_SKIPPED: 1 分钟内快照次数超限，静默")
             return
-
-        def _factory() -> Any:
+        try:
             context = {
                 "level": level.value,
                 "message": message,
@@ -552,9 +564,10 @@ class ErrorEscalator:
                 "upgrade_path": upgrade_path,
                 "counts": count_snapshot,
             }
-            return self._crash_dump_port.export_snapshot(f"error-escalation-{level.value}", context)
-
-        self._dispatch("CRASH_DUMP", _factory)
+            self._crash_dump_port.export_snapshot(f"error-escalation-{level.value}", context)
+        except Exception as exc:
+            # 同步导出失败不阻断 report 主流程（spec §5.5.1 规则 5）
+            logger.warning("ERROR_CRASH_DUMP_FAILED: %s", exc)
 
     def _emit_event(
         self,

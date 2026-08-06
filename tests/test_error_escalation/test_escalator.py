@@ -4,6 +4,8 @@
 （P1-5 Suppressor 联动）；场景 7/8（ZG-7 委托）属 Phase 2 集成测试。
 """
 
+from unittest.mock import MagicMock
+
 from src.core.error_escalation.config import ErrorEscalationConfig
 from src.core.error_escalation.types import ErrorAction, ErrorLevel
 from src.core.service_manager.types import SystemHealthLevel
@@ -103,6 +105,30 @@ class TestScenario4CriticalSnapshot:
             esc.report(ErrorLevel.CRITICAL, "flood", component_id="comp-a")
         await _drain(esc)
         assert ports["crash_dump"].export_snapshot.call_count == 3
+
+    async def test_crash_dump_sync_port_does_not_raise(self) -> None:
+        """回归（CX 审查 P1）：生产注入同步 CrashDump——report 不抛异常。
+
+        export_snapshot 是同步方法（返回 None），若被误入 create_task
+        派发会抛 TypeError 并阻断后续动作；此处验证同步调用路径。
+        """
+        esc, ports = make_escalator()
+        # 显式保证 export_snapshot 为同步 mock（返回 None 非 coroutine）
+        ports["crash_dump"].export_snapshot = MagicMock(return_value=None)
+        esc.report(ErrorLevel.CRITICAL, "sync snapshot", component_id="comp-a")
+        await _drain(esc)
+        ports["crash_dump"].export_snapshot.assert_called_once()
+        ports["event_bus"].emit_sync.assert_called_once()  # 后续动作不受影响
+        ports["service_manager"].restart.assert_called_once_with("comp-a")
+
+    async def test_crash_dump_port_raises_does_not_block(self) -> None:
+        """export_snapshot 抛异常不阻断其他动作（spec §5.5.1 规则 5）。"""
+        esc, ports = make_escalator()
+        ports["crash_dump"].export_snapshot = MagicMock(side_effect=OSError("disk full"))
+        esc.report(ErrorLevel.CRITICAL, "disk full", component_id="comp-a")
+        await _drain(esc)
+        ports["event_bus"].emit_sync.assert_called_once()
+        ports["service_manager"].restart.assert_called_once_with("comp-a")
 
 
 class TestScenario5FatalGracefulStop:

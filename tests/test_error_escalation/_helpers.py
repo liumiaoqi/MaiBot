@@ -27,12 +27,13 @@ def make_escalator(
         "crash_dump": MagicMock(),
         "rate_limiter": MagicMock(),
     }
-    # 异步动作目标方法 → AsyncMock
+    # 异步动作目标方法 → AsyncMock（create_task 派发目标必须是 coroutine）
     ports["state_machine"].trigger_health_level_change = AsyncMock()
     ports["state_machine"].trigger_shutdown = AsyncMock()
     ports["service_manager"].report_external_fault = AsyncMock()
     ports["service_manager"].restart = AsyncMock()
-    ports["crash_dump"].export_snapshot = AsyncMock()
+    # CRASH_DUMP 例外：export_snapshot 是同步方法（CrashDumpPort 同步签名，
+    # design §2.1.3.2 半异步）——保持 MagicMock 同步语义，模拟生产 CrashDump
     if with_ports:
         esc.set_taint_mask_port(ports["taint"])
         esc.set_state_machine_port(ports["state_machine"])
