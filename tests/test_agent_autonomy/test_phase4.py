@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
@@ -58,9 +60,15 @@ class TestAutonomyEventBus:
         await self.bus.emit("unknown_event", {"key": "value"})
         assert len(self.received) == 0
 
-    def test_emit_sync(self) -> None:
+    async def test_emit_sync(self) -> None:
+        """emit_sync 只入队，drainer 批量执行（ZG-21 改造）"""
         self.bus.subscribe("sync_event", self._handler)
+        self.bus.start()
         self.bus.emit_sync("sync_event", {"key": "value"})
+        # 等待 drainer 批量处理
+        await asyncio.sleep(0.05)
+        assert len(self.received) == 1
+        await self.bus.stop()
 
 class TestInteractionSignalEvent:
     """测试交互信号事件数据结构。"""

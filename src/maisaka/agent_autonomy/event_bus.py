@@ -5,11 +5,12 @@
 """
 
 
-import asyncio
+
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine
 
 from src.common.logger import get_logger
+from src.core.softirq_batcher import SchedulingStrategy, SoftirqBatcher
 
 logger = get_logger("agent_autonomy.event_bus")
 
@@ -80,8 +81,20 @@ class AutonomyEventBus:
     不再使用 get_instance() 单例模式，通过 AutonomyEventBusPort 注册点注入。
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        budget_ms: float = 2.0,
+        budget_count: int = 200,
+        strategy: SchedulingStrategy = SchedulingStrategy.HRRN,
+    ) -> None:
         self._handlers: dict[str, list[AutonomyEventHandler]] = {}
+        # SoftirqBatcher 负责批量执行 emit_sync 入队的事件回调（对标 ksoftirqd）
+        self._softirq: SoftirqBatcher[tuple[AutonomyEventHandler, Any]] = SoftirqBatcher(
+            handler=self._batch_fire_handlers,
+            budget_ms=budget_ms,
+            budget_count=budget_count,
+            strategy=strategy,
+        )
 
     def subscribe(self, event_type: str, handler: AutonomyEventHandler) -> None:
         if event_type not in self._handlers:
@@ -109,15 +122,34 @@ class AutonomyEventBus:
                 )
 
     def emit_sync(self, event_type: str, event: Any) -> None:
-        """同步发射事件，创建异步任务执行。"""
+        """同步发射事件，只入 SoftirqBatcher 队列，由 drainer 批量执行。
+
+        不创建逐条 Task（对标 raise_softirq 只置 pending 位）。
+        """
         handlers = self._handlers.get(event_type, [])
         if not handlers:
             return
 
         for handler in handlers:
+            self._softirq.raise_softirq((handler, event))
+
+    async def _batch_fire_handlers(
+        self, batch: list[tuple[AutonomyEventHandler, Any]]
+    ) -> None:
+        """批量执行事件 handler（异常隔离，单条异常不中断同批）"""
+        for handler, event in batch:
             try:
-                asyncio.create_task(handler(event))
+                await handler(event)
             except Exception as exc:
+                handler_name = getattr(handler, "__name__", repr(handler))
                 logger.warning(
-                    f"[agent_autonomy] 同步事件发射异常: type={event_type} error={exc}"
+                    f"[agent_autonomy] 事件处理异常: handler={handler_name} error={exc}"
                 )
+
+    def start(self) -> None:
+        """启动 SoftirqBatcher drainer（供装配点调用，必须在事件循环运行后调用）"""
+        self._softirq.start()
+
+    async def stop(self) -> None:
+        """停止 SoftirqBatcher drainer（供关闭链调用，积压不再处理）"""
+        await self._softirq.stop()

@@ -11,11 +11,11 @@ ZG-4：统一 Vote 投票语义 + robust（BAD 触发逆序回滚）/ nofail 模
 """
 
 import asyncio
-import contextlib
 from dataclasses import dataclass
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
 from src.common.logger import get_logger
+from src.core.softirq_batcher import SchedulingStrategy, SoftirqBatcher
 from src.core.types import EventType, MaiMessages
 from src.core.vote import DuplicatePriorityError, Vote, VoteHistory, VoteResult
 
@@ -54,15 +54,25 @@ class EventBus:
         self,
         rollback_timeout: float = 5.0,
         vote_history_capacity: int = 100,
+        budget_ms: float = 2.0,
+        budget_count: int = 200,
+        strategy: SchedulingStrategy = SchedulingStrategy.HRRN,
     ):
         # event_type -> [handler entry]
         self._handlers: Dict[EventType | str, List[_HandlerEntry]] = {}
-        self._running_tasks: Dict[str, List[asyncio.Task]] = {}
         # event_type -> 投票历史环形缓冲（内省）
         self._history: Dict[EventType | str, VoteHistory] = {}
 
         # 回滚单个 on_rollback 超时（秒）；装配期可经 configure() 注入
         self._rollback_timeout = rollback_timeout
+
+        # 非拦截型 handler 批量处理（对标 ksoftirqd，ZG-21）
+        self._softirq: SoftirqBatcher[tuple[_HandlerEntry, Optional[MaiMessages]]] = SoftirqBatcher(
+            handler=self._batch_fire_and_forget,
+            budget_ms=budget_ms,
+            budget_count=budget_count,
+            strategy=strategy,
+        )
 
         # 预注册所有内置事件类型
         for event in EventType:
@@ -73,6 +83,9 @@ class EventBus:
         self,
         rollback_timeout: float | None = None,
         vote_history_capacity: int | None = None,
+        budget_ms: float | None = None,
+        budget_count: int | None = None,
+        strategy: SchedulingStrategy | None = None,
     ) -> None:
         """装配期注入配置（幂等，未注入项保持当前值/默认值）。
 
@@ -84,6 +97,20 @@ class EventBus:
         if vote_history_capacity is not None:
             for history in self._history.values():
                 history._capacity = max(1, vote_history_capacity)  # noqa: SLF001 — 同模块共享类
+        if budget_ms is not None:
+            self._softirq._budget_ms = budget_ms  # noqa: SLF001 — 装配期注入
+        if budget_count is not None:
+            self._softirq._budget_count = budget_count  # noqa: SLF001 — 装配期注入
+        if strategy is not None:
+            self._softirq._strategy = strategy  # noqa: SLF001 — 装配期注入
+
+    def start(self) -> None:
+        """启动非拦截型 handler 批量处理 drainer（必须在事件循环运行后调用）"""
+        self._softirq.start()
+
+    async def stop(self) -> None:
+        """停止 drainer（供关闭链调用，积压不再处理，无悬挂 Task）"""
+        await self._softirq.stop()
 
     def subscribe(
         self,
@@ -283,13 +310,16 @@ class EventBus:
         return result
 
     async def cancel_handler_tasks(self, handler_name: str) -> None:
-        """取消某个 handler 的所有运行中任务"""
-        tasks = self._running_tasks.pop(handler_name, [])
-        if remaining := [t for t in tasks if not t.done()]:
-            for t in remaining:
-                t.cancel()
-            await asyncio.gather(*remaining, return_exceptions=True)
-            logger.info(f"已取消 handler {handler_name} 的 {len(remaining)} 个任务")
+        """取消某个 handler 的所有未处理条目（从批量队列移除）
+
+        已入队未执行的条目按 name 匹配移除；已取入批中执行的条目无法中途移除
+        （与"已完成任务不可取消"语义等价）。
+        """
+        removed = self._softirq.remove_matching(
+            lambda item: item.payload[0].name == handler_name
+        )
+        if removed > 0:
+            logger.info(f"已从批量队列移除 handler {handler_name} 的 {removed} 个未处理条目")
 
     # --- 内省（NFR-ZG4-MNT-02）---
 
@@ -346,38 +376,31 @@ class EventBus:
         event_type: EventType | str,
         message: Optional[MaiMessages],
     ) -> None:
-        """创建异步任务执行非拦截型 handler。"""
-        try:
-            task = asyncio.create_task(entry.handler(message))
-            task.set_name(entry.name)
-            task.add_done_callback(lambda t: self._task_done_callback(t, entry.name))
-            self._running_tasks.setdefault(entry.name, []).append(task)
-        except Exception as e:
-            from src.core.tainted_mask.mark import mark_exception_swallowed
-            mark_exception_swallowed()
-            logger.error(f"创建 handler 任务 {entry.name} 失败: {e}", exc_info=True)
+        """非拦截型 handler 只入 SoftirqBatcher 队列（对标 raise_softirq）。"""
+        self._softirq.raise_softirq((entry, message))
 
-    def _task_done_callback(self, task: asyncio.Task, handler_name: str) -> None:
-        """异步任务完成回调"""
-        try:
-            if task.cancelled():
-                return
-            if exc := task.exception():
-                logger.error(f"handler {handler_name} 异步任务异常: {exc}")
-                return
-            result = task.result()
-            if isinstance(result, VoteResult) and result.final_vote is Vote.BAD:
-                # 非拦截型不参与投票：BAD 被忽略，仅告警（spec 5.3.1-5）
-                logger.warning("非拦截型 handler %s 返回 BAD 被忽略（不参与投票）", handler_name)
-        except Exception as exc:
-            from src.core.tainted_mask.mark import mark_exception_swallowed
-            mark_exception_swallowed()
-            logger.debug("清理异步任务异常: %s", exc)
-            pass
-        finally:
-            task_list = self._running_tasks.get(handler_name, [])
-            with contextlib.suppress(ValueError):
-                task_list.remove(task)
+    async def _batch_fire_and_forget(
+        self,
+        batch: list[tuple["_HandlerEntry", Optional[MaiMessages]]],
+    ) -> None:
+        """批量执行非拦截型 handler（异常隔离，单条异常不中断同批）
+
+        等价迁移原 _task_done_callback 语义：
+        - 单条异常 → logger.error + mark_exception_swallowed（不吞异常）
+        - 返回 VoteResult 且 final_vote is BAD → 仅告警（非拦截型不参与投票）
+        - 单条失败不中断同批
+        """
+        for entry, message in batch:
+            try:
+                result = await entry.handler(message)
+                if isinstance(result, VoteResult) and result.final_vote is Vote.BAD:
+                    logger.warning(
+                        "非拦截型 handler %s 返回 BAD 被忽略（不参与投票）", entry.name
+                    )
+            except Exception as exc:
+                from src.core.tainted_mask.mark import mark_exception_swallowed
+                mark_exception_swallowed()
+                logger.error(f"handler {entry.name} 异步任务异常: {exc}", exc_info=True)
 
     async def _rollback_one(self, entry: "_HandlerEntry") -> None:
         """对单个已执行拦截型调 on_rollback（None 时 no-op），best-effort。"""

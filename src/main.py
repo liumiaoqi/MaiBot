@@ -967,7 +967,10 @@ class MainSystem:
         from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus
         from src.core.event_bus_port_registry import set_event_bus_port
 
-        set_event_bus_port(AutonomyEventBus())
+        # ZG-21: AutonomyEventBus 启动 SoftirqBatcher drainer（事件循环已运行）
+        _autonomy_bus = AutonomyEventBus()
+        set_event_bus_port(_autonomy_bus)
+        _autonomy_bus.start()
 
         # ZG-4: EventBus 装配注入（配置已加载后；configure 幂等，未注入项保持默认）。
         # P1-1 修复：configure 从 run() 之后移入 CORE_SERVICES 相位，保证 on_start_event
@@ -980,6 +983,8 @@ class MainSystem:
             rollback_timeout=event_bus_cfg.rollback_timeout,
             vote_history_capacity=event_bus_cfg.vote_history_capacity,
         )
+        # ZG-21: 核心 EventBus 启动 SoftirqBatcher drainer
+        _core_event_bus.start()
 
     @staticmethod
     @startup_item(
@@ -1402,6 +1407,14 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
             await system._v2_host_endpoint.stop()
         await get_plugin_runtime_manager().bridge_event("on_stop")
         await get_plugin_runtime_manager().stop()
+        # ZG-21: 停止 SoftirqBatcher drainer（无悬挂 Task，积压不再处理）
+        from src.core.event_bus_port_registry import get_event_bus_port
+        from src.core.event_bus import event_bus as _core_event_bus
+
+        _autonomy_bus = get_event_bus_port()
+        if _autonomy_bus is not None and hasattr(_autonomy_bus, "stop"):
+            await _autonomy_bus.stop()
+        await _core_event_bus.stop()
         await async_task_manager.stop_and_wait_all_tasks()
         from src.config.config import config_manager as _cm
         await _cm.stop_file_watcher()
