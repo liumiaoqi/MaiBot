@@ -87,6 +87,8 @@
   - Windows/WSL 两侧对同一 worktree 的路径视角不同（E:\ vs /mnt/e/），跨侧查看会显示 prunable——**勿跨侧 prune**，会删除对方侧的登记
   - bind mount 目录（如 lab/）在容器内 `rm -rf` 会直接删宿主文件——清理前确认目录是否挂载
   -在main干活需要许可，一般在工作树干活，不要擅自合并
+  -不要评估工时
+  -喜欢 git log --graph 的彩色分支拓扑线条
 
 ### 思维链规范
 

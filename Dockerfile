@@ -1,12 +1,14 @@
 # Stage 1: Extract Python 3.14 runtime from official image
-FROM python:3.14-slim AS python-builder
+# Pin 具体补丁版本（可复现构建；升级 Python 时手动改此标签，如 3.14.8）
+FROM python:3.14.7-slim AS python-builder
 
 # Stage 2: Build on Ubuntu 26.04 LTS
 FROM ubuntu:26.04
 
 # Copy Python 3.14 runtime from builder stage
 COPY --from=python-builder /usr/local /usr/local
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Pin uv 版本（可复现构建；升级 uv 时手动改此标签）
+COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /uvx /bin/
 
 # Proxy support
 ARG HTTP_PROXY
@@ -30,6 +32,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git build-essential libffi-dev libssl-dev libsqlite3-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && uv sync --frozen --no-dev --no-install-project \
+    && rm -rf /root/.cache/uv \
     && apt-get purge -y build-essential \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*

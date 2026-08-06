@@ -23,3 +23,24 @@ mai_knowledge/
 depends-data/
 !depends-data/
 !depends-data/char_frequency.json
+lab/
+# 子仓库（gitlink，运行时挂载，镜像不需要）
+.shared/
+NapCatQQ/
+plugins/
+# 克隆仓库/第三方代码（不需要进镜像）
+MemoryConstellations/
+MiMo-Code/
+Science-Discovery/
+importantClone/
+memclone/
+maibot-plugin-sdk/
+openclaw/
+# 运行时缓存/检查点（运行时生成）
+model_cache/
+checkpoints/
+# 前端构建产物（运行时挂载 dashboard/dist）
+dashboard/
+# 工具/实验数据（构建不需要）
+tools/
+scripts/embedding_finetune/

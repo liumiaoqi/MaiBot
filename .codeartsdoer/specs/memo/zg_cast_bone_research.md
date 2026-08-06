@@ -449,6 +449,7 @@ c) 与 ZG-12 委派工具模式命名化合并设计（CA 裁决曾提及）
 | **ZG-22** | RCU 宽限期 + call_rcu + rcu_barrier（`zg_rcu_grace_period_survey_0806.md`） | 无锁读 + 延迟回收：VectorStore FAISS 索引（RLock 串行化读写 → search 无锁读旧快照 + add 原子替换 + 旧索引延迟释放）；VectorRebuildService 重建期间不降级；ModelRegistry/ConfigManager 热重载原子替换 | **P1** | VectorStore/A_memorix |
 > 🔬 **SSD 前算法实验**：FAISS 读写互斥实测——并发 search+add 的真实阻塞延迟（当前 RLock 串行化），验证改造收益；索引原子替换可行性（替换瞬间并发读是否安全） |
 | **ZG-23** | 剩余项综合（`zg_remaining_items_survey_0806.md`，1c/2c/2d/3b/4c/5b/6b/7a/8a） | 低价值项合并：fsync/fdatasync 分层 + sync_file_range、OOM 评分注册、kswapd 回收线程等——逐项按调研评估裁决（多数不落地，记录理由） | P3 | — |
+| **ZG-23a** | 消息发送去重 + 发言节流（2026-08-07 事故） | 多角色在未白名单群刷屏（六分钟 20+ 条）：① **重复消息 bug**——同一条发送两遍（重试/并发未去重，发送幂等性）② **发言节流**——多角色轮流刷屏无频率限制（对标 ZG-21 预算思想：发言版风暴预算，每角色/每群单位时间发言上限）。运行层机制，与 ZH 的"角色社交智能"（谁该说话）互补 | P3 | 消息发送链路 + maisaka 发言调度 |
 
 ### 优先级逻辑（2026-08-06 用户拍板）
 
