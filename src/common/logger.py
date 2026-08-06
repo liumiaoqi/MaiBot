@@ -205,42 +205,31 @@ class WebSocketLogHandler(logging.Handler):
         super().__init__()
         self.loop = loop
         self._initialized = False
+        self._softirq = None  # SoftirqBatcher 实例（set_loop 时构造）
 
     def set_loop(self, loop):
-        """设置事件循环"""
+        """设置事件循环并启动批量广播 drainer"""
+        from src.core.softirq_batcher import SoftirqBatcher
+
         self.loop = loop
         self._initialized = True
+        # ZG-21: 日志广播批量化（对标 ksoftirqd，跨线程安全入队）
+        self._softirq = SoftirqBatcher(
+            handler=self._batch_broadcast,
+            budget_ms=5.0,
+            budget_count=20,
+        )
+        self._softirq.start()
 
-    @staticmethod
-    def _consume_broadcast_result(task: asyncio.Task) -> None:
-        """消费日志广播任务异常，避免后台任务异常泄漏到事件循环。"""
-        try:
-            task.result()
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            logger.warning("操作异常 in logger.py", exc_info=True)
+    async def _batch_broadcast(self, batch: list[dict]) -> None:
+        """批量广播日志到 WebSocket（单条失败隔离，不中断整批）"""
+        from src.webui.logs_ws import broadcast_log
 
-    def _schedule_broadcast(self, log_data: dict, target_loop: asyncio.AbstractEventLoop) -> None:
-        """在目标事件循环内创建日志广播任务。"""
-        if self.loop is not target_loop or target_loop.is_closed():
-            return
-
-        try:
-            from src.webui.logs_ws import broadcast_log
-
-            broadcast_coro = broadcast_log(log_data)
+        for log_data in batch:
             try:
-                task = target_loop.create_task(broadcast_coro)
+                await broadcast_log(log_data)
             except Exception:
-                logger.warning("操作异常 in logger.py", exc_info=True)
-                broadcast_coro.close()
-                raise
-            task.add_done_callback(self._consume_broadcast_result)
-        except RuntimeError:
-            pass
-        except Exception:
-            logger.warning("操作异常 in logger.py", exc_info=True)
+                logger.warning("日志广播单条异常 in logger.py", exc_info=True)
 
     def emit(self, record):
         """发送日志到 WebSocket 客户端"""
@@ -281,13 +270,9 @@ class WebSocketLogHandler(logging.Handler):
                 "message": message,
             }
 
-            # 异步广播日志(不阻塞日志记录)
-            try:
-                target_loop.call_soon_threadsafe(self._schedule_broadcast, log_data, target_loop)
-            except Exception:
-                logger.warning("操作异常 in logger.py", exc_info=True)
-                # WebSocket 推送失败不影响日志记录
-                pass
+            # ZG-21: 批量广播日志（只入队，由 drainer 批量执行，跨线程安全）
+            if self._softirq is not None:
+                self._softirq.raise_softirq(log_data)
 
         except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
@@ -297,6 +282,7 @@ class WebSocketLogHandler(logging.Handler):
     def close(self):
         """关闭 WebSocket 日志推送。"""
         self._initialized = False
+        self._softirq = None
         self.loop = None
         super().close()
 
