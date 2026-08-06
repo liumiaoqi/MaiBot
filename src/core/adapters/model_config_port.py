@@ -139,7 +139,7 @@ class ConfigManagerModelConfigPort:
     def get_models_by_capability(self, capability: str) -> list[ModelInfo]:
         """按能力列出模型（供 WebUI 渲染/插件枚举）。"""
         registry = self._build_registry()
-        entries = registry._capability_index.get(capability, [])  # noqa: SLF001 — 适配器层访问注册表内部
+        entries = registry._index_bundle.capability_index.get(capability, [])  # noqa: SLF001 — 适配器层访问注册表内部
         names = {entry.name for entry in entries}
         return [m for m in self._config_manager.get_model_config().models if m.name in names]
 
@@ -202,7 +202,7 @@ class ConfigManagerModelConfigPort:
             for model_name in model_list:
                 if not isinstance(model_name, str):
                     continue
-                for entry in registry._model_index.values():  # noqa: SLF001
+                for entry in registry._index_bundle.model_index.values():  # noqa: SLF001
                     if entry.name == model_name and required.issubset(entry.capabilities):
                         preferred.append(entry.key)
                         break

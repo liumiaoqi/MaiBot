@@ -44,8 +44,8 @@ class TestModelRegistry:
             _mk_entry("flash", {"text_generation", "tool_calling"}),
             _mk_entry("bge", {"embedding"}, category="embedding", provider="ali"),
         ])
-        assert reg._model_index[("llm", "flash")].name == "flash"
-        assert "bge" in [m.name for m in reg._capability_index["embedding"]]
+        assert reg._index_bundle.model_index[("llm", "flash")].name == "flash"
+        assert "bge" in [m.name for m in reg._index_bundle.capability_index["embedding"]]
 
     def test_query_intersection_and_category(self):
         reg = _mk_registry([

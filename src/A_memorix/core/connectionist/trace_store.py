@@ -80,13 +80,26 @@ class TraceStore:
         self._load_from_db()
 
     def _load_from_db(self) -> None:
-        self._adjacency.clear()
-        self._all_traces.clear()
+        """从 SQLite 全量加载 traces 到内存索引。
+
+        RCU 语义：先构建后替换——消除 clear-then-rebuild 窗口。
+        两次赋值之间非原子，但仅初始化调用，无并发读者。
+        """
+        new_adjacency: dict[str, dict[str, list[Trace]]] = {}
+        new_all_traces: dict[tuple[str, str, str, str], Trace] = {}
         with sqlite3.connect(self._db_path) as conn:
             rows = conn.execute("SELECT * FROM traces").fetchall()
         for row in rows:
             trace = _row_to_trace(row)
-            self._index_trace(trace)
+            new_all_traces[trace.unique_key] = trace
+            for concept in (trace.source, trace.target):
+                by_agent = new_adjacency.setdefault(concept, {})
+                traces = by_agent.setdefault(trace.agent_id, [])
+                existing_keys = {t.unique_key for t in traces}
+                if trace.unique_key not in existing_keys:
+                    traces.append(trace)
+        self._adjacency = new_adjacency
+        self._all_traces = new_all_traces
 
     def _index_trace(self, trace: Trace) -> None:
         self._all_traces[trace.unique_key] = trace

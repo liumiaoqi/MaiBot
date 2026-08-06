@@ -3,14 +3,14 @@
 对标 Linux device model：设备（模型）由总线集中注册（build_index），
 驱动（组件）声明需求（@model_requirement）后按能力查询（query_by_capability）。
 
-三级索引：
-- _provider_index: provider_name → APIProvider
-- _model_index: (category, name) → ModelEntry
-- _capability_index: capability → [ModelEntry]
+三级索引原子包装（ZG-22 RCU 语义）：
+- _index_bundle: ModelIndexBundle（provider_index / model_index / capability_index）
+  构建完整新 bundle 后单次赋值原子替换，确保读者访问的三索引来自同一时间点。
 """
 
 import random
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from src.config.model_configs import APIProvider
 from src.llm_models.model_requirement import (
@@ -29,34 +29,52 @@ RANDOM_STRATEGY = "random"
 SEQUENTIAL_STRATEGY = "sequential"
 
 
+@dataclass
+class ModelIndexBundle:
+    """三级索引原子包装 — RCU 语义：构建完整新 bundle 后单次赋值原子替换。
+
+    free-threaded 扩展路径：self._index_bundle = new_bundle 需配合
+    __class__ 原子写或 threading.atomic_store（归属 ZG-24）。
+    """
+    provider_index: dict[str, APIProvider]
+    model_index: dict[tuple[str, str], ModelEntry]
+    capability_index: dict[str, list[ModelEntry]]
+
+
 class ModelRegistry:
     """模型注册表单例 — 从配置构建三级索引并提供能力查询。
 
     线程安全说明：索引构建（build_index/refresh_index）与查询（query_by_capability）
     在单线程事件循环内调用（热重载在 reload 流程中串行），索引引用替换为原子操作。
+    ZG-22 RCU 语义：三索引包装为 ModelIndexBundle，构建完整新 bundle 后单次赋值原子替换。
     """
 
     def __init__(self) -> None:
-        self._provider_index: dict[str, APIProvider] = {}
-        self._model_index: dict[tuple[str, str], ModelEntry] = {}
-        self._capability_index: dict[str, list[ModelEntry]] = {}
+        self._index_bundle: ModelIndexBundle = ModelIndexBundle(
+            provider_index={}, model_index={}, capability_index={},
+        )
 
     # ── 索引构建 ────────────────────────────────────────────────
 
     def build_index(self, providers: list[APIProvider], models: list[ModelEntry]) -> None:
         """从配置构建三级索引（全量重建）。
 
+        RCU 语义：构建完整 ModelIndexBundle 后单次赋值原子替换，
+        确保读者访问的三索引来自同一时间点。
+
         Args:
             providers: APIProvider 列表（来自 ModelConfig）
             models: 注册表模型条目列表（来自 ModelInfo 转换）
         """
-        self._provider_index = {p.name: p for p in providers}
-        self._model_index = {m.key: m for m in models}
         capability_index: dict[str, list[ModelEntry]] = {}
         for entry in models:
             for capability in entry.capabilities:
                 capability_index.setdefault(capability, []).append(entry)
-        self._capability_index = capability_index
+        self._index_bundle = ModelIndexBundle(
+            provider_index={p.name: p for p in providers},
+            model_index={m.key: m for m in models},
+            capability_index=capability_index,
+        )
 
     # ── 查询 ─────────────────────────────────────────────────────
 
@@ -103,7 +121,7 @@ class ModelRegistry:
 
         # prefer 校验与排序
         for prefer_category, prefer_name in prefer:
-            pref_model = self._model_index.get((prefer_category, prefer_name))
+            pref_model = self._index_bundle.model_index.get((prefer_category, prefer_name))
             if pref_model is None:
                 raise DeclarationError(
                     f"prefer 指定模型 ({prefer_category}, {prefer_name}) 在注册表中不存在",
@@ -144,7 +162,7 @@ class ModelRegistry:
         Returns:
             同能力候选模型 name 列表（排除当前模型）
         """
-        candidates = [m.name for m in self._capability_index.get(capability, [])
+        candidates = [m.name for m in self._index_bundle.capability_index.get(capability, [])
                       if m.key != (category, name)]
         # 循环检测：A→B→A 的环在调用方 fallback 链声明中检测（T4 验收）
         if name in candidates:
@@ -169,14 +187,14 @@ class ModelRegistry:
         Returns:
             受影响组件名集合（供 ServiceManager 精确重启）
         """
-        old_provider_index = self._provider_index
-        old_model_index = self._model_index
+        old_provider_index = self._index_bundle.provider_index
+        old_model_index = self._index_bundle.model_index
         self.build_index(providers, models)
         return self._diff_vs_old(old_provider_index, old_model_index)
 
     def diff_resolution(self, old_registry: "ModelRegistry") -> set[str]:
         """对比新旧注册表下各组件解析结果，返回受影响组件名集合。"""
-        return self._diff_vs_old(old_registry._provider_index, old_registry._model_index)
+        return self._diff_vs_old(old_registry._index_bundle.provider_index, old_registry._index_bundle.model_index)
 
     def _diff_vs_old(
         self,
@@ -186,22 +204,22 @@ class ModelRegistry:
         """新旧索引对比：能力候选集合变化 ∪ provider 配置变化 → 受影响组件。"""
         # provider 配置变化：依赖该 provider 的模型 → 服务这些模型的组件
         changed_providers: set[str] = set()
-        for name, provider in self._provider_index.items():
+        for name, provider in self._index_bundle.provider_index.items():
             old = old_provider_index.get(name)
             if old is None or (provider.base_url, provider.client_type) != (old.base_url, old.client_type):
                 changed_providers.add(name)
-        removed_providers = set(old_provider_index) - set(self._provider_index)
+        removed_providers = set(old_provider_index) - set(self._index_bundle.provider_index)
 
         affected: set[str] = set()
         for component_name, declaration in get_all_declarations().items():
             old_candidates = self._candidate_keys(old_model_index, declaration)
-            new_candidates = self._candidate_keys(self._model_index, declaration)
+            new_candidates = self._candidate_keys(self._index_bundle.model_index, declaration)
             if old_candidates != new_candidates:
                 affected.add(component_name)
                 continue
             # provider 维度：组件**实际解析**的模型（prefer 优先，P1-1 修复）
             # 依赖变更的 provider → 受影响（候选集合不变但 prefer 模型所在 provider 变了）
-            resolved = self._resolve_preferred(self._model_index, declaration)
+            resolved = self._resolve_preferred(self._index_bundle.model_index, declaration)
             if resolved is not None and (
                 resolved.api_provider in changed_providers
                 or resolved.api_provider in removed_providers
@@ -253,7 +271,7 @@ class ModelRegistry:
         """多能力交集：从第一个能力的候选集中过滤。"""
         result: list[ModelEntry] | None = None
         for capability in sorted(required):
-            bucket = self._capability_index.get(capability, [])
+            bucket = self._index_bundle.capability_index.get(capability, [])
             if result is None:
                 result = list(bucket)
             else:

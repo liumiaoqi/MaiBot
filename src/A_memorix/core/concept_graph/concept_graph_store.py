@@ -84,15 +84,21 @@ class ConceptGraphStore:
                 self._conn.commit()
 
     def _rebuild_adjacency_index(self) -> None:
-        """从 SQLite 全量加载 trace_edges 到内存邻接索引（R07，双向）。"""
-        self._adjacency_index.clear()
+        """从 SQLite 全量加载 trace_edges 到内存邻接索引（R07，双向）。
+
+        RCU 语义：先构建后替换——消除 clear-then-rebuild 期间读者拿到空索引的窗口。
+        free-threaded 扩展路径：self._adjacency_index = new_index 需配合
+        __class__ 原子写或 threading.atomic_store（归属 ZG-24）。
+        """
+        new_index: dict[str, list[TraceEdge]] = {}
         rows = self._conn.execute(
             "SELECT * FROM trace_edges ORDER BY created_at"
         ).fetchall()
         for row in rows:
             edge = self._row_to_trace_edge(row)
-            self._adjacency_index.setdefault(edge.source_concept_id, []).append(edge)
-            self._adjacency_index.setdefault(edge.target_concept_id, []).append(edge)
+            new_index.setdefault(edge.source_concept_id, []).append(edge)
+            new_index.setdefault(edge.target_concept_id, []).append(edge)
+        self._adjacency_index = new_index
 
     # ── 节点 ──────────────────────────────────────────────
 
