@@ -1349,6 +1349,10 @@ class AppConfigPort(Protocol):
         """获取污染动作映射（key=标志名，value=动作；缺省仅记录，默认空 dict）。"""
         ...
 
+    def get_error_escalation_config(self) -> Optional[dict]:
+        """获取错误升级梯配置域（ZG-14，8 配置项 + 校验；缺失返回 None 按全默认）。"""
+        ...
+
     def get_taint_warn_limit(self) -> int:
         """获取 WARN 累计阈值（warn_count 达到后触发降级；0=禁用）。"""
         ...

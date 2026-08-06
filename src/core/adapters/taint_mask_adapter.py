@@ -109,6 +109,12 @@ class TaintMaskAdapter(TaintedMaskPort):
             logger.warning("degrade_on_taint_mask 配置读取失败，使用默认 0", exc_info=True)
             return 0
 
+    # ── 委托注入 ───────────────────────────────────────────────
+
+    def set_error_escalation_port(self, port: Any) -> None:
+        """运行时注入 ZG-14 ErrorEscalationPort（ZG-14 T3.4 启动接线）。"""
+        self._tainted_mask.set_error_escalation_port(port)
+
     # ── TaintedMaskPort 委托 ─────────────────────────────────────
 
     def add_taint(self, flag: TaintFlag) -> None:

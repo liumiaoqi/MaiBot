@@ -52,6 +52,16 @@ class RateLimiter:
         self._total_suppressed = 0
         self._last_summary_flush = 0.0
 
+    def set_min_level(self, level: int) -> None:
+        """设置强制放行最小级别（ZG-14 P1-5，对标 Linux console_verbose）。
+
+        级别 ≥ level 的日志记录跳过抑制判定直接放行——CRITICAL/FATAL
+        级错误上报时调用（ErrorEscalator LOG 动作前），确保关键错误
+        不被采样降级。后续 set 覆盖；未调用时为 None（不强制）。
+        """
+        with self._lock:
+            self._force_min_level = level
+
     def check(self, record: logging.LogRecord) -> bool:
         """返回 True 放行 / False 抑制。
 
@@ -59,6 +69,10 @@ class RateLimiter:
         （不在本方法内同步输出，NFR-PER-03）。
         """
         with self._lock:
+            # 强制放行（P1-5）：级别 ≥ set_min_level 的记录不参与抑制
+            if getattr(self, "_force_min_level", None) is not None:
+                if record.levelno >= self._force_min_level:
+                    return True
             # ERROR/CRITICAL 豁免（RTL-04）
             if record.levelno not in self._apply_levels:
                 return True

@@ -26,7 +26,9 @@ from src.common.logger import get_logger
 
 logger = get_logger("force_channel")
 
-_DEFAULT_FORCE_WHITELIST = frozenset({"watchdog", "service_manager", "system_state_machine"})
+_DEFAULT_FORCE_WHITELIST = frozenset(
+    {"watchdog", "service_manager", "system_state_machine", "error_escalation"}
+)
 
 
 class ForceChannel:

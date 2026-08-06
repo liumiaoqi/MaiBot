@@ -75,6 +75,14 @@ class TaintedMask:
         self._degrade_on_taint_mask: int = degrade_on_taint_mask
         self._error_escalation_port = error_escalation_port
 
+    def set_error_escalation_port(self, port: Any) -> None:
+        """运行时注入 ZG-14 ErrorEscalationPort（启动接线顺序依赖，ZG-14 T3.4）。
+
+        与 state_machine_port 同理：模块级实例在启动早期创建，Port 后期
+        才实例化，用 setter 注入而非构造参数。
+        """
+        self._error_escalation_port = port
+
     # ── 置位 / 查询 ──────────────────────────────────────────────
 
     def add_taint(self, flag: TaintFlag) -> None:

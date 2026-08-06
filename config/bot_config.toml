@@ -444,6 +444,20 @@ preset_mask = 0 # 预置位掩码（启动即置位，如测试模式预置 128�
 degrade_on_taint_mask = 0 # 掩码级降级触发掩码（0=禁用；位在掩码中则自动触发降级，对标 Linux panic_on_taint）。
 
 
+[error_escalation]
+# ZG-14 错误升级梯 — 对标 Linux panic_on_warn / warn_limit / panic_on_oops。
+# 错误沿 WARN→ERROR→CRITICAL→FATAL 单向递进；最高动作 STOP_CORE 优雅停机，不杀进程（N2 裁决）。
+error_on_warn = false # True 时 WARN 上报升级 ERROR（对标 panic_on_warn）。
+warn_error_threshold = 0 # WARN 累计达阈升级 ERROR（0=禁用；>0 按计数窗口累计）。
+critical_on_error = false # True 时 ERROR 上报升级 CRITICAL（对标 panic_on_oops）。
+error_critical_threshold = 0 # ERROR 累计达阈升级 CRITICAL（0=禁用）。
+critical_fatal_threshold = 0 # CRITICAL 累计达阈升级 FATAL（0=禁用）。
+level_actions = null # 按等级覆盖默认动作集（如 {"warn": ["log"]}；null=用默认动作集）。
+count_window_sec = 0.0 # 计数窗口（秒；0=全局累计不归零，>0 按窗口归零）。
+crash_dump_min_level = "critical" # 主动快照最低触发等级（warn/error/critical/fatal）。
+storm_min_threshold = 100 # 风暴检测独立下限阈值（计数阈值=0 时风暴检测仍用此值）。
+
+
 [system_state]
 history_capacity = 100 # 迁移历史环形缓冲容量（条）。
 notify_timeout = 5.0 # 通知链超时（秒），订阅者超时记告警并视为放行。

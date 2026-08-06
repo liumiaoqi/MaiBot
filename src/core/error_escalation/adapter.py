@@ -59,6 +59,7 @@ class ErrorEscalationAdapter:
         event_bus_port: Any = None,
         crash_dump_port: Any = None,
         rate_limiter_port: Any = None,
+        control_message_port: Any = None,
         time_func: Callable[[], float] = time.time,
     ) -> None:
         """初始化适配器。
@@ -72,6 +73,7 @@ class ErrorEscalationAdapter:
             event_bus_port: ZG-4 AutonomyEventBusPort（NOTIFY 事件）
             crash_dump_port: CrashDumpPort（CRASH_DUMP 主动快照）
             rate_limiter_port: RateLimiterPort（CRITICAL/FATAL 突破抑制，P1-5）
+            control_message_port: ZG-8 ControlMessagePort（FATAL 级扩散取消信号）
             time_func: 时间函数注入点（测试可替换）
         """
         if config is None:
@@ -83,6 +85,7 @@ class ErrorEscalationAdapter:
         self._escalator.set_event_bus_port(event_bus_port)
         self._escalator.set_crash_dump_port(crash_dump_port)
         self._escalator.set_rate_limiter_port(rate_limiter_port)
+        self._escalator.set_control_message_port(control_message_port)
         self._config_loaded = config
 
     # ── ErrorEscalationPort 实现 ─────────────────────────────

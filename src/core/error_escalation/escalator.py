@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from src.common.logger import get_logger
+from src.core.control_message.types import ControlMessageKind
 from src.core.error_escalation.config import ErrorEscalationConfig
 from src.core.error_escalation.counter import ErrorCounter
 from src.core.error_escalation.storm import StormDecision, StormTracker
@@ -160,6 +161,7 @@ class ErrorEscalator:
         self._event_bus_port: Any = None
         self._crash_dump_port: Any = None
         self._rate_limiter_port: Any = None
+        self._control_message_port: Any = None
 
     # ── Port 注入 ────────────────────────────────────────────
 
@@ -186,6 +188,10 @@ class ErrorEscalator:
     def set_rate_limiter_port(self, port: Any) -> None:
         """注入 RateLimiterPort（CRITICAL/FATAL 突破日志抑制，P1-5）。"""
         self._rate_limiter_port = port
+
+    def set_control_message_port(self, port: Any) -> None:
+        """注入 ZG-8 ControlMessagePort（FATAL 级扩散取消信号，design §2.2.2.2）。"""
+        self._control_message_port = port
 
     # ── 对外接口 ──────────────────────────────────────────────
 
@@ -493,6 +499,20 @@ class ErrorEscalator:
             logger.warning("ERROR_FATAL_NESTED: STOP_CORE 已在进行中，跳过重复停机")
             return
         self._fatal_in_progress = True
+
+        # FATAL 级扩散取消信号（design §1.2.5，对标 zap_other_threads）：
+        # 投递系统级引擎致命控制消息（force_send 绕过屏蔽），由控制消息
+        # 处理链触发 FatalDiffuser 扩散取消在途会话任务；Port 未注入跳过
+        if self._control_message_port is not None:
+
+            def _diffuse_factory() -> Any:
+                return self._control_message_port.force_send(
+                    ControlMessageKind.ENGINE_FATAL_ERROR,
+                    reason="error-escalation-stop-core",
+                    caller="error_escalation",
+                )
+
+            self._dispatch("FATAL_DIFFUSE", _diffuse_factory)
 
         def _factory() -> Any:
             return self._state_machine_port.trigger_shutdown()
