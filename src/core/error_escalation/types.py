@@ -16,6 +16,7 @@ class ErrorLevel(str, Enum):
     """
 
     WARN = "warn"  # 记日志 + 计数 + taint，继续运行
+    WARNING = "warn"  # 别名：对齐 Python logging.WARN/WARNING 并存先例（ZG-14 Phase 4 模板误用 WARNING，统一别名兼容）
     ERROR = "error"  # 降级运行 + 发事件 + 标记组件 FAULT
     CRITICAL = "critical"  # crash_dump 快照 + 重启组件
     FATAL = "fatal"  # 停核心 + 转储 + 通知（不杀进程，N2 裁决）
