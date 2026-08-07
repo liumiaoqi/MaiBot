@@ -111,9 +111,13 @@ def db_isolation():
     import src.common.database.database as db_module
     import src.common.database.database_model  # noqa: F401 — 确保模型加载
 
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
     in_memory_engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(in_memory_engine)
 
@@ -140,8 +144,9 @@ def db_isolation():
         finally:
             session.close()
 
-    with patch.object(db_module, "get_db_session", _patched_get_db_session), \
-         patch.object(db_module, "initialize_database", lambda: None):
+    with patch.object(db_module, "SessionLocal", in_memory_session_factory), \
+         patch.object(db_module, "initialize_database", lambda: None), \
+         patch.object(db_module, "_db_initialized", True):
         yield in_memory_engine
 
     in_memory_engine.dispose()

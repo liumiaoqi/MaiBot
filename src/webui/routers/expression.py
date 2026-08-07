@@ -83,6 +83,7 @@ from src.webui.services.expression_service_web import (
     review_single_expression,
     save_legacy_db_upload,
     cleanup_legacy_db_upload,
+    update_expression_data,
     expression_cluster_member_to_response,
 )
 
