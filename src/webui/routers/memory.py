@@ -13,9 +13,9 @@ from fastapi import APIRouter, Body, Depends, File, Form, Query, UploadFile
 from sqlmodel import col, select
 import tomlkit
 
-from src.core.session_port_registry import get_session_name as _get_session_name_via_port, get_existing_session_info
+
 from src.common.database.database import get_db_session
-from src.common.database.database_model import ChatSession, Messages, PersonInfo
+from src.common.database.database_model import ChatSession
 from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import MemorySearchResult, memory_service
 from src.webui.dependencies import require_auth
@@ -32,7 +32,7 @@ from src.webui.schemas.memory import (
     EdgeWeightRequest,
     EpisodeProcessPendingRequest,
     EpisodeRebuildRequest,
-    ImportChatTarget,
+
     ImportChatTargetsResponse,
     MaintainRequest,
     MemoryConfigUpdateRequest,
@@ -52,6 +52,14 @@ from src.webui.schemas.memory import (
     TuningApplyProfileRequest,
     V5ActionRequest,
     VectorRebuildRequest,
+)
+from src.webui.services.memory_helper_service_web import (
+    _find_real_chat_session,
+    _get_chat_name,
+    _get_person_name_for_person_id,
+    _import_chat_targets,
+    _timeline_chat_from_session,
+    _validate_import_chat_id,
 )
 logger = get_logger("auto.memory")
 
@@ -98,107 +106,8 @@ def _unwrap_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
         return dict(nested)
     return dict(raw)
 
-def _get_chat_name_from_latest_message(message: Optional[dict[str, Any]]) -> Optional[str]:
-    if not message:
-        return None
-    group_id = str(message.get("group_id") or "").strip()
-    if group_id:
-        return str(message.get("group_name") or "").strip() or f"群聊{group_id}"
-    user_id = str(message.get("user_id")).strip()
-    private_name = str(
-        message.get("user_cardname") or message.get("user_nickname") or (f"用户{user_id}" if user_id else "")
-    ).strip()
-    return f"{private_name}的私聊" if private_name else None
 
-def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[str, Any]]) -> str:
-    chat_id = str(chat_session.session_id or "").strip()
-    try:
-        name = _get_session_name_via_port(chat_id)
-        if name and name != chat_id:
-            return name
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '获取聊天名称失败', exception=exc)
-        logger.warning("操作异常 in memory", exc_info=True)
-    if name := _get_chat_name_from_latest_message(latest_messages.get(chat_id)):
-        return name
-    if chat_session.group_name:
-        return chat_session.group_name
-    if chat_session.group_id:
-        return f"群聊{chat_session.group_id}"
-    private_name = chat_session.user_cardname or chat_session.user_nickname or (
-        f"用户{chat_session.user_id}" if chat_session.user_id else ""
-    )
-    return f"{private_name}的私聊" if private_name else chat_id
 
-def _prefetch_latest_messages_by_session(db_session: Any, session_ids: list[str]) -> dict[str, dict[str, Any]]:
-    if not session_ids:
-        return {}
-
-    statement = (
-        select(Messages)
-        .where(col(Messages.session_id).in_(session_ids))
-        .order_by(col(Messages.session_id).asc(), col(Messages.timestamp).desc())
-    )
-    latest: dict[str, dict[str, Any]] = {}
-    for message in db_session.exec(statement).all():
-        chat_id = str(message.session_id or "").strip()
-        if chat_id and chat_id not in latest:
-            latest[chat_id] = {
-                "group_id": message.group_id,
-                "group_name": message.group_name,
-                "user_id": message.user_id,
-                "user_cardname": message.user_cardname,
-                "user_nickname": message.user_nickname,
-            }
-    return latest
-
-def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(payload)
-    # str(None) 陷阱：缺 chat_id 时 str(None)="None" 非空，误入存在性校验（踩坑 16 第 5 次）
-    chat_id = str(normalized.get("chat_id") or "").strip()
-    if not chat_id:
-        normalized.pop("chat_id", None)
-        return normalized
-    try:
-        if get_existing_session_info(chat_id) is not None:
-            normalized["chat_id"] = chat_id
-            return normalized
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '校验导入聊天流 ID 失败', exception=exc)
-        logger.warning("操作异常 in memory", exc_info=True)
-    with get_db_session() as session:
-        chat_session = session.exec(select(ChatSession).where(col(ChatSession.session_id) == chat_id)).first()
-    if chat_session is None:
-        raise AppError(ErrorCode.PARAM_INVALID, f"聊天流不存在: {chat_id}", http_status=400)
-    normalized["chat_id"] = chat_id
-    return normalized
-
-def _find_real_chat_session(chat_id: str) -> Optional[ChatSession]:
-    token = str(chat_id or "").strip()
-    if not token:
-        return None
-    try:
-        managed_session = get_existing_session_info(token)
-        if managed_session is not None:
-            with get_db_session() as session:
-                return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '查找真实聊天流失败', exception=exc)
-        logger.warning("操作异常 in memory", exc_info=True)
-    with get_db_session() as session:
-        return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
 
 def _normalize_chat_lookup_token(value: Any) -> str:
     return "".join(str(value or "").strip().lower().split())
@@ -274,28 +183,6 @@ def _format_chat_session_lookup_label(chat_session: ChatSession, latest_messages
     identifier = group_id or user_id or chat_id
     return f"{chat_name}({identifier})" if identifier and identifier != chat_name else chat_name
 
-def _timeline_chat_from_session(chat_session: ChatSession) -> MemoryTimelineChat:
-    chat_id = str(chat_session.session_id or "").strip()
-    latest_messages: dict[str, dict[str, Any]] = {}
-    try:
-        with get_db_session() as session:
-            latest_messages = _prefetch_latest_messages_by_session(session, [chat_id])
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '构建时间线聊天记录失败', exception=exc)
-        logger.warning("操作异常 in memory", exc_info=True)
-        latest_messages = {}
-    return MemoryTimelineChat(
-        chat_id=chat_id,
-        chat_name=_get_chat_name(chat_session, latest_messages),
-        platform=getattr(chat_session, "platform", None),
-        group_id=getattr(chat_session, "group_id", None),
-        user_id=getattr(chat_session, "user_id", None),
-        is_group=bool(getattr(chat_session, "group_id", None)),
-    )
 
 def _timeline_sources_for_chat(chat_id: str) -> set[str]:
     token = str(chat_id or "").strip()
@@ -987,13 +874,15 @@ async def _memory_timeline(
     clean_chat_id = str(chat_id or "").strip()
     if not clean_chat_id:
         raise AppError(ErrorCode.PARAM_INVALID, "chat_id 不能为空")
-    chat_session = _find_real_chat_session(clean_chat_id)
+    with get_db_session() as session:
+        chat_session = _find_real_chat_session(session, clean_chat_id)
     if chat_session is None:
         raise AppError(ErrorCode.PARAM_INVALID, f"聊天流不存在: {clean_chat_id}", http_status=400)
     if time_start is not None and time_end is not None and time_start > time_end:
         raise AppError(ErrorCode.PARAM_INVALID, "time_start 不能晚于 time_end")
 
-    chat = _timeline_chat_from_session(chat_session)
+    with get_db_session() as session:
+        chat = _timeline_chat_from_session(session, chat_session)
     safe_limit = max(1, min(500, int(limit or 100)))
     accepted_types = {
         token.strip()
@@ -1066,45 +955,6 @@ async def _memory_timeline(
         },
     )
 
-async def _import_chat_targets() -> ImportChatTargetsResponse:
-    try:
-        with get_db_session() as session:
-            rows = list(
-                session.exec(
-                    select(ChatSession).order_by(
-                        col(ChatSession.last_active_timestamp).desc(),
-                        col(ChatSession.created_timestamp).desc(),
-                    )
-                ).all()
-            )
-            session_ids = [str(chat_session.session_id or "").strip() for chat_session in rows]
-            latest_messages = _prefetch_latest_messages_by_session(session, [item for item in session_ids if item])
-            targets = [
-                ImportChatTarget(
-                    chat_id=chat_session.session_id,
-                    chat_name=_get_chat_name(chat_session, latest_messages),
-                    platform=chat_session.platform,
-                    group_id=chat_session.group_id,
-                    user_id=chat_session.user_id,
-                    account_id=chat_session.account_id,
-                    scope=chat_session.scope,
-                    is_group=bool(chat_session.group_id),
-                    last_active_at=chat_session.last_active_timestamp.timestamp()
-                    if chat_session.last_active_timestamp
-                    else None,
-                )
-                for chat_session in rows
-                if str(chat_session.session_id or "").strip()
-            ]
-        return ImportChatTargetsResponse(success=True, data=targets)
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.ERROR, '获取导入聊天流失败', exception=exc)
-        logger.warning("操作异常 in memory", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取导入聊天流失败: {exc}", http_status=500) from exc
 
 async def _graph_get(limit: int) -> dict:
     return await memory_service.graph_admin(action="get_graph", limit=limit)
@@ -1456,22 +1306,6 @@ async def _profile_query(
         force_refresh=force_refresh,
     )
 
-def _get_person_name_for_person_id(person_id: str) -> str:
-    clean_person_id = str(person_id or "").strip()
-    if not clean_person_id:
-        return ""
-    try:
-        with get_db_session(auto_commit=False) as session:
-            statement = select(PersonInfo.person_name).where(col(PersonInfo.person_id) == clean_person_id).limit(1)
-            person_name = session.exec(statement).first()
-            return str(person_name or "").strip()
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '获取人物名称失败', exception=exc)
-        logger.warning("操作异常 in memory", exc_info=True)
 
 def _enrich_episode_person_name(item: dict) -> dict:
     enriched = dict(item)
@@ -1489,7 +1323,8 @@ def _enrich_episode_person_name(item: dict) -> dict:
                 break
 
     enriched["person_id"] = item_person_id
-    enriched["person_name"] = _get_person_name_for_person_id(item_person_id)
+    with get_db_session(auto_commit=False) as session:
+        enriched["person_name"] = _get_person_name_for_person_id(session, item_person_id)
     return enriched
 
 async def _profile_list(limit: int) -> dict:
@@ -1498,14 +1333,15 @@ async def _profile_list(limit: int) -> dict:
         return payload
 
     items = []
-    for item in payload["items"]:
-        if not isinstance(item, dict):
-            items.append(item)
-            continue
-        enriched = dict(item)
-        person_id = str(enriched.get("person_id", "")).strip()
-        enriched["person_name"] = _get_person_name_for_person_id(person_id)
-        items.append(enriched)
+    with get_db_session(auto_commit=False) as session:
+        for item in payload["items"]:
+            if not isinstance(item, dict):
+                items.append(item)
+                continue
+            enriched = dict(item)
+            person_id = str(enriched.get("person_id", "")).strip()
+            enriched["person_name"] = _get_person_name_for_person_id(session, person_id)
+            items.append(enriched)
 
     payload = dict(payload)
     payload["items"] = items
@@ -1763,7 +1599,9 @@ async def _import_resolve_path(payload: dict[str, Any]) -> dict:
     return await memory_service.import_admin(action="resolve_path", **_unwrap_payload(payload))
 
 async def _import_create(action: str, payload: dict[str, Any]) -> dict:
-    return await memory_service.import_admin(action=action, **_validate_import_chat_id(_unwrap_payload(payload)))
+    with get_db_session() as session:
+        validated = _validate_import_chat_id(session, _unwrap_payload(payload))
+    return await memory_service.import_admin(action=action, **validated)
 
 async def _import_list(limit: int) -> dict:
     listing = await memory_service.import_admin(action="list", limit=limit)
@@ -2253,7 +2091,9 @@ async def get_memory_import_path_aliases():
 
 @router.get("/import/chat-targets", response_model=ApiResponse[ImportChatTargetsResponse])
 async def get_memory_import_chat_targets():
-    return ApiResponse(data=await _import_chat_targets())
+    with get_db_session() as session:
+        data = await _import_chat_targets(session)
+    return ApiResponse(data=data)
 
 @router.get("/import/guide")
 async def get_memory_import_guide():
