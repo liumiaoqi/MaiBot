@@ -285,23 +285,16 @@ def test_update_expression_without_removed_fields(client: TestClient, mock_auth,
     assert data["data"]["checked"] is False
 
 
-def test_update_expression_ignores_invalid_fields(client: TestClient, mock_auth, sample_expression: Expression):
-    """Test PATCH /expression/{id} ignores fields not in ExpressionUpdateRequest"""
-    # Request with invalid field (checked not in schema)
+def test_update_expression_rejects_invalid_fields(client: TestClient, mock_auth, sample_expression: Expression):
+    """Test PATCH /expression/{id} rejects fields not in ExpressionUpdateRequest (extra='forbid')"""
     update_payload = {
         "situation": "新情景",
-        "checked": True,  # This field should be ignored by Pydantic
-        "removed_review_state": True,  # This removed field should be ignored
+        "checked": True,  # This field is not in ExpressionUpdateRequest
+        "removed_review_state": True,  # This removed field is not in ExpressionUpdateRequest
     }
 
     response = client.patch(f"/api/webui/expression/{sample_expression.id}", json=update_payload)
-    assert response.status_code == 200
-
-    data = response.json()
-    assert data["success"] is True
-    assert data["data"]["situation"] == "新情景"
-
-    assert data["data"]["checked"] is False
+    assert response.status_code == 422
 
 
 def test_update_expression_chat_id_mapping(client: TestClient, mock_auth, sample_expression: Expression):

@@ -67,7 +67,7 @@ def client_fixture(app: FastAPI, session: Session, monkeypatch):
         # 测试虚构 ID（如 update 用例的 new_session_id）宽松放行
         return type("FakeSession", (), {"session_id": session_id})()
 
-    monkeypatch.setattr("src.webui.routers.jargon.get_existing_session_info", mock_get_existing_session_info)
+    monkeypatch.setattr("src.webui.services.jargon_service_web.get_existing_session_info", mock_get_existing_session_info)
 
     with TestClient(app) as client:
         yield client

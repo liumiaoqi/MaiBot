@@ -222,8 +222,8 @@ visual = true
     captured: dict[str, Any] = {}
 
     class FakeOrchestrator:
-        def __init__(self, model_name: str):
-            captured["model_name"] = model_name
+        def __init__(self, **kwargs: Any):
+            pass
 
         async def generate_response_with_message_async(self, **kwargs: Any):
             captured.update(kwargs)
@@ -242,7 +242,7 @@ visual = true
                 total_tokens=15,
             )
 
-    monkeypatch.setattr(model_routes, "_SingleModelTestOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(model_routes, "LLMOrchestrator", FakeOrchestrator)
 
     result = await model_routes.test_model_capability(
         model_routes.ModelTestRequest(model_name="vision-model")
@@ -282,8 +282,10 @@ model_list = ["embed-model"]
     captured: dict[str, Any] = {}
 
     class FakeOrchestrator:
-        def __init__(self, model_name: str):
-            captured["model_name"] = model_name
+        def __init__(self, **kwargs: Any):
+            options = kwargs.get("options")
+            if options is not None and hasattr(options, "prefer") and options.prefer:
+                captured["model_name"] = options.prefer[0][1]
 
         async def get_embedding(self, embedding_input: str, **kwargs: Any):
             captured["embedding_input"] = embedding_input
@@ -292,7 +294,7 @@ model_list = ["embed-model"]
         async def generate_response_with_message_async(self, **kwargs: Any):
             raise AssertionError("嵌入模型测试不应调用对话接口")
 
-    monkeypatch.setattr(model_routes, "_SingleModelTestOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(model_routes, "LLMOrchestrator", FakeOrchestrator)
 
     result = await model_routes.test_model_capability(model_routes.ModelTestRequest(model_name="embed-model"))
 
@@ -328,8 +330,8 @@ model_list = ["other-embed-model"]
     monkeypatch.setattr(model_routes, "CONFIG_DIR", str(tmp_path))
 
     class FakeOrchestrator:
-        def __init__(self, model_name: str):
-            self.model_name = model_name
+        def __init__(self, **kwargs: Any):
+            pass
 
         async def get_embedding(self, embedding_input: str, **kwargs: Any):
             raise AssertionError("对话模型测试不应调用嵌入接口")
@@ -350,7 +352,7 @@ model_list = ["other-embed-model"]
                 total_tokens=15,
             )
 
-    monkeypatch.setattr(model_routes, "_SingleModelTestOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(model_routes, "LLMOrchestrator", FakeOrchestrator)
 
     result = await model_routes.test_model_capability(model_routes.ModelTestRequest(model_name="chat-model"))
 
