@@ -56,7 +56,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 ## ZG 方向清单与优先级（2026-08-04 刷新）
 
-### ✅ 已完成（11/12）
+### ✅ 已完成（13/13）
 
 | 编号 | 方向 | 完成日期 | 核心产出 |
 |------|------|---------|---------|
@@ -67,13 +67,15 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-5** | 资源限制（cgroups 化） | 2026-08-02 | ResourceCounter + FourTierLimit + PressureDetector + OOMHandler + 适配器全接线，75 测试 |
 | **ZG-6** | 系统状态机（system_state 化） | 2026-08-01 | BOOTING→READY→DEGRADING→SHUTTING_DOWN + 通知链 + 崩溃导出 + WebUI /lifecycle，38 测试 |
 | **ZG-7** | 污染标记（tainted_mask 化） | 2026-08-03 | 8 位 TaintFlag + 6 位运行时接线 + TaintActionMapper + CrashDump 内省，68 测试 |
+| **ZG-8** | 控制消息优先级（signal 化） | 2026-08-07 | 9 引擎（kind_registry/mask/pending/priority/unkillable/force/fatal_diffuser）+ 11 测试文件 + 运行时接线（调研核实 2026-08-07） |
 | **ZG-9** | 极端环境加固 | 2026-07-31 | mem_limit/swap=0/OOM保护/tmpfs，WSL2 内核 6.18 |
+| **ZG-12** | 模型配置重写（alternative 化） | 2026-08-07 | @model_requirement 装饰器 + 三级索引 + fallback 链 + 16 组件声明 + DeclarationValidator（调研核实 2026-08-07） |
 | **ZG-15** | 插件活体引用（try_module_get 化） | 2026-08-07 | 排空重写（mark_going→wait_drained→cancel→on_unload）+ 任务契约 + ServiceManager 集成 + 竞态集成测试，v2 186 passed |
 | **ZG-21** | 事件回调预算（ksoftirqd 化） | 2026-08-07 | SoftirqBatcher（budget_ms=2/count=200）+ EventBus 批量化 + 日志广播批量，852 passed |
 | **ZG-22** | 无锁读延迟回收（RCU 化） | 2026-08-07 | 索引热替换（IndexIDMap2 包装 + 原子替换），5 文件 68 行 |
 | **ZG-23a** | 消息发送去重 + 发言节流 | 2026-08-07 | OutboundDedupWindow + MentionChainThrottle + 幂等键 metadata 通道 + FAILED 枚举，962 passed（CX 审查 3 P0 两轮修复定稿） |
 
-### 🔴 P0 — 剩余必做
+### 🔴 P0 — 剩余必做（2026-08-07 调研核实：**已空**——ZG-12 已完成）
 
 | 编号 | 方向 | 理由 | 复杂度 | 层级 |
 |------|------|------|--------|------|
