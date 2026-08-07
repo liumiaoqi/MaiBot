@@ -101,6 +101,16 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 立项） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | P2（发布前必做） | 插件运行时 + agent 自主性 |
 | **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
+### 🧭 犄角旮旯对标（2026-08-07 调研：NATS/Zulip/Home Assistant，报告 `.shared/research/2026-08/`）
+
+| 来源 | 可落地清单 | 挂靠 |
+|------|-----------|------|
+| **NATS**（事件总线对标，`nats_arch_0807.md`） | ① 事件名分层化（EventType 扁平 → 主题层级）② 通配订阅（`*`/`>`）③ **背压水位信号**（SoftirqBatcher 缺：积压时 emit 侧无感知）④ 队列组互斥分发（可选）⑤ vote history 按需落盘 | ZG-4 增强候选（背压信号 → ZG-21 增强） |
+| **Zulip**（消息架构对标，`zulip_arch_0807.md`） | ① **事件 schema 测试制度**（事件结构变更走测试——防假改动）② client_capabilities 演进协议 ③ 心跳 + 队列 GC（45s/10min）④ 高频事件合并（virtual_events，与 ZG-21 同族）⑤ 事件 payload 预拼装（推送层零 DB） | ZG-4 增强候选；ws 部分归明堂 |
+| **Home Assistant**（插件系统对标，`home_assistant_arch_0807.md`） | ① 集中 PluginCatalog 发现层 ② manifest 加 `requires_plugins` 拓扑加载 ③ @Command/@Tool 入参 schema 注册时校验 ④ `plugin_id.service` 命名空间互调 ⑤ 复用排空链做热重配（options_flow） | 插件域（ZG-15 后续） |
+
+**共同洞察**：三份调研都指向"契约先行"——主题即契约（NATS）/ 事件 schema 测试（Zulip）/ manifest + service registry 校验（HA）——与明堂-1 的 extra='forbid' 同一道理（接口契约自动化杜绝假改动）。
+
 ### 🔧 已知遗留（从已完成项中拆出）
 
 | 来源 | 遗留 | 严重度 | 触发时机 |
