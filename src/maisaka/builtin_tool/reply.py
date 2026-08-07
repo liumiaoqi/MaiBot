@@ -374,12 +374,17 @@ async def handle_tool(
                 segment = reply_segments[index]
                 segment_set_quote = effective_set_quote if index == 0 else False
                 reply_to_id = target_message_id if segment_set_quote else ""
+                retry_idempotency_key = ""
+                if context is not None:
+                    retry_idempotency_key = context.metadata.get("idempotency_key", "")
+                if not retry_idempotency_key:
+                    retry_idempotency_key = getattr(tool_ctx.runtime, "idempotency_key", "") or ""
                 result = await port.send_message(
                     session_id=tool_ctx.runtime.session_id,
                     message=reply_sequence,
                     reply_to_id=reply_to_id,
                     source="guided_reply",
-                    idempotency_key=getattr(tool_ctx.runtime, "idempotency_key", "") or "",
+                    idempotency_key=retry_idempotency_key,
                 )
                 sent = result.success
                 if not sent:

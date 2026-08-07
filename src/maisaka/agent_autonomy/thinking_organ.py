@@ -89,6 +89,7 @@ class ThinkingOrgan:
         self._discovered_tools: list[str] = []
         self._last_reasoning_content: str = ""
         self._reply_retry_count: int = 0  # reply 工具失败重试计数器
+        self._retry_idempotency_key: str = ""  # ZG-23a: 重试时复用的幂等键
 
     @property
     def agent_id(self) -> str:
@@ -179,6 +180,7 @@ class ThinkingOrgan:
     async def think(self, context: ThinkContext) -> ThinkResult:
         """执行一次思考——基于消息上下文产生回复。"""
         self._reply_retry_count = 0  # 每次新思考重置重试计数
+        self._retry_idempotency_key = ""  # 每次新思考重置幂等键
         start_ms = time.time() * 1000
         self._autonomy_logger.log(
             self._agent_id,
@@ -375,6 +377,7 @@ class ThinkingOrgan:
 
             # reply 工具调用成功 → 返回 REPLY
             if cycle_result.reply_detected and not cycle_result.reply_failed:
+                self._retry_idempotency_key = ""  # 成功后清除重试幂等键
                 thought_summary = content[:100] if content else ""
                 self._autonomy_logger.log(
                     self._agent_id,
@@ -418,6 +421,7 @@ class ThinkingOrgan:
                         # 不重试，继续走 SILENT 路径
                     else:
                         self._reply_retry_count += 1
+                        self._retry_idempotency_key = cycle_result.reply_message_id
                         logger.warning(
                             f"[thinking_organ] reply 工具调用失败，重试 "
                             f"({self._reply_retry_count}/{SILENT_RETRY_MAX}): "
@@ -580,6 +584,7 @@ class ThinkingOrgan:
                 stream_id=context.session_id,
                 reasoning=latest_thought,
                 is_group_chat=context.is_group_chat,
+                metadata={"idempotency_key": self._retry_idempotency_key} if self._retry_idempotency_key else {},
             )
 
             tool_started_at = time.time()
@@ -614,7 +619,7 @@ class ThinkingOrgan:
                         receipt_status = "SENT"
                         reply_message_id = sent_ids[0]
                     else:
-                        receipt_status = "UNKNOWN"
+                        receipt_status = "FAILED"
                     logger.warning(
                         f"[thinking_organ] reply 工具调用失败详情: agent={self._agent_id} "
                         f"error={result.error_message[:200] if result.error_message else 'unknown'} "
