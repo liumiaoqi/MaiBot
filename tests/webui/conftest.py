@@ -235,3 +235,47 @@ def config_file_isolation(tmp_path):
     finally:
         for p in patches:
             p.stop()
+
+
+# ── T2.6 CI token 预置 ─────────────────────────────────────────────
+
+_CI_FIXED_TOKEN = "ci_" + "0" * 61  # 64 字符固定 token
+
+
+class _CITokenManager:
+    """CI 环境轻量替身，避免读写 data/webui.json。"""
+
+    def get_token(self) -> str:
+        return _CI_FIXED_TOKEN
+
+    def verify_token(self, token: str) -> bool:
+        return token == _CI_FIXED_TOKEN
+
+    def get_token_source(self) -> str:
+        return "configured"
+
+    def should_show_startup_token(self) -> bool:
+        return False
+
+
+def _is_ci_environment() -> bool:
+    """检测 CI 环境（GitHub Actions / GitLab CI / Jenkins / Buildkite 等）。"""
+    import os
+    return any(os.getenv(v) for v in ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_HOME", "BUILDKITE"))
+
+
+@pytest.fixture(autouse=True)
+def _ci_token_isolation():
+    """CI 环境下将 TokenManager 单例替换为固定 token 替身，本地不干预。"""
+    if not _is_ci_environment():
+        yield
+        return
+
+    import src.webui.core.security as security_module
+
+    original = security_module._token_manager_instance
+    security_module._token_manager_instance = _CITokenManager()
+    try:
+        yield
+    finally:
+        security_module._token_manager_instance = original
