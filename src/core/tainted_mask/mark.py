@@ -22,10 +22,10 @@ def mark_taint(flag: TaintFlag) -> None:
     try:
         from src.core.taint_mask_port_registry import get_taint_mask_port
 
-        port = get_taint_mask_port()
-        if port is None:
-            return  # ZG-7 渐进启用：registry 未就绪是预期状态，静默跳过
-        port.add_taint(flag)
+        get_taint_mask_port().add_taint(flag)
+    except RuntimeError:
+        # ZG-7 渐进启用：registry 未就绪（RuntimeError）是预期降级状态，静默跳过不上报
+        pass
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port
