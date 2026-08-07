@@ -164,19 +164,9 @@ class TimestampedFileHandler(logging.Handler):
                     old_file.unlink()
                     print(f"[日志清理] 删除旧文件: {old_file.name}")
                 except Exception as e:
-                    from src.core.error_escalation.types import ErrorLevel
-                    from src.core.error_escalation_port_registry import get_error_escalation_port
-                    port = get_error_escalation_port()
-                    if port is not None:
-                        port.report(ErrorLevel.WARNING, "旧日志文件删除失败", exception=e)
                     print(f"[日志清理] 删除失败 {old_file}: {e}")
 
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "日志文件清理过程失败", exception=e)
             print(f"[日志清理] 清理过程出错: {e}")
 
     def emit(self, record):
@@ -194,11 +184,6 @@ class TimestampedFileHandler(logging.Handler):
                     self.current_stream.flush()
 
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "日志文件 handler 写入异常", exception=exc)
             logger.warning("操作异常 in logger.py", exc_info=True)
             self.handleError(record)
 
@@ -244,11 +229,6 @@ class WebSocketLogHandler(logging.Handler):
             try:
                 await broadcast_log(log_data)
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
-                port = get_error_escalation_port()
-                if port is not None:
-                    port.report(ErrorLevel.WARNING, "日志广播单条失败", exception=exc)
                 logger.warning("日志广播单条异常 in logger.py", exc_info=True)
 
     def emit(self, record):
@@ -295,11 +275,6 @@ class WebSocketLogHandler(logging.Handler):
                 self._softirq.raise_softirq(log_data)
 
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "WebSocket 日志 handler 写入异常", exception=exc)
             logger.warning("操作异常 in logger.py", exc_info=True)
             # 不要让 WebSocket 错误影响日志系统
             self.handleError(record)
@@ -412,11 +387,6 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
                     merged.update(dict(loaded))
                 return merged
     except Exception as e:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, "加载日志配置失败", exception=e)
         print(f"[日志系统] 加载日志配置失败: {e}")
     return default_config
 
@@ -464,11 +434,6 @@ class SuppressionFilter(logging.Filter):
 
                     mark_taint(TaintFlag.TAINT_WARN)
                 except Exception as exc:
-                    from src.core.error_escalation.types import ErrorLevel
-                    from src.core.error_escalation_port_registry import get_error_escalation_port
-                    port = get_error_escalation_port()
-                    if port is not None:
-                        port.report(ErrorLevel.WARNING, "标记 TAINT_WARN 失败", exception=exc)
                     pass
 
             # 周期性摘要输出（窗口过期且有抑制时）
@@ -494,11 +459,6 @@ class SuppressionFilter(logging.Filter):
             record._zg2_filter_result = result
             return result
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "日志 filter 处理异常，放行记录", exception=exc)
             return True  # 异常放行 + 降级（不阻断落盘/WS）
 
 
@@ -529,11 +489,6 @@ class RingBufferHandler(logging.Handler):
             )
             self._ring_buffer.append(entry)
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "环形缓冲日志写入失败", exception=exc)
             pass  # 异常隔离：写入失败不影响落盘/WS
 
 
@@ -559,21 +514,11 @@ def _emit_ratelimit_summaries() -> None:
         try:
             _log_summary(summary)
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "摘要日志输出失败", exception=exc)
             pass
 
     try:
         _rate_limiter.emit_summaries(_output)
     except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, "限频摘要输出失败", exception=exc)
         pass
 
 
@@ -879,11 +824,6 @@ def convert_pathname_to_module(logger, method_name, event_dict):
             # 移除原始的 pathname 字段
             del event_dict["pathname"]
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "日志 module 字段转换失败", exception=exc)
             # 子进程初始化期间 logger 可能为 None，不能用 logger.warning()
             # 直接 fallback：删除 pathname，用文件名作 module 备选
             if "pathname" in event_dict:
@@ -1237,11 +1177,6 @@ def cleanup_old_logs():
                         deleted_count += 1
                         deleted_size += file_size
                 except Exception as e:
-                    from src.core.error_escalation.types import ErrorLevel
-                    from src.core.error_escalation_port_registry import get_error_escalation_port
-                    port = get_error_escalation_port()
-                    if port is not None:
-                        port.report(ErrorLevel.WARNING, "清理过期日志文件失败", exception=e)
                     logger = get_logger("logger")
                     logger.warning(f"清理日志文件 {log_file} 时出错: {e}")
 
@@ -1250,11 +1185,6 @@ def cleanup_old_logs():
             logger.info(f"清理了 {deleted_count} 个过期日志文件，释放空间 {deleted_size / 1024 / 1024:.2f} MB")
 
     except Exception as e:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.ERROR, "清理旧日志文件任务失败", exception=e)
         logger = get_logger("logger")
         logger.error(f"清理旧日志文件时出错: {e}")
 
