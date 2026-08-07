@@ -15,6 +15,7 @@ import asyncio
 
 import time
 import traceback
+import uuid
 from datetime import datetime
 
 from src.common.logger import get_logger
@@ -447,6 +448,7 @@ def _build_outbound_session_message(
     processed_plain_text: str = "",
     reply_message: Optional[MaiMessage] = None,
     selected_expressions: Optional[List[int]] = None,
+    idempotency_key: Optional[str] = None,
 ) -> Optional[SessionMessage]:
     """根据目标会话构建待发送的内部消息对象。
 
@@ -456,6 +458,8 @@ def _build_outbound_session_message(
         processed_plain_text: 可选的预处理纯文本内容。
         reply_message: 被回复的锚点消息。
         selected_expressions: 可选的表情候选索引列表。
+        idempotency_key: 幂等键，非空时作为 message_id 复用（同一逻辑消息重试时传入相同键），
+            为空时降级生成带 UUID 后缀的毫秒时间戳 ID（向后兼容，避免同毫秒碰撞）。
 
     Returns:
         Optional[SessionMessage]: 构建成功时返回内部消息对象；若目标会话或
@@ -474,7 +478,11 @@ def _build_outbound_session_message(
         return None
 
     current_time = time.time()
-    message_id = f"send_api_{int(current_time * 1000)}"
+    # ZG-23a: 幂等键非空时复用（同一逻辑消息重试），为空时降级生成带 UUID 后缀的毫秒时间戳 ID
+    if idempotency_key:
+        message_id = idempotency_key
+    else:
+        message_id = f"send_api_{int(current_time * 1000)}_{uuid.uuid4().hex[:8]}"
     anchor_message = reply_message.deepcopy() if reply_message is not None else None
 
     group_info: Optional[GroupInfo] = None
@@ -997,6 +1005,7 @@ async def _send_to_target_with_message(
     selected_expressions: Optional[List[int]] = None,
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
+    idempotency_key: Optional[str] = None,
 ) -> Optional[SessionMessage]:
     """向指定目标构建并发送消息。
 
@@ -1028,6 +1037,7 @@ async def _send_to_target_with_message(
             processed_plain_text=processed_plain_text,
             reply_message=reply_message,
             selected_expressions=selected_expressions,
+            idempotency_key=idempotency_key,
         )
         if outbound_message is None:
             return None
@@ -1121,6 +1131,7 @@ class SendServiceMessagePortV2:
         reply_to_id: str = "",
         agent_id: str = "",
         source: str = "core",
+        idempotency_key: Optional[str] = None,
     ) -> SendMessageResult:
         """发送消息 — 统一接口，MessageSequence 直通。
 
@@ -1128,6 +1139,7 @@ class SendServiceMessagePortV2:
         1. MessageSequence 直接传给 _send_to_target_with_message
         2. set_reply 基于 reply_message 是否找到（不是 reply_to_id 是否非空）
         3. 找不到被引用消息时降级为不引用，不丢弃整条消息
+        4. idempotency_key 非空时复用为 message_id（ZG-23a 出站幂等键）
         """
         try:
             reply_message = _resolve_reply_message_in_send_service(reply_to_id) if reply_to_id else None
@@ -1148,6 +1160,7 @@ class SendServiceMessagePortV2:
                 show_log=True,
                 sync_to_maisaka_history=True,
                 maisaka_source_kind=source,
+                idempotency_key=idempotency_key,
             )
 
             if result is not None:

@@ -29,6 +29,13 @@ def agent_autonomy_ports():
         interjection_cooldown_minutes=1,
         max_interjections_per_hour=5,
         max_interjections_per_session_per_hour=10,
+        # ZG-23a: 出站去重 + 发言节流配置
+        outbound_dedup_window_seconds=3.0,
+        outbound_dedup_max_entries=5000,
+        mention_chain_decay_base=0.6,
+        mention_chain_max_depth=4,
+        cohabitation_decay_factor=0.5,
+        cohabitation_min_max=2,
     )
     app_config_port.get_agent_autonomy_config.return_value = autonomy_config
     event_bus_port = MagicMock()
