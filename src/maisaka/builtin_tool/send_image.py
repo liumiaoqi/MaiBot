@@ -86,6 +86,11 @@ async def _load_readable_images(
         try:
             await image.load_image_binary()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "加载消息图片失败", exception=exc)
             logger.warning(f"{tool_ctx.runtime.log_prefix} 加载消息图片失败: msg_id={source_id} error={exc}")
 
     readable_images = [image for image in images if image.binary_data]

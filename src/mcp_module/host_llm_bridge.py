@@ -118,6 +118,11 @@ class MCPHostLLMBridge:
             )
 
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "MCP Sampling 调用失败", exception=exc)
             logger.exception(f"MCP Sampling 调用失败: {exc}")
             return mcp_types.ErrorData(
                 code=mcp_types.INTERNAL_ERROR,

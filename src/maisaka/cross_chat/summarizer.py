@@ -95,6 +95,11 @@ class ContextSummarizer:
             return summary
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "摘要生成失败，使用上次摘要", exception=e)
             logger.warning("摘要生成失败，使用上次摘要: session=%s error=%s", session_id, e)
             return self._last_summaries.get(session_id)
 

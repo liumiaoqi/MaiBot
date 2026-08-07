@@ -69,7 +69,12 @@ class ExpressionOrgan:
                 agent_config = registry.get_agent(self._agent_id)
                 self._agent_display_name = agent_config.display_name or self._agent_id
                 return self._agent_display_name
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取 agent display_name 失败", exception=exc)
             logger.warning("获取 agent display_name 失败", exc_info=True)
         self._agent_display_name = self._agent_id
         return self._agent_display_name

@@ -69,6 +69,11 @@ class EpisodeRetrievalService:
                     temporal=temporal,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "Episode 证据检索失败，回退词法检索", exception=exc)
                 logger.warning(f"episode evidence retrieval failed, fallback to lexical only: {exc}")
             else:
                 paragraph_rank_map: Dict[str, int] = {}

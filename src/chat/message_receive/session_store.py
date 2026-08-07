@@ -55,6 +55,11 @@ class SessionStore:
                     session.set_context(self._message_registry.last_messages[session.session_id])
                 return session
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "从数据库获取已有会话失败", exception=e)
             logger.error(f"从数据库获取已有会话失败: session_id={normalized_session_id} error={e}")
             return None
 

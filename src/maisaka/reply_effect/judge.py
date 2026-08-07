@@ -27,6 +27,11 @@ async def judge_reply_effect(record: ReplyEffectRecord, judge_runner: JudgeRunne
         payload = _loads_json_object(response_text)
         return parse_rubric_scores(payload), ""
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "评定回复效果失败", exception=exc)
         logger.warning("操作异常 in judge", exc_info=True)
         return RubricScores(), str(exc)
 

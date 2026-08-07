@@ -102,7 +102,12 @@ class EventLoopMonitor:
                 break
             try:
                 self._detect_once()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "事件循环检测周期异常，跳过本次判定", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.exception("检测周期发生异常，跳过本次判定")

@@ -91,6 +91,11 @@ class UDSTransportServer(TransportServer):
             # 设置文件权限为仅当前用户可访问
             self._socket_path.chmod(0o600)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "UDS 传输异常", exception=exc)
             get_logger("plugin_runtime.transport").debug("UDS 传输异常: %s", exc)
             # 启动失败时清理可能创建的目录和 socket 文件
             if self._socket_path.exists():

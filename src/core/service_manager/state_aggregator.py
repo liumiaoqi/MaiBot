@@ -137,7 +137,12 @@ class StateAggregator:
         for callback in self._subscribers:
             try:
                 callback(view)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "健康等级变更订阅回调异常", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("健康等级变更订阅回调异常，已跳过", exc_info=True)

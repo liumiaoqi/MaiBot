@@ -140,6 +140,11 @@ class MemoryDrivenTrigger(BaseTrigger):
                             memory_desc = "好久没互动了"
 
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "记忆检索失败，使用低触发概率", exception=e)
                 logger.debug("[agent_interaction] 记忆检索失败: %s", e)
                 prob = mention * 0.3
 

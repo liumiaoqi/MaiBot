@@ -127,5 +127,10 @@ class RuntimeRenderCapabilityMixin:
             result = await get_html_render_service().render_html_to_png(request)
             return {"success": True, "result": result.to_payload()}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "HTML 渲染为图片失败", exception=exc)
             logger.error(f"[cap.render.html2png] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}

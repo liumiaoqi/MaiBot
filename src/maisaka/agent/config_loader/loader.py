@@ -94,6 +94,11 @@ class AgentConfigLoader:
         try:
             config = AgentConfig.model_validate(frontmatter_data)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "验证智能体配置失败", exception=e)
             logger.error("验证智能体配置失败: %s, 错误: %s", file_path, e)
             return None
 

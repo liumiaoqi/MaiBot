@@ -386,6 +386,11 @@ class ToolRegistry:
                 try:
                     return await provider.invoke(invocation, context)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "工具调用失败", exception=exc)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.exception(

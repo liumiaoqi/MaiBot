@@ -89,6 +89,11 @@ class ProfileEvidenceService:
             try:
                 paragraph = self.metadata_store.get_paragraph(hash_value) if self.metadata_store else None
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "构建个人资料段落证据失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             if isinstance(paragraph, dict):
                 paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))

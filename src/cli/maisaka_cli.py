@@ -47,7 +47,12 @@ class BufferCLI:
             task_config = port.get_task_config("planner")
             if task_config.model_list:
                 return task_config.model_list[0]
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取当前模型名失败", exception=exc)
             logger.warning("操作异常 in maisaka_cli", exc_info=True)
         return "未配置"
 

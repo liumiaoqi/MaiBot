@@ -162,6 +162,11 @@ class EntityStore:
             logger.info("实体删除完成")
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "删除实体失败", exception=e)
             logger.error(f"删除实体时发生错误: {e}")
             self._conn.rollback()
             return False

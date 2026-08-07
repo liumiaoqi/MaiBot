@@ -82,7 +82,12 @@ def _load_stats(raw_stats: Any) -> dict[str, int]:
         }
     try:
         stats = loads(raw_stats)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取图片路径维护统计失败", exception=exc)
         logger.warning("操作异常 in image_path_maintenance_service.py", exc_info=True)
         return {
             "scanned_records": 0,
@@ -414,6 +419,11 @@ async def run_image_path_maintenance_background() -> None:
                 logger.info("图片路径规整一次性维护已中断，下次启动后继续")
                 raise
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "图片路径规整批次失败", exception=exc)
                 logger.warning(f"图片路径规整批次失败，将在下次启动后继续: {exc}")
                 return
 

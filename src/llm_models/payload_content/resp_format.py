@@ -206,6 +206,11 @@ class RespFormat:
             try:
                 self.schema = self._generate_schema_from_model(schema)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "自动生成 JSON Schema 失败", exception=exc)
                 logger.warning("操作异常 in resp_format", exc_info=True)
                 raise ValueError(
                     f"自动生成JSON Schema时发生异常，请检查模型类{schema.__name__}的定义，详细信息：\n"

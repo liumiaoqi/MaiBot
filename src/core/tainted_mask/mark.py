@@ -20,7 +20,12 @@ def mark_taint(flag: TaintFlag) -> None:
         from src.core.taint_mask_port_registry import get_taint_mask_port
 
         get_taint_mask_port().add_taint(flag)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "写入 taint 标记失败", exception=exc)
         pass
 
 

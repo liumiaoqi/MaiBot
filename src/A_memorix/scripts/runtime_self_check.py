@@ -130,6 +130,11 @@ async def _main_async(args: argparse.Namespace) -> int:
             try:
                 plugin.metadata_store.close()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "运行时自检项执行失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
         if temp_dir_ctx is not None:
             temp_dir_ctx.cleanup()

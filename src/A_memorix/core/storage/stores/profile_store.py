@@ -163,7 +163,12 @@ class ProfileStore:
             try:
                 data = json.loads(raw)
                 return data if isinstance(data, list) else []
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "读取最新人物画像快照失败", exception=exc)
                 return []
 
         return {

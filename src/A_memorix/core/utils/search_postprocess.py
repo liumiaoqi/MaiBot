@@ -67,6 +67,11 @@ def maybe_apply_smart_path_fallback(
         try:
             max_score = float(getattr(results[0], "score", 0.0) or 0.0)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "搜索结果后处理失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     if max_score >= float(threshold):
         return results, False, 0

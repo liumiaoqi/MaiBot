@@ -292,6 +292,11 @@ class CognitiveStratifier:
         try:
             self._store.update_entry(entry.id, evolution_history=json.dumps(history))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "演化历史写入跳过", exception=exc)
             logger.debug("演化历史写入跳过: entry=%d, error=%s", entry.id, exc)
 
     def _check_contradiction_threshold(self, entry: CognitiveEntry, agent_id: str, now: float) -> None:

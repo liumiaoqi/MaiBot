@@ -193,7 +193,12 @@ def get_db_session(auto_commit: bool = True) -> Generator[Session, None, None]:
         yield session
         if auto_commit:
             session.commit()
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "数据库会话操作失败，回滚事务", exception=exc)
         logger.warning("操作异常 in database.py", exc_info=True)
         session.rollback()
         raise

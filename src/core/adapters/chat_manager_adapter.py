@@ -157,7 +157,12 @@ class ChatManagerAdapter:
         for callback in self._session_created_subscribers:
             try:
                 callback(session_id)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "会话创建订阅回调异常", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("会话创建订阅回调异常", exc_info=True)

@@ -138,7 +138,12 @@ async def subscribe_llm_stats(connection_id: str, request_id: str | None) -> Non
             "model_stats": [m.model_dump(mode="json") for m in dashboard_data.model_stats],
             "timestamp": __import__("time").time(),
         }
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "获取统计数据失败", exception=exc)
         logger.warning("操作异常 in domains", exc_info=True)
         snapshot_data = {"error": "获取统计数据失败", "timestamp": __import__("time").time()}
 

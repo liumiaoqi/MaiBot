@@ -96,7 +96,12 @@ def _parse_bool(value: object, name: str, issues: list[str]) -> bool:
         return _DEFAULT_ERROR_ON_WARN if value is None else value
     try:
         return str(value).strip().lower() in ("true", "1", "yes", "on")
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析 error_escalation 布尔配置失败，回退默认 False", exception=exc)
         issues.append(f"error_escalation.{name} 解析失败，回退默认 False")
         return _DEFAULT_ERROR_ON_WARN
 

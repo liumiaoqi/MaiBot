@@ -73,7 +73,12 @@ def _resolve_image_path(binary_hash: str, *, kind: str) -> Path | None:
         file_path = Path(str(image_record.full_path or "")).expanduser().resolve()
         if file_path.is_file():
             return file_path
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析回复效果图片路径失败", exception=exc)
         logger.warning("操作异常 in image_utils", exc_info=True)
     return None
 

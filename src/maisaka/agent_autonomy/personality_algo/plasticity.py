@@ -43,7 +43,12 @@ class PlasticityCalculator:
         except OverflowError:
             # x 极小 → exp 极大 → sigmoid ≈ 0（已完全固化）
             sigmoid = 0.0
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "计算可塑性失败，使用默认 0.5", exception=exc)
             sigmoid = 0.5
 
         stability = sigmoid  # sigmoid 直接就是稳定性曲线：n 小→低稳定性，n 大→高稳定性

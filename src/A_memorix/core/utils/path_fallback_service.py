@@ -68,6 +68,11 @@ def find_paths_between_entities(
             max_paths=max_paths,
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "实体路径回退检索失败", exception=exc)
         logger.warning("操作异常: %s", exc)
     if not paths:
         return []

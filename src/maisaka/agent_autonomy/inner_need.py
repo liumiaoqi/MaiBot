@@ -203,6 +203,11 @@ class InnerNeedEngine:
                 )
                 all_needs.extend(needs)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "内在需求计算异常", exception=exc)
                 logger.warning(
                     f"[agent_autonomy] 内在需求计算异常: "
                     f"type={need_type} agent={agent_id} error={exc}"

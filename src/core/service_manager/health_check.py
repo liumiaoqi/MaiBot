@@ -137,6 +137,11 @@ class HealthCheckEngine:
                 f"探针超时({self._probe_timeout}s)",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "组件健康探针异常", exception=e)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             await self._on_check_fail(

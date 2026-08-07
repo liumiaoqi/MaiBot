@@ -58,6 +58,11 @@ class EventDispatcher:
                 await self._get_message_port().receive_message(session_message)
                 logger.info("Event %s 已路由到消息入站端口", event_name)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "事件路由失败", exception=e)
                 logger.error("Event %s 路由失败: %s", event_name, e)
             return
 

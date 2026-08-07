@@ -66,6 +66,11 @@ class UnifiedProfileService:
                     if llm_valence is not None:
                         valence = llm_valence
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "LLM valence 增强失败，使用加权平均", exception=exc)
                     logger.warning("LLM valence 增强失败，使用加权平均: %s", exc)
 
         return UnifiedProfile(

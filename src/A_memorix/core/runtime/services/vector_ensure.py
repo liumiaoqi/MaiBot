@@ -56,6 +56,11 @@ class VectorEnsureService:
             target_store.add(embedding, [token])
             return True
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "重建向量失败", exception=exc)
             logger.warning(f"重建向量失败: {exc}")
             return False
 

@@ -103,7 +103,12 @@ async def handle_tool(
             rel = await relationship_manager.get_relationship(agent_id, target.agent_id)
             if rel is not None:
                 interaction_count += rel.interaction_count
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "获取交互次数失败，使用 0", exception=exc)
         interaction_count = 0
 
     # 计算可塑性

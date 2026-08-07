@@ -45,6 +45,11 @@ class SemanticConceptExtractor:
                 valence=Valence.NEUTRAL,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "jieba 概念提取失败", exception=e)
             logger.error(f"jieba 概念提取失败: {e}")
             return ExtractionResult()
 

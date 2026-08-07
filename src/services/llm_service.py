@@ -696,6 +696,11 @@ async def generate(request: LLMServiceRequest) -> LLMServiceResult:
         )
         return LLMServiceResult.from_response_result(generation_result)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "生成内容失败", exception=exc)
         error_message = f"生成内容时出错: {exc}"
         logger.error(f"[LLMService] {error_message}")
         return LLMServiceResult.from_error(error_message, str(exc))

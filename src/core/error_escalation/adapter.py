@@ -34,6 +34,11 @@ def _load_config_from_port(app_config_port: Any) -> ErrorEscalationConfig:
         logger.warning("ERROR_CONFIG_SOURCE_MISSING: AppConfigPort 无 error_escalation 配置域，按全默认加载")
         return ErrorEscalationConfig()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "加载错误升级配置失败，按全默认加载", exception=exc)
         logger.warning("ERROR_CONFIG_LOAD_FAILED: %s，按全默认加载", exc)
         return ErrorEscalationConfig()
     config, issues = build_config(raw if isinstance(raw, dict) else None)

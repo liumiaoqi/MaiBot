@@ -142,6 +142,11 @@ def _read_project_data(sdk_path: Path) -> Mapping[str, object]:
         with pyproject_path.open("rb") as pyproject_file:
             pyproject_data = tomllib.load(pyproject_file)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "读取本地 SDK pyproject.toml 失败", exception=exc)
         logger.warning("操作异常 in local_sdk", exc_info=True)
         raise ValueError(f"读取本地 SDK pyproject.toml 失败: {pyproject_path}: {exc}") from exc
 

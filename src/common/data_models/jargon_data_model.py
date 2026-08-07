@@ -65,6 +65,11 @@ class MaiJargon(BaseDatabaseDataModel[Jargon]):
             # 解析存储的字符串为字典
             json_list = json.loads(db_record.session_id_dict)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析会话 ID 列表失败", exception=e)
             logger.error(f"Error parsing session_id_list: {e}")
         return cls(
             item_id=db_record.id,

@@ -123,6 +123,11 @@ class _NamedPipeServerProtocol(asyncio.StreamReaderProtocol):
                     }
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "Named Pipe 传输异常", exception=exc)
                 get_logger("plugin_runtime.transport").debug("Named Pipe 传输异常: %s", exc)
                 # 如果 loop 已经关闭，忽略异常
                 pass

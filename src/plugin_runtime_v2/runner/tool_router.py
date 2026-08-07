@@ -135,6 +135,11 @@ class ToolRouter:
                 success=False, error="TIMEOUT",
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "Tool 执行失败", exception=exc)
             logger.warning(
                 "Tool %s 执行异常: %s: %s",
                 tool_name, exc.__class__.__name__, exc,

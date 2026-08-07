@@ -43,7 +43,12 @@ class SelfDiscrepancyCalculator:
             actual_emb = self._cache.get_or_compute("__a1__", "actual", actual_text)
             ideal_emb = self._cache.get_or_compute("__a1__", "ideal", ideal_text)
             ought_emb = self._cache.get_or_compute("__a1__", "ought", ought_text)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "计算自我差异失败，返回空", exception=exc)
             return {}
 
         if not actual_emb or not ideal_emb or not ought_emb:

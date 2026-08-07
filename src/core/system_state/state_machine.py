@@ -211,7 +211,12 @@ class SystemStateMachine:
         """正常关闭时导出迁移历史（提示 2）。best-effort。"""
         try:
             self._history.export_to_jsonl(self._history.default_export_path())
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "迁移历史关闭导出失败", exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("迁移历史关闭导出失败")

@@ -211,6 +211,11 @@ class PressureDetector:
             try:
                 self._event_bus.emit_sync(event_type, event_data)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "压力事件发布失败，压力分级继续工作", exception=e)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.error("压力事件发布失败，压力分级继续工作: %s", e)

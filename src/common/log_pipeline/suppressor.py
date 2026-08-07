@@ -48,7 +48,12 @@ def _get_current_health_level() -> str:
         if value in _HEALTH_LEVELS:
             return value
         return "healthy"
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取当前健康等级失败，返回 healthy", exception=exc)
         return "healthy"
 
 

@@ -42,6 +42,11 @@ class BackgroundTaskScheduler:
                 except asyncio.CancelledError:
                     pass
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "后台任务退出异常", exception=exc)
                     logger.warning(f"后台任务退出异常: {exc}")
             self._tasks.clear()
 

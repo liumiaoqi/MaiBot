@@ -189,6 +189,11 @@ class EmbeddingServiceClient:
             try:
                 loop.run_until_complete(loop.shutdown_asyncgens())
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "关闭 EmbeddingService 临时异步生成器失败", exception=exc)
                 logger.warning(f"关闭 EmbeddingService 临时异步生成器失败: {exc}")
             asyncio.set_event_loop(None)
             loop.close()

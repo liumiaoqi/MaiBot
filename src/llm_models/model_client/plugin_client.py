@@ -127,6 +127,11 @@ class PluginLLMClient(BaseClient):
                 timeout_ms=max(1000, int(self.api_provider.timeout) * 1000),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插件 LLM Provider RPC 调用失败", exception=exc)
             logger.warning("操作异常 in plugin_client", exc_info=True)
             raise RespParseException(message=f"插件 LLM Provider RPC 调用失败: {exc}") from exc
         if response.error:

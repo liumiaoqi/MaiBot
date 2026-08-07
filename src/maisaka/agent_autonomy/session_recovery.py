@@ -102,6 +102,11 @@ class SessionRecoveryService:
                     recovered[session_id].append(record.agent_id)
 
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "恢复会话失败", exception=exc)
                 logger.warning(
                     f"[agent_autonomy] 恢复会话失败: "
                     f"session={session_id} error={exc}"

@@ -606,6 +606,11 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
         logger.warning(f"统一 WebSocket 连接处理被取消: connection={connection_id}")
         raise
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "统一 WebSocket 处理失败", exception=exc)
         logger.error(f"统一 WebSocket 处理失败: connection={connection_id}, error={exc}", exc_info=True)
     finally:
         chat_manager.disconnect_connection(connection_id)

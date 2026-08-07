@@ -138,6 +138,11 @@ def _discover_plugin(
 
         mod = importlib.import_module(f"{package_name}.plugin")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "动态导入 plugin.py 失败", exception=exc)
         logger.error("动态导入 plugin.py 失败: %s", exc)
         return None, {}
 
@@ -150,6 +155,11 @@ def _discover_plugin(
             logger.error("create_plugin() 未返回类型: %s", type(plugin_cls))
             return None, {}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "调用 create_plugin() 失败", exception=exc)
             logger.error("create_plugin() 调用失败: %s", exc)
             return None, {}
 

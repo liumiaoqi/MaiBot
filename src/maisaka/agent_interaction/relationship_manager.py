@@ -116,6 +116,11 @@ class AgentRelationshipManager:
                     if communities:
                         await self._apply_emergent_types(communities)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "涌现检测失败，跳过", exception=exc)
                     logger.debug(f"涌现检测跳过: error={exc}")
             return _table_to_read(row)
 

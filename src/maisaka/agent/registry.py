@@ -26,7 +26,12 @@ class AgentConfigRegistry:
                     config_dir = port.get_agents_dir()
                 else:
                     config_dir = "agents/"
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "获取 agents 目录失败，使用默认值", exception=exc)
                 logger.warning("获取 agents 目录失败，使用默认值", exc_info=True)
                 config_dir = "agents/"
         self._loader = AgentConfigLoader(config_dir)

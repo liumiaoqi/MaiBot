@@ -60,7 +60,12 @@ class ConceptGraphStore:
             try:
                 yield self._conn
                 self._conn.commit()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "概念图存储事务执行失败", exception=exc)
                 self._conn.rollback()
                 raise
             finally:

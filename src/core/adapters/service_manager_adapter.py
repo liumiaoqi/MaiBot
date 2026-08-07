@@ -439,7 +439,12 @@ class ServiceManagerAdapter:
                 self._recovery_engine.reset_count(component_id)
             new_level = self._state_aggregator.compute_level()
             self._state_aggregator.check_and_notify(old_level, new_level)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "组件恢复流程异常，转入故障", exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.error(

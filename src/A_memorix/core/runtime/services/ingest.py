@@ -381,6 +381,11 @@ class IngestService:
                     max_retry=max(1, int(self._cfg("episode.pending_max_retry", 3) or 3)),
                 )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "episode_pending 循环异常", exception=exc)
             logger.warning(f"episode_pending loop 异常: {exc}")
 
     @staticmethod

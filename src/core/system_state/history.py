@@ -52,7 +52,12 @@ class TransitionHistory:
                     }
                     f.write(json.dumps(line, ensure_ascii=False) + "\n")
             logger.info("迁移历史已导出: %s（%d 条）", path, len(records))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "迁移历史导出失败", exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("迁移历史导出失败: %s", path)

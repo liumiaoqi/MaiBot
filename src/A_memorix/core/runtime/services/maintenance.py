@@ -87,6 +87,11 @@ class MaintenanceService:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "memory_maintenance 循环异常", exception=exc)
             logger.warning(f"memory_maintenance loop 异常: {exc}")
 
     async def _run_memory_maintenance_cycle(self, *, interval_hours: float) -> None:

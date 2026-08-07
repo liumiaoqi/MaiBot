@@ -105,6 +105,11 @@ class ChatManager:
         try:
             await asyncio.to_thread(self.session_store.load_all_from_db)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "从数据库加载会话记录失败", exception=e)
             logger.error(f"从数据库加载会话记录时发生错误: {e}")
             self.session_store.sessions.clear()
             raise e

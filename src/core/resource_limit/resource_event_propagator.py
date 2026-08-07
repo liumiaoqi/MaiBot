@@ -101,6 +101,11 @@ class ResourceEventPropagator:
             emit_data = {**data, "plugin_id": plugin_id}
             await self._event_bus.emit(event_type, emit_data)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "事件 emit 失败，继续至下一节点", exception=e)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.error(

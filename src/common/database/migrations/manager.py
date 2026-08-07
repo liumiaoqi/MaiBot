@@ -149,6 +149,11 @@ class DatabaseMigrationManager:
                             self.version_store.write_version(connection, step.version_to)
                             connection.commit()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "数据库迁移步骤执行失败", exception=exc)
                 logger.exception(
                     f"数据库迁移步骤执行失败，将输出完整 traceback: "
                     f"{step.name} ({step.version_from} -> {step.version_to})"

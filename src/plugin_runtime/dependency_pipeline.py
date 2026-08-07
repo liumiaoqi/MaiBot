@@ -376,6 +376,11 @@ class PluginDependencyPipeline:
                 text=True,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "安装插件依赖失败", exception=exc)
             return False, str(exc)
 
         if completed_process.returncode == 0:

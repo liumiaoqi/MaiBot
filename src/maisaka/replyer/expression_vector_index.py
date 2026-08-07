@@ -1185,7 +1185,12 @@ class ExpressionVectorIndex:
             return
         try:
             task.result()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "表达向量历史补建任务异常退出", exception=exc)
             logger.exception("表达向量历史补建任务异常退出")
 
     @staticmethod

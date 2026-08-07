@@ -174,6 +174,11 @@ class EmotionManager:
                         f"intensity={intensity:.0f} reason={trigger_reason}"
                     )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "情绪印记写入失败", exception=exc)
                 _logger.warning(f"情绪印记写入失败: agent={agent_id} emotion={etype} error={exc}")
 
     @staticmethod

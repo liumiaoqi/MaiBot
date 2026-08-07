@@ -34,6 +34,11 @@ class FileUtils:
                 session.add(binary_data_record)
                 session.commit()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "保存文件失败", exception=e)
             logger.error(f"保存文件 {file_path} 失败: {e}")
             raise e
 

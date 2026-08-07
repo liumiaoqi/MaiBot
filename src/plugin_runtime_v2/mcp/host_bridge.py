@@ -153,7 +153,12 @@ class MCPHostBridge:
                     "", context.user_id or ""
                 )
                 name = info.person_name if info else ""
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "注入命令上下文失败", exception=exc)
                 logger.warning("操作异常 in host_bridge.py", exc_info=True)
                 name = ""
             invocation.arguments["sender_name"] = name

@@ -79,7 +79,12 @@ async def await_task_with_interrupt(
                 await task
             except asyncio.CancelledError:
                 pass
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "取消子任务后清理异常", exception=exc)
                 # 子任务清理过程中的异常（httpx 内部、SDK 等）已不影响主流程的取消语义，
                 # 但仍以 debug 级别记录，避免编程错误被完全静默。
                 logger.warning("await_task_with_interrupt: 取消子任务后清理时抛出异常", exc_info=True)

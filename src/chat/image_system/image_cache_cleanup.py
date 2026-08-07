@@ -294,6 +294,11 @@ async def periodic_image_cache_cleanup() -> None:
             try:
                 await asyncio.to_thread(run_image_cache_cleanup, config)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "图片缓存自动清理失败", exception=exc)
                 logger.error(f"图片缓存自动清理失败: {exc}", exc_info=True)
 
         await asyncio.sleep(interval_seconds if config.enabled else _DISABLED_POLL_SECONDS)

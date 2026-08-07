@@ -152,6 +152,11 @@ async def websocket_plugin_progress(websocket: WebSocket, token: Optional[str] =
                 if data == "ping":
                     await websocket.send_text("pong")
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "处理插件进度客户端消息失败", exception=exc)
                 logger.error(f"处理客户端消息时出错: {exc}")
                 break
 
@@ -159,6 +164,11 @@ async def websocket_plugin_progress(websocket: WebSocket, token: Optional[str] =
         active_connections.discard(websocket)
         logger.info(f"📡 插件进度 WebSocket 客户端已断开，当前连接数: {len(active_connections)}")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "插件进度 WebSocket 错误", exception=exc)
         logger.error(f"❌ WebSocket 错误: {exc}")
         active_connections.discard(websocket)
 

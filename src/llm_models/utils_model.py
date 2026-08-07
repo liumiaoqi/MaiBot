@@ -941,6 +941,11 @@ class LLMOrchestrator:
                 raise
 
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "模型调用遇到未知不可重试错误", exception=e)
                 logger.error(traceback.format_exc())
 
                 original_error_info = self._get_original_error_info(e)

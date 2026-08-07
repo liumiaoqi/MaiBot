@@ -152,6 +152,11 @@ async def main() -> None:
                     progress_callback=update_progress,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "导入 LPMM JSON 文件失败", exception=exc)
                 logger.error(f"处理文件 {json_file.name} 失败: {exc}\n{traceback.format_exc()}")
 
     await importer.close()

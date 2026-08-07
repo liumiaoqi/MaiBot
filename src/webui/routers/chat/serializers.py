@@ -191,7 +191,12 @@ def _load_cached_binary_data(
 
         guessed_mime_type = mimetypes.guess_type(str(image_path))[0] or default_mime_type
         return image_path.read_bytes(), guessed_mime_type
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取缓存二进制数据失败", exception=exc)
         logger.warning("操作异常 in serializers", exc_info=True)
         return b"", default_mime_type
 

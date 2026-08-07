@@ -112,6 +112,11 @@ class RelationWriteService:
                 vector_state="ready",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "关系向量写入失败", exception=e)
             logger.warning("操作失败", exc_info=True)
             err = str(e)[:max_error_len]
             self.metadata_store.set_relation_vector_state(

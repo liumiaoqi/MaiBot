@@ -178,6 +178,11 @@ def record_replyer_action_temp(chat_id: str, reason: str, think_level: int) -> N
 
         logger.debug(f"已记录replyer动作选择: chat_id={chat_id}, think_level={think_level}")
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "记录 replyer 动作选择失败", exception=e)
         logger.warning(f"记录replyer动作选择失败: {e}")
 
 

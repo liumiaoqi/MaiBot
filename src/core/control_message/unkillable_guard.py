@@ -39,7 +39,12 @@ class UnkillableGuard:
         if app_config_port is not None:
             try:
                 entities = app_config_port.get_control_message_unkillable_entities()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "UNKILLABLE 实体清单配置读取失败，使用空清单", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("UNKILLABLE 实体清单配置读取失败，使用空清单", exc_info=True)

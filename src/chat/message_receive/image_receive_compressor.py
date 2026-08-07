@@ -108,6 +108,11 @@ def _compress_image_component(
     try:
         compressed_bytes = ImageUtils.compress_image_to_size(image_bytes, max_image_size_bytes)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "接收图片压缩失败，保持原图", exception=exc)
         logger.warning(f"接收图片压缩失败，保持原图: {exc}")
         return
     if len(compressed_bytes) >= len(image_bytes):

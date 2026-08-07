@@ -918,6 +918,11 @@ class GraphOpsService:
             cursor.execute("DELETE FROM entities WHERE hash = ?", (old_row["hash"],))
             conn.commit()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "重命名节点失败", exception=exc)
             logger.warning("操作失败", exc_info=True)
             conn.rollback()
             return {"success": False, "error": f"rename failed: {exc}"}

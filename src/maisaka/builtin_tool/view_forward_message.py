@@ -102,6 +102,11 @@ async def handle_tool(
         else:
             full_content = await build_full_complex_message_content(target_source_message)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "查看转发消息完整内容失败", exception=exc)
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 查看转发消息时发生异常: 目标消息编号={target_message_id} 异常={exc}"
         )

@@ -65,6 +65,11 @@ class PluginLoader:
         try:
             self._instance = self._plugin_cls()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插件实例化失败", exception=exc)
             logger.error("插件 %s 实例化失败: %s", self._plugin_cls.__name__, exc)
             return [], [], {}, None
 
@@ -92,6 +97,11 @@ class PluginLoader:
             else:
                 on_unload()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "插件 on_unload 回调异常", exception=exc)
             logger.warning("插件 %s on_unload 异常: %s", plugin.plugin_id, exc)
 
     @property

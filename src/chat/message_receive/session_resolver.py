@@ -68,6 +68,11 @@ class SessionResolver:
                         session.set_context(self._store._message_registry.last_messages[session.session_id])
                     matched_sessions[session.session_id] = session
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "按目标解析聊天流失败", exception=e)
             logger.error(
                 f"按目标解析聊天流失败: platform={normalized_platform} "
                 f"target_id={normalized_target_id} chat_type={normalized_chat_type} error={e}"

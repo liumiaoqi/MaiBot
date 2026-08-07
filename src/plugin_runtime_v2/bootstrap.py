@@ -100,6 +100,11 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
                 await supervisor.spawn_and_wait(runner_id, str(plugin_dir))
                 spawned += 1
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "启动 V2 Runner 失败", exception=exc)
                 logger.error("spawn Runner %s 失败: %s", runner_id, exc)
             if runner_spawn_count > 0 and spawned >= runner_spawn_count:
                 break

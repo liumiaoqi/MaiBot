@@ -26,6 +26,11 @@ class RunnerLogBridge:
         try:
             batch = LogBatchPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "处理插件日志批次失败", exception=exc)
             logger.warning("操作异常 in logger_bridge", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 

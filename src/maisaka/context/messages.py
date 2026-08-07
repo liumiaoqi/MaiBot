@@ -43,7 +43,12 @@ def _guess_image_format(image_bytes: bytes) -> Optional[str]:
     try:
         with PILImage.open(BytesIO(image_bytes)) as image:
             return image.format.lower() if image.format else None
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "猜测图片格式失败", exception=exc)
         logger.warning("操作异常 in messages", exc_info=True)
 
 

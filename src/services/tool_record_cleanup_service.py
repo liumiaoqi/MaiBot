@@ -39,7 +39,12 @@ def _load_stats(raw_stats: Any) -> dict[str, int]:
         return {"scanned_records": 0, "updated_records": 0}
     try:
         stats = loads(raw_stats)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取工具记录清理统计失败", exception=exc)
         logger.warning("操作异常 in tool_record_cleanup_service.py", exc_info=True)
         return {"scanned_records": 0, "updated_records": 0}
     if not isinstance(stats, dict):
@@ -172,6 +177,11 @@ def run_startup_tool_record_vacuum_if_needed() -> bool:
         finally:
             connection.close()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "工具记录维护 VACUUM 失败", exception=exc)
         logger.warning("操作异常 in tool_record_cleanup_service.py", exc_info=True)
         message = f"工具记录维护 VACUUM 失败，请关闭占用数据库的程序后重启: {exc}"
         with get_db_session(auto_commit=False) as session:

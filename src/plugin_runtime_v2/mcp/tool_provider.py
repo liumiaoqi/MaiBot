@@ -163,6 +163,11 @@ class MCPToolProvider:
                 error_message=f"{exc.__class__.__name__}: {exc.details()}",
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "MCP Tool 调用失败", exception=exc)
             logger.warning(
                 "Tool %s 调用异常: %s: %s",
                 invocation.tool_name, exc.__class__.__name__, exc,

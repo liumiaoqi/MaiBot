@@ -82,5 +82,10 @@ class PromptPreviewLogger:
 
             configured_limit = get_app_config_port().get_log_maisaka_prompt_preview_limit()
             return max(1, int(configured_limit or cls._DEFAULT_MAX_PREVIEW_GROUPS_PER_CHAT))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取最大预览分组数失败，使用默认值", exception=exc)
             return cls._DEFAULT_MAX_PREVIEW_GROUPS_PER_CHAT

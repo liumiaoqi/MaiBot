@@ -151,6 +151,11 @@ def _download_qq_avatar_to_cache(platform: str, target_id: str, target_type: Ava
     except HTTPException:
         raise
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "头像下载失败", exception=exc)
         logger.warning("操作异常 in avatar", exc_info=True)
         raise HTTPException(status_code=502, detail=f"头像下载失败：{type(exc).__name__}: {exc}") from exc
 

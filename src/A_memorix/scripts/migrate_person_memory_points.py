@@ -26,6 +26,11 @@ def _parse_memory_points(raw_value: Any) -> List[Dict[str, Any]]:
     try:
         values = json.loads(raw_value) if raw_value else []
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析人物记忆点失败", exception=exc)
         logger.warning("操作异常: %s", exc)
     items: List[Dict[str, Any]] = []
     for index, item in enumerate(values):

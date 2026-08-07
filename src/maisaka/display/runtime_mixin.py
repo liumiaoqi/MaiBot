@@ -335,6 +335,11 @@ class MaisakaRuntimeDisplayMixin:
             try:
                 normalized_messages = deserialize_prompt_messages(request_messages)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "工具 request_messages 还原失败，使用瘦身预览", exception=exc)
                 logger.warning(
                     f"工具 {tool_name} 的 request_messages 无法还原为模型消息，将使用瘦身结构预览: {exc}"
                 )

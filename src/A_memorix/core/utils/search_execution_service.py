@@ -397,6 +397,11 @@ class SearchExecutionService:
             else:
                 payload = await _executor()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "知识检索失败", exception=e)
             return SearchExecutionResult(success=False, error=f"知识检索失败: {e}")
 
         if dedup_hit:

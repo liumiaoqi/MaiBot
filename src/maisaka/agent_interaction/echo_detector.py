@@ -113,6 +113,11 @@ class EchoDetector:
         except asyncio.TimeoutError:
             logger.warning("[agent_interaction] 回声传播超时，强制截断")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "回声传播异常，静默截断", exception=e)
             logger.warning("[agent_interaction] 回声传播异常，静默截断: %s", e)
 
     async def _propagate_echo(self, evaluation: TriggerEvaluation) -> None:

@@ -247,5 +247,10 @@ class InnerVoiceGenerator:
             result = result.replace("{situation}", current_context or "日常")
             return result
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "内心声音模板渲染失败", exception=exc)
             logger.warning("内心声音模板渲染失败: %s", exc)
             return self._fallback_text
