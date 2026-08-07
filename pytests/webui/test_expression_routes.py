@@ -11,7 +11,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from src.common.database.database_model import Expression, ModifiedBy
 from src.webui.dependencies import require_auth
-from src.webui.routers.expression import parse_modified_by
+from src.webui.services.expression_service_web import parse_modified_by
 
 
 def create_test_app() -> FastAPI:

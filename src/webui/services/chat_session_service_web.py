@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import tomlkit
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 from sqlalchemy import and_, case, delete, func
 from sqlmodel import col, select
 
@@ -44,6 +44,7 @@ logger = get_logger("webui.chat")
 # ── Pydantic 模型 ──────────────────────────────────────────────
 
 class TalkFrequencyUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天流发言频率编辑请求。"""
 
     previous_time: Optional[str] = None
@@ -52,6 +53,7 @@ class TalkFrequencyUpdateRequest(BaseModel):
 
 
 class LearningUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天流学习配置编辑请求。"""
 
     use: bool = True
@@ -59,12 +61,14 @@ class LearningUpdateRequest(BaseModel):
 
 
 class ChatPromptUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天流专属 Prompt 编辑请求。"""
 
     prompt: str = Field(default="")
 
 
 class ChatTargetResolveItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """配置目标解析请求项。"""
 
     platform: str = Field(default="")
@@ -73,6 +77,7 @@ class ChatTargetResolveItem(BaseModel):
 
 
 class ChatTargetResolveBatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量解析配置目标请求。"""
 
     targets: List[ChatTargetResolveItem] = Field(default_factory=list)

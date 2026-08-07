@@ -643,7 +643,7 @@ def test_delete_module_end_to_end_preview_execute_restore(integration_state: Dic
 
     execute_payload = _assert_response_ok(
         client.post(
-            "/api/webui/memory/delete/execute",
+            "/api/webui/memory/episodes/test/delete",
             json={
                 "mode": "source",
                 "selector": {"sources": [source_name]},

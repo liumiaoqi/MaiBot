@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Mapping, Optional, Set
 
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 from sqlalchemy import and_, cast, func, not_, or_, String as SQLString
 from sqlmodel import col, delete, select
 
@@ -153,6 +153,7 @@ def get_display_name_for_session_id(session_id_str: str, session: Any) -> str:
 
 
 class JargonResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话信息响应"""
 
     id: int
@@ -173,6 +174,7 @@ class JargonResponse(BaseModel):
 
 
 class JargonListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话列表响应"""
 
     success: bool = True
@@ -183,6 +185,7 @@ class JargonListResponse(BaseModel):
 
 
 class JargonDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话详情响应"""
 
     success: bool = True
@@ -190,6 +193,7 @@ class JargonDetailResponse(BaseModel):
 
 
 class JargonCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话创建请求"""
 
     content: str = Field(..., description="黑话内容")
@@ -200,6 +204,7 @@ class JargonCreateRequest(BaseModel):
 
 
 class JargonUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话更新请求"""
 
     content: Optional[str] = None
@@ -212,6 +217,7 @@ class JargonUpdateRequest(BaseModel):
 
 
 class JargonCreateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话创建响应"""
 
     success: bool = True
@@ -220,6 +226,7 @@ class JargonCreateResponse(BaseModel):
 
 
 class JargonUpdateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话更新响应"""
 
     success: bool = True
@@ -228,6 +235,7 @@ class JargonUpdateResponse(BaseModel):
 
 
 class JargonDeleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话删除响应"""
 
     success: bool = True
@@ -236,12 +244,14 @@ class JargonDeleteResponse(BaseModel):
 
 
 class BatchDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量删除请求"""
 
     ids: List[int] = Field(..., description="要删除的黑话ID列表")
 
 
 class JargonStatsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """黑话统计响应"""
 
     success: bool = True
@@ -249,6 +259,7 @@ class JargonStatsResponse(BaseModel):
 
 
 class ChatInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天信息响应"""
 
     session_id: str
@@ -258,6 +269,7 @@ class ChatInfoResponse(BaseModel):
 
 
 class ChatListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天列表响应"""
 
     success: bool = True

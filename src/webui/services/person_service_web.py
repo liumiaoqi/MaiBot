@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from sqlalchemy import case
 from sqlmodel import col, delete, select
 
@@ -18,6 +18,7 @@ from src.common.database.database_model import PersonInfo
 # ── Pydantic 响应模型 ──────────────────────────────────────────────
 
 class PersonInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """人物信息响应"""
 
     id: int
@@ -36,6 +37,7 @@ class PersonInfoResponse(BaseModel):
 
 
 class PersonListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """人物列表响应"""
 
     success: bool
@@ -46,6 +48,7 @@ class PersonListResponse(BaseModel):
 
 
 class PersonDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """人物详情响应"""
 
     success: bool
@@ -53,6 +56,7 @@ class PersonDetailResponse(BaseModel):
 
 
 class PersonUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """人物信息更新请求"""
 
     person_name: Optional[str] = None
@@ -63,6 +67,7 @@ class PersonUpdateRequest(BaseModel):
 
 
 class PersonUpdateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """人物信息更新响应"""
 
     success: bool
@@ -71,6 +76,7 @@ class PersonUpdateResponse(BaseModel):
 
 
 class PersonDeleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """人物删除响应"""
 
     success: bool
@@ -78,12 +84,14 @@ class PersonDeleteResponse(BaseModel):
 
 
 class BatchDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量删除请求"""
 
     person_ids: List[str]
 
 
 class BatchDeleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量删除响应"""
 
     success: bool

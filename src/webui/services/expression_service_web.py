@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 from sqlalchemy import case, func
 from sqlmodel import col, delete, select
 
@@ -48,6 +48,7 @@ LEGACY_IMPORT_UPLOAD_DIR = Path("data/webui_legacy_expression_imports")
 
 
 class ExpressionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式响应"""
 
     id: int
@@ -62,6 +63,7 @@ class ExpressionResponse(BaseModel):
 
 
 class ExpressionListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式列表响应"""
 
     success: bool
@@ -72,6 +74,7 @@ class ExpressionListResponse(BaseModel):
 
 
 class ExpressionDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式详情响应"""
 
     success: bool
@@ -79,6 +82,7 @@ class ExpressionDetailResponse(BaseModel):
 
 
 class ExpressionCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式创建请求"""
 
     situation: str
@@ -87,6 +91,7 @@ class ExpressionCreateRequest(BaseModel):
 
 
 class ExpressionUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式更新请求"""
 
     situation: Optional[str] = None
@@ -95,12 +100,14 @@ class ExpressionUpdateRequest(BaseModel):
 
 
 class ExpressionReviewStatusRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式列表行审核状态切换请求。"""
 
     approved: bool
 
 
 class ExpressionUpdateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式更新响应"""
 
     success: bool
@@ -109,6 +116,7 @@ class ExpressionUpdateResponse(BaseModel):
 
 
 class ExpressionDeleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式删除响应"""
 
     success: bool
@@ -116,6 +124,7 @@ class ExpressionDeleteResponse(BaseModel):
 
 
 class ExpressionCreateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式创建响应"""
 
     success: bool
@@ -124,6 +133,7 @@ class ExpressionCreateResponse(BaseModel):
 
 
 class ExpressionExportItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式导出条目，不包含会话 ID。"""
 
     situation: str
@@ -137,6 +147,7 @@ class ExpressionExportItem(BaseModel):
 
 
 class ExpressionExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式导出请求。"""
 
     chat_id: str
@@ -144,6 +155,7 @@ class ExpressionExportRequest(BaseModel):
 
 
 class ExpressionExportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式导出响应。"""
 
     success: bool = True
@@ -156,6 +168,7 @@ class ExpressionExportResponse(BaseModel):
 
 
 class ExpressionImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式导入请求。"""
 
     chat_id: str
@@ -163,6 +176,7 @@ class ExpressionImportRequest(BaseModel):
 
 
 class ExpressionImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式导入响应。"""
 
     success: bool = True
@@ -173,12 +187,14 @@ class ExpressionImportResponse(BaseModel):
 
 
 class ExpressionClearRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """清除指定聊天流表达方式请求。"""
 
     chat_id: str
 
 
 class ExpressionClearResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """清除指定聊天流表达方式响应。"""
 
     success: bool = True
@@ -187,6 +203,7 @@ class ExpressionClearResponse(BaseModel):
 
 
 class ExpressionReviewLogResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式 AI 审核日志响应。"""
 
     id: str
@@ -206,6 +223,7 @@ class ExpressionReviewLogResponse(BaseModel):
 
 
 class ExpressionReviewLogListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达方式 AI 审核日志列表响应。"""
 
     success: bool = True
@@ -214,6 +232,7 @@ class ExpressionReviewLogListResponse(BaseModel):
 
 
 class ExpressionReviewLogApproveResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """从 AI 审核日志人工恢复表达方式的响应。"""
 
     success: bool = True
@@ -222,12 +241,14 @@ class ExpressionReviewLogApproveResponse(BaseModel):
 
 
 class LegacyExpressionImportPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧版表达方式导入预览请求。"""
 
     db_path: str
 
 
 class LegacyExpressionMatchOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧版导入自动匹配到的当前聊天流候选。"""
 
     session_id: str
@@ -235,6 +256,7 @@ class LegacyExpressionMatchOption(BaseModel):
 
 
 class LegacyExpressionGroupPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧版表达方式按旧聊天流分组后的预览信息。"""
 
     old_chat_id: str
@@ -249,6 +271,7 @@ class LegacyExpressionGroupPreview(BaseModel):
 
 
 class LegacyExpressionImportPreviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧版表达方式导入预览响应。"""
 
     success: bool = True
@@ -260,6 +283,7 @@ class LegacyExpressionImportPreviewResponse(BaseModel):
 
 
 class LegacyExpressionImportMapping(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧聊天流到新聊天流的导入映射。"""
 
     old_chat_id: str
@@ -268,6 +292,7 @@ class LegacyExpressionImportMapping(BaseModel):
 
 
 class LegacyExpressionImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧版表达方式导入请求。"""
 
     db_path: str
@@ -275,6 +300,7 @@ class LegacyExpressionImportRequest(BaseModel):
 
 
 class LegacyExpressionImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """旧版表达方式导入响应。"""
 
     success: bool = True
@@ -286,6 +312,7 @@ class LegacyExpressionImportResponse(BaseModel):
 
 
 class ChatInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天信息"""
 
     chat_id: str
@@ -297,6 +324,7 @@ class ChatInfo(BaseModel):
 
 
 class ChatListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """聊天列表响应"""
 
     success: bool
@@ -304,6 +332,7 @@ class ChatListResponse(BaseModel):
 
 
 class ExpressionGroupInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达共享组信息。"""
 
     index: int
@@ -314,6 +343,7 @@ class ExpressionGroupInfo(BaseModel):
 
 
 class ExpressionGroupListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达共享组列表响应。"""
 
     success: bool
@@ -321,6 +351,7 @@ class ExpressionGroupListResponse(BaseModel):
 
 
 class ExpressionClusterMemberResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达聚类成员。"""
 
     id: int
@@ -334,6 +365,7 @@ class ExpressionClusterMemberResponse(BaseModel):
 
 
 class ExpressionClusterSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达聚类摘要。"""
 
     embedding_profile_marker: str
@@ -343,6 +375,7 @@ class ExpressionClusterSummaryResponse(BaseModel):
 
 
 class ExpressionClusterListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达聚类列表响应。"""
 
     success: bool = True
@@ -357,6 +390,7 @@ class ExpressionClusterListResponse(BaseModel):
 
 
 class ExpressionClusterMemberListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """表达聚类成员列表响应。"""
 
     success: bool = True
@@ -365,12 +399,14 @@ class ExpressionClusterMemberListResponse(BaseModel):
 
 
 class BatchDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量删除请求"""
 
     ids: List[int]
 
 
 class ReviewStatsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """审核统计响应"""
 
     total: int
@@ -381,6 +417,7 @@ class ReviewStatsResponse(BaseModel):
 
 
 class ReviewListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """审核列表响应"""
 
     success: bool
@@ -391,6 +428,7 @@ class ReviewListResponse(BaseModel):
 
 
 class BatchReviewItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量审核项"""
 
     id: int
@@ -399,12 +437,14 @@ class BatchReviewItem(BaseModel):
 
 
 class BatchReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量审核请求"""
 
     items: List[BatchReviewItem]
 
 
 class BatchReviewResultItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量审核结果项"""
 
     id: int
@@ -413,6 +453,7 @@ class BatchReviewResultItem(BaseModel):
 
 
 class BatchReviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """批量审核响应"""
 
     success: bool

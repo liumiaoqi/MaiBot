@@ -107,6 +107,10 @@ def db_isolation():
 
     用于只读测试（快）和写测试（完全隔离，测试结束数据消失）。
     真实 DB + 事务回滚方案可用 db_isolation_real fixture。
+
+    偏离说明：design.md 建议写测试用方案 B（真实 DB + 回滚），
+    实际采用方案 A（内存 SQLite）——理由：本仓库真实库也是 SQLite，
+    方案 A 零残留风险且更快；db_isolation_real 已实现备用。
     """
     import src.common.database.database as db_module
     import src.common.database.database_model  # noqa: F401 — 确保模型加载

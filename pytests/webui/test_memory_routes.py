@@ -12,6 +12,60 @@ from src.webui.routers import memory as memory_router_module
 from src.webui.routers.memory import compat_router
 from src.webui.routes import router as main_router
 
+# T5 拆分后 monkeypatch 目标分散到多个子模块，以下 helper 统一 patch 所有调用点
+from src.webui.routers.memory import episode as _episode_mod
+from src.webui.routers.memory import graph as _graph_mod
+from src.webui.routers.memory import import_ as _import_mod
+from src.webui.routers.memory import profile as _profile_mod
+from src.webui.routers import memory_helpers as _memory_helpers_mod
+from src.webui.services import memory_helper_service_web as _helper_service_mod
+
+
+def _patch_resolve_person_id(monkeypatch, fake):
+    monkeypatch.setattr(_profile_mod, "resolve_person_id_for_memory", fake)
+    monkeypatch.setattr(_episode_mod, "resolve_person_id_for_memory", fake)
+
+
+def _patch_get_person_name(monkeypatch, fake):
+    monkeypatch.setattr(_profile_mod, "_get_person_name_for_person_id", fake)
+    monkeypatch.setattr(_episode_mod, "_get_person_name_for_person_id", fake)
+
+
+def _patch_find_real_chat_session(monkeypatch, fake):
+    monkeypatch.setattr(_memory_helpers_mod, "_find_real_chat_session", fake)
+
+
+def _patch_query_memory_rows(monkeypatch, fake):
+    monkeypatch.setattr(_memory_helpers_mod, "_query_memory_rows", fake)
+    monkeypatch.setattr(_graph_mod, "_query_memory_rows", fake)
+
+
+def _patch_prefetch_latest(monkeypatch, fake):
+    monkeypatch.setattr(_helper_service_mod, "_prefetch_latest_messages_by_session", fake)
+
+
+def _patch_get_existing_session_info(monkeypatch, fake):
+    monkeypatch.setattr(_helper_service_mod, "get_existing_session_info", fake)
+
+
+def _patch_get_session_name_via_port(monkeypatch, fake):
+    monkeypatch.setattr(_helper_service_mod, "_get_session_name_via_port", fake)
+
+
+def _patch_get_db_session(monkeypatch, fake):
+    monkeypatch.setattr(_memory_helpers_mod, "get_db_session", fake)
+    monkeypatch.setattr(_import_mod, "get_db_session", fake)
+    monkeypatch.setattr(_profile_mod, "get_db_session", fake)
+    monkeypatch.setattr(_episode_mod, "get_db_session", fake)
+
+
+def _patch_profile_list(monkeypatch, fake):
+    monkeypatch.setattr(_profile_mod, "_profile_list", fake)
+
+
+def _patch_staging_root(monkeypatch, fake):
+    monkeypatch.setattr(_import_mod, "STAGING_ROOT", fake)
+
 
 class _FakeDbContext:
     def __init__(self, db_session):
@@ -382,7 +436,7 @@ def test_webui_memory_profile_query_resolves_platform_user_id(client: TestClient
         assert kwargs["force_refresh"] is True
         return {"success": True, "person_id": kwargs["person_id"], "profile_text": "profile"}
 
-    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    _patch_resolve_person_id(monkeypatch, fake_resolve_person_id_for_memory)
     monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
 
     response = client.get(
@@ -465,7 +519,7 @@ def test_webui_memory_profile_query_prefers_explicit_person_id(client: TestClien
         assert kwargs["person_id"] == "explicit-person-id"
         return {"success": True, "person_id": kwargs["person_id"]}
 
-    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    _patch_resolve_person_id(monkeypatch, fake_resolve_person_id_for_memory)
     monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
 
     response = client.get(
@@ -490,10 +544,9 @@ def test_webui_memory_profile_list_enriches_person_name(client: TestClient, monk
         }
 
     monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
-    monkeypatch.setattr(
-        memory_router_module,
-        "_get_person_name_for_person_id",
-        lambda person_id: {"person-1": "Alice"}.get(person_id, ""),
+    _patch_get_person_name(
+        monkeypatch,
+        lambda session, person_id: {"person-1": "Alice"}.get(person_id, ""),
     )
 
     response = client.get("/api/webui/memory/profiles", params={"limit": 7})
@@ -518,8 +571,8 @@ def test_webui_memory_profile_search_resolves_platform_user_id(client: TestClien
             ],
         }
 
-    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
-    monkeypatch.setattr(memory_router_module, "_profile_list", fake_profile_list)
+    _patch_resolve_person_id(monkeypatch, fake_resolve_person_id_for_memory)
+    _patch_profile_list(monkeypatch, fake_profile_list)
 
     response = client.get(
         "/api/webui/memory/profiles/search",
@@ -543,7 +596,7 @@ def test_webui_memory_profile_search_filters_keyword(client: TestClient, monkeyp
             ],
         }
 
-    monkeypatch.setattr(memory_router_module, "_profile_list", fake_profile_list)
+    _patch_profile_list(monkeypatch, fake_profile_list)
 
     response = client.get("/api/webui/memory/profiles/search", params={"person_keyword": "咖啡", "limit": 50})
 
@@ -574,9 +627,9 @@ def test_webui_memory_episode_list_resolves_platform_user_id(client: TestClient,
             "count": 1,
         }
 
-    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    _patch_resolve_person_id(monkeypatch, fake_resolve_person_id_for_memory)
     monkeypatch.setattr(memory_router_module.memory_service, "episode_admin", fake_episode_admin)
-    monkeypatch.setattr(memory_router_module, "_get_person_name_for_person_id", lambda person_id: "测试人物")
+    _patch_get_person_name(monkeypatch, lambda session, person_id: "测试人物")
 
     response = client.get(
         "/api/webui/memory/episodes",
@@ -604,7 +657,7 @@ def test_webui_memory_episode_list_prefers_explicit_person_id(client: TestClient
         assert kwargs["person_id"] == "explicit-person-id"
         return {"success": True, "items": []}
 
-    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    _patch_resolve_person_id(monkeypatch, fake_resolve_person_id_for_memory)
     monkeypatch.setattr(memory_router_module.memory_service, "episode_admin", fake_episode_admin)
 
     response = client.get(
@@ -617,10 +670,9 @@ def test_webui_memory_episode_list_prefers_explicit_person_id(client: TestClient
 
 
 def test_webui_memory_timeline_returns_chat_scoped_events(client: TestClient, monkeypatch):
-    monkeypatch.setattr(
-        memory_router_module,
-        "_find_real_chat_session",
-        lambda chat_id: SimpleNamespace(
+    _patch_find_real_chat_session(
+        monkeypatch,
+        lambda session, chat_id: SimpleNamespace(
             session_id=chat_id,
             platform="qq",
             group_id="100",
@@ -632,9 +684,9 @@ def test_webui_memory_timeline_returns_chat_scoped_events(client: TestClient, mo
         if chat_id == "chat-1"
         else None,
     )
-    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
-    monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
-    monkeypatch.setattr(memory_router_module, "_get_session_name_via_port", lambda chat_id: "测试群")
+    _patch_query_memory_rows(monkeypatch, lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
+    _patch_prefetch_latest(monkeypatch, lambda db_session, session_ids: {})
+    _patch_get_session_name_via_port(monkeypatch, lambda chat_id: "测试群")
 
     response = client.get(
         "/api/webui/memory/timeline",
@@ -683,10 +735,9 @@ def test_memory_metadata_matches_chat_ids_list() -> None:
 
 
 def test_webui_memory_timeline_filters_types_and_limit(client: TestClient, monkeypatch):
-    monkeypatch.setattr(
-        memory_router_module,
-        "_find_real_chat_session",
-        lambda chat_id: SimpleNamespace(
+    _patch_find_real_chat_session(
+        monkeypatch,
+        lambda session, chat_id: SimpleNamespace(
             session_id=chat_id,
             platform="qq",
             group_id="100",
@@ -696,8 +747,8 @@ def test_webui_memory_timeline_filters_types_and_limit(client: TestClient, monke
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
-    monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
+    _patch_query_memory_rows(monkeypatch, lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
+    _patch_prefetch_latest(monkeypatch, lambda db_session, session_ids: {})
 
     response = client.get(
         "/api/webui/memory/timeline",
@@ -736,10 +787,9 @@ def test_webui_memory_timeline_deleted_paragraph_prefers_delete_operation(client
             "created_at": 165.0,
         }
     ]
-    monkeypatch.setattr(
-        memory_router_module,
-        "_find_real_chat_session",
-        lambda chat_id: SimpleNamespace(
+    _patch_find_real_chat_session(
+        monkeypatch,
+        lambda session, chat_id: SimpleNamespace(
             session_id=chat_id,
             platform="qq",
             group_id="100",
@@ -749,8 +799,8 @@ def test_webui_memory_timeline_deleted_paragraph_prefers_delete_operation(client
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(store, sql, params))
-    monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
+    _patch_query_memory_rows(monkeypatch, lambda sql, params=(): _async_query(store, sql, params))
+    _patch_prefetch_latest(monkeypatch, lambda db_session, session_ids: {})
 
     response = client.get(
         "/api/webui/memory/timeline",
@@ -766,23 +816,21 @@ def test_webui_memory_timeline_deleted_paragraph_prefers_delete_operation(client
 
 
 def test_webui_memory_timeline_uses_latest_message_snapshot(client: TestClient, monkeypatch):
-    monkeypatch.setattr(
-        memory_router_module,
-        "_find_real_chat_session",
-        lambda chat_id: SimpleNamespace(
+    _patch_find_real_chat_session(
+        monkeypatch,
+        lambda session, chat_id: SimpleNamespace(
             session_id=chat_id,
             platform="qq",
-            group_id=None,
-            user_id="user-1",
-            group_name=None,
+            group_id="100",
+            user_id=None,
+            group_name="测试群",
             user_cardname=None,
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
-    monkeypatch.setattr(
-        memory_router_module,
-        "_prefetch_latest_messages_by_session",
+    _patch_query_memory_rows(monkeypatch, lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
+    _patch_prefetch_latest(
+        monkeypatch,
         lambda db_session, session_ids: {
             "chat-1": {
                 "group_id": None,
@@ -793,7 +841,7 @@ def test_webui_memory_timeline_uses_latest_message_snapshot(client: TestClient, 
             }
         },
     )
-    monkeypatch.setattr(memory_router_module, "_get_session_name_via_port", lambda chat_id: "")
+    _patch_get_session_name_via_port(monkeypatch, lambda chat_id: "")
 
     response = client.get("/api/webui/memory/timeline", params={"chat_id": "chat-1", "limit": 1})
 
@@ -802,12 +850,12 @@ def test_webui_memory_timeline_uses_latest_message_snapshot(client: TestClient, 
 
 
 def test_webui_memory_timeline_rejects_unknown_chat(client: TestClient, monkeypatch):
-    def fake_find_real_chat_session(chat_id: str):
+    def fake_find_real_chat_session(session, chat_id: str):
         assert chat_id == "missing-chat"
         return None
 
-    monkeypatch.setattr(memory_router_module, "_find_real_chat_session", fake_find_real_chat_session)
-    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
+    _patch_find_real_chat_session(monkeypatch, fake_find_real_chat_session)
+    _patch_query_memory_rows(monkeypatch, lambda sql, params=(): _async_query(_FakeMemoryMetadataStore(), sql, params))
 
     response = client.get("/api/webui/memory/timeline", params={"chat_id": "missing-chat"})
 
@@ -820,10 +868,9 @@ def test_webui_memory_timeline_handles_json_bytes_zero_timestamp_and_batches_ite
     monkeypatch,
 ):
     store = _CountingTimelineMetadataStore()
-    monkeypatch.setattr(
-        memory_router_module,
-        "_find_real_chat_session",
-        lambda chat_id: SimpleNamespace(
+    _patch_find_real_chat_session(
+        monkeypatch,
+        lambda session, chat_id: SimpleNamespace(
             session_id=chat_id,
             platform="qq",
             group_id="100",
@@ -833,8 +880,8 @@ def test_webui_memory_timeline_handles_json_bytes_zero_timestamp_and_batches_ite
             user_nickname=None,
         ),
     )
-    monkeypatch.setattr(memory_router_module, "_query_memory_rows", lambda sql, params=(): _async_query(store, sql, params))
-    monkeypatch.setattr(memory_router_module, "_prefetch_latest_messages_by_session", lambda db_session, session_ids: {})
+    _patch_query_memory_rows(monkeypatch, lambda sql, params=(): _async_query(store, sql, params))
+    _patch_prefetch_latest(monkeypatch, lambda db_session, session_ids: {})
 
     response = client.get("/api/webui/memory/timeline", params={"chat_id": "chat-1", "limit": 50})
 
@@ -1035,10 +1082,9 @@ def test_import_guide_route(client: TestClient, monkeypatch):
 
 
 def test_import_upload_route(client: TestClient, monkeypatch, tmp_path):
-    monkeypatch.setattr(memory_router_module, "STAGING_ROOT", tmp_path)
-    monkeypatch.setattr(
-        memory_router_module,
-        "get_existing_session_info",
+    _patch_staging_root(monkeypatch, tmp_path)
+    _patch_get_existing_session_info(
+        monkeypatch,
         lambda chat_id: SimpleNamespace(session_id=chat_id) if chat_id == "session-1" else None,
     )
 
@@ -1065,11 +1111,10 @@ def test_import_upload_route(client: TestClient, monkeypatch, tmp_path):
 
 
 def test_import_upload_route_rejects_unknown_chat_id(client: TestClient, monkeypatch, tmp_path):
-    monkeypatch.setattr(memory_router_module, "STAGING_ROOT", tmp_path)
-    monkeypatch.setattr(memory_router_module, "get_existing_session_info", lambda chat_id: None)
-    monkeypatch.setattr(
-        memory_router_module,
-        "get_db_session",
+    _patch_staging_root(monkeypatch, tmp_path)
+    _patch_get_existing_session_info(monkeypatch, lambda chat_id: None)
+    _patch_get_db_session(
+        monkeypatch,
         lambda: _FakeDbContext(SimpleNamespace(exec=lambda statement: SimpleNamespace(first=lambda: None))),
     )
 
@@ -1097,10 +1142,9 @@ def test_import_chat_targets_route(client: TestClient, monkeypatch):
         user_cardname=None,
         last_active_timestamp=None,
     )
-    monkeypatch.setattr(memory_router_module, "_get_session_name_via_port", lambda chat_id: "")
-    monkeypatch.setattr(
-        memory_router_module,
-        "get_db_session",
+    _patch_get_session_name_via_port(monkeypatch, lambda chat_id: "")
+    _patch_get_db_session(
+        monkeypatch,
         lambda: _FakeDbContext(
             SimpleNamespace(exec=lambda statement: SimpleNamespace(all=lambda: [chat_session], first=lambda: None))
         ),
@@ -1128,7 +1172,7 @@ def test_v5_status_route(client: TestClient, monkeypatch):
 
     monkeypatch.setattr(memory_router_module.memory_service, "v5_admin", fake_v5_admin)
 
-    response = client.get("/api/webui/memory/v5/status", params={"target": "mai"})
+    response = client.get("/api/webui/memory/status", params={"target": "mai"})
 
     assert response.status_code == 200
     assert response.json()["success"] is True
@@ -1212,7 +1256,7 @@ def test_delete_execute_route_supports_mixed_mode(client: TestClient, monkeypatc
     monkeypatch.setattr(memory_router_module.memory_service, "delete_admin", fake_delete_admin)
 
     response = client.post(
-        "/api/webui/memory/delete/execute",
+        "/api/webui/memory/episodes/mixed/delete",
         json={
             "mode": "mixed",
             "selector": {
@@ -1400,7 +1444,7 @@ def test_delete_execute_route(client: TestClient, monkeypatch):
     monkeypatch.setattr(memory_router_module.memory_service, "delete_admin", fake_delete_admin)
 
     response = client.post(
-        "/api/webui/memory/delete/execute",
+        "/api/webui/memory/episodes/source/delete",
         json={
             "mode": "source",
             "selector": {"source": "chat_summary:stream-1"},

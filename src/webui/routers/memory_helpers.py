@@ -5,16 +5,18 @@
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import json
 
 from src.common.database.database import get_db_session
-from src.common.database.database_model import ChatSession
 from src.common.logger import get_logger
 from src.services.memory_service import memory_service
 from src.webui.errors import AppError
 from src.webui.errors.codes import ErrorCode
+
+if TYPE_CHECKING:
+    from src.common.database.database_model import ChatSession
 from src.webui.schemas.memory import (
     MemoryTimelineChat,
     MemoryTimelineEvent,

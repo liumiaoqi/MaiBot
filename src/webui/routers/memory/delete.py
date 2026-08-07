@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 
 from src.services.memory_service import memory_service
 from src.webui.dependencies import require_auth
+from src.webui.errors import AppError, ErrorCode
 from src.webui.schemas.memory import (
     DeleteActionRequest,
     DeletePurgeRequest,
@@ -96,6 +97,11 @@ async def preview_memory_delete(payload: DeleteActionRequest):
 
 @router.post("/episodes/{id}/delete")
 async def execute_memory_delete(id: str, payload: DeleteActionRequest):
+    if id != payload.mode:
+        raise AppError(
+            ErrorCode.PARAM_INVALID,
+            f"路径 id ({id}) 与请求体 mode ({payload.mode}) 不一致",
+        )
     return await _delete_execute(payload)
 
 @router.post("/delete/restore")
@@ -114,5 +120,10 @@ async def get_memory_delete_operation(operation_id: str):
     return await _delete_get(operation_id)
 
 @router.post("/maintenance/purge")
-async def purge_memory_delete(payload: DeletePurgeRequest):
+async def purge_memory_delete(payload: DeletePurgeRequest, cascade: bool = Query(False)):
+    if not cascade:
+        raise AppError(
+            ErrorCode.BIZ_STATE_CONFLICT,
+            "purge 是破坏性操作，需显式传入 cascade=true 确认",
+        )
     return await _delete_purge(payload)
