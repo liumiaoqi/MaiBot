@@ -163,6 +163,11 @@ class ImageUtils:
                 image.seek(0)
                 working_image = ImageUtils._prepare_image_for_receive_compression(image)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '接收图片压缩失败，无法识别图片格式', exception=exc)
             logger.warning(f"接收图片压缩失败，无法识别图片格式: {exc}")
             return image_bytes
 
@@ -240,6 +245,11 @@ class ImageUtils:
             image_bytes = path.read_bytes()
             return base64.b64encode(image_bytes).decode("utf-8")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '读取图片文件失败', exception=e)
             logger.error(f"读取图片文件失败: {e}")
             return None
 
@@ -253,5 +263,10 @@ class ImageUtils:
             path.write_bytes(image_bytes)
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '保存图片文件失败', exception=e)
             logger.error(f"保存图片文件失败: {e}")
             return False

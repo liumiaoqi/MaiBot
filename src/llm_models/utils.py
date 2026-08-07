@@ -47,6 +47,11 @@ def compress_messages(messages: list[Message], img_target_size: int = 1 * 1024 *
 
             return image_data
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '图片转换格式失败', exception=e)
             logger.error(f"图片转换格式失败: {str(e)}")
             return image_data
 
@@ -100,6 +105,11 @@ def compress_messages(messages: list[Message], img_target_size: int = 1 * 1024 *
             return output_buffer.getvalue(), original_size, new_size
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '图片缩放失败', exception=e)
             logger.error(f"图片缩放失败: {str(e)}")
             import traceback
 
@@ -229,6 +239,11 @@ class LLMUsageRecorder:
                 f"总计: {model_usage.total_tokens}"
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '记录token使用情况失败', exception=e)
             logger.error(f"记录token使用情况失败: {str(e)}")
 
         self._notify_llm_stats_subscribers(
@@ -288,7 +303,12 @@ class LLMUsageRecorder:
                     topic="main",
                     data=event_data,
                 ))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in utils.py', exception=exc)
             logger.warning("操作异常 in utils.py", exc_info=True)
 
 

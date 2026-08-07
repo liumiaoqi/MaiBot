@@ -119,6 +119,11 @@ class MentionChainThrottle:
             try:
                 sample = random.random()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '随机数生成异常，降级不触发（保守）', exception=e)
                 logger.warning(f"随机数生成异常，降级不触发（保守）: {e}")
                 mark_exception_swallowed("mention_chain_throttle.random_error")
                 return ChainThrottleDecision(
@@ -145,6 +150,11 @@ class MentionChainThrottle:
                 )
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '连锁深度节流异常，降级允许触发', exception=e)
             # 降级：允许触发，probability = base ** 1
             logger.warning(f"连锁深度节流异常，降级允许触发: {e}")
             mark_exception_swallowed("mention_chain_throttle.check_and_decide")
@@ -171,6 +181,11 @@ class MentionChainThrottle:
         try:
             return self._base ** depth
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '概率计算异常，降级使用默认 base 0.6', exception=e)
             # 降级：用默认 base 0.6 重新计算
             logger.warning(f"概率计算异常，降级使用默认 base 0.6: {e}")
             mark_exception_swallowed("mention_chain_throttle._compute_probability")

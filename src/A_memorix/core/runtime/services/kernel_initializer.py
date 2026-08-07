@@ -82,6 +82,11 @@ class KernelInitializer:
         try:
             sparse_cfg = SparseBM25Config(**sparse_cfg_raw)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'sparse 配置非法，回退默认', exception=exc)
             logger.warning(f"sparse 配置非法，回退默认: {exc}")
             sparse_cfg = SparseBM25Config()
         kernel.sparse_index = SparseBM25Index(metadata_store=kernel.metadata_store, config=sparse_cfg)
@@ -440,6 +445,11 @@ class KernelInitializer:
                 runtime_config["bot_nickname"] = gc.bot.nickname or ""
                 runtime_config["bot_personality"] = getattr(gc.bot, "personality", "") or ""
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
                 logger.warning("操作异常: %s", exc)
         return runtime_config
 
@@ -616,6 +626,11 @@ class KernelInitializer:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'auto_save loop 异常', exception=exc)
             logger.warning(f"auto_save loop 异常: {exc}")
 
     @staticmethod

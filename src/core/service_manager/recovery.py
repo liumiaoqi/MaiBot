@@ -127,7 +127,12 @@ class RecoveryEngine:
             # 委托停止残留
             try:
                 await lifecycle_manager.stop(component_id, force=True, confirmed=True)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '组件 %s 恢复流程停止残留异常，继续尝试启动', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning(
@@ -151,7 +156,12 @@ class RecoveryEngine:
 
                     mark_taint(TaintFlag.TAINT_COMPAT_FALLBACK)
                     await oom_hook(component_id)
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '组件 %s OOM 重应用异常', exception=exc)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.warning(
@@ -159,7 +169,12 @@ class RecoveryEngine:
                     )
 
             return True
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '组件 %s 恢复流程异常，需人工介入', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.error(

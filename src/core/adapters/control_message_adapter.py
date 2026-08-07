@@ -77,7 +77,12 @@ class ControlMessageAdapter(ControlMessagePort):
         if app_config_port is not None:
             try:
                 history_limit = app_config_port.get_control_message_delivery_history_limit()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '投递历史上限配置读取失败，使用默认 %s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("投递历史上限配置读取失败，使用默认 %s", _DEFAULT_DELIVERY_HISTORY_LIMIT, exc_info=True)
@@ -362,7 +367,12 @@ class ControlMessageAdapter(ControlMessagePort):
         if self._event_bus is not None:
             try:
                 await self._event_bus.emit(event_type, data)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'control 事件发布失败: %s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
@@ -371,7 +381,12 @@ class ControlMessageAdapter(ControlMessagePort):
         if self._event_bus is not None:
             try:
                 self._event_bus.emit_sync(event_type, data)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'control 事件同步发布失败: %s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("control 事件同步发布失败: %s", event_type, exc_info=True)
@@ -382,7 +397,12 @@ class ControlMessageAdapter(ControlMessagePort):
                 await self._service_manager.report_external_fault(
                     "control_message", _FAULT_REASON, detail
                 )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '故障上报失败: %s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("故障上报失败: %s", detail, exc_info=True)

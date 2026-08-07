@@ -113,7 +113,12 @@ class WatchdogAdapter(WatchdogPort):
             await sm_port.report_external_fault(
                 event.component_id, event.reason.value, event.detail
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '故障上报异常（component_id=%s）', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("故障上报异常（component_id=%s）", event.component_id)
@@ -128,7 +133,12 @@ class WatchdogAdapter(WatchdogPort):
         for callback in self._status_subscribers:
             try:
                 callback(status)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '状态订阅回调异常', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("状态订阅回调异常", exc_info=True)
@@ -198,7 +208,12 @@ class WatchdogAdapter(WatchdogPort):
         for callback in self._timeout_subscribers:
             try:
                 callback(event)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '超时订阅回调异常', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("超时订阅回调异常", exc_info=True)

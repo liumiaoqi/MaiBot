@@ -93,6 +93,11 @@ class SpreadAnchorRetriever:
                 scores=spread_scores,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '联想扩散异常，降级纯事实检索: %s', exception=exc)
             logger.warning("联想扩散异常，降级纯事实检索: %s", exc)
             anchor_status = AnchorStatus.DEGRADED
             spread_scores = {}
@@ -104,6 +109,11 @@ class SpreadAnchorRetriever:
                 for cid, score in self._vector_retriever(query, max(5, limit * 2)):
                     vector_scores[cid] = max(0.0, float(score))
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '向量补充失败（忽略）: %s', exception=exc)
                 logger.warning("向量补充失败（忽略）: %s", exc)
 
         # 评分归一化合并
@@ -114,6 +124,11 @@ class SpreadAnchorRetriever:
                 alpha=self._score_alpha,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '评分归一化异常，降级纯事实检索: %s', exception=exc)
             logger.warning("评分归一化异常，降级纯事实检索: %s", exc)
             anchor_status = AnchorStatus.DEGRADED
             fused = dict(spread_scores)

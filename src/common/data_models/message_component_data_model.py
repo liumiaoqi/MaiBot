@@ -80,6 +80,12 @@ class ImageComponent(BaseMessageComponentModel, ByteComponent):
                     raise ValueError(f"无法通过 image_hash 加载图片二进制数据: {self.binary_hash}")
             self.binary_data = await asyncio.to_thread(image_path.read_bytes)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '通过 image_hash 加载图片二进制数据失败', exception=e)
+            logger.warning(f"通过 image_hash 加载图片二进制数据失败: {e}")
             raise ValueError(f"通过 image_hash 加载图片二进制数据时发生错误: {e}") from e
 
     async def to_seg(self) -> Seg:
@@ -117,6 +123,12 @@ class EmojiComponent(BaseMessageComponentModel, ByteComponent):
                     raise ValueError(f"无法通过 emoji_hash 加载表情二进制数据: {self.binary_hash}")
             self.binary_data = await asyncio.to_thread(image_path.read_bytes)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '通过 emoji_hash 加载表情二进制数据失败', exception=e)
+            logger.warning(f"通过 emoji_hash 加载表情二进制数据失败: {e}")
             raise ValueError(f"通过 emoji_hash 加载表情二进制数据时发生错误: {e}") from e
 
     async def to_seg(self) -> Seg:
@@ -140,6 +152,12 @@ class VoiceComponent(BaseMessageComponentModel, ByteComponent):
                 file_path = FileUtils.get_file_path_by_hash(self.binary_hash)
                 self.binary_data = await asyncio.to_thread(file_path.read_bytes)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '通过 voice_hash 加载语音二进制数据失败', exception=e)
+                logger.warning(f"通过 voice_hash 加载语音二进制数据失败: {e}")
                 raise ValueError(f"通过 voice_hash 加载语音二进制数据时发生错误: {e}") from e
 
     async def to_seg(self) -> Seg:

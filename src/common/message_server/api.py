@@ -122,6 +122,11 @@ def get_global_api() -> MessageServer:  # sourcery skip: extract-method
                                 global_api.platform_map[platform] = api_key  # type: ignore
                                 api_logger.info(f"Updated platform_map: {platform} -> {api_key}")
                         except Exception as e:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.WARNING, 'Failed to update platform map', exception=e)
                             api_logger.warning(f"Failed to update platform map: {e}")
 
                     # Compatibility Layer: Ensure raw_message exists (even if None) as it's part of MessageBase
@@ -149,6 +154,11 @@ def get_global_api() -> MessageServer:  # sourcery skip: extract-method
                             else:
                                 api_logger.debug(f"No handler for message_id_echo, payload: {payload}")
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, 'Failed to process message_id_echo', exception=e)
                         api_logger.warning(f"Failed to process message_id_echo: {e}")
 
                 server_config.register_custom_handler("message_id_echo", custom_message_id_echo_handler)  # type: ignore # maim_message库写错类型了
@@ -185,6 +195,11 @@ def get_global_api() -> MessageServer:  # sourcery skip: extract-method
                     "Cannot import maim_message.server components. Is maim_message >= 0.6.0 installed?"
                 )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'Failed to initialize Additional API Server', exception=e)
                 get_logger("maim_message").error(f"Failed to initialize Additional API Server: {e}")
                 get_logger("maim_message").debug(traceback.format_exc())
 

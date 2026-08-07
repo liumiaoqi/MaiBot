@@ -62,7 +62,12 @@ class TaintMaskAdapter(TaintedMaskPort):
         try:
             config = self._app_config_port.get_taint_on_taint()
             mapper = TaintActionMapper.from_config(config)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'on_taint 配置加载失败，使用默认（全部 RECORD）', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning("on_taint 配置加载失败，使用默认（全部 RECORD）", exc_info=True)
@@ -79,7 +84,12 @@ class TaintMaskAdapter(TaintedMaskPort):
             return 0
         try:
             return max(0, int(self._app_config_port.get_taint_warn_limit()))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'warn_limit 配置读取失败，使用默认 0', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning("warn_limit 配置读取失败，使用默认 0", exc_info=True)
@@ -91,7 +101,12 @@ class TaintMaskAdapter(TaintedMaskPort):
             return 0
         try:
             return int(self._app_config_port.get_taint_preset_mask())
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'preset_mask 配置读取失败，使用默认 0', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning("preset_mask 配置读取失败，使用默认 0", exc_info=True)
@@ -103,7 +118,12 @@ class TaintMaskAdapter(TaintedMaskPort):
             return 0
         try:
             return int(self._app_config_port.get_degrade_on_taint_mask())
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'degrade_on_taint_mask 配置读取失败，使用默认 0', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning("degrade_on_taint_mask 配置读取失败，使用默认 0", exc_info=True)

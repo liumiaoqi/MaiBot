@@ -664,6 +664,11 @@ class RelationStore:
             self._conn.commit()
             return deleted_count
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '备份删除失败', exception=e)
             logger.error(f"备份删除失败: {e}")
             self._conn.rollback()
             return 0
@@ -692,6 +697,11 @@ class RelationStore:
             self._conn.commit()
             return row_to_dict(row)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '恢复关系失败:  -', exception=e)
             logger.error(f"恢复关系失败: {hash_value} - {e}")
             self._conn.rollback()
             return None
@@ -750,7 +760,13 @@ class RelationStore:
             if "metadata" in d and d["metadata"]:
                 try:
                     d["metadata"] = pickle.loads(d["metadata"])
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '反序列化关系元数据失败', exception=exc)
+                    logger.warning(f"反序列化关系元数据失败: {exc}")
                     pass
             data.append(d)
         return data
@@ -765,7 +781,13 @@ class RelationStore:
         if "metadata" in d and d["metadata"]:
             try:
                 d["metadata"] = pickle.loads(d["metadata"])
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '反序列化关系元数据失败', exception=exc)
+                logger.warning(f"反序列化关系元数据失败: {exc}")
                 pass
         return d
 

@@ -174,6 +174,12 @@ async def check_expression_suitability(
     try:
         evaluation = parse_evaluation_response(response)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '评估表达方式时发生错误', exception=e)
+        logger.warning(f"评估表达方式时发生错误: {e}")
         return False, f"评估表达方式时发生错误: {e}", str(e)
 
     try:
@@ -182,6 +188,12 @@ async def check_expression_suitability(
         logger.debug(f"评估结果: {'通过' if suitable else '不通过'}")
         return suitable, reason, None
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '评估结果格式错误', exception=e)
+        logger.warning(f"评估结果格式错误: {e}")
         return False, f"评估结果格式错误: {e}", str(e)
 
 
@@ -291,10 +303,20 @@ def is_single_char_jargon(content: str) -> bool:
 def _try_parse(text: str) -> Any:
     try:
         return json.loads(text)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '操作异常 in expression_utils.py', exception=exc)
         logger.warning("操作异常 in expression_utils.py", exc_info=True)
         try:
             repaired = _normalize_repair_json_result(repair_json(text))
             return json.loads(repaired)
-        except Exception:
+        except Exception as exc2:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in expression_utils.py', exception=exc2)
             logger.warning("操作异常 in expression_utils.py", exc_info=True)

@@ -8,7 +8,7 @@ def get_coverage() -> dict:
         已改造文件数、已改造 except 处数、全量待改造 except 处数
     """
     return {
-        "reformed_files": 96,
-        "reformed_sites": 1046,
+        "reformed_files": 142,
+        "reformed_sites": 1207,
         "total_sites": 1494,
     }

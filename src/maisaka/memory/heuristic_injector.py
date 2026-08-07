@@ -91,7 +91,12 @@ class HeuristicMemoryInjector:
                 seeds=impression.split()[:10] if impression else [],
                 context_text=context_text,
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '直觉召回失败，降级到 search', exception=exc)
             logger.warning("直觉召回失败，降级到 search", exc_info=True)
         return await self.memory_port.search(
             impression,
@@ -182,6 +187,11 @@ class HeuristicMemoryInjector:
                 max_chars=max(100, config.heuristic_memory_recall_max_chars),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '启发式记忆自然拉起失败，已跳过', exception=exc)
             self.clear_session_reference(session_info.session_id)
             logger.warning(f"启发式记忆自然拉起失败，已跳过: {exc}", exc_info=True)
             return ""
@@ -285,6 +295,11 @@ class HeuristicMemoryInjector:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '启发式记忆命中来源解析失败，已按未知来源处理', exception=exc)
             logger.warning(f"启发式记忆命中来源解析失败，已按未知来源处理: {exc}")
             return {}
         if not isinstance(payload, dict) or not bool(payload.get("success", False)):
@@ -322,7 +337,12 @@ class HeuristicMemoryInjector:
             if not registry.has_agent(context.agent_id):
                 return hits
             focus_areas = registry.get_agent(context.agent_id).memory_focus_areas
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in heuristic_injector.py', exception=exc)
             logger.warning("操作异常 in heuristic_injector.py", exc_info=True)
             return hits
 

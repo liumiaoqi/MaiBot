@@ -17,6 +17,11 @@ def _safe_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
         logger.warning("操作异常: %s", exc)
 def _get_config_value(config: Any, key: str, default: Any = None) -> Any:
     getter = getattr(config, "get_config", None)
@@ -77,6 +82,11 @@ def _store_snapshot(store: Optional[Any]) -> Dict[str, Any]:
         try:
             has_data = bool(checker())
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
             logger.warning("操作异常: %s", exc)
     else:
         has_data = num_vectors > 0
@@ -188,6 +198,11 @@ async def run_embedding_runtime_self_check(
         encoded_array = _normalize_encoded_vector(encoded)
         encoded_dimension = int(encoded_array.shape[0])
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, 'embedding runtime self-check failed', exception=exc)
         elapsed_ms = (time.perf_counter() - start) * 1000.0
         logger.warning(f"embedding runtime self-check failed: {exc}")
         return _build_report(
@@ -301,5 +316,10 @@ async def ensure_runtime_self_check(
     try:
         plugin_or_config._runtime_self_check_report = report
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
         logger.warning("操作异常: %s", exc)
     return report

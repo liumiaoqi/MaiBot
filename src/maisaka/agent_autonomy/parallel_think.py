@@ -65,6 +65,11 @@ class ParallelThinkScheduler:
             except asyncio.CancelledError:
                 return ThinkResult(action=ThinkAction.SILENT)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '[parallel_think] 思考异常: agent= error=', exception=exc)
                 logger.error(f"[parallel_think] 思考异常: agent={agent_id} error={exc}")
                 return ThinkResult(action=ThinkAction.ERROR, error_message=str(exc))
 
@@ -81,6 +86,11 @@ class ParallelThinkScheduler:
             except asyncio.CancelledError:
                 return ThinkResult(action=ThinkAction.SILENT)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '[parallel_think] 主动思考异常: agent= error=', exception=exc)
                 logger.error(f"[parallel_think] 主动思考异常: agent={agent_id} error={exc}")
                 return ThinkResult(action=ThinkAction.ERROR, error_message=str(exc))
 
@@ -94,13 +104,23 @@ class ParallelThinkScheduler:
             if task.done():
                 try:
                     results[agent_id] = task.result()
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '操作异常 in parallel_think.py', exception=exc)
                     logger.warning("操作异常 in parallel_think.py", exc_info=True)
                     results[agent_id] = ThinkResult(action=ThinkAction.ERROR, error_message="task failed")
             else:
                 try:
                     results[agent_id] = await task
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '操作异常 in parallel_think.py', exception=exc)
                     logger.warning("操作异常 in parallel_think.py", exc_info=True)
                     results[agent_id] = ThinkResult(action=ThinkAction.ERROR, error_message="task failed")
 

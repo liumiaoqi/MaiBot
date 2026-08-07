@@ -270,6 +270,11 @@ class AgentMemoryAdapter:
                 reason=f"agent_interaction_decay:{agent_id}:{target_agent_id}",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆衰减失败: %s', exception=e)
             logger.warning("[agent_interaction] 记忆衰减失败: %s", e)
 
     async def reinforce_memory(
@@ -283,6 +288,11 @@ class AgentMemoryAdapter:
             target = content_hash or self.build_chat_id(agent_id, target_agent_id)
             await self.memory_port.maintain_memory(action="reinforce", target=target)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆强化失败: %s', exception=e)
             logger.warning("[agent_interaction] 记忆强化失败: %s", e)
 
     async def check_frequent_interaction(
@@ -305,6 +315,11 @@ class AgentMemoryAdapter:
                             agent_id, target_agent_id, hit.hash_value
                         )
                 return True
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in adapter.py', exception=exc)
             logger.warning("操作异常 in adapter.py", exc_info=True)
         return False

@@ -267,6 +267,11 @@ class EventBus:
                     break
                 executed.append(entry)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "拦截型 handler 执行异常", exception=e)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.error(f"拦截型 handler {entry.name} 执行异常: {e}", exc_info=True)
@@ -398,6 +403,11 @@ class EventBus:
                         "非拦截型 handler %s 返回 BAD 被忽略（不参与投票）", entry.name
                     )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "handler 异步任务异常", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.error(f"handler {entry.name} 异步任务异常: {exc}", exc_info=True)
@@ -410,7 +420,12 @@ class EventBus:
             result = entry.on_rollback()
             if asyncio.iscoroutine(result):
                 await asyncio.wait_for(result, timeout=self._rollback_timeout)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '事件回滚异常（handler %s），回滚继续', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("事件回滚异常（handler %s），回滚继续", entry.name)
@@ -444,6 +459,11 @@ class EventBus:
             if modified_dict is not None and message is not None:
                 message = self._apply_ipc_message_update(message, modified_dict)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '桥接事件到 IPC 运行时失败', exception=e)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning(f"桥接事件到 IPC 运行时失败: {e}")

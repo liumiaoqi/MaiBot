@@ -37,6 +37,11 @@ class BindingRestorer:
                     self._agent_router.bind_session(session.session_id, session.agent_id)
                     restored += 1
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '启动恢复绑定失败：session=, agent=, error=', exception=e)
                     logger.warning(f"启动恢复绑定失败：session={session.session_id}, agent={session.agent_id}, error={e}")
 
         cohabitant_restored = 0
@@ -57,6 +62,11 @@ class BindingRestorer:
                     self._agent_router.bind_session(activity.session_id, activity.agent_id)
                     cohabitant_restored += 1
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '启动恢复共居绑定失败：session=, agent=, error=', exception=e)
                     logger.warning(f"启动恢复共居绑定失败：session={activity.session_id}, agent={activity.agent_id}, error={e}")
 
         logger.info(f"启动恢复绑定完成：主发言={restored}, 共居={cohabitant_restored}, 跳过={skipped}")
@@ -83,6 +93,11 @@ class BindingRestorer:
                     orchestrator.restore_agent(record.agent_id, is_primary=record.is_primary)
                     restored_agents += 1
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '启动恢复Orchestrator失败：session=, agent=, error=', exception=e)
                     logger.warning(f"启动恢复Orchestrator失败：session={session_id}, agent={record.agent_id}, error={e}")
 
         logger.info(f"启动恢复Orchestrator完成：恢复智能体={restored_agents}")

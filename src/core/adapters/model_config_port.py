@@ -108,6 +108,12 @@ class ConfigManagerModelConfigPort:
             )
             status = "satisfied"
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '解析模型能力声明失败', exception=exc)
+            logger.warning(f"解析模型能力声明失败: {exc}")
             from src.llm_models.model_requirement import DeclarationError
             if not isinstance(exc, DeclarationError):
                 raise
@@ -303,7 +309,12 @@ class ConfigManagerModelConfigPort:
                     cb(changed_scopes)
                 except TypeError:
                     cb()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '配置热重载回调异常: callback=%s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning(
@@ -344,7 +355,13 @@ class ConfigManagerModelConfigPort:
         try:
             states = sm_port.list_states()
             known_ids = {state.component_id for state in states} if states else set()
-        except Exception:
+        except Exception as exc2:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '获取组件运行状态失败', exception=exc2)
+            logger.warning(f"获取组件运行状态失败: {exc2}")
             known_ids = set()
         import asyncio
 
@@ -368,6 +385,11 @@ class ConfigManagerModelConfigPort:
                 loop.create_task(sm_port.restart(component_id))
                 logger.info("模型配置热重载 → 精确重启组件: %s", component_id)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '模型配置热重载重启组件 %s 失败: %s', exception=exc)
                 logger.warning("模型配置热重载重启组件 %s 失败: %s", component_id, exc)
 
     # ── 智能体覆盖合并 ────────────────────────────────

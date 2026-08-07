@@ -131,7 +131,12 @@ def _build_labeled_tile(image_bytes: bytes, index: int, tile_size: int) -> PILIm
     try:
         with PILImage.open(BytesIO(image_bytes)) as raw_image:
             image = raw_image.convert("RGBA")
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "生成表情占位图失败", exception=exc)
         logger.warning("操作异常 in send_emoji.py", exc_info=True)
         return _build_placeholder_tile(str(index), tile_size)
 
@@ -396,6 +401,11 @@ async def _select_emoji_with_sub_agent(
         else:
             raise RuntimeError("ModelConfigPort 未注册")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '[send_emoji] 无 vision 模型，降级纯文本模式', exception=exc)
         logger.warning(f"[send_emoji] 无 vision 模型，降级纯文本模式: {exc}")
         raise RuntimeError(_EMOJI_VLM_NOT_CONFIGURED_MESSAGE) from exc
 
@@ -423,6 +433,11 @@ async def _select_emoji_with_sub_agent(
     try:
         selection = EmojiSelectionResult.model_validate_json(response.content or "")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '表情包子代理结果解析失败，将回退到候选首项', exception=exc)
         logger.warning(f"{tool_ctx.runtime.log_prefix} 表情包子代理结果解析失败，将回退到候选首项: {exc}")
         if selection_metadata is not None:
             selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
@@ -509,6 +524,11 @@ async def handle_tool(
             ),
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '发送表情包时发生异常', exception=exc)
         logger.exception(f"{tool_ctx.runtime.log_prefix} 发送表情包时发生异常: {exc}")
         if _is_missing_visual_model_error(exc):
             structured_result["message"] = _EMOJI_VLM_NOT_CONFIGURED_MESSAGE

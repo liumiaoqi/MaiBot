@@ -82,6 +82,11 @@ class SessionLifecycle:
                     self._store.sessions[session.session_id] = session
                     return session
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '从数据库获取会话时发生错误', exception=e)
             logger.error(f"从数据库获取会话时发生错误: {e}")
             raise e
 
@@ -113,6 +118,11 @@ class SessionLifecycle:
             await asyncio.to_thread(self._store.load_all_from_db)
             logger.debug(f"已加载 {len(self._store.sessions)} 个会话记录到内存中")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '初始化聊天管理器出现错误', exception=e)
             logger.error(f"初始化聊天管理器出现错误: {e}")
 
         binding_restorer.restore_bindings()
@@ -125,6 +135,11 @@ class SessionLifecycle:
                 self._store.save(session)
             logger.info(f"共 {len(self._store.sessions)} 个会话已经保存到数据库中")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '保存会话记录到数据库时发生错误', exception=e)
             logger.error(f"保存会话记录到数据库时发生错误: {e}")
             raise e
 
@@ -135,6 +150,11 @@ class SessionLifecycle:
             try:
                 await asyncio.to_thread(self.save_all_sessions)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '定期保存会话记录时发生错误', exception=e)
                 logger.error(f"定期保存会话记录时发生错误: {e}")
 
     @staticmethod

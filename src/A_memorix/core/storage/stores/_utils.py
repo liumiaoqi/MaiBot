@@ -38,7 +38,13 @@ def json_loads(value: Any, default: Any) -> Any:
         return default
     try:
         return json.loads(value)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '解析 JSON 值失败', exception=exc)
+        logger.warning(f"解析 JSON 值失败: {exc}")
         return default
 
 
@@ -47,7 +53,13 @@ def as_optional_float(value: Any) -> Optional[float]:
         return None
     try:
         return float(value)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '转换 float 值失败', exception=exc)
+        logger.warning(f"转换 float 值失败: {exc}")
         return None
 
 
@@ -156,7 +168,13 @@ def row_to_dict(row: Any, _row_type: str = "") -> Dict[str, Any]:
     if "metadata" in d and d["metadata"]:
         try:
             d["metadata"] = pickle.loads(d["metadata"])
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '反序列化元数据失败', exception=exc)
+            logger.warning(f"反序列化元数据失败: {exc}")
             pass
     return d
 

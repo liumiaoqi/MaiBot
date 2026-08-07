@@ -69,6 +69,11 @@ class UniversalMessageSender:
                     MessageUtils.fill_reply_frequency_if_available(message, reply_frequency_provider=None)
                     db_session.add(message.to_db_instance())
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "存储消息失败", exception=e)
             logger.error(f"[{message.session_id}] 存储消息 {message.message_id} 时出错：{e}")
             raise e
 
@@ -108,7 +113,12 @@ class UniversalMessageSender:
                     logger.info(f"已将消息 '{message_preview}' 发往平台'{message.platform}'")
                 return True
 
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常 in universal_message_sender.py', exception=exc)
                 logger.warning("操作异常 in universal_message_sender.py", exc_info=True)
                 # # Legacy API 抛出异常，尝试 Fallback
                 # return await self._send_with_fallback(
@@ -117,6 +127,11 @@ class UniversalMessageSender:
                 return False
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "发送消息失败", exception=e)
             logger.error(f"发送消息 '{message_preview}' 发往平台'{message.platform}' 失败：{str(e)}")
             import traceback
 
@@ -208,6 +223,11 @@ class UniversalMessageSender:
                 logger.warning(f"[API Server Fallback] 没有连接发送成功，results={results}")
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "API Server Fallback 发生异常", exception=e)
             logger.error(f"[API Server Fallback] 发生异常：{e}")
             import traceback
 

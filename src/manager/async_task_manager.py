@@ -78,6 +78,11 @@ class AsyncTaskManager:
         except asyncio.CancelledError:
             logger.debug(f"任务 '{task.get_name()}' 被取消")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "任务 '' 执行时发生异常", exception=e)
             logger.error(f"任务 '{task.get_name()}' 执行时发生异常: {e}", exc_info=True)
 
     async def add_task(self, task: AsyncTask, call_back: Callable[[asyncio.Task], None] | None = None):
@@ -101,6 +106,11 @@ class AsyncTaskManager:
                 except asyncio.CancelledError:
                     logger.info(f"任务 '{task.task_name}' 已成功取消")
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "等待任务 '' 完成时发生异常", exception=e)
                     logger.error(f"等待任务 '{task.task_name}' 完成时发生异常: {e}")
 
                 logger.info(f"成功结束任务 '{task.task_name}'")
@@ -140,6 +150,11 @@ class AsyncTaskManager:
                         inst.cancel()
                         logger.debug(f"已请求取消任务 '{name}'")
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "取消任务 '' 时发生异常", exception=e)
                         logger.warning(f"取消任务 '{name}' 时发生异常: {e}")
 
             # 等待所有任务完成，添加超时保护
@@ -153,6 +168,11 @@ class AsyncTaskManager:
                     except asyncio.CancelledError:
                         logger.info(f"任务 '{task_name}' 已取消")
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, "任务 '' 执行时发生异常", exception=e)
                         logger.error(f"任务 '{task_name}' 执行时发生异常: {e}", exc_info=True)
 
             # 清空任务列表

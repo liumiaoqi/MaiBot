@@ -126,7 +126,12 @@ class LifecycleManager:
                 except asyncio.TimeoutError:
                     logger.warning("组件 %s 级联停止超时，标记故障", cid)
                     self._update_state(cid, ServiceState.FAULT)
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '组件 %s 级联停止异常，继续停止剩余', exception=exc)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.warning(
@@ -156,6 +161,11 @@ class LifecycleManager:
                     error="停止超时",
                 )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '组件 %s 停止异常', exception=e)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("组件 %s 停止异常", component_id, exc_info=True)
@@ -218,6 +228,11 @@ class LifecycleManager:
             try:
                 await actions.start_fn()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '组件 %s 启动失败', exception=e)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("组件 %s 启动失败", component_id, exc_info=True)

@@ -416,6 +416,11 @@ class VectorStore:
                     "dimension": self.dimension,
                 }
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "向量索引预热失败", exception=e)
             logger.warning("操作失败", exc_info=True)
             duration_ms = (time.perf_counter() - started) * 1000.0
             summary = {
@@ -545,6 +550,11 @@ class VectorStore:
                     with open(meta_path, "rb") as f:
                         previous_meta = pickle.load(f)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '读取旧向量元数据失败，跳过 embedding 指纹继承', exception=exc)
                     logger.warning(f"读取旧向量元数据失败，跳过 embedding 指纹继承: {exc}")
                 else:
                     if isinstance(previous_meta, dict):
@@ -678,6 +688,11 @@ class VectorStore:
                 try:
                     self._index = faiss.read_index(str(idx_path))
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "加载向量索引失败", exception=e)
                     logger.error(f"Failed to load index: {e}. Rebuilding...")
                     self._init_index()
             else:
@@ -695,6 +710,11 @@ class VectorStore:
         try:
             arr = np.load(npy_path, mmap_mode="r")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
             logger.warning("操作异常: %s", exc)
         meta_path = data_dir / "vectors_metadata.pkl"
         old_ids = []

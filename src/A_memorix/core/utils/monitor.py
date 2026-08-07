@@ -133,6 +133,11 @@ class MemoryMonitor:
                         try:
                             callback(current_mb, self.max_memory_mb)
                         except Exception as e:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.ERROR, '内存回调执行失败', exception=e)
                             logger.error(f"内存回调执行失败: {e}")
 
                     # 自动垃圾回收
@@ -149,6 +154,11 @@ class MemoryMonitor:
                     gc.collect()
 
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '内存监控出错', exception=e)
                 logger.error(f"内存监控出错: {e}")
 
             # 等待下次检查
@@ -186,5 +196,10 @@ def get_memory_info() -> dict:
             "process_percent": (process.memory_info().rss / mem.total) * 100,
         }
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '操作失败', exception=e)
         logger.warning("操作失败", exc_info=True)
         return {"error": str(e)}

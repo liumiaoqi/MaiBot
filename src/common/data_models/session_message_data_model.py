@@ -313,7 +313,12 @@ class SessionMessage(MaiMessage):
                 image_bytes=component.binary_data,
                 wait_for_build=enable_heavy_media_analysis,
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in session_message_data_model.py', exception=exc)
             logger.warning("操作异常 in session_message_data_model.py", exc_info=True)
             desc = None  # 失败置空
 
@@ -352,7 +357,12 @@ class SessionMessage(MaiMessage):
                 session_id=self.session_id,
                 wait_for_build=enable_heavy_media_analysis,
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in session_message_data_model.py', exception=exc)
             logger.warning("操作异常 in session_message_data_model.py", exc_info=True)
             tuple_content = None  # 失败置空
 
@@ -458,6 +468,11 @@ class SessionMessage(MaiMessage):
                         tgt_msg_s_name = db_msg.user_cardname or db_msg.user_nickname or db_msg.user_id
                         return f"[回复了{tgt_msg_s_name}的消息: {db_msg.processed_plain_text}]"
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '查询回复消息时发生错误', exception=e)
                 logger.error(f"查询回复消息时发生错误: {e}")
 
             return "[回复了一条消息，但原消息已无法访问]"

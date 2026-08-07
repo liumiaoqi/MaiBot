@@ -17,6 +17,11 @@ logger = get_logger("A_memorix.scripts.rebuild_episodes")
 try:
     import tomlkit  # type: ignore
 except Exception as exc:  # pragma: no cover
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
     logger.warning("操作异常: %s", exc)
 
 
@@ -43,6 +48,11 @@ def _load_plugin_config() -> Dict[str, Any]:
             parsed = tomlkit.load(handle)
         return dict(parsed) if isinstance(parsed, dict) else {}
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
         logger.warning("操作异常: %s", exc)
 def _resolve_sources(store: MetadataStore, *, source: str | None, rebuild_all: bool) -> List[str]:
     if rebuild_all:
@@ -73,6 +83,11 @@ async def _run_rebuilds(store: MetadataStore, plugin_config: Dict[str, Any], sou
                 f" fallback={int(result.get('fallback_count') or 0)}"
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作失败', exception=exc)
             logger.warning("操作失败", exc_info=True)
             err = str(exc)[:500]
             store.mark_episode_source_failed(source, err)

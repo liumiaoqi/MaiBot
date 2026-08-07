@@ -59,6 +59,11 @@ class VitalityTickScheduler:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '[vitality_tick] 心跳评估异常: error=', exception=exc)
                 logger.warning(f"[vitality_tick] 心跳评估异常: error={exc}")
 
     def _tick_emotion_decay(self) -> None:
@@ -78,6 +83,11 @@ class VitalityTickScheduler:
                     except RuntimeError:
                         pass
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality_tick] 情绪衰减跳过: error=', exception=exc)
             logger.debug(f"[vitality_tick] 情绪衰减跳过: error={exc}")
 
     async def _tick_coactivation_decay(self) -> None:
@@ -91,4 +101,9 @@ class VitalityTickScheduler:
                 if decayed > 0:
                     logger.debug(f"[vitality_tick] 共激活衰减: agent={agent.agent_id} rows={decayed}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality_tick] 共激活衰减跳过: error=', exception=exc)
             logger.debug(f"[vitality_tick] 共激活衰减跳过: error={exc}")

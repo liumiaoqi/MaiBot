@@ -266,7 +266,12 @@ class TaintedMask:
                         asyncio.get_running_loop().create_task(result)
                     except RuntimeError:
                         logger.warning("无事件循环，跳过异步订阅回调", exc_info=True)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '污染通知订阅回调异常（flag=%s）', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("污染通知订阅回调异常（flag=%s）", event.flag.name, exc_info=True)
@@ -305,7 +310,12 @@ class TaintedMask:
                         "TAINT_ASYNC_SKIP: 无事件循环或已关闭，TRIGGER_DEGRADE 跳过（flag=%s）",
                         flag.name,
                     )
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, 'TAINT_ACTION_FAILED: 污染位 %s 的 TRIGGER_DEGRADE 调度失败', exception=exc)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.error(
@@ -318,7 +328,12 @@ class TaintedMask:
         """TRIGGER_DEGRADE 异步执行：驱动 READY→DEGRADING（spec §2.3.1 规则 4）。"""
         try:
             await self._state_machine_port.trigger_health_level_change("fault")
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'TAINT_ACTION_FAILED: 污染位 %s 的 TRIGGER_DEGRADE 动作执行失败', exception=exc)
             # 动作失败不回滚污染位（不可逆优先，spec §2.3.1 规则 5）
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()

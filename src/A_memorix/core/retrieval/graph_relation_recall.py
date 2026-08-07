@@ -123,6 +123,11 @@ class GraphRelationRecallService:
             try:
                 resolved = self.graph_store.find_node(str(raw), ignore_case=True)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
                 logger.warning("操作异常: %s", exc)
             if not resolved:
                 continue
@@ -169,6 +174,11 @@ class GraphRelationRecallService:
                 max_paths=self.config.max_paths,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "图两跳召回失败", exception=e)
             logger.warning(f"graph two-hop recall skipped: {e}", exc_info=True)
             return
 
@@ -209,6 +219,11 @@ class GraphRelationRecallService:
                 limit=self.config.candidate_k,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "图一跳召回失败", exception=e)
             logger.warning(f"graph one-hop recall skipped: {e}", exc_info=True)
             return
         self._append_relation_hashes(

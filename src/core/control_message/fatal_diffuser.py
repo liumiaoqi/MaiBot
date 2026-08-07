@@ -50,7 +50,12 @@ class FatalDiffuser:
         if app_config_port is not None:
             try:
                 timeout = app_config_port.get_control_message_diffuse_timeout_sec()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '扩散超时配置读取失败，使用默认 %s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("扩散超时配置读取失败，使用默认 %s", _DEFAULT_DIFFUSE_TIMEOUT_SEC, exc_info=True)
@@ -63,7 +68,12 @@ class FatalDiffuser:
         if self._event_bus is not None:
             try:
                 await self._event_bus.emit(event_type, data)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'control 事件发布失败: %s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
@@ -90,7 +100,12 @@ class FatalDiffuser:
             return None
         try:
             tasks = await self._session_lifecycle_port.list_session_async_tasks(session_id)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'CONTROL_ZAP_QUERY_FAILED: 关联任务查询失败 session=%s', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning("CONTROL_ZAP_QUERY_FAILED: 关联任务查询失败 session=%s", session_id, exc_info=True)
@@ -126,7 +141,12 @@ class FatalDiffuser:
                 cancelled += 1
             except asyncio.CancelledError:
                 cancelled += 1
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'CONTROL_ZAP_TASK_CANCEL_FAILED: 任务取消失败 session=%s', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 failed += 1  # 部分失败继续扩散（spec §5.9.2 异常场景 2）

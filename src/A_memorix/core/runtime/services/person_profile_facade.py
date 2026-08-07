@@ -219,6 +219,12 @@ class PersonProfileFacade:
                 metadata_store.mark_person_profile_refresh_done(person_id)
                 processed += 1
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '标记人物画像刷新失败', exception=exc)
+                logger.warning(f"标记人物画像刷新失败: {exc}")
                 metadata_store.mark_person_profile_refresh_failed(person_id, str(exc))
                 errors.append({"person_id": person_id, "error": str(exc)})
             except asyncio.CancelledError:
@@ -254,10 +260,20 @@ class PersonProfileFacade:
                             continue
                         await self.refresh_person_profile(person_id, limit=max(4, int(self._cfg("person_profile.top_k_evidence", 12) or 12)), mark_active=False)
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, '刷新人物画像失败', exception=exc)
                         logger.warning(f"刷新人物画像失败: {exc}")
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'person_profile_refresh loop 异常', exception=exc)
             logger.warning(f"person_profile_refresh loop 异常: {exc}")
 
     async def person_profile_refresh_queue_loop(self) -> None:
@@ -274,4 +290,9 @@ class PersonProfileFacade:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'person_profile_refresh_queue loop 异常', exception=exc)
             logger.warning(f"person_profile_refresh_queue loop 异常: {exc}")

@@ -104,6 +104,11 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
             logger.error(f"[读取图片文件] 文件未找到: {path}")
             raise exc
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[读取图片文件] 读取文件时发生错误', exception=exc)
             logger.error(f"[读取图片文件] 读取文件时发生错误: {exc}")
             raise exc
 
@@ -123,6 +128,11 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
                     raise ValueError("无法识别图片格式")
                 return img.format.lower()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[获取图片格式] 读取图片格式时发生错误', exception=exc)
             logger.error(f"[获取图片格式] 读取图片格式时发生错误: {exc}")
             raise exc
 
@@ -160,6 +170,11 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
 
             return True
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[初始化] 初始化图片时发生错误', exception=exc)
             logger.error(f"[初始化] 初始化图片时发生错误: {exc}")
             logger.error(traceback.format_exc())
             return False

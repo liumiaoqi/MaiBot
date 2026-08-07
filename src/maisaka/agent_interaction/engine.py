@@ -153,6 +153,11 @@ class InteractionEngine:
                 )
                 await detector.check_and_propagate(result, evaluation)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '[agent_interaction] 回声检测异常，静默截断: %s', exception=e)
                 logger.warning("[agent_interaction] 回声检测异常，静默截断: %s", e)
 
             # 非阻塞：发布交互信号到自主性架构
@@ -170,12 +175,22 @@ class InteractionEngine:
                     event_id=event_id,
                 )
                 get_event_bus_port().emit_sync("interaction_signal", signal)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常 in engine.py', exception=exc)
                 logger.warning("操作异常 in engine.py", exc_info=True)
 
             return result
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[agent_interaction] 交互执行失败: %s', exception=e)
             logger.error("[agent_interaction] 交互执行失败: %s", e)
             return InteractionResult(error=str(e))
 
@@ -205,6 +220,11 @@ class InteractionEngine:
             logger.warning("[agent_interaction] 记忆写入失败: %s", result.detail)
             return "failed"
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆写入异常，降级为日志: %s', exception=e)
             logger.warning("[agent_interaction] 记忆写入异常，降级为日志: %s", e)
             return "failed"
 

@@ -113,7 +113,12 @@ class RelationshipManager:
                     )
                     .first()
                 )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '加载关系记录失败:  <->', exception=exc)
             logger.warning(f"加载关系记录失败: {agent_id} <-> {user_id}")
             return None
 
@@ -147,7 +152,12 @@ class RelationshipManager:
                     row.level = snapshot.level
                     row.interaction_count = snapshot.interaction_count
                     row.last_interaction_at = now
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '保存关系记录失败:  <->', exception=exc)
             logger.warning(f"保存关系记录失败: {agent_id} <-> {user_id}")
 
     @staticmethod
@@ -199,7 +209,12 @@ class RelationshipManager:
         if self._emotion_trigger_callback and callable(self._emotion_trigger_callback):
             try:
                 self._emotion_trigger_callback("happy", 10.0)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常 in manager.py', exception=exc)
                 logger.warning("操作异常 in manager.py", exc_info=True)
 
     @staticmethod
@@ -211,6 +226,11 @@ class RelationshipManager:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).relationship_growth_rate
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in manager.py', exception=exc)
             logger.warning("操作异常 in manager.py", exc_info=True)
         return 1.0

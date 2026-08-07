@@ -64,6 +64,11 @@ class PersonalityPersistence:
                 session.add(record)
                 await session.commit()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '性格修改持久化失败: agent=%s layer=%s: %s', exception=exc)
             logger.error(
                 "性格修改持久化失败: agent=%s layer=%s: %s",
                 agent_id, layer.value, exc,
@@ -96,6 +101,11 @@ class PersonalityPersistence:
                     for row in rows
                 ]
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '性格修改加载失败: agent=%s: %s', exception=exc)
             logger.warning(
                 "性格修改加载失败: agent=%s: %s", agent_id, exc,
             )
@@ -140,6 +150,11 @@ class PersonalityPersistence:
                     row.overridden_by_yaml = True
                 await session.commit()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '标记覆盖失败: agent=%s layer=%s: %s', exception=exc)
             logger.error(
                 "标记覆盖失败: agent=%s layer=%s: %s",
                 agent_id, layer.value, exc,

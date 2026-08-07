@@ -146,7 +146,12 @@ class TopicRelevanceIntentSource(BaseIntentSource):
                     intent_source="topic_relevance_driven",
                     source_description=f"话题相关：{', '.join(matched_keywords)}",
                 ))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '计算发言欲望失败', exception=exc)
             logger.warning("计算发言欲望失败", exc_info=True)
 
         return intents
@@ -192,7 +197,12 @@ class RelationshipIntentSource(BaseIntentSource):
                         intent_source="relationship_driven",
                         source_description=f"对话提及{target_name}，关系亲密",
                     ))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '计算发言欲望失败', exception=exc)
             logger.warning("计算发言欲望失败", exc_info=True)
 
         return intents
@@ -217,7 +227,12 @@ class InteractionSignalIntentSource(BaseIntentSource):
             from src.core.app_config_port_registry import get_app_config_port
 
             bonus = get_app_config_port().get_agent_autonomy_config().interaction_signal_intent_bonus
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常 in behavior_intent.py', exception=exc)
             logger.warning("操作异常 in behavior_intent.py", exc_info=True)
             bonus = 40.0
 
@@ -296,6 +311,11 @@ class BehaviorIntentEngine:
                 )
                 all_intents.extend(intents)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "行为意图产生异常", exception=exc)
                 logger.warning(
                     f"[agent_autonomy] 行为意图产生异常: "
                     f"source={source_type} agent={agent_id} error={exc}"

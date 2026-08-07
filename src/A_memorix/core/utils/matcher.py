@@ -16,6 +16,11 @@ try:
 
     HAS_AHOCORASICK_RS = True
 except Exception as exc:
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
     logger.warning("操作异常: %s", exc)
 class AhoCorasick:
     """
@@ -115,6 +120,11 @@ class AhoCorasick:
                 )
             self._native_patterns = patterns
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
             logger.warning("操作异常: %s", exc)
     def search(self, text: str) -> List[Tuple[int, str]]:
         """
@@ -131,6 +141,11 @@ class AhoCorasick:
                     for pattern_index, _start, end in matches
                 ]
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
                 logger.warning("操作异常: %s", exc)
 
         self._build_python_matcher()
@@ -158,6 +173,11 @@ class AhoCorasick:
                     stats[str(pattern)] = stats.get(str(pattern), 0) + 1
                 return stats
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '操作异常: %s', exception=exc)
                 logger.warning("操作异常: %s", exc)
 
         results = self.search(text)

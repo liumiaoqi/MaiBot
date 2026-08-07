@@ -256,6 +256,11 @@ class MessageUtils:
             is_group_chat = getattr(message.message_info, "group_info", None) is not None
             message.reply_frequency = float(ChatConfigUtils.get_talk_value(session_id, is_group_chat=is_group_chat))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '补充消息回复频率失败: session_id= error=', exception=exc)
             logger.warning(f"补充消息回复频率失败: session_id={session_id} error={exc}")
 
     @staticmethod
@@ -331,6 +336,11 @@ class MessageUtils:
                 if image_format:
                     return image_format
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '识别消息图片格式失败，将按 png 保存', exception=exc)
             logger.warning(f"识别消息图片格式失败，将按 png 保存: {exc}")
         return "png"
 
@@ -846,6 +856,11 @@ class MessageUtils:
                     .limit(1)
                 ).all()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '查询动作记录失败', exception=e)
             logger.error(f"查询动作记录失败: {e}")
             return []
 
