@@ -120,6 +120,11 @@ class BaseMaisakaReplyGenerator:
 
             return f"你的名字是{bot_name}{bot_aliases}。\n{prompt_personality}"
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '构建 Maisaka 人设提示词失败', exception=exc)
             logger.warning(f"构建 Maisaka 人设提示词失败: {exc}")
             return "你的名字是麦麦。\n是人类。"
 
@@ -270,7 +275,12 @@ class BaseMaisakaReplyGenerator:
 
         try:
             is_group_chat, _ = get_chat_type_and_target_info(session_id)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '构建群聊注意力块失败', exception=exc)
             logger.warning("操作异常 in generator_base.py", exc_info=True)
             is_group_chat = None
 
@@ -297,7 +307,12 @@ class BaseMaisakaReplyGenerator:
 
         try:
             return get_locale().lower()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '获取 Prompt 语言失败', exception=exc)
             logger.warning("操作异常 in generator_base.py", exc_info=True)
             return "zh-cn"
 
@@ -438,7 +453,12 @@ class BaseMaisakaReplyGenerator:
                 identity=self._build_personality_prompt(),
                 reply_style=self._select_reply_style(),
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '构建系统 Prompt 失败', exception=exc)
             logger.warning("操作异常 in generator_base.py", exc_info=True)
             system_prompt = "你是一个友好的 AI 助手，请根据聊天记录自然回复。"
 
@@ -739,6 +759,11 @@ class BaseMaisakaReplyGenerator:
                 reply_tool_args=dict(reply_tool_args),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Maisaka 回复器 before_model_request Hook 调用失败，将继续使用当前请求消息', exception=exc)
             logger.warning(f"Maisaka 回复器 before_model_request Hook 调用失败，将继续使用当前请求消息: {exc}")
             return request_messages
 
@@ -749,6 +774,11 @@ class BaseMaisakaReplyGenerator:
         try:
             return deserialize_prompt_messages(raw_messages)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Hook before_model_request 返回的 messages 反序列化失败', exception=exc)
             logger.warning(f"Hook maisaka.replyer.before_model_request 返回的 messages 无法反序列化，已忽略: {exc}")
             return request_messages
 
@@ -926,6 +956,11 @@ class BaseMaisakaReplyGenerator:
                 reply_tool_args=active_reply_tool_args,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '构建回复上下文失败', exception=exc)
             import traceback
 
             logger.error(f"构建回复上下文失败: {exc}\n{traceback.format_exc()}")
@@ -981,6 +1016,11 @@ class BaseMaisakaReplyGenerator:
                 if isinstance(before_request_kwargs.get("reply_tool_args"), dict):
                     active_reply_tool_args = dict(before_request_kwargs["reply_tool_args"])
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'Maisaka 回复器 before_request Hook 调用失败，将继续使用当前请求参数', exception=exc)
                 logger.warning(f"Maisaka 回复器 before_request Hook 调用失败，将继续使用当前请求参数: {exc}")
                 before_request_kwargs = {}
 
@@ -1005,6 +1045,11 @@ class BaseMaisakaReplyGenerator:
                     reply_tool_args=active_reply_tool_args,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '构建提示词失败', exception=exc)
                 import traceback
 
                 logger.error(f"构建提示词失败: {exc}\n{traceback.format_exc()}")
@@ -1066,6 +1111,11 @@ class BaseMaisakaReplyGenerator:
                     session_id=preview_chat_id,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'Maisaka 回复器调用失败', exception=exc)
                 logger.exception("Maisaka 回复器调用失败")
                 result.error_message = str(exc)
                 result.metrics = GenerationMetrics(
@@ -1108,6 +1158,11 @@ class BaseMaisakaReplyGenerator:
                 )
                 after_response_kwargs = after_response_result.kwargs
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'Maisaka 回复器 after_response Hook 调用失败，将继续使用当前回复', exception=exc)
                 logger.warning(f"Maisaka 回复器 after_response Hook 调用失败，将继续使用当前回复: {exc}")
                 after_response_kwargs = {}
             if "response" in after_response_kwargs:

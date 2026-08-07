@@ -162,6 +162,11 @@ def _delete_emoji_file(full_path: str) -> bool:
         logger.warning(f"跳过删除目录外表情包文件: {full_path}")
         return True
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '删除表情包文件失败', exception=exc)
         logger.error(f"删除表情包文件失败: {full_path}, error={exc}")
         return False
 
@@ -208,6 +213,11 @@ async def _review_emoji_record_for_registration(
             raise FileNotFoundError(emoji.full_path)
         target_emoji = MaiEmoji(full_path=emoji_path, image_bytes=image_bytes)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '表情包注册审核失败，无法读取文件', exception=exc)
         logger.warning(f"表情包注册审核失败，无法读取文件: id={emoji.id}, path={emoji.full_path}, error={exc}")
         return False
 
@@ -306,6 +316,11 @@ async def get_emoji_list(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表情包列表失败', exception=e)
         logger.exception(f"获取表情包列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表情包列表失败: {str(e)}") from e
 
@@ -410,6 +425,11 @@ async def get_emoji_stats(maibot_session: Optional[str] = Cookie(None)) -> Dict[
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取统计数据失败', exception=e)
         logger.exception(f"获取统计数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
 
@@ -448,6 +468,11 @@ async def get_thumbnail_cache_stats(maibot_session: Optional[str] = Cookie(None)
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取缩略图缓存统计失败', exception=e)
         logger.exception(f"获取缩略图缓存统计失败: {e}")
         raise HTTPException(status_code=500, detail=f"统计失败: {str(e)}") from e
 
@@ -478,6 +503,11 @@ async def get_emoji_detail(emoji_id: int, maibot_session: Optional[str] = Cookie
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表情包详情失败', exception=e)
         logger.exception(f"获取表情包详情失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表情包详情失败: {str(e)}") from e
 
@@ -558,6 +588,11 @@ async def update_emoji(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '更新表情包失败', exception=e)
         logger.exception(f"更新表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新表情包失败: {str(e)}") from e
 
@@ -600,6 +635,11 @@ async def delete_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(Non
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '删除表情包失败', exception=e)
         logger.exception(f"删除表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除表情包失败: {str(e)}") from e
 
@@ -643,6 +683,11 @@ async def register_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(N
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '注册表情包失败', exception=e)
         logger.exception(f"注册表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"注册表情包失败: {str(e)}") from e
 
@@ -688,6 +733,11 @@ async def ban_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(None))
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '禁用表情包失败', exception=e)
         logger.exception(f"禁用表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"禁用表情包失败: {str(e)}") from e
 
@@ -779,6 +829,11 @@ async def get_emoji_thumbnail(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表情包缩略图失败', exception=e)
         logger.exception(f"获取表情包缩略图失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表情包缩略图失败: {str(e)}") from e
 
@@ -832,6 +887,11 @@ async def batch_delete_emojis(
                         failed_count += 1
                         failed_ids.append(emoji_id)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '删除表情包单项失败', exception=e)
                 logger.error(f"删除表情包 {emoji_id} 失败: {e}")
                 failed_count += 1
                 failed_ids.append(emoji_id)
@@ -850,6 +910,11 @@ async def batch_delete_emojis(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '批量删除表情包失败', exception=e)
         logger.exception(f"批量删除表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}") from e
 
@@ -895,6 +960,12 @@ async def upload_emoji(
             with Image.open(io.BytesIO(file_content)) as img:
                 img.verify()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '无效的图片文件', exception=e)
+            logger.warning(f"无效的图片文件: {e}")
             raise HTTPException(status_code=400, detail=f"无效的图片文件: {str(e)}") from e
 
         with Image.open(io.BytesIO(file_content)) as img:
@@ -956,6 +1027,11 @@ async def upload_emoji(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '上传表情包失败', exception=e)
         logger.exception(f"上传表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}") from e
 
@@ -1015,6 +1091,12 @@ async def batch_upload_emoji(
                     with Image.open(io.BytesIO(file_content)) as img:
                         img_format = img.format.lower() if img.format else "png"
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '批量上传单项文件无效', exception=e)
+                    logger.warning(f"批量上传单项文件无效: {e}")
                     results["failed"] += 1
                     results["details"].append(
                         {"filename": file.filename, "success": False, "error": f"无效的图片: {str(e)}"}
@@ -1068,6 +1150,12 @@ async def batch_upload_emoji(
                     detail = {"filename": file.filename, "success": True, "id": emoji.id}
                     results["details"].append(detail)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '批量上传单项失败', exception=e)
+                logger.warning(f"批量上传单项失败: {e}")
                 results["failed"] += 1
                 results["details"].append({"filename": file.filename, "success": False, "error": str(e)})
 
@@ -1076,6 +1164,11 @@ async def batch_upload_emoji(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '批量上传表情包失败', exception=e)
         logger.exception(f"批量上传表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量上传失败: {str(e)}") from e
 
@@ -1104,6 +1197,11 @@ async def cleanup_thumbnail_cache(maibot_session: Optional[str] = Cookie(None)) 
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '清理缩略图缓存失败', exception=e)
         logger.exception(f"清理缩略图缓存失败: {e}")
         raise HTTPException(status_code=500, detail=f"清理失败: {str(e)}") from e
 
@@ -1172,6 +1270,11 @@ async def preheat_thumbnail_cache(
                 )
                 generated += 1
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '预热缩略图单项失败', exception=e)
                 logger.warning(f"预热缩略图失败 {image_hash}: {e}")
                 failed += 1
 
@@ -1185,6 +1288,11 @@ async def preheat_thumbnail_cache(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '预热缩略图缓存失败', exception=e)
         logger.exception(f"预热缩略图缓存失败: {e}")
         raise HTTPException(status_code=500, detail=f"预热失败: {str(e)}") from e
 
@@ -1216,6 +1324,11 @@ async def clear_all_thumbnail_cache(maibot_session: Optional[str] = Cookie(None)
                 cache_file.unlink()
                 cleaned += 1
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '删除缩略图缓存文件失败', exception=e)
                 logger.warning(f"删除缓存文件失败 {cache_file.name}: {e}")
 
         logger.info(f"已清空缩略图缓存: 删除 {cleaned} 个文件")
@@ -1228,5 +1341,10 @@ async def clear_all_thumbnail_cache(maibot_session: Optional[str] = Cookie(None)
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '清空缩略图缓存失败', exception=e)
         logger.exception(f"清空缩略图缓存失败: {e}")
         raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}") from e

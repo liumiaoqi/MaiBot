@@ -49,6 +49,11 @@ class InnerWorld:
             registry = AgentEmotionManagerRegistry()
             self._emotion_manager = registry.get_emotion_manager(self._agent_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '情绪管理器初始化失败', exception=exc)
             logger.warning("情绪管理器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
     def _init_desire(self) -> None:
@@ -66,6 +71,11 @@ class InnerWorld:
             engine.register_calculator("time_driven", TimeNeedCalculator())
             self._inner_need_engine = engine
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '欲望引擎初始化失败', exception=exc)
             logger.warning("欲望引擎初始化失败: agent=%s error=%s", self._agent_id, exc)
 
     def _init_voice_generator(self) -> None:
@@ -75,6 +85,11 @@ class InnerWorld:
                 template_text=self._agent_config.inner_voice_template_text,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '内心声音生成器初始化失败', exception=exc)
             logger.warning("内心声音生成器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
     async def get_state_snapshot(self) -> InnerWorldSnapshot:
@@ -89,7 +104,12 @@ class InnerWorld:
         if self._emotion_manager is not None:
             try:
                 emotion_text = self._emotion_manager.state.to_prompt_text()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '读取情绪文本失败，使用默认文本', exception=exc)
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 emotion_text = "心情平静"
 
@@ -104,7 +124,12 @@ class InnerWorld:
                     desire_summary = "、".join(
                         f"{n.description}" for n in needs[:3] if n.description
                     )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '读取欲望摘要失败，使用空摘要', exception=exc)
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 
@@ -124,7 +149,13 @@ class InnerWorld:
                 emotions = getattr(state, "emotions", {})
                 if isinstance(emotions, dict) and dominant in emotions:
                     emotion_intensity = float(emotions[dominant]) / 100.0
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '读取情绪强度失败，使用默认值', exception=exc)
+                logger.warning(f"读取情绪强度失败，使用默认值: {exc}")
                 emotion_intensity = 0.0
 
         # 共激活强度：从内部关系中估算
@@ -135,7 +166,13 @@ class InnerWorld:
             from src.maisaka.agent_autonomy.personality_algo.engine import PersonalityAlgorithmEngine
             engine = PersonalityAlgorithmEngine(self._agent_config.layered_personality_config)
             lambda_val = engine.compute_lambda(emotion_intensity, coactivation_strength)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '计算 λ 失败，使用默认值', exception=exc)
+            logger.warning(f"计算 λ 失败，使用默认值: {exc}")
             lambda_val = 0.5
 
         # T5.3: 可选 LLM 路径 — 如果 LLM 服务可用则用 generate_llm
@@ -157,6 +194,11 @@ class InnerWorld:
                     max_output_tokens=500,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'LLM 内言语生成失败，回退到规则引擎', exception=exc)
                 logger.warning("LLM 内言语生成失败，回退到规则引擎: %s", exc)
                 try:
                     inner_voice = self._voice_generator.generate(
@@ -164,7 +206,12 @@ class InnerWorld:
                         desire_summary=desire_summary,
                         memory_personality=self._memory_personality,
                     )
-                except Exception:
+                except Exception as exc2:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '规则引擎生成内心声音失败，使用默认文本', exception=exc2)
                     logger.warning("操作异常 in inner_world.py", exc_info=True)
                     inner_voice = "心里闪过一个念头..."
 
@@ -192,7 +239,12 @@ class InnerWorld:
                     desire_summary = "、".join(
                         f"{n.description}" for n in needs[:3] if n.description
                     )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '规则引擎生成内心声音失败，使用空摘要', exception=exc)
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 
@@ -210,6 +262,11 @@ class InnerWorld:
             try:
                 self._emotion_manager.apply_trigger(stimulus_type, intensity)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '情绪更新失败', exception=exc)
                 logger.warning("情绪更新失败: agent=%s error=%s", self._agent_id, exc)
 
     async def update_on_tick(self, time_context: dict[str, Any] | None = None) -> None:
@@ -218,6 +275,11 @@ class InnerWorld:
             try:
                 self._emotion_manager.apply_decay()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '情绪衰减跳过', exception=exc)
                 logger.warning("情绪衰减跳过: agent=%s error=%s", self._agent_id, exc)
 
     @property

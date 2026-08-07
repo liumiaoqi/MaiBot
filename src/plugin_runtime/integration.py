@@ -397,6 +397,11 @@ class PluginRuntimeManager(
                     shutil.rmtree(plugin_path, onerror=remove_readonly)
                     removed_paths.append(plugin_path)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '清理插件加载残留目录失败', exception=exc)
                     logger.warning(f"清理插件加载残留目录失败: {plugin_path}: {exc}")
 
         if removed_paths:
@@ -474,6 +479,11 @@ class PluginRuntimeManager(
                 await supervisor.start()
                 started_supervisors.append(supervisor)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '并行启动插件 Supervisor 失败', exception=exc)
             logger.warning("并行启动异常: %s", exc)
             await asyncio.gather(*(supervisor.stop() for supervisor in started_supervisors), return_exceptions=True)
             raise
@@ -518,6 +528,11 @@ class PluginRuntimeManager(
         try:
             await self._start_supervisors(builtin_dirs, third_party_dirs)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '重启插件运行时 Supervisor 失败', exception=exc)
             logger.error(f"重启插件运行时 Supervisor 失败: {exc}", exc_info=True)
             await self._stop_supervisors()
             return False
@@ -575,6 +590,11 @@ class PluginRuntimeManager(
             self._ready_event.set()
             logger.info(f"插件运行时已启动 — 内置: {builtin_dirs or '无'}, 第三方: {third_party_dirs or '无'}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '插件运行时启动失败', exception=e)
             logger.error(f"插件运行时启动失败: {e}", exc_info=True)
             await self._stop_plugin_file_watcher()
             if self._config_reload_callback_registered:
@@ -585,6 +605,11 @@ class PluginRuntimeManager(
             try:
                 await platform_io_manager.stop()
             except Exception as platform_io_exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'Platform IO 停止失败', exception=platform_io_exc)
                 logger.warning(f"Platform IO 停止失败: {platform_io_exc}")
             await self._hook_dispatcher.stop()
             self._started = False
@@ -621,6 +646,12 @@ class PluginRuntimeManager(
             try:
                 await platform_io_manager.stop()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '停止 Platform IO 失败', exception=exc)
+                logger.warning(f"停止 Platform IO 失败: {exc}")
                 stop_errors.append(f"Platform IO: {exc}")
 
             if stop_errors:
@@ -983,6 +1014,11 @@ class PluginRuntimeManager(
         except ValueError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '插件运行时配置校验不可用，回退静态 Schema', exception=exc)
             logger.warning(f"插件 {plugin_id} 运行时配置校验不可用，将回退到静态 Schema: {exc}")
             return None
 
@@ -1031,6 +1067,11 @@ class PluginRuntimeManager(
         except ValueError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '插件配置解析不可用', exception=exc)
             logger.warning(f"插件 {plugin_id} 配置解析不可用: {exc}")
             return None
 
@@ -1133,6 +1174,11 @@ class PluginRuntimeManager(
                 if not cont:
                     return False, modified
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '事件分发失败', exception=e)
                 logger.error(f"事件 {new_event_type} 分发失败: {e}", exc_info=True)
 
         return True, modified
@@ -1215,6 +1261,11 @@ class PluginRuntimeManager(
         try:
             route_key = platform_io_manager.build_route_key_from_message(message)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '根据消息构造 Platform IO 路由键失败', exception=exc)
             logger.warning(f"根据消息构造 Platform IO 路由键失败: {exc}")
             return None
 
@@ -1511,6 +1562,11 @@ class PluginRuntimeManager(
         try:
             snapshot = await supervisor.inspect_plugin_config(plugin_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '插件配置文件变更解析失败', exception=exc)
             logger.warning(f"插件 {plugin_id} 配置文件变更解析失败: {exc}")
             return
 
@@ -1540,6 +1596,11 @@ class PluginRuntimeManager(
             if not loaded:
                 logger.warning(f"插件 {plugin_id} 配置文件变更后自动加载失败")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '插件配置文件变更处理失败', exception=exc)
             logger.warning(f"插件 {plugin_id} 配置文件变更处理失败: {exc}")
 
     async def _handle_plugin_source_changes(self, changes: Sequence[FileChange]) -> None:

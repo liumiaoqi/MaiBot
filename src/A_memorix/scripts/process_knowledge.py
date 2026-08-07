@@ -169,18 +169,33 @@ class AutoImporter:
                 with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
                     self.manifest = json.load(f)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '加载 Manifest 失败', exception=exc)
                 logger.warning("操作异常: %s", exc)
         config_path = DEFAULT_CONFIG_PATH
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 self.plugin_config = tomlkit.load(f)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '加载 A_Memorix 配置失败', exception=e)
             logger.error(f"加载 A_Memorix 配置失败: {e}")
             return False
 
         try:
             await self._init_stores()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '初始化存储失败', exception=e)
             logger.error(f"初始化存储失败: {e}")
             return False
             
@@ -197,7 +212,12 @@ class AutoImporter:
         )
         try:
             dim = await self.embedding_manager._detect_dimension()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '检测 embedding 维度失败，使用默认维度', exception=exc)
             logger.error("知识处理异常", exc_info=True)
             dim = self.embedding_manager.default_dimension
             
@@ -329,6 +349,11 @@ Chat paragraph:
         try:
             result = await self._llm_call(prompt, resolved_model)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'chat_log 时间语义抽取失败', exception=e)
             logger.warning(f"chat_log 时间语义抽取失败: {e}")
             return None
 
@@ -346,6 +371,11 @@ Chat paragraph:
         try:
             normalized = normalize_time_meta(raw_time_meta)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'chat_log 时间语义抽取结果不可用，已忽略', exception=e)
             logger.warning(f"chat_log 时间语义抽取结果不可用，已忽略: {e}")
             return None
 
@@ -493,6 +523,11 @@ Chat paragraph:
                     return True
 
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '处理知识文件失败', exception=e)
                 logger.error(f"❌ 处理失败 {filename}: {e}")
                 import traceback
                 traceback.print_exc()
@@ -627,7 +662,12 @@ Chat paragraph:
                 self.vector_store.add(emb.reshape(1, -1), [hash_value])
             except ValueError:
                 pass
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '生成 hash 值失败', exception=exc)
             logger.warning("生成 hash 值失败", exc_info=True)
         return hash_value
 
@@ -693,6 +733,11 @@ Chat paragraph:
                         emb = await self.embedding_manager.encode(content)
                         self.vector_store.add(emb.reshape(1, -1), [h_val])
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, '写入向量失败', exception=e)
                         logger.error(f"  Vector fail: {e}")
 
                 para_entities = paragraph["entities"]
@@ -742,6 +787,11 @@ Chat paragraph:
                         try:
                             self.metadata_store.set_relation_vector_state(rel_hash, "none")
                         except Exception as exc:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.WARNING, '设置关系向量状态失败', exception=exc)
                             logger.warning("操作异常: %s", exc)
             logger.warning("操作失败 in src/A_memorix/scripts/process_knowledge.py", exc_info=True)
 
@@ -797,6 +847,11 @@ Chat paragraph:
                     try:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, '设置关系向量状态失败', exception=exc)
                         logger.warning("操作异常: %s", exc)
             logger.warning("操作失败 in src/A_memorix/scripts/process_knowledge.py", exc_info=True)
 

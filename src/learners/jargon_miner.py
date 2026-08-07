@@ -393,6 +393,11 @@ class JargonMiner:
                 metadata={"model_name": model_name},
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'jargon 推断 Prompt 保存失败', exception=exc)
             logger.warning(f"jargon {jargon_content} 推断 Prompt 保存失败: stage={stage_name}, error={exc}")
             return
 
@@ -480,6 +485,11 @@ class JargonMiner:
             try:
                 self._modify_jargon_entry(jargon_obj)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '更新 Jargon 推断次数失败', exception=e)
                 logger.error(f"jargon {content} 推断1更新last_inference_count失败: {e}")
             return
 
@@ -587,6 +597,11 @@ class JargonMiner:
         try:
             self._modify_jargon_entry(jargon_obj)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'jargon 推断结果更新失败', exception=e)
             logger.error(f"jargon {content} 推断结果更新失败: {e}")
         logger.debug(
             f"jargon {content} 推断完成: is_jargon={is_jargon}, meaning={jargon_obj.meaning}, last_inference_count={jargon_obj.last_inference_count}, is_complete={jargon_obj.is_complete}"
@@ -666,6 +681,11 @@ class JargonMiner:
                 with get_db_session(auto_commit=False) as session:
                     jargon_items = session.exec(select(Jargon).filter_by(content=content)).all()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '查询黑话失败', exception=e)
                 logger.error(f"查询黑话 '{content}' 失败: {e}")
                 continue
             related_session_ids, _ = JargonConfigUtils.resolve_jargon_group_scope(self.session_id)
@@ -681,6 +701,11 @@ class JargonMiner:
                         session_id_dict = json.loads(item.session_id_dict)
                         item_matches_scope = bool(related_session_ids.intersection(session_id_dict))
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, '解析 Jargon session_id_list 失败', exception=e)
                         logger.error(f"解析Jargon id={item.id} session_id_list失败: {e}")
                         continue
 
@@ -725,6 +750,11 @@ class JargonMiner:
                     saved += 1
                     self._add_to_cache(content)
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, '保存新黑话失败', exception=e)
                     logger.error(f"保存新黑话 '{content}' 失败: {e}")
                     continue
         # 固定输出提取的jargon结果，格式化为可读形式（只要有提取结果就输出）
@@ -819,17 +849,32 @@ class JargonMiner:
                 else:
                     logger.warning(f"黑话 ID {db_jargon.id} 在数据库中未找到，无法更新")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '更新黑话失败', exception=e)
             logger.error(f"更新黑话 '{db_jargon.content}' 失败: {e}")
 
     def _parse_result(self, response: str) -> Optional[Dict[str, str]]:
         try:
             result = json.loads(response.strip())
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '修复 Jargon JSON 失败，尝试二次解析', exception=exc)
             logger.warning("操作异常 in jargon_miner.py", exc_info=True)
             try:
                 repaired = repair_json(response.strip())
                 result = json.loads(repaired)
             except Exception as e2:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '推断结果解析失败', exception=e2)
                 logger.error(f"推断结果解析失败: {e2}")
                 return None
         if not isinstance(result, dict):
@@ -895,6 +940,11 @@ class JargonMiner:
                 if db_record := session.exec(statement).first():
                     jargon_obj = MaiJargon.from_db_instance(db_record)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '按 ID 查询 Jargon 失败', exception=e)
             logger.error(f"查询Jargon id={jargon_id}失败: {e}")
             return
         if jargon_obj:

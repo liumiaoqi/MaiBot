@@ -519,6 +519,11 @@ def _validate_api_provider_section(section_data: Any) -> None:
             provider = APIProvider.from_dict(AttributeData(), provider_data)
             provider_names.append(provider.name)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, 'API 提供商配置验证失败', exception=exc)
         logger.warning("操作异常 in config.py", exc_info=True)
         raise AppError(ErrorCode.PARAM_INVALID, f"API 提供商配置验证失败: {str(exc, http_status=400)}") from exc
 
@@ -992,6 +997,12 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '配置数据验证失败', exception=e)
+        logger.warning(f"配置数据验证失败: {e}")
         raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
     save_toml_with_format(plain_config_data, config_path)
@@ -1052,6 +1063,11 @@ async def list_prompt_files():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '列出 Prompt 文件失败', exception=e)
         logger.error(f"列出 Prompt 文件失败: {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"列出 Prompt 文件失败: {str(e)}") from e
 
@@ -1084,6 +1100,11 @@ async def get_prompt_file(language: str, filename: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '读取 Prompt 文件失败', exception=e)
         logger.error(f"读取 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取 Prompt 文件失败: {str(e)}") from e
 
@@ -1109,6 +1130,11 @@ async def get_default_prompt_file(language: str, filename: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '读取默认 Prompt 文件失败', exception=e)
         logger.error(f"读取默认 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取默认 Prompt 文件失败: {str(e)}") from e
 
@@ -1236,6 +1262,11 @@ async def update_prompt_file(language: str, filename: str, request: PromptUpdate
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '保存 Prompt 文件失败', exception=e)
         logger.error(f"保存 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存 Prompt 文件失败: {str(e)}") from e
 
@@ -1266,6 +1297,11 @@ async def reset_prompt_file(language: str, filename: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '恢复 Prompt 默认模板失败', exception=e)
         logger.error(f"恢复 Prompt 默认模板失败: {prompt_path} {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"恢复 Prompt 默认模板失败: {str(e)}") from e
 
@@ -1324,6 +1360,11 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, 'Prompt 生成失败', exception=e)
         logger.error(f"Prompt 生成失败: {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"Prompt 生成失败: {str(e)}") from e
 
@@ -1337,6 +1378,11 @@ async def apply_prompt_generator_blocks(request: PromptGeneratorApplyRequest):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, 'Prompt 配置块注入失败', exception=e)
         logger.error(f"Prompt 配置块注入失败: {e}", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"Prompt 配置块注入失败: {str(e)}") from e
 
@@ -1351,6 +1397,11 @@ async def get_bot_config_schema():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取配置架构失败', exception=e)
         logger.error(f"获取配置架构失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置架构失败: {str(e)}") from e
 
@@ -1376,6 +1427,11 @@ async def get_model_config_schema():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取模型配置架构失败', exception=e)
         logger.error(f"获取模型配置架构失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取模型配置架构失败: {str(e)}") from e
 
@@ -1453,6 +1509,11 @@ async def get_config_section_schema(section_name: str):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取配置节架构失败', exception=e)
         logger.error(f"获取配置节架构失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置节架构失败: {str(e)}") from e
 
@@ -1475,6 +1536,11 @@ async def get_bot_config():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '读取配置文件失败', exception=e)
         logger.error(f"读取配置文件失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e)}") from e
 
@@ -1494,6 +1560,11 @@ async def get_model_config():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '读取配置文件失败', exception=e)
         logger.error(f"读取配置文件失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e)}") from e
 
@@ -1513,6 +1584,12 @@ async def update_bot_config(config_data: ConfigBody):
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '配置数据验证失败', exception=e)
+            logger.warning(f"配置数据验证失败: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件（自动保留注释和格式）
@@ -1532,6 +1609,11 @@ async def update_bot_config(config_data: ConfigBody):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '保存配置文件失败', exception=e)
         logger.error(f"保存配置文件失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e)}") from e
 
@@ -1548,6 +1630,12 @@ async def update_model_config(config_data: ConfigBody):
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '配置数据验证失败', exception=e)
+            logger.warning(f"配置数据验证失败: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件（自动保留注释和格式）
@@ -1566,6 +1654,11 @@ async def update_model_config(config_data: ConfigBody):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '保存配置文件失败', exception=e)
         logger.error(f"保存配置文件失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e)}") from e
 
@@ -1608,6 +1701,12 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '配置数据验证失败', exception=e)
+            logger.warning(f"配置数据验证失败: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         config_data = plain_config_data
@@ -1628,6 +1727,11 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '更新配置节失败', exception=e)
         logger.error(f"更新配置节失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"更新配置节失败: {str(e)}") from e
 
@@ -1650,6 +1754,11 @@ async def get_bot_config_raw():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '读取配置文件失败', exception=e)
         logger.error(f"读取配置文件失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e)}") from e
 
@@ -1664,6 +1773,12 @@ async def update_bot_config_raw(raw_content: RawContentBody):
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'TOML 格式错误', exception=e)
+            logger.warning(f"TOML 格式错误: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {str(e)}") from e
 
         # 验证配置数据结构
@@ -1672,6 +1787,12 @@ async def update_bot_config_raw(raw_content: RawContentBody):
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '配置数据验证失败', exception=e)
+            logger.warning(f"配置数据验证失败: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件
@@ -1688,6 +1809,11 @@ async def update_bot_config_raw(raw_content: RawContentBody):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '保存配置文件失败', exception=e)
         logger.error(f"保存配置文件失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e)}") from e
 
@@ -1740,6 +1866,11 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '配置数据验证失败，详细错误', exception=e)
             logger.error(f"配置数据验证失败，详细错误: {str(e)}")
             allow_orphaned_provider_save = False
             # 特殊处理：如果是更新 api_providers，检查是否有模型引用了已删除的provider
@@ -1785,6 +1916,11 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '更新配置节失败', exception=e)
         logger.error(f"更新配置节失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"更新配置节失败: {str(e)}") from e
 
@@ -1892,6 +2028,11 @@ async def get_adapter_config_path():
         raise
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取适配器配置路径失败', exception=e)
         logger.error(f"获取适配器配置路径失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置路径失败: {str(e)}") from e
 
@@ -1936,6 +2077,11 @@ async def save_adapter_config_path(data: PathBody):
         raise
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '保存适配器配置路径失败', exception=e)
         logger.error(f"保存适配器配置路径失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存路径失败: {str(e)}") from e
 
@@ -1965,6 +2111,11 @@ async def get_adapter_config(path: str):
         raise
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '读取适配器配置失败', exception=e)
         logger.error(f"读取适配器配置失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置失败: {str(e)}") from e
 
@@ -1989,6 +2140,12 @@ async def save_adapter_config(data: PathBody):
         except AppError:
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'TOML 格式错误', exception=e)
+            logger.warning(f"TOML 格式错误: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {str(e)}") from e
 
         # 确保目录存在
@@ -2008,5 +2165,10 @@ async def save_adapter_config(data: PathBody):
         raise
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '保存适配器配置失败', exception=e)
         logger.error(f"保存适配器配置失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置失败: {str(e)}") from e

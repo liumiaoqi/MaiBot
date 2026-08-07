@@ -153,6 +153,11 @@ class GitMirrorConfig:
                 logger.info("配置文件不存在，创建默认配置")
                 self._init_default_mirrors()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '加载配置文件失败', exception=e)
             logger.error(f"加载配置文件失败: {e}")
             self._init_default_mirrors()
 
@@ -208,6 +213,11 @@ class GitMirrorConfig:
 
             logger.debug(f"配置已保存到 {self.config_file}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '保存配置文件失败', exception=e)
             logger.error(f"保存配置文件失败: {e}")
 
     def get_all_mirrors(self) -> List[Dict[str, Any]]:
@@ -389,6 +399,11 @@ class GitMirrorService:
             logger.error("Git 版本检测超时")
             return {"installed": False, "error": "Git 版本检测超时"}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '检测 Git 时发生错误', exception=e)
             logger.error(f"检测 Git 时发生错误: {e}")
             return {"installed": False, "error": f"检测 Git 时发生错误: {str(e)}"}
 
@@ -463,6 +478,11 @@ class GitMirrorService:
                         loaded_plugins=0,
                     )
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                     logger.warning(f"推送进度失败: {e}")
 
             result = await self._fetch_raw_from_mirror(owner, repo, branch, file_path, mirror)
@@ -479,6 +499,11 @@ class GitMirrorService:
                             loaded_plugins=0,
                         )
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                         logger.warning(f"推送进度失败: {e}")
                 return result
 
@@ -495,6 +520,11 @@ class GitMirrorService:
                         loaded_plugins=0,
                     )
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                     logger.warning(f"推送进度失败: {e}")
 
         # 所有镜像源都失败
@@ -547,6 +577,11 @@ class GitMirrorService:
                 last_error = f"请求超时: {e}"
                 logger.warning(f"超时 (尝试 {attempt + 1}/{self.max_retries}): {last_error}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'Git 拉取重试失败', exception=e)
                 last_error = f"未知错误: {e}"
                 logger.error(f"错误 (尝试 {attempt + 1}/{self.max_retries}): {last_error}")
 
@@ -707,6 +742,11 @@ class GitMirrorService:
                         total_mirrors=total_mirrors,
                     )
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                     logger.warning(f"推送进度失败: {e}")
 
             result = await self._clone_from_mirror(
@@ -740,6 +780,11 @@ class GitMirrorService:
                         total_mirrors=total_mirrors,
                     )
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                     logger.warning(f"推送进度失败: {e}")
 
         # 所有镜像源都失败
@@ -852,6 +897,11 @@ class GitMirrorService:
                             max_attempts=self.max_retries,
                         )
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                         logger.warning(f"推送进度失败: {e}")
 
                 # 执行 git clone（在线程池中运行以避免阻塞）
@@ -885,6 +935,11 @@ class GitMirrorService:
                                 max_attempts=self.max_retries,
                             )
                         except Exception as e:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                             logger.warning(f"推送进度失败: {e}")
                     return {
                         "success": True,
@@ -925,6 +980,11 @@ class GitMirrorService:
                                 max_attempts=self.max_retries,
                             )
                         except Exception as e:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.WARNING, '推送进度失败', exception=e)
                             logger.warning(f"推送进度失败: {e}")
 
             except subprocess.TimeoutExpired:
@@ -941,6 +1001,11 @@ class GitMirrorService:
                 break  # Git 不存在，不需要重试
 
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'Git 克隆重试失败', exception=e)
                 last_error = f"未知错误: {e}"
                 logger.error(f"克隆错误 (尝试 {attempt + 1}/{self.max_retries}): {last_error}")
 

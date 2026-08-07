@@ -53,6 +53,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a1.compute(actual_text, ideal_text, ought_text, context)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A1 self_discrepancy failed', exception=exc)
             logger.warning(f"A1 self_discrepancy failed: {exc}")
             return {}
 
@@ -69,6 +74,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a2.score_memories(query_embedding, memories)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A2 weighted_recall failed', exception=exc)
             logger.warning(f"A2 weighted_recall failed: {exc}")
             return memories
 
@@ -81,6 +91,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a3.compute(emotion_intensity, coactivation_strength)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A3 lambda compute failed', exception=exc)
             logger.warning(f"A3 lambda compute failed: {exc}")
             return 0.5
 
@@ -98,6 +113,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a4.update(layer_name, observation, precision)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A4 predictive_update failed', exception=exc)
             logger.warning(f"A4 predictive_update failed: {exc}")
             return {
                 "layer": layer_name,
@@ -111,6 +131,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a4.get_state(layer_name)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A4 get_state failed', exception=exc)
             logger.warning(f"A4 get_state failed: {exc}")
             return 0.5
 
@@ -119,6 +144,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a4.get_prediction(layer_name)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A4 get_prediction failed', exception=exc)
             logger.warning(f"A4 get_prediction failed: {exc}")
             return 0.5
 
@@ -127,6 +157,11 @@ class PersonalityAlgorithmEngine:
         try:
             self.a4.reset()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A4 reset failed', exception=exc)
             logger.warning(f"A4 reset failed: {exc}")
 
     # ------------------------------------------------------------------
@@ -138,6 +173,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a5.compute(interaction_count, role_investment)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A5 plasticity failed', exception=exc)
             logger.warning(f"A5 plasticity failed: {exc}")
             return 0.5
 
@@ -150,6 +190,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a6.verification_vs_enhancement(self_certainty, context_publicness)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A6 verification_vs_enhancement failed', exception=exc)
             logger.warning(f"A6 verification_vs_enhancement failed: {exc}")
             return "verification"
 
@@ -162,6 +207,11 @@ class PersonalityAlgorithmEngine:
         try:
             return self.a6.selective_attention(incoming_feedback, self_concept_hash)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A6 selective_attention failed', exception=exc)
             logger.warning(f"A6 selective_attention failed: {exc}")
             if not incoming_feedback:
                 return []
@@ -177,6 +227,11 @@ class PersonalityAlgorithmEngine:
         try:
             self.embedding_cache.invalidate(agent_id, layer)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Embedding cache invalidate failed', exception=exc)
             logger.warning(f"Embedding cache invalidate failed: {exc}")
 
     def clear_embedding_cache(self) -> None:
@@ -184,4 +239,9 @@ class PersonalityAlgorithmEngine:
         try:
             self.embedding_cache.clear()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Embedding cache clear failed', exception=exc)
             logger.warning(f"Embedding cache clear failed: {exc}")

@@ -127,6 +127,11 @@ class ThinkingOrgan:
             reply_style = get_chat_config_port().get_reply_style_text().strip()
             temporary_style = self._select_temporary_reply_style()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[thinking_organ] 构建回复风格段失败', exception=exc)
             logger.warning(f"[thinking_organ] 构建回复风格段失败: {exc}")
             return ""
 
@@ -161,7 +166,13 @@ class ThinkingOrgan:
             if probability <= 0 or random.random() > probability:
                 return ""
             return random.choice(candidate_styles)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '选择临时回复风格失败', exception=exc)
+            logger.warning(f"选择临时回复风格失败: {exc}")
             return ""
 
     def build_personality_prompt(self) -> str:
@@ -201,6 +212,11 @@ class ThinkingOrgan:
             })
             return result
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[thinking_organ] 思考异常', exception=exc)
             elapsed = int(time.time() * 1000 - start_ms)
             logger.error(f"[thinking_organ] 思考异常: agent={self._agent_id} error={exc}")
             return ThinkResult(
@@ -224,6 +240,11 @@ class ThinkingOrgan:
             result.thinking_time_ms = int(time.time() * 1000 - start_ms)
             return result
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[thinking_organ] 主动思考异常', exception=exc)
             elapsed = int(time.time() * 1000 - start_ms)
             logger.error(f"[thinking_organ] 主动思考异常: agent={self._agent_id} error={exc}")
             return ThinkResult(
@@ -288,6 +309,11 @@ class ThinkingOrgan:
                     capabilities=PLANNER_CAPABILITIES,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '[thinking_organ] LLM 调用失败', exception=exc)
                 logger.error(f"[thinking_organ] LLM 调用失败: agent={self._agent_id} round={round_idx} error={exc}")
                 elapsed_ms = int((time.time() - cycle_started_at) * 1000)
                 result = ThinkResult(
@@ -591,6 +617,11 @@ class ThinkingOrgan:
             try:
                 result = await self._tool_registry.invoke(invocation, execution_context)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '处理工具调用失败', exception=exc)
                 logger.warning("操作异常 in thinking_organ.py", exc_info=True)
                 from src.core.tooling import ToolExecutionResult
                 result = ToolExecutionResult(
@@ -882,6 +913,11 @@ class ThinkingOrgan:
             summaries.reverse()
             return summaries
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[thinking_organ] 自回复提取失败', exception=exc)
             logger.warning(f"[thinking_organ] 自回复提取失败: agent={self._agent_id} error={exc}")
             return []
 
@@ -938,6 +974,11 @@ class ThinkingOrgan:
                 return True
             return False
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'reply 重试幂等检查异常，降级允许重试', exception=e)
             from src.common.logger import get_logger
             from src.core.tainted_mask.mark import mark_exception_swallowed
 
@@ -983,6 +1024,11 @@ class ThinkingOrgan:
             )
             logger.info(cycle_log.to_log_line())
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[thinking_organ] 日志输出失败', exception=exc)
             logger.warning(f"[thinking_organ] 日志输出失败: agent={self._agent_id} error={exc}")
 
     # ========================================================================
@@ -1025,6 +1071,11 @@ class ThinkingOrgan:
                 end_detail=f"rounds={rounds} tool_calls={total_tool_calls}",
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[thinking_organ] 监控事件广播失败', exception=exc)
             logger.warning(f"[thinking_organ] 监控事件广播失败: agent={self._agent_id} error={exc}")
 
     def _save_prompt_preview(
@@ -1080,5 +1131,10 @@ class ThinkingOrgan:
                 )
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[thinking_organ] Prompt预览保存失败', exception=exc)
             logger.warning(f"[thinking_organ] Prompt预览保存失败: agent={self._agent_id} error={exc}")
 

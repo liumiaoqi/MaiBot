@@ -466,7 +466,12 @@ def get_chat_name(chat_id: str, db_session: Optional[Any] = None) -> str:
             if session_info.session_name:
                 return session_info.session_name
         return chat_id
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '获取聊天名称失败', exception=exc)
         logger.warning("操作异常 in expression.py", exc_info=True)
         return chat_id
 
@@ -892,6 +897,11 @@ def get_chat_names_batch(chat_ids: List[str]) -> Dict[str, str]:
         for chat_id in chat_ids:
             result[chat_id] = get_chat_name(chat_id)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '批量获取聊天名称失败', exception=e)
         logger.warning(f"批量获取聊天名称失败: {e}")
     return result
 
@@ -1015,6 +1025,11 @@ async def get_chat_list(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取聊天列表失败', exception=e)
         logger.exception(f"获取聊天列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取聊天列表失败: {str(e)}") from e
 
@@ -1044,6 +1059,11 @@ async def get_chat_targets(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取导入目标聊天流失败', exception=e)
         logger.exception(f"获取导入目标聊天流失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取导入目标聊天流失败: {str(e)}") from e
 
@@ -1095,6 +1115,11 @@ async def get_expression_groups(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表达共享组失败', exception=e)
         logger.exception(f"获取表达共享组失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表达共享组失败: {str(e)}") from e
 
@@ -1196,6 +1221,11 @@ async def get_expression_clusters() -> ExpressionClusterListResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表达聚类失败', exception=e)
         logger.exception(f"获取表达聚类失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表达聚类失败: {str(e)}") from e
 
@@ -1234,6 +1264,11 @@ async def get_expression_cluster_members(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表达聚类成员失败', exception=e)
         logger.exception(f"获取表达聚类成员失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表达聚类成员失败: {str(e)}") from e
 
@@ -1337,6 +1372,11 @@ async def get_expression_list(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表达方式列表失败', exception=e)
         logger.exception(f"获取表达方式列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表达方式列表失败: {str(e)}") from e
 
@@ -1376,6 +1416,11 @@ async def export_expressions(request: ExpressionExportRequest) -> ExpressionExpo
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '导出表达方式失败', exception=e)
         logger.exception(f"导出表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"导出表达方式失败: {str(e)}") from e
 
@@ -1442,6 +1487,11 @@ async def import_expressions(request: ExpressionImportRequest) -> ExpressionImpo
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '导入表达方式失败', exception=e)
         logger.exception(f"导入表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"导入表达方式失败: {str(e)}") from e
 
@@ -1464,6 +1514,11 @@ async def clear_expressions(request: ExpressionClearRequest) -> ExpressionClearR
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '清除表达方式失败', exception=e)
         logger.exception(f"清除表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"清除表达方式失败: {str(e)}") from e
 
@@ -1482,6 +1537,11 @@ async def preview_legacy_expression_import(
         logger.exception(f"读取旧版表达方式数据库失败: {e}")
         raise HTTPException(status_code=400, detail=f"读取旧版表达方式数据库失败: {str(e)}") from e
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '预览旧版表达方式导入失败', exception=e)
         logger.exception(f"预览旧版表达方式导入失败: {e}")
         raise HTTPException(status_code=500, detail=f"预览旧版表达方式导入失败: {str(e)}") from e
 
@@ -1501,6 +1561,11 @@ async def preview_legacy_expression_import_file(
         logger.exception(f"读取上传的旧版表达方式数据库失败: {e}")
         raise HTTPException(status_code=400, detail=f"读取上传的旧版表达方式数据库失败: {str(e)}") from e
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '预览上传旧版表达方式导入失败', exception=e)
         logger.exception(f"预览上传旧版表达方式导入失败: {e}")
         raise HTTPException(status_code=500, detail=f"预览上传旧版表达方式导入失败: {str(e)}") from e
 
@@ -1613,6 +1678,11 @@ async def import_legacy_expressions(request: LegacyExpressionImportRequest) -> L
         logger.exception(f"读取旧版表达方式数据库失败: {e}")
         raise HTTPException(status_code=400, detail=f"读取旧版表达方式数据库失败: {str(e)}") from e
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '导入旧版表达方式失败', exception=e)
         logger.exception(f"导入旧版表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"导入旧版表达方式失败: {str(e)}") from e
 
@@ -1642,6 +1712,11 @@ async def get_expression_detail(expression_id: int) -> ExpressionDetailResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表达方式详情失败', exception=e)
         logger.exception(f"获取表达方式详情失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表达方式详情失败: {str(e)}") from e
 
@@ -1685,6 +1760,11 @@ async def create_expression(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '创建表达方式失败', exception=e)
         logger.exception(f"创建表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"创建表达方式失败: {str(e)}") from e
 
@@ -1739,6 +1819,11 @@ async def update_expression(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '更新表达方式失败', exception=e)
         logger.exception(f"更新表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新表达方式失败: {str(e)}") from e
 
@@ -1769,6 +1854,11 @@ async def update_expression_review_status(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '更新表达方式审核状态失败', exception=e)
         logger.exception(f"更新表达方式审核状态失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新表达方式审核状态失败: {str(e)}") from e
 
@@ -1803,6 +1893,11 @@ async def delete_expression(expression_id: int) -> ExpressionDeleteResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '删除表达方式失败', exception=e)
         logger.exception(f"删除表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除表达方式失败: {str(e)}") from e
 
@@ -1850,6 +1945,11 @@ async def batch_delete_expressions(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '批量删除表达方式失败', exception=e)
         logger.exception(f"批量删除表达方式失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量删除表达方式失败: {str(e)}") from e
 
@@ -1906,6 +2006,11 @@ async def get_expression_stats(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取统计数据失败', exception=e)
         logger.exception(f"获取统计数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
 
@@ -1977,6 +2082,11 @@ async def get_review_stats() -> ReviewStatsResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取审核统计失败', exception=e)
         logger.exception(f"获取审核统计失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取审核统计失败: {str(e)}") from e
 
@@ -2074,6 +2184,11 @@ async def get_review_list(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取审核列表失败', exception=e)
         logger.exception(f"获取审核列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取审核列表失败: {str(e)}") from e
 
@@ -2128,6 +2243,11 @@ async def get_expression_review_logs(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取表达方式 AI 审核日志失败', exception=e)
         logger.exception(f"获取表达方式 AI 审核日志失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取表达方式 AI 审核日志失败: {str(e)}") from e
 
@@ -2205,6 +2325,11 @@ async def approve_expression_review_log(review_log_id: str) -> ExpressionReviewL
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '从表达方式 AI 审核日志恢复失败', exception=e)
         logger.exception(f"从表达方式 AI 审核日志恢复失败: {e}")
         raise HTTPException(status_code=500, detail=f"从表达方式 AI 审核日志恢复失败: {str(e)}") from e
 
@@ -2268,6 +2393,12 @@ async def batch_review_expressions(
                 succeeded += 1
 
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '批量审核单项失败', exception=e)
+                logger.warning(f"批量审核单项失败: {e}")
                 results.append(BatchReviewResultItem(id=item.id, success=False, message=str(e)))
                 failed += 1
 
@@ -2280,5 +2411,10 @@ async def batch_review_expressions(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '批量审核失败', exception=e)
         logger.exception(f"批量审核失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量审核失败: {str(e)}") from e

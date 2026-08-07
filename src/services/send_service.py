@@ -248,6 +248,11 @@ async def _invoke_send_hook(
         try:
             mutated_message = deserialize_session_message(raw_message)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '发送 Hook 返回的 message 反序列化失败', exception=exc)
             logger.warning(f"Hook {hook_name} 返回的 message 无法反序列化，已忽略: {exc}")
     return hook_result, mutated_message
 
@@ -691,6 +696,11 @@ async def _dispatch_adapter_callbacks(delivery_batch: DeliveryBatch) -> None:
 
                 await handler(payload)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '[SendService] 分发适配器回调失败', exception=exc)
         logger.warning(f"[SendService] 分发适配器回调失败: {exc}")
 
 
@@ -705,6 +715,11 @@ async def _notify_memory_automation_on_message_sent(message: SessionMessage) -> 
 
         await memory_automation_service.on_message_sent(message)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '长期记忆人物事实写回注册失败', exception=exc)
         session_id = message.session_id or "unknown-session"
         logger.warning(f"[{session_id}] 长期记忆人物事实写回注册失败: {exc}")
 
@@ -726,6 +741,11 @@ def _record_sent_emoji_usage(message: SessionMessage) -> None:
         for emoji_hash in emoji_hashes:
             emoji_manager.update_emoji_usage_by_hash(emoji_hash, log_missing=False)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '[SendService] 记录表情包使用次数失败', exception=exc)
         logger.warning(f"[SendService] 记录表情包使用次数失败: {exc}")
 
 
@@ -748,6 +768,11 @@ def _sync_sent_message_to_maisaka_history(
             return
         runtime.append_sent_message_to_chat_history(message, source_kind=source_kind)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '[SendService] 同步消息到 Maisaka 历史失败', exception=exc)
         logger.warning(f"[SendService] 同步消息到 Maisaka 历史失败: session_id={session_id} error={exc}")
 
 
@@ -817,6 +842,11 @@ async def _send_via_platform_io(
     try:
         await platform_io_manager.ensure_send_pipeline_ready()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[SendService] 准备 Platform IO 发送管线失败', exception=exc)
         logger.error(f"[SendService] 准备 Platform IO 发送管线失败: {exc}")
         logger.warning(traceback.format_exc())
         return None
@@ -824,6 +854,11 @@ async def _send_via_platform_io(
     try:
         route_key = platform_io_manager.build_route_key_from_message(message)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '[SendService] 根据消息构造 Platform IO 路由键失败', exception=exc)
         logger.warning(f"[SendService] 根据消息构造 Platform IO 路由键失败: {exc}")
         return None
 
@@ -841,6 +876,11 @@ async def _send_via_platform_io(
             metadata={"show_log": False, "force_send": force_send},
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[SendService] Platform IO 发送异常', exception=exc)
         logger.error(f"[SendService] Platform IO 发送异常: {exc}")
         logger.warning(traceback.format_exc())
         return None
@@ -1087,6 +1127,11 @@ async def _send_to_target_with_message(
         logger.error("[SendService] 发送消息失败")
         return None
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[SendService] 发送消息时出错', exception=exc)
         logger.error(f"[SendService] 发送消息时出错: {exc}")
         traceback.print_exc()
         return None
@@ -1179,6 +1224,11 @@ class SendServiceMessagePortV2:
             return SendMessageResult.failed("发送失败")
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[message_port_v2] 发送失败', exception=e)
             logger.error(
                 f"[message_port_v2] 发送失败: session={session_id} "
                 f"agent={agent_id} source={source} error={e}"

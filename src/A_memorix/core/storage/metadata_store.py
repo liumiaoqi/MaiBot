@@ -38,7 +38,13 @@ from .stores._utils import (
 try:
     import jieba  # type: ignore
     HAS_JIEBA = True
-except Exception:
+except Exception as exc:
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, '导入 jieba 失败，禁用 BM25 中文分词', exception=exc)
+    get_logger("A_Memorix.MetadataStore").warning(f"导入 jieba 失败，禁用 BM25 中文分词: {exc}")
     HAS_JIEBA = False
 
 logger = get_logger("A_Memorix.MetadataStore")
@@ -121,6 +127,11 @@ class MetadataStore:
         try:
             self.paragraphs.ensure_fts_schema()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '初始化 FTS schema 失败，将跳过 BM25 检索', exception=e)
             logger.warning(f"初始化 FTS schema 失败，将跳过 BM25 检索: {e}")
 
     def _resolve_conn(self, conn: Optional[sqlite3.Connection] = None) -> sqlite3.Connection:
@@ -217,6 +228,11 @@ class MetadataStore:
         try:
             self.enqueue_episode_source_rebuild(source=source, reason="paragraph_added")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Episode source 重建入队失败', exception=e)
             logger.warning(f"Episode source 重建入队失败: hash={hash_value[:16]}..., err={e}")
         return hash_value
 
@@ -1119,7 +1135,13 @@ class MetadataStore:
         if raw_metadata:
             try:
                 payload["metadata"] = json.loads(raw_metadata)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '解析外部记忆元数据 JSON 失败', exception=exc)
+                logger.warning(f"解析外部记忆元数据 JSON 失败: {exc}")
                 payload["metadata"] = {}
         else:
             payload["metadata"] = {}
@@ -1986,7 +2008,13 @@ class MetadataStore:
                 )
                 try:
                     paragraph_count = max(0, int(paragraph_count))
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '解析 Episode paragraph_count 失败', exception=exc)
+                    logger.warning(f"解析 Episode paragraph_count 失败: {exc}")
                     paragraph_count = len(evidence_ids)
                 if paragraph_count <= 0:
                     continue
@@ -1994,11 +2022,23 @@ class MetadataStore:
                 llm_confidence = raw_payload.get("llm_confidence", 0.0)
                 try:
                     time_confidence = float(time_confidence)
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '解析 Episode time_confidence 失败', exception=exc)
+                    logger.warning(f"解析 Episode time_confidence 失败: {exc}")
                     time_confidence = 1.0
                 try:
                     llm_confidence = float(llm_confidence)
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '解析 Episode llm_confidence 失败', exception=exc)
+                    logger.warning(f"解析 Episode llm_confidence 失败: {exc}")
                     llm_confidence = 0.0
                 created_at = existing_created_at.get(episode_id)
                 created_ts = created_at if created_at is not None else now
@@ -2041,7 +2081,13 @@ class MetadataStore:
                 inserted_count += 1
             self._conn.commit()
             return {"source": token, "episode_count": inserted_count}
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '替换 Episode 数据失败，回滚事务', exception=exc)
+            logger.warning(f"替换 Episode 数据失败，回滚事务: {exc}")
             self._conn.rollback()
             raise
 
@@ -2337,7 +2383,13 @@ class MetadataStore:
             try:
                 val = json.loads(raw)
                 return val if isinstance(val, list) else []
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '解析 Episode JSON 字段失败', exception=exc)
+                logger.warning(f"解析 Episode JSON 字段失败: {exc}")
                 return []
 
         data["participants"] = _load_list(data.pop("participants_json", None))
@@ -2390,17 +2442,35 @@ class MetadataStore:
             paragraph_count = len(evidence_ids)
         try:
             paragraph_count = int(paragraph_count)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '解析 Episode paragraph_count 失败', exception=exc)
+            logger.warning(f"解析 Episode paragraph_count 失败: {exc}")
             paragraph_count = len(evidence_ids)
         time_conf = payload.get("time_confidence", 1.0)
         llm_conf = payload.get("llm_confidence", 0.0)
         try:
             time_conf = float(time_conf)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '解析 Episode time_confidence 失败', exception=exc)
+            logger.warning(f"解析 Episode time_confidence 失败: {exc}")
             time_conf = 1.0
         try:
             llm_conf = float(llm_conf)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '解析 Episode llm_confidence 失败', exception=exc)
+            logger.warning(f"解析 Episode llm_confidence 失败: {exc}")
             llm_conf = 0.0
 
         cursor = self._conn.cursor()
@@ -2574,7 +2644,13 @@ class MetadataStore:
                         for item in jieba.cut_for_search(span)  # type: ignore[union-attr]
                         if len(str(item).strip()) >= 2
                     ]
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, 'jieba 分词失败，回退字符 n-gram', exception=exc)
+                    logger.warning(f"jieba 分词失败，回退字符 n-gram: {exc}")
                     pass
             if not segmented:
                 compact = span.strip()

@@ -77,6 +77,11 @@ def _clamp_int(value: Any, default: int, min_value: int, max_value: int) -> int:
     try:
         parsed = int(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '钳制整数失败', exception=exc)
         logger.warning("操作异常: %s", exc)
     return max(min_value, min(max_value, parsed))
 
@@ -85,6 +90,11 @@ def _clamp_float(value: Any, default: float, min_value: float, max_value: float)
     try:
         parsed = float(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '钳制浮点数失败', exception=exc)
         logger.warning("操作异常: %s", exc)
     return max(min_value, min(max_value, parsed))
 
@@ -148,6 +158,11 @@ def _safe_json_loads(text: str) -> Optional[Any]:
     try:
         return json.loads(raw)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '解析 LLM JSON 响应失败', exception=exc)
         logger.warning("操作异常: %s", exc)
     s = raw.find("{")
     e = raw.rfind("}")
@@ -155,6 +170,11 @@ def _safe_json_loads(text: str) -> Optional[Any]:
         try:
             return json.loads(raw[s : e + 1])
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '解析 JSON 片段失败', exception=exc)
             logger.warning("操作异常: %s", exc)
     return None
 
@@ -676,6 +696,11 @@ class RetrievalTuningManager:
             try:
                 subject, predicate, obj, rel_hash = row
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '解包三元组失败', exception=exc)
                 logger.warning("操作异常: %s", exc)
             relation_hash = str(rel_hash or "").strip()
             if not relation_hash:
@@ -886,6 +911,11 @@ class RetrievalTuningManager:
         except asyncio.CancelledError:
             pass
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Retrieval tuning worker shutdown failed', exception=e)
             logger.warning(f"Retrieval tuning worker shutdown failed: {e}")
 
     async def create_task(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -916,6 +946,11 @@ class RetrievalTuningManager:
         try:
             seed = int(seed)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '解析调优任务 seed 失败', exception=exc)
             logger.warning("操作异常: %s", exc)
         async with self._lock:
             if self._pending_task_count() >= self._queue_limit():
@@ -1041,6 +1076,11 @@ class RetrievalTuningManager:
         try:
             content = p.read_text(encoding="utf-8")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '读取调优报告文件失败', exception=exc)
             logger.warning("操作异常: %s", exc)
         return {"format": fmt, "content": content, "path": str(p)}
 
@@ -1068,6 +1108,11 @@ class RetrievalTuningManager:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'Retrieval tuning task crashed', exception=e)
                 logger.error(f"Retrieval tuning task crashed: task_id={task_id}, err={e}")
                 async with self._lock:
                     task = self._tasks.get(task_id)
@@ -1321,6 +1366,11 @@ class RetrievalTuningManager:
                     }
                     task.updated_at = _now()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'Retrieval tuning task failed', exception=e)
             logger.error(f"Retrieval tuning task failed: task_id={task_id}, err={e}")
             async with self._lock:
                 task = self._tasks.get(task_id)
@@ -1562,6 +1612,11 @@ class RetrievalTuningManager:
         try:
             models = get_text_generation_model_tasks(self._llm_api) or {}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '获取文本生成模型任务失败', exception=exc)
             logger.warning("操作异常: %s", exc)
         if not models:
             return None
@@ -1614,6 +1669,11 @@ class RetrievalTuningManager:
                     return text
                 raise RuntimeError("empty_llm_response")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'LLM 文本调用失败', exception=e)
                 logger.warning("操作失败", exc_info=True)
                 last_error = e
                 if idx >= max_attempts - 1:
@@ -1659,6 +1719,11 @@ class RetrievalTuningManager:
                     out[anchor_id] = query
             return out
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '生成 NL 查询失败', exception=exc)
             logger.warning("操作异常: %s", exc)
     async def _suggest_profiles_with_llm(
         self,
@@ -1709,6 +1774,11 @@ class RetrievalTuningManager:
                     out.append(self._normalize_profile(item, fallback=base_profile))
             return out
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '生成画像建议失败', exception=exc)
             logger.warning("操作异常: %s", exc)
     def _generate_candidate_profile(
         self,

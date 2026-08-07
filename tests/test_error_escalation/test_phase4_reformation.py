@@ -25,8 +25,8 @@ def test_coverage_interface() -> None:
     """覆盖率接口输出与 Phase 4 实际改造数一致。"""
     coverage = get_coverage()
     assert coverage == {
-        "reformed_files": 17,
-        "reformed_sites": 412,
+        "reformed_files": 32,
+        "reformed_sites": 634,
         "total_sites": 1422,
     }
 
