@@ -1,8 +1,13 @@
 """WebUI 测试基础设施 — conftest.py"""
 
+import shutil
+from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
+from sqlmodel import SQLModel, Session, create_engine
 from starlette.testclient import TestClient
 
 from src.webui.app import create_app
@@ -92,3 +97,136 @@ def assert_api_error(response, expected_error_code: str, expected_status: int = 
     data = response.json()
     assert "error_code" in data, f"非错误响应: {data}"
     assert data["error_code"] == expected_error_code, f"错误码不匹配: {data}"
+
+
+# ── T2.3 db_isolation fixture ──────────────────────────────────────
+
+@pytest.fixture
+def db_isolation():
+    """方案 A：内存 SQLite，patch get_db_session 指向内存引擎。
+
+    用于只读测试（快）和写测试（完全隔离，测试结束数据消失）。
+    真实 DB + 事务回滚方案可用 db_isolation_real fixture。
+    """
+    import src.common.database.database as db_module
+    import src.common.database.database_model  # noqa: F401 — 确保模型加载
+
+    in_memory_engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+    )
+    SQLModel.metadata.create_all(in_memory_engine)
+
+    from sqlalchemy.orm import sessionmaker
+
+    in_memory_session_factory = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=in_memory_engine,
+        class_=Session,
+        expire_on_commit=False,
+    )
+
+    @contextmanager
+    def _patched_get_db_session(auto_commit: bool = True):
+        session = in_memory_session_factory()
+        try:
+            yield session
+            if auto_commit:
+                session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    with patch.object(db_module, "get_db_session", _patched_get_db_session), \
+         patch.object(db_module, "initialize_database", lambda: None):
+        yield in_memory_engine
+
+    in_memory_engine.dispose()
+
+
+@pytest.fixture
+def db_isolation_real():
+    """方案 B：真实 DB + 事务回滚。
+
+    用于需要真实数据库 schema/数据的写操作测试。
+    测试结束 rollback，真实数据库无残留。
+    """
+    import src.common.database.database as db_module
+
+    db_module.initialize_database()
+    real_engine = db_module.engine
+
+    from sqlalchemy.orm import sessionmaker
+
+    rollback_session_factory = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=real_engine,
+        class_=Session,
+        expire_on_commit=False,
+    )
+
+    _sessions = []
+
+    @contextmanager
+    def _patched_get_db_session(auto_commit: bool = True):
+        session = rollback_session_factory()
+        _sessions.append(session)
+        try:
+            yield session
+            if auto_commit:
+                session.flush()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    with patch.object(db_module, "get_db_session", _patched_get_db_session):
+        yield real_engine
+
+    for s in _sessions:
+        try:
+            s.rollback()
+            s.close()
+        except Exception:
+            pass
+
+
+# ── T2.4 config_file_isolation fixture ─────────────────────────────
+
+@pytest.fixture
+def config_file_isolation(tmp_path):
+    """复制真实配置到 tmp_path，patch CONFIG_DIR 指向 tmp_path。
+
+    测试结束后自动清理 tmp_path，真实 bot_config.toml 不受影响。
+    """
+    import src.config.config as config_module
+    import src.config.startup_bindings as startup_module
+
+    real_config_dir = Path(config_module.CONFIG_DIR)
+
+    for config_file in ("bot_config.toml", "model_config.toml"):
+        src_file = real_config_dir / config_file
+        if src_file.exists():
+            shutil.copy2(src_file, tmp_path / config_file)
+
+    patches = [
+        patch.object(config_module, "CONFIG_DIR", tmp_path),
+        patch.object(config_module, "BOT_CONFIG_PATH", (tmp_path / "bot_config.toml").resolve()),
+        patch.object(config_module, "MODEL_CONFIG_PATH", (tmp_path / "model_config.toml").resolve()),
+        patch.object(startup_module, "CONFIG_DIR", tmp_path),
+        patch.object(startup_module, "BOT_CONFIG_PATH", (tmp_path / "bot_config.toml").resolve()),
+    ]
+
+    for p in patches:
+        p.start()
+
+    try:
+        yield tmp_path
+    finally:
+        for p in patches:
+            p.stop()
