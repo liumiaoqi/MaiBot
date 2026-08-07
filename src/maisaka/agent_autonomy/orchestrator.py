@@ -18,6 +18,7 @@ from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
 from src.maisaka.agent_autonomy.event_bus import InterjectionMentionEvent, SessionMessageEvent
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
+from src.maisaka.agent_autonomy.mention_chain_throttle import MentionChainThrottle
 from src.maisaka.agent_autonomy.lifecycle import AgentLifecycleManager, AgentLifecycleState
 from src.maisaka.agent_autonomy.orchestrator_strategy import BaseOrchestratorStrategy, DefaultOrchestratorStrategy, create_strategy
 from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
@@ -101,6 +102,14 @@ class AgentOrchestrator:
 
         # 待处理的行为意图：agent_id -> list[BehaviorIntent]
         self._pending_intents: dict[str, list[BehaviorIntent]] = {}
+
+        # ZG-23a: 提及传递连锁深度节流（会话级状态）
+        self._mention_chain_throttle = MentionChainThrottle(
+            base=self._config.mention_chain_decay_base,
+            max_depth=self._config.mention_chain_max_depth,
+        )
+        # 会话级连锁状态：session_id -> (chain_id, depth)
+        self._mention_chain_ctx: dict[str, tuple[str, int]] = {}
 
         # 编排策略
         strategy_name = self._config.orchestrator_strategy
@@ -233,6 +242,18 @@ class AgentOrchestrator:
                 )
 
         # 产生提及传递信号写入交互系统
+        # ZG-23a: 连锁深度节流——检查深度并概率衰减
+        chain_id = getattr(event, "chain_id", "") or self._session_id
+        depth = getattr(event, "depth", 1)
+        throttle_decision = self._mention_chain_throttle.check_and_decide(chain_id, depth)
+        if not throttle_decision.allow:
+            logger.info(
+                f"[agent_autonomy] 提及传递节流抑制: "
+                f"speaker={speaker_agent_id}→mentioned={mentioned_agent_id} "
+                f"depth={depth} reason={throttle_decision.reason}"
+            )
+            return
+
         try:
             if self._interaction_engine is None:
                 from src.maisaka.agent_interaction.engine import InteractionEngine
@@ -258,7 +279,7 @@ class AgentOrchestrator:
 
             evaluation = TriggerEvaluation(
                 should_trigger=True,
-                trigger_probability=1.0,
+                trigger_probability=throttle_decision.trigger_probability,
                 initiator_agent_id=speaker_agent_id,
                 target_agent_id=mentioned_agent_id,
                 interaction_type="mention_propagation",
@@ -272,6 +293,8 @@ class AgentOrchestrator:
                     f"speaker={speaker_agent_id}→mentioned={mentioned_agent_id} "
                     f"event_id={result.event_id}"
                 )
+                # ZG-23a: 触发成功后更新会话级连锁深度（depth+1）
+                self._mention_chain_ctx[self._session_id] = (chain_id, depth + 1)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -1485,6 +1508,14 @@ class AgentOrchestrator:
         if not content_summary:
             return
 
+        # ZG-23a: 读取会话级连锁状态（会话级近似，非事件链精确）
+        chain_ctx = self._mention_chain_ctx.get(self._session_id)
+        if chain_ctx is not None:
+            chain_id, depth = chain_ctx
+        else:
+            chain_id = self._session_id
+            depth = 1
+
         try:
             from src.core.adapters.agent_config_port import get_agent_config_provider
 
@@ -1503,6 +1534,8 @@ class AgentOrchestrator:
                         mentioned_agent_id=agent.agent_id,
                         session_id=self._session_id,
                         content_summary=content_summary,
+                        chain_id=chain_id,
+                        depth=depth,
                     )
                     get_event_bus_port().emit_sync("interjection_mention", mention_event)
                     logger.debug(

@@ -919,6 +919,13 @@ class AgentAutonomySnapshot:
     standby_emotion_visible_to_active: bool = False
     dormant_visible_to_any: bool = False
     state_awareness_enabled: bool = True
+    # ZG-23a: 出站去重 + 发言节流配置
+    outbound_dedup_window_seconds: float = 3.0
+    outbound_dedup_max_entries: int = 5000
+    mention_chain_decay_base: float = 0.6
+    mention_chain_max_depth: int = 4
+    cohabitation_decay_factor: float = 0.5
+    cohabitation_min_max: int = 2
 
 
 

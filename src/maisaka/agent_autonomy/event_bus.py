@@ -38,6 +38,9 @@ class InterjectionMentionEvent:
     mentioned_agent_id: str = ""
     session_id: str = ""
     content_summary: str = ""
+    # ZG-23a: 连锁深度节流（默认值保证向后兼容）
+    chain_id: str = ""
+    depth: int = 1
 
 
 @dataclass

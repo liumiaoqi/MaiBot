@@ -174,6 +174,13 @@ class GlobalConfigAppConfigPort:
             standby_emotion_visible_to_active=aa.standby_emotion_visible_to_active,
             dormant_visible_to_any=aa.dormant_visible_to_any,
             state_awareness_enabled=aa.state_awareness_enabled,
+            # ZG-23a: 出站去重 + 发言节流配置
+            outbound_dedup_window_seconds=aa.outbound_dedup_window_seconds,
+            outbound_dedup_max_entries=aa.outbound_dedup_max_entries,
+            mention_chain_decay_base=aa.mention_chain_decay_base,
+            mention_chain_max_depth=aa.mention_chain_max_depth,
+            cohabitation_decay_factor=aa.cohabitation_decay_factor,
+            cohabitation_min_max=aa.cohabitation_min_max,
 
         )
 

@@ -6895,6 +6895,109 @@ class AgentAutonomySectionConfig(ConfigBase):
     )
     """启用后，智能体可感知共居智能体的状态信息。"""
 
+    # ZG-23a: 出站去重 + 发言节流配置
+    outbound_dedup_window_seconds: float = Field(
+        default=3.0,
+        ge=2.0,
+        le=5.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "出站去重窗口时长（秒）",
+                "en_US": "Outbound dedup window (seconds)",
+                "ja_JP": "送信重複排除窓口時間（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """出站消息去重窗口时长，同一 message_id 在此时长内重复发送被抑制。"""
+
+    outbound_dedup_max_entries: int = Field(
+        default=5000,
+        ge=100,
+        le=50000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "出站去重窗口最大条目数",
+                "en_US": "Outbound dedup max entries",
+                "ja_JP": "送信重複排除最大エントリ数",
+            },
+            "x-widget": "input",
+            "x-icon": "database",
+            "advanced": True,
+        },
+    )
+    """出站去重窗口缓存条目上限，达上限时淘汰最早过期有效键。"""
+
+    mention_chain_decay_base: float = Field(
+        default=0.6,
+        ge=0.5,
+        le=0.8,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "提及传递概率衰减基数",
+                "en_US": "Mention chain decay base",
+                "ja_JP": "言及伝播確率減衰基数",
+            },
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """提及传递触发概率按 base ** depth 衰减，base 越小衰减越快。"""
+
+    mention_chain_max_depth: int = Field(
+        default=4,
+        ge=3,
+        le=5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "提及传递连锁深度上限",
+                "en_US": "Mention chain max depth",
+                "ja_JP": "言及伝播連鎖深度上限",
+            },
+            "x-widget": "input",
+            "x-icon": "layers",
+            "advanced": True,
+        },
+    )
+    """连锁深度超过此上限时熔断，不再触发新的提及传递。"""
+
+    cohabitation_decay_factor: float = Field(
+        default=0.5,
+        ge=0.1,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共居参数递减系数",
+                "en_US": "Cohabitation decay factor",
+                "ja_JP": "同居パラメータ減衰係数",
+            },
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """多角色共居时每小时插话上限按角色数递减的系数。"""
+
+    cohabitation_min_max: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共居参数每小时插话下限",
+                "en_US": "Cohabitation min max per hour",
+                "ja_JP": "同居パラメータ時間当たり割り込み下限",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """共居参数递减后的下限保护，保证角色在超多人群聊中仍有最低插话能力。"""
+
 
 class WatchdogSectionConfig(ConfigBase):
     """看门狗配置类（ZG-3 事件循环阻塞检测与 Runner 健康桥接）。

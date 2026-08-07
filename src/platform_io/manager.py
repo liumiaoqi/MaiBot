@@ -8,6 +8,7 @@ from src.common.logger import get_logger
 from src.platform_io.drivers.base import PlatformIODriver
 
 from .dedupe import MessageDeduplicator
+from .outbound_dedup import OutboundDedupWindow
 from .outbound_tracker import OutboundTracker
 from .route_key_factory import RouteKeyFactory
 from .registry import DriverRegistry
@@ -41,6 +42,8 @@ class PlatformIOManager:
         self._legacy_send_drivers: Dict[str, PlatformIODriver] = {}
         self._deduplicator = MessageDeduplicator()
         self._outbound_tracker = OutboundTracker()
+        # ZG-23a: 出站消息幂等去重窗口
+        self._outbound_dedup = OutboundDedupWindow()
         self._inbound_dispatcher: Optional[InboundDispatcher] = None
         self._inbound_dispatch_tasks: Set[asyncio.Task[None]] = set()
         self._started = False
@@ -527,6 +530,17 @@ class PlatformIOManager:
         if not drivers:
             return DeliveryBatch(internal_message_id=message.message_id, route_key=route_key)
 
+        # ZG-23a: 出站消息幂等去重拦截（driver 循环之前）
+        force_send = bool(metadata and metadata.get("force_send"))
+        dedup_decision = self._outbound_dedup.check_and_record(
+            message_id=message.message_id,
+            route_key=route_key,
+            source_path="platform_io.manager.send_message",
+            force_send=force_send,
+        )
+        if not dedup_decision.allow:
+            return DeliveryBatch(internal_message_id=message.message_id, route_key=route_key)
+
         receipts: List[DeliveryReceipt] = []
         for driver in drivers:
             try:
@@ -570,6 +584,19 @@ class PlatformIOManager:
             route_key=route_key,
             receipts=receipts,
         )
+
+    def is_outbound_recently_sent(self, message_id: str) -> bool:
+        """查询出站消息是否在去重窗口内已发送（ZG-23a）。
+
+        供 reply 重试幂等检查间接访问，不直接暴露 OutboundDedupWindow 内部组件。
+
+        Args:
+            message_id: 出站消息唯一标识。
+
+        Returns:
+            bool: True 表示窗口内已发送，False 表示未发送或已过期。
+        """
+        return self._outbound_dedup.is_recently_sent(message_id)
 
     @staticmethod
     def _build_inbound_dedupe_key(envelope: InboundMessageEnvelope) -> Optional[str]:

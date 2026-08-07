@@ -403,26 +403,36 @@ class ThinkingOrgan:
             # reply 工具调用失败 → 重试 1 次，仍失败才返回 SILENT
             if cycle_result.reply_detected and cycle_result.reply_failed:
                 if self._reply_retry_count < SILENT_RETRY_MAX:
-                    self._reply_retry_count += 1
-                    logger.warning(
-                        f"[thinking_organ] reply 工具调用失败，重试 "
-                        f"({self._reply_retry_count}/{SILENT_RETRY_MAX}): "
-                        f"agent={self._agent_id} round={rounds}"
-                    )
-                    self._autonomy_logger.log(
-                        self._agent_id,
-                        AutonomyEventType.THINKING,
-                        f"reply 失败重试({self._reply_retry_count}/{SILENT_RETRY_MAX})",
-                        level="warning",
-                    )
-                    # 注入重试提示到 inner_voice_text（ThinkContext 是 frozen，需用 replace）
-                    import copy
-                    retry_hint = "reply 工具调用失败了。请重新调用 reply 工具回复用户，这次不要传 msg_id 参数（系统会自动回复最新消息）。"
-                    context = copy.replace(
-                        context,
-                        inner_voice_text=(context.inner_voice_text + "\n" + retry_hint).strip(),
-                    )
-                    continue
+                    # ZG-23a: 重试前幂等检查（按 receipt 状态区分）
+                    # 尝试获取上一轮 message_id 进行去重窗口查询
+                    last_message_id = getattr(context, "last_reply_message_id", "") or ""
+                    if self._check_retry_idempotency(last_message_id):
+                        logger.info(
+                            f"[thinking_organ] reply 重试幂等检查：消息已发送，跳过重试 "
+                            f"agent={self._agent_id} message_id={last_message_id}"
+                        )
+                        # 不重试，继续走 SILENT 路径
+                    else:
+                        self._reply_retry_count += 1
+                        logger.warning(
+                            f"[thinking_organ] reply 工具调用失败，重试 "
+                            f"({self._reply_retry_count}/{SILENT_RETRY_MAX}): "
+                            f"agent={self._agent_id} round={rounds}"
+                        )
+                        self._autonomy_logger.log(
+                            self._agent_id,
+                            AutonomyEventType.THINKING,
+                            f"reply 失败重试({self._reply_retry_count}/{SILENT_RETRY_MAX})",
+                            level="warning",
+                        )
+                        # 注入重试提示到 inner_voice_text（ThinkContext 是 frozen，需用 replace）
+                        import copy
+                        retry_hint = "reply 工具调用失败了。请重新调用 reply 工具回复用户，这次不要传 msg_id 参数（系统会自动回复最新消息）。"
+                        context = copy.replace(
+                            context,
+                            inner_voice_text=(context.inner_voice_text + "\n" + retry_hint).strip(),
+                        )
+                        continue
 
                 logger.warning(
                     f"[thinking_organ] reply 工具调用失败(重试已用尽): agent={self._agent_id} round={rounds}"
@@ -874,6 +884,35 @@ class ThinkingOrgan:
         if reached_max_cycles:
             return SilenceReason.MAX_CYCLES
         return SilenceReason.NO_CONTENT
+
+    def _check_retry_idempotency(self, message_id: str) -> bool:
+        """ZG-23a: reply 重试前幂等检查。
+
+        检查上一轮发送的消息是否已在去重窗口内（已发送），
+        若已发送则跳过重试（避免"超时但已到达"场景下的重复发送）。
+
+        Args:
+            message_id: 上一轮 reply 的 message_id。
+
+        Returns:
+            bool: True 表示应跳过重试（消息已发送），False 表示可以重试。
+        """
+        if not message_id:
+            return False
+        try:
+            from src.platform_io.manager import get_platform_io_manager
+
+            manager = get_platform_io_manager()
+            if manager.is_outbound_recently_sent(message_id):
+                return True
+            return False
+        except Exception as e:
+            from src.common.logger import get_logger
+            from src.core.tainted_mask.mark import mark_exception_swallowed
+
+            get_logger("thinking_organ").warning(f"reply 重试幂等检查异常，降级允许重试: {e}")
+            mark_exception_swallowed(e, "thinking_organ._check_retry_idempotency")
+            return False
 
     def _log_cycle(
         self,

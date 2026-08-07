@@ -2,6 +2,7 @@
 
 
 import asyncio
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -366,7 +367,13 @@ class VitalityManager:
             - config.cohabitation_cooldown_reduction_minutes * adjustment_factor,
             config.interjection_cooldown_minimum_minutes,
         )
-        dynamic_max = config.max_interjections_per_hour + 2
+        # ZG-23a: 共居参数按角色数递减（消除 +2 反向激励）
+        # base 从 max_interjections_per_hour 派生，不新增独立配置
+        dynamic_max = max(
+            config.max_interjections_per_hour
+            - math.floor((bound_count - 1) * config.cohabitation_decay_factor),
+            config.cohabitation_min_max,
+        )
 
         return CohabitationParams(
             intent_threshold=dynamic_threshold,
