@@ -169,6 +169,11 @@ class PersonProfileService:
                 config=config,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "初始化人物画像检索器失败，将只使用关系证据", exception=e)
             logger.warning(f"初始化人物画像检索器失败，将只使用关系证据: {e}")
             return None
 
@@ -209,6 +214,11 @@ class PersonProfileService:
                 if record:
                     return str(record)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "按别名解析 person_id 失败", exception=e)
             logger.warning(f"按别名解析 person_id 失败: identifier={key}, err={e}")
 
         if len(key) == 32 and all(ch in "0123456789abcdefABCDEF" for ch in key):
@@ -225,6 +235,11 @@ class PersonProfileService:
             try:
                 items = json.loads(raw_value)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "解析群昵称失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
         names: List[str] = []
         for item in items:
@@ -244,6 +259,11 @@ class PersonProfileService:
         try:
             values = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析记忆特征失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         if not isinstance(values, list):
             return []
@@ -274,6 +294,11 @@ class PersonProfileService:
         try:
             paragraphs = self.metadata_store.get_paragraphs_by_entity(person_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "从记忆证据回捞人物别名失败", exception=e)
             logger.warning(f"从记忆证据回捞人物别名失败: person_id={person_id}, err={e}")
             return [], ""
 
@@ -284,6 +309,11 @@ class PersonProfileService:
             try:
                 paragraph_entities = self.metadata_store.get_paragraph_entities(paragraph_hash)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "从记忆证据回捞人物别名失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             for entity in paragraph_entities:
                 name = str(entity.get("name", "")).strip()
@@ -335,6 +365,11 @@ class PersonProfileService:
                 seen.add(norm)
                 aliases.append(norm)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析人物别名失败", exception=e)
             logger.warning(f"解析人物别名失败: person_id={person_id}, err={e}")
         return aliases, primary_name, memory_traits
 
@@ -400,6 +435,11 @@ class PersonProfileService:
             try:
                 paragraph = self.metadata_store.get_paragraph(source_paragraph)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "判断关系是否绑定人物失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             if isinstance(paragraph, dict):
                 payload = {
@@ -496,6 +536,11 @@ class PersonProfileService:
         try:
             paragraph = self.metadata_store.get_paragraph(paragraph_hash)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "丰富段落证据元数据失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         if isinstance(paragraph, dict):
             paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))
@@ -607,6 +652,11 @@ class PersonProfileService:
             try:
                 results = await self.retriever.retrieve(alias, top_k=per_alias_top_k)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "向量证据召回失败", exception=e)
                 logger.warning(f"向量证据召回失败: alias={alias}, err={e}")
                 continue
             for item in results:
@@ -744,6 +794,11 @@ class PersonProfileService:
                 max_tokens=self._profile_classification_max_tokens(),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "人物画像证据分类模型调用失败", exception=exc)
             logger.warning(f"人物画像证据分类模型调用失败: person_id={person_id}, err={exc}", exc_info=True)
             return fallback
         if not bool(getattr(result, "success", False)):
@@ -761,6 +816,11 @@ class PersonProfileService:
                 return None
             return ResolvedLLMModel(task_name=task_name, task_config=task_config)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析人物画像分类模型失败", exception=exc)
             logger.warning(f"解析人物画像分类模型失败: {exc}", exc_info=True)
             return None
 
@@ -802,6 +862,11 @@ class PersonProfileService:
             repaired = repair_json(text)
             payload = json.loads(repaired) if isinstance(repaired, str) else repaired
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析画像分类响应失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         if not isinstance(payload, dict):
             return {}
@@ -931,6 +996,11 @@ class PersonProfileService:
             try:
                 return now >= float(expires_at)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "判断画像快照是否过期失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
         updated_at = float(snapshot.get("updated_at") or 0.0)
         return (now - updated_at) >= ttl_seconds
@@ -952,6 +1022,11 @@ class PersonProfileService:
         try:
             override = self.metadata_store.get_person_profile_override(person_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取人物画像手工覆盖失败", exception=e)
             logger.warning(f"读取人物画像手工覆盖失败: person_id={person_id}, err={e}")
             return payload
 

@@ -32,6 +32,11 @@ def _get_nested_config_value(source: Any, key: str, default: Any = None) -> Any:
             raise KeyError(part)
         return current
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "能力注册异常", exception=exc)
         logger.warning("能力注册异常: %s", exc)
         return default
 
@@ -119,6 +124,11 @@ def _normalize_audio_base64_arg(args: Dict[str, Any]) -> str | None:
     try:
         base64.b64decode(audio_base64, validate=True)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "归一化 audio base64 参数失败", exception=exc)
         logger.warning("操作异常 in core.py", exc_info=True)
         raise ValueError("音频 Base64 数据不合法") from exc
     return audio_base64
@@ -218,6 +228,11 @@ class RuntimeCoreCapabilityMixin:
                 "source_kind": source_kind,
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.maisaka.context.append] 执行失败", exception=exc)
             logger.error(f"[cap.maisaka.context.append] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -254,6 +269,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": True, **result}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.maisaka.proactive.trigger] 执行失败", exception=exc)
             logger.error(f"[cap.maisaka.proactive.trigger] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -287,6 +307,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.text] 执行失败", exception=exc)
             logger.error(f"[cap.send.text] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -314,6 +339,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.emoji] 执行失败", exception=exc)
             logger.error(f"[cap.send.emoji] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -341,6 +371,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.image] 执行失败", exception=exc)
             logger.error(f"[cap.send.image] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -397,6 +432,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.hybrid] 执行失败", exception=exc)
             logger.error(f"[cap.send.hybrid] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -444,6 +484,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.forward] 执行失败", exception=exc)
             logger.error(f"[cap.send.forward] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -469,6 +514,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.command] 执行失败", exception=exc)
             logger.error(f"[cap.send.command] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -497,6 +547,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return {"success": result.success}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.send.custom] 执行失败", exception=exc)
             logger.error(f"[cap.send.custom] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -529,6 +584,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return result.to_capability_payload()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.llm.generate] 执行失败", exception=exc)
             logger.error(f"[cap.llm.generate] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -566,6 +626,11 @@ class RuntimeCoreCapabilityMixin:
             )
             return result.to_capability_payload()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.llm.generate_with_tools] 执行失败", exception=exc)
             logger.error(f"[cap.llm.generate_with_tools] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -607,6 +672,11 @@ class RuntimeCoreCapabilityMixin:
                 "results": [_embedding_result_to_payload(result) for result in results],
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.llm.embed] 执行失败", exception=exc)
             logger.error(f"[cap.llm.embed] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -635,6 +705,11 @@ class RuntimeCoreCapabilityMixin:
                 "content": text,
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.llm.transcribe_audio] 执行失败", exception=exc)
             logger.error(f"[cap.llm.transcribe_audio] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -656,6 +731,11 @@ class RuntimeCoreCapabilityMixin:
             models = llm_api.get_available_models()
             return {"success": True, "models": list(models.keys())}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.llm.get_available_models] 执行失败", exception=exc)
             logger.error(f"[cap.llm.get_available_models] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -680,6 +760,11 @@ class RuntimeCoreCapabilityMixin:
             value = _get_nested_config_value(global_config, key, default)
             return {"success": True, "value": value}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取配置能力执行失败", exception=exc)
             logger.warning("操作异常 in core.py", exc_info=True)
             return {"success": False, "value": None, "error": str(exc)}
 
@@ -710,6 +795,11 @@ class RuntimeCoreCapabilityMixin:
                 return {"success": True, "value": value}
             return {"success": True, "value": config}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取插件配置能力执行失败", exception=exc)
             logger.warning("操作异常 in core.py", exc_info=True)
             return {"success": False, "value": default, "error": str(exc)}
 
@@ -734,6 +824,11 @@ class RuntimeCoreCapabilityMixin:
                 return {"success": True, "value": {}}
             return {"success": True, "value": config}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取全部配置能力执行失败", exception=exc)
             logger.warning("操作异常 in core.py", exc_info=True)
             return {"success": False, "value": {}, "error": str(exc)}
 
@@ -767,6 +862,11 @@ class RuntimeCoreCapabilityMixin:
                 "dominant_emotion_label": state.dominant_emotion_label,
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.agent.emotion.get] 执行失败", exception=exc)
             logger.error(f"[cap.agent.emotion.get] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -797,5 +897,10 @@ class RuntimeCoreCapabilityMixin:
                 "score": snapshot.score,
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[cap.agent.relationship.get] 执行失败", exception=exc)
             logger.error(f"[cap.agent.relationship.get] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}

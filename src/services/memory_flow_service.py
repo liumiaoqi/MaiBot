@@ -57,6 +57,11 @@ class PersonFactWritebackService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "关闭人物事实写回 worker 失败", exception=exc)
             logger.warning(f"关闭人物事实写回 worker 失败: {exc}")
 
     async def enqueue(self, message: Any) -> None:
@@ -76,6 +81,11 @@ class PersonFactWritebackService:
                 try:
                     await self._handle_message(message)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "人物事实写回处理失败", exception=exc)
                     logger.warning(f"人物事实写回处理失败: {exc}", exc_info=True)
                 finally:
                     self._queue.task_done()
@@ -147,6 +157,11 @@ class PersonFactWritebackService:
             try:
                 replies = find_messages(message_id=reply_to, limit=1)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "查询 reply_to 目标失败", exception=exc)
                 logger.warning(f"查询 reply_to 目标失败: {exc}")
                 replies = []
             if replies:
@@ -171,6 +186,11 @@ class PersonFactWritebackService:
                 filter_bot=True,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "查询最近用户消息目标失败", exception=exc)
             logger.warning(f"查询最近用户消息目标失败: {exc}")
             return None
         for candidate in reversed(candidates):
@@ -210,6 +230,11 @@ class PersonFactWritebackService:
             try:
                 replies = find_messages(message_id=reply_to, limit=1)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "查询人物事实 reply_to 证据失败", exception=exc)
                 logger.warning("查询人物事实 reply_to 证据失败: %s", exc)
                 replies = []
             target_messages.extend(self._filter_target_user_messages(replies, person, seen_ids))
@@ -227,6 +252,11 @@ class PersonFactWritebackService:
                 filter_bot=True,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "查询人物事实近期用户证据失败", exception=exc)
             logger.warning("查询人物事实近期用户证据失败: %s", exc)
             return PersonFactEvidence(target_messages=[], context_messages=[])
         target_messages = self._filter_target_user_messages(candidates, person, seen_ids)
@@ -244,6 +274,11 @@ class PersonFactWritebackService:
                 limit_mode="latest",
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "查询人物事实邻近上下文失败", exception=exc)
             logger.warning("查询人物事实邻近上下文失败: %s", exc)
             return []
 
@@ -253,7 +288,12 @@ class PersonFactWritebackService:
         if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
             try:
                 return float(raw_timestamp.timestamp())
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "提取消息时间戳失败", exception=exc)
                 logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)
@@ -368,6 +408,11 @@ class PersonFactWritebackService:
             capabilities=["text_generation", "tool_calling"],
         )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "人物事实提取模型调用失败", exception=exc)
             logger.warning(f"人物事实提取模型调用失败: {exc}")
             return []
         return self._parse_fact_list(response_result.response)
@@ -380,7 +425,12 @@ class PersonFactWritebackService:
         try:
             repaired = repair_json(text)
             payload = json.loads(repaired) if isinstance(repaired, str) else repaired
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析人物事实列表失败", exception=exc)
             logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             payload = None
         if not isinstance(payload, list):
@@ -452,6 +502,11 @@ class ChatSummaryWritebackService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "关闭聊天摘要写回 worker 失败", exception=exc)
             logger.warning(f"关闭聊天摘要写回 worker 失败: {exc}")
 
     async def enqueue(self, message: Any) -> None:
@@ -471,6 +526,11 @@ class ChatSummaryWritebackService:
                 try:
                     await self._handle_message(message)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "聊天摘要写回处理失败", exception=exc)
                     logger.warning(f"聊天摘要写回处理失败: {exc}", exc_info=True)
                 finally:
                     self._queue.task_done()
@@ -568,6 +628,11 @@ class ChatSummaryWritebackService:
             # 至少避免重启后立刻重复写入一条相近摘要。
             return total_message_count
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "恢复聊天摘要写回游标失败", exception=exc)
             logger.warning(f"恢复聊天摘要写回游标失败: session_id={session_id} error={exc}")
             return 0
 
@@ -575,7 +640,12 @@ class ChatSummaryWritebackService:
     def _paragraph_created_at(paragraph: dict[str, Any]) -> float:
         try:
             return float(paragraph.get("created_at") or 0.0)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析段落创建时间失败", exception=exc)
             logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             return 0.0
 
@@ -587,7 +657,12 @@ class ChatSummaryWritebackService:
         if isinstance(metadata, (bytes, bytearray)):
             try:
                 parsed = pickle.loads(metadata)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "解析段落元数据失败", exception=exc)
                 logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
                 return {}
             return parsed if isinstance(parsed, dict) else {}
@@ -597,7 +672,12 @@ class ChatSummaryWritebackService:
     def _coerce_positive_int(value: Any) -> int:
         try:
             number = int(value or 0)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析正整数字段失败", exception=exc)
             logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             return 0
         return max(0, number)
@@ -634,7 +714,12 @@ class ChatSummaryWritebackService:
         if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
             try:
                 return float(raw_timestamp.timestamp())
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "提取消息时间戳失败", exception=exc)
                 logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)

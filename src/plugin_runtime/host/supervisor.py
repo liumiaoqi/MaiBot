@@ -227,6 +227,11 @@ class PluginRunnerSupervisor:
             with open(debug_file, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "写入插件运行时 Host 诊断文件失败", exception=exc)
             logger.warning(f"写入插件运行时 Host 诊断文件失败: {exc}")
 
     async def _write_debug_event(self, event: str, payload: Dict[str, Any]) -> None:
@@ -449,6 +454,11 @@ class PluginRunnerSupervisor:
                 else:
                     logger.warning("Runner 未在限定时间内完成初始化，后续操作可能失败")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "启动失败", exception=exc)
             logger.warning("启动失败: %s", exc, exc_info=True)
             await self._shutdown_runner(reason="startup_failed")
             await self._rpc_server.stop()
@@ -628,6 +638,11 @@ class PluginRunnerSupervisor:
                 timeout_ms=max(int(self._runner_spawn_timeout * 1000), 10000),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插件重载请求失败", exception=exc)
             logger.error(f"插件 {plugin_id} 重载请求失败: {exc}")
             return False
 
@@ -685,6 +700,11 @@ class PluginRunnerSupervisor:
                 timeout_ms=max(int(self._runner_spawn_timeout * 1000), 10000),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插件批量重载请求失败", exception=exc)
             logger.error(f"插件批量重载请求失败: {exc}")
             return False
 
@@ -740,6 +760,11 @@ class PluginRunnerSupervisor:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插件配置更新通知失败", exception=exc)
             logger.warning(f"插件 {plugin_id} 配置更新通知失败: {exc}")
             return False
 
@@ -769,6 +794,11 @@ class PluginRunnerSupervisor:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "校验插件配置失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             raise ValueError(f"插件配置校验请求失败: {exc}") from exc
 
@@ -814,6 +844,11 @@ class PluginRunnerSupervisor:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "检查插件配置失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             raise ValueError(f"插件配置解析请求失败: {exc}") from exc
 
@@ -932,6 +967,11 @@ class PluginRunnerSupervisor:
         try:
             payload = BootstrapPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理插件引导消息失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -954,6 +994,11 @@ class PluginRunnerSupervisor:
         try:
             payload = RegisterPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理插件注册消息失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -969,6 +1014,11 @@ class PluginRunnerSupervisor:
                     [provider.client_type for provider in payload.llm_providers],
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "插件 LLM Provider 注册校验失败", exception=exc)
                 logger.error(f"插件 {payload.plugin_id} LLM Provider 注册校验失败: {exc}")
                 return envelope.make_error_response(
                     ErrorCode.E_BAD_PAYLOAD.value,
@@ -985,6 +1035,11 @@ class PluginRunnerSupervisor:
                 runtime_components,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "插件组件注册失败", exception=exc)
             logger.error(f"插件 {payload.plugin_id} 组件注册失败: {exc}")
             return envelope.make_error_response(
                 ErrorCode.E_BAD_PAYLOAD.value,
@@ -1048,6 +1103,11 @@ class PluginRunnerSupervisor:
         try:
             payload = UnregisterPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理插件注销消息失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -1205,6 +1265,11 @@ class PluginRunnerSupervisor:
             else:
                 platform_io_manager.register_driver(driver)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "驱动注册失败", exception=exc)
             logger.warning("驱动注册失败: %s", exc, exc_info=True)
             with contextlib.suppress(Exception):
                 if platform_io_manager.is_started:
@@ -1395,6 +1460,11 @@ class PluginRunnerSupervisor:
         try:
             route_key = RouteKeyFactory.from_message_dict(message)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "RouteKey 构建失败", exception=exc)
             logger.warning("RouteKey 构建失败: %s", exc)
             route_key = RouteKey(platform=platform)
 
@@ -1422,6 +1492,11 @@ class PluginRunnerSupervisor:
         try:
             payload = MessageGatewayStateUpdatePayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "更新消息网关状态失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -1444,6 +1519,11 @@ class PluginRunnerSupervisor:
                 payload=payload,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "更新消息网关状态失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -1467,6 +1547,11 @@ class PluginRunnerSupervisor:
         try:
             payload = RouteMessagePayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "路由消息失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -1497,6 +1582,11 @@ class PluginRunnerSupervisor:
             session_message = self._message_gateway.build_session_message(payload.message)
             self._attach_inbound_route_metadata(session_message, route_key, payload.route_metadata)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "路由消息失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -1540,6 +1630,11 @@ class PluginRunnerSupervisor:
         try:
             payload = RunnerReadyPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理 Runner 就绪失败", exception=exc)
             logger.warning("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
@@ -1623,6 +1718,11 @@ class PluginRunnerSupervisor:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "排空 Runner stderr 失败", exception=exc)
             logger.warning(f"排空 Runner stderr 失败: {exc}")
 
     async def _shutdown_runner(self, reason: str = "normal") -> None:
@@ -1650,6 +1750,11 @@ class PluginRunnerSupervisor:
                     timeout_ms=payload.drain_timeout_ms,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "Runner prepare_shutdown 请求失败", exception=exc)
                 logger.warning(f"Runner prepare_shutdown 请求失败: reason={reason} error={exc}")
                 await self._write_debug_event(
                     "host_prepare_shutdown_failed",
@@ -1666,6 +1771,11 @@ class PluginRunnerSupervisor:
                     timeout_ms=payload.drain_timeout_ms,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "Runner shutdown 请求失败", exception=exc)
                 logger.warning(f"Runner shutdown 请求失败: reason={reason} error={exc}")
                 await self._write_debug_event(
                     "host_shutdown_failed",
@@ -1799,6 +1909,11 @@ class PluginRunnerSupervisor:
             await self._wait_for_runner_connection(timeout_sec=self._runner_spawn_timeout)
             await self._wait_for_runner_ready(timeout_sec=self._runner_spawn_timeout)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "重启 Runner 失败", exception=exc)
             await self._shutdown_runner(reason="restart_failed")
             logger.error(f"Runner 重启失败: {exc}", exc_info=True)
             return False

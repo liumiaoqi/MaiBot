@@ -42,6 +42,11 @@ def _is_vlm_task_configured() -> bool:
         vlm_models = port.get_task_config("vlm").model_list
         return any(str(model_name).strip() for model_name in vlm_models)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取 VLM 模型配置失败，跳过图片识别", exception=exc)
         logger.warning(f"读取 VLM 模型配置失败，跳过图片识别: {exc}")
         return False
 
@@ -115,6 +120,11 @@ class ImageManager:
                 if record.vlm_processed and record.description:
                     return record.description
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "查询图片描述时发生错误", exception=e)
             logger.error(f"查询图片描述时发生错误: {e}")
 
         if not image_bytes:
@@ -123,6 +133,11 @@ class ImageManager:
         try:
             saved_image = await self.ensure_image_saved(image_bytes)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "保存图片文件时发生错误", exception=e)
             logger.error(f"保存图片文件时发生错误: {e}")
             return ""
         if not _is_vlm_task_configured():
@@ -136,6 +151,11 @@ class ImageManager:
             image = await self.build_image_description(image_bytes, saved_image=saved_image)
             return image.description
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "生成图片描述时发生错误", exception=e)
             logger.error(f"生成图片描述时发生错误: {e}")
             return ""
 
@@ -185,6 +205,11 @@ class ImageManager:
             await self.build_image_description(image_bytes, saved_image=saved_image)
             logger.debug(f"图片描述后台构建完成，哈希值: {image_hash}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "图片描述后台构建失败", exception=exc)
             logger.warning(f"图片描述后台构建失败，哈希值: {image_hash}，错误: {exc}")
 
     def _finalize_description_build(self, image_hash: str, task: asyncio.Task[None]) -> None:
@@ -198,6 +223,11 @@ class ImageManager:
         try:
             task.result()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "图片描述后台任务结束捕获异常", exception=exc)
             logger.warning(f"图片描述后台任务结束时捕获异常，哈希值: {image_hash}，错误: {exc}")
             return
 
@@ -206,6 +236,11 @@ class ImageManager:
 
             log_tracked_image_recognition_completed(image_hash)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "通知 MaiSaka 图片识别完成状态失败", exception=exc)
             logger.warning(f"通知 MaiSaka 图片识别完成状态失败，image_hash={image_hash}: {exc}")
 
     def get_image_from_db(self, image_hash: str) -> Optional[MaiImage]:
@@ -250,6 +285,11 @@ class ImageManager:
                 record_id = record.id
                 logger.debug(f"保存图片: ID: {record_id}，路径: {record.full_path}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "保存图片记录到数据库时发生错误", exception=e)
             logger.error(f"保存图片记录到数据库时发生错误: {e}")
             return False
         return True
@@ -277,6 +317,11 @@ class ImageManager:
                 session.add(record)
                 logger.info(f"理解图片: {image.description}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "更新图片描述时发生错误", exception=e)
             logger.error(f"更新图片描述时发生错误: {e}")
             return False
         return True
@@ -306,6 +351,11 @@ class ImageManager:
             else:
                 logger.warning(f"图片文件不存在，无法删除: {image.full_path}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "删除图片时发生错误", exception=e)
             logger.error(f"删除图片时发生错误: {e}")
             if image.full_path.exists():
                 logger.warning(f"图片文件未被删除: {image.full_path}")
@@ -331,6 +381,11 @@ class ImageManager:
                         return MaiImage.from_db_instance(record)
                     logger.info(f"图片记录存在但文件缺失，准备重新保存图片文件，哈希值: {hash_str}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "查询图片记录时发生错误", exception=e)
             logger.error(f"查询图片记录时发生错误: {e}")
             raise e
 
@@ -367,6 +422,11 @@ class ImageManager:
                 session.flush()
                 logger.info(f"保存图片: ID: {record.id}，路径: {record.full_path}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "保存图片记录到数据库时发生错误", exception=e)
             logger.error(f"保存图片记录到数据库时发生错误: {e}")
             return False
         return True
@@ -427,6 +487,11 @@ class ImageManager:
                                 resolve_stored_image_path(record.full_path).unlink()
                                 logger.info(f"已删除无效描述的图片文件: {record.full_path}")
                             except Exception as e:
+                                from src.core.error_escalation.types import ErrorLevel
+                                from src.core.error_escalation_port_registry import get_error_escalation_port
+                                port = get_error_escalation_port()
+                                if port is not None:
+                                    port.report(ErrorLevel.WARNING, "删除无效描述的图片文件时发生错误", exception=e)
                                 logger.error(f"删除无效描述的图片文件时发生错误: {e}")
                         session.delete(record)
                         invalid_counter += 1
@@ -434,6 +499,11 @@ class ImageManager:
                         session.delete(record)
                         null_path_counter += 1
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "清理数据库中无效图片记录时发生错误", exception=e)
             logger.error(f"清理数据库中无效图片记录时发生错误: {e}")
 
         logger.info(f"清理完成: {invalid_counter} 条无效描述记录，{null_path_counter} 条文件路径不存在记录")
@@ -450,6 +520,11 @@ class ImageManager:
                     session.add(record)
                     fixed_counter += 1
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "清理旧图片注册记录失败", exception=e)
             logger.error(f"Failed to clean image registration state: {e}")
             return
 

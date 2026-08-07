@@ -56,6 +56,11 @@ def run_model_config_check() -> int:
         try:
             importlib.import_module(module_name)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "声明模块导入失败，组件声明未收集", exception=exc)
             print(f"  ⚠️ 声明模块 {module_name} 导入失败（该组件声明未收集）: {exc}")
 
     model_config, _ = load_config_from_file(
@@ -182,6 +187,11 @@ class MainSystem:
             self.webui_server.start()
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "启动 WebUI 服务失败", exception=e)
             logger.error(t("startup.webui_server_init_failed", error=e))
 
     async def initialize(self) -> None:
@@ -190,7 +200,12 @@ class MainSystem:
 
         try:
             await self._init_components()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.CRITICAL, "主系统初始化异常", exception=exc)
             logger.warning("操作异常 in main.py", exc_info=True)
             if self.webui_server:
                 await self.webui_server.shutdown()
@@ -247,7 +262,12 @@ class MainSystem:
 
                 adapter = get_system_lifecycle_adapter()
                 return bool(adapter and adapter.is_shutting_down())
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "判断系统是否关闭失败", exception=exc)
                 return False
 
         self._service_manager = ServiceManagerAdapter(
@@ -319,7 +339,12 @@ class MainSystem:
                 self._watchdog.register_v1_supervisor(
                     f"v1-{sv.group_name}", sv, "plugin_runtime",
                 )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "V1 Runner 注册到看门狗桥接失败，已降级跳过", exception=exc)
             logger.warning(
                 "V1 Runner 注册到看门狗桥接失败，已降级跳过", exc_info=True
             )
@@ -377,6 +402,11 @@ class MainSystem:
                         return False
                     return await supervisor.kill_runner(f"runner-{plugin_id}")
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "ZG-5 OOM 杀除失败", exception=exc)
                     logger.warning("ZG-5 OOM 杀除失败: %s error=%s", plugin_id, exc, exc_info=True)
                     return False
 
@@ -395,6 +425,11 @@ class MainSystem:
             set_resource_limit_port(adapter)
             logger.info("ZG-5 资源限制已接线（豁免插件: %s）", ", ".join(sorted(kill_exempt)))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-5 资源限制接线失败，已降级跳过", exception=exc)
             logger.warning("ZG-5 资源限制接线失败，已降级跳过: %s", exc, exc_info=True)
 
     async def _init_tainted_mask(self) -> None:
@@ -410,7 +445,12 @@ class MainSystem:
             from src.core.adapters.taint_mask_adapter import TaintMaskAdapter
             from src.core.app_config_port_registry import get_app_config_port
             from src.core.taint_mask_port_registry import set_taint_mask_port
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-7 接线依赖导入失败，已降级跳过", exception=exc)
             logger.warning("ZG-7 接线依赖导入失败，已降级跳过", exc_info=True)
             return
 
@@ -427,7 +467,12 @@ class MainSystem:
 
             if _crash_dump is not None:
                 _crash_dump.set_taint_mask_port(adapter)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-7 CrashDump 注入失败，污染行跳过", exception=exc)
             logger.warning("ZG-7 CrashDump 注入失败，污染行跳过", exc_info=True)
 
         logger.info("ZG-7 污染标记已接线")
@@ -450,7 +495,12 @@ class MainSystem:
             from src.core.error_escalation.adapter import ErrorEscalationAdapter
             from src.core.error_escalation_port_registry import set_error_escalation_port
             from src.core.event_bus_port_registry import get_event_bus_port
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-14 接线依赖导入失败，已降级跳过（ZG-7 独立运行）", exception=exc)
             logger.warning("ZG-14 接线依赖导入失败，已降级跳过（ZG-7 独立运行）", exc_info=True)
             return
 
@@ -471,7 +521,12 @@ class MainSystem:
         if self._taint_mask is not None:
             try:
                 self._taint_mask.set_error_escalation_port(adapter)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "ZG-7 委托注入失败，回退独立运行", exception=exc)
                 logger.warning("ZG-7 委托注入失败，回退独立运行", exc_info=True)
 
         logger.info("ZG-14 错误升级梯已接线")
@@ -528,7 +583,12 @@ class MainSystem:
                     mod_file = getattr(mod, "__file__", None)
                     if mod_file and not mod_file.startswith(core_dir):
                         continue
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "检查模块文件路径失败", exception=exc)
                     continue
                 for name, obj in getattr(mod, "__dict__", {}).items():
                     if name.startswith("_"):
@@ -539,7 +599,12 @@ class MainSystem:
                     if obj_module and obj_module != mod_name and _is_banned(obj_module):
                         mark_taint(TaintFlag.TAINT_PORT_BYPASS)
                         logger.warning("ZG-7 守卫: %s.%s 违规导入自 %s", mod_name, name, obj_module)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "端口绕过违规检查失败", exception=exc)
             pass
 
     async def _init_control_message(self) -> None:
@@ -559,7 +624,12 @@ class MainSystem:
             from src.core.service_manager_port_registry import get_service_manager_port
             from src.core.session_port_registry import get_session_lifecycle_port
             from src.core.watchdog_port_registry import get_watchdog_port
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-8 接线依赖导入失败，已降级跳过", exception=exc)
             logger.warning("ZG-8 接线依赖导入失败，已降级跳过", exc_info=True)
             return
 
@@ -577,7 +647,12 @@ class MainSystem:
         try:
             if self._service_manager is not None:
                 self._service_manager.register_probe("control_message", adapter.health_probe)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-8 health_probe 注册失败，跳过", exception=exc)
             logger.warning("ZG-8 health_probe 注册失败，跳过", exc_info=True)
 
         global_enabled = get_app_config_port().get_control_message_global_enabled()
@@ -592,7 +667,12 @@ class MainSystem:
                     reason=f"watchdog timeout: {getattr(event, 'reason', '')}",
                     caller="watchdog",
                 )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "ZG-8 force 投递失败（watchdog 超时）", exception=exc)
                 logger.warning("ZG-8 force 投递失败（watchdog 超时）", exc_info=True)
 
         def _watchdog_timeout_handler(event: object) -> None:
@@ -620,7 +700,12 @@ class MainSystem:
         try:
             for entity in ("agent:primary", "component:orchestrator", "component:message_port"):
                 await adapter.declare_unkillable(entity)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-8 UNKILLABLE 声明失败", exception=exc)
             logger.warning("ZG-8 UNKILLABLE 声明失败", exc_info=True)
 
         logger.info(
@@ -640,7 +725,12 @@ class MainSystem:
             adapter = self._control_message
             if adapter is not None:
                 await adapter.apply_system_state(getattr(to_state, "name", str(to_state)))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "ZG-8 状态联动失败", exception=exc)
             logger.warning("ZG-8 状态联动失败", exc_info=True)
         return Vote.OK
 
@@ -1040,6 +1130,11 @@ class MainSystem:
             await system._inject_scope_services_to_webui()
             logger.info("v2 插件运行时已启动")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "v2 插件运行时启动失败", exception=e)
             logger.error("v2 插件运行时启动失败: %s", e)
 
     async def _stop_plugin_runtime_v2(self) -> None:
@@ -1054,6 +1149,11 @@ class MainSystem:
         try:
             await endpoint.stop()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "v2 插件运行时停止异常", exception=exc)
             logger.warning("v2 插件运行时停止异常: %s", exc)
 
     async def _start_plugin_runtime_v2_stub(self) -> None:
@@ -1069,7 +1169,12 @@ class MainSystem:
             if webui_inner is not None and webui_inner.app is not None:
                 webui_inner.app.state.scope_store = self._v2_host_endpoint._scope_store
                 webui_inner.app.state.token_service = self._v2_host_endpoint._token_service
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "注入 WebUI 作用域服务失败", exception=exc)
             logger.warning("操作异常 in main.py", exc_info=True)
 
     @staticmethod
@@ -1309,6 +1414,11 @@ class MainSystem:
                 system._interaction_scheduler = scheduler
                 logger.info(t("startup.agent_interaction_started"))
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "启动交互调度器失败", exception=e)
             logger.warning(t("startup.agent_interaction_failed", error=e))
 
     async def schedule_tasks(self) -> None:

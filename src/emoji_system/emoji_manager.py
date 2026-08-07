@@ -241,6 +241,11 @@ def _is_vlm_task_configured() -> bool:
         vlm_models = emoji_manager._get_model_config().model_task_config.vlm.model_list
         return any(str(model_name).strip() for model_name in vlm_models)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取 VLM 模型配置失败，跳过表情包识别和审核", exception=exc)
         logger.warning(f"读取 VLM 模型配置失败，跳过表情包识别和审核: {exc}")
         return False
 
@@ -357,6 +362,11 @@ class EmojiManager:
                     emoji.full_path = restored_emoji.full_path
                     emoji.file_name = restored_emoji.file_name
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "表情包缓存命中但本地文件缺失，回填失败", exception=e)
                     logger.warning(f"表情包缓存命中但本地文件缺失，回填失败: {e}")
             return emoji.description, _normalize_emoji_tag_text(emoji.description or "")
         try:
@@ -370,6 +380,11 @@ class EmojiManager:
                             result.full_path = serialize_stored_image_path(restored_emoji.full_path)
                             result.no_file_flag = False
                         except Exception as e:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.WARNING, "数据库命中表情包记录但本地文件缺失，回填失败", exception=e)
                             logger.warning(f"数据库命中表情包记录但本地文件缺失，回填失败: {e}")
                     cached_description = result.description or ""
                     cached_emotions = _normalize_emoji_tag_text(cached_description)
@@ -378,6 +393,11 @@ class EmojiManager:
                         cached_emotions,
                     )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "从数据库查找表情包时出错，将尝试构建表情包描述", exception=e)
             logger.warning(f"从数据库查找表情包时出错: {e}，将尝试构建表情包描述")
 
         # 如果提供了字节数据但数据库中没有找到，尝试构建
@@ -422,6 +442,11 @@ class EmojiManager:
                     if not record.no_file_flag and record_path.exists():
                         return MaiEmoji.from_db_instance(record)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "缓存表情包前查询数据库时出错", exception=e)
             logger.error(f"缓存表情包前查询数据库时出错: {e}")
             raise e
 
@@ -448,6 +473,11 @@ class EmojiManager:
                     image_record.query_count = 0
                     session.add(image_record)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "缓存表情包记录到数据库时出错", exception=e)
             logger.error(f"缓存表情包记录到数据库时出错: {e}")
             raise e
 
@@ -489,6 +519,11 @@ class EmojiManager:
             await self._build_and_cache_emoji_description(emoji_hash, emoji_bytes, session_id=session_id)
             logger.debug(f"表情包描述后台构建完成，哈希值: {emoji_hash}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "表情包描述后台构建失败", exception=exc)
             logger.warning(f"表情包描述后台构建失败，哈希值: {emoji_hash}，错误: {exc}")
 
     def _finalize_description_build(self, emoji_hash: str, task: asyncio.Task[None]) -> None:
@@ -502,6 +537,11 @@ class EmojiManager:
         try:
             task.result()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "表情包描述后台任务结束捕获异常", exception=exc)
             logger.warning(f"表情包描述后台任务结束时捕获异常，哈希值: {emoji_hash}，错误: {exc}")
 
     async def _build_and_cache_emoji_description(
@@ -530,6 +570,11 @@ class EmojiManager:
                     image_record.no_file_flag = False
                     session.add(image_record)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "更新缓存表情包描述失败", exception=exc)
                 logger.error(f"Update cached emoji description failed: {exc}")
         return new_emoji.description, _get_emoji_emotions(new_emoji)
 
@@ -567,6 +612,11 @@ class EmojiManager:
                         emoji = MaiEmoji.from_db_instance(record)
                         self.emojis.append(emoji)
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, "加载表情包记录时出错，将删除异常记录", exception=e)
                         logger.error(
                             f"[数据库] 加载表情包记录时出错，将删除异常记录: {e}\n"
                             f"记录ID: {record.id}, 路径: {record.full_path}"
@@ -579,6 +629,11 @@ class EmojiManager:
                     f"清理破损注册记录 {removed_record_count} 条"
                 )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[数据库] 加载表情包记录时发生不可恢复错误", exception=e)
             logger.critical(f"[数据库] 加载表情包记录时发生不可恢复错误: {e}")
             self.emojis = []
             self._emoji_num = 0
@@ -631,6 +686,11 @@ class EmojiManager:
                     )
                     return "registered"
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[register_emoji] Database query failed", exception=e)
             logger.error(f"[register_emoji] Database query failed: {e}")
             return "failed"
 
@@ -647,6 +707,11 @@ class EmojiManager:
                 record_id = image_record.id
                 logger.info(f"[register_emoji] Registered emoji to database, ID: {record_id}, path: {emoji.full_path}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[register_emoji] Failed to write database record", exception=e)
             logger.error(f"[register_emoji] Failed to write database record: {e}")
             return "failed"
 
@@ -671,6 +736,11 @@ class EmojiManager:
         except FileNotFoundError:
             logger.warning(f"[删除表情包] 表情包文件 {emoji.file_name} 不存在，跳过文件删除")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[删除表情包] 删除表情包文件时出错", exception=e)
             logger.error(f"[删除表情包] 删除表情包文件时出错: {e}")
             return False
 
@@ -689,6 +759,11 @@ class EmojiManager:
                 else:
                     logger.warning(f"[删除表情包] 数据库中未找到表情包记录: {emoji.file_name}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[删除表情包] 删除数据库记录时出错", exception=e)
             logger.error(f"[删除表情包] 删除数据库记录时出错: {e}")
             # 如果数据库记录删除失败，但文件可能已删除，记录一个警告
             if file_to_delete.exists():
@@ -746,6 +821,11 @@ class EmojiManager:
                         logger.error(f"[记录表情包使用] 未找到表情包记录: {normalized_hash}")
                     return False
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[记录表情包使用] 记录使用时出错", exception=e)
             logger.error(f"[记录表情包使用] 记录使用时出错: {e}")
             return False
         return True
@@ -774,6 +854,11 @@ class EmojiManager:
                     logger.error(f"[更新表情包] 未找到表情包记录: {emoji.file_hash}")
                     return False
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[更新表情包] 更新数据库记录时出错", exception=e)
             logger.error(f"[更新表情包] 更新数据库记录时出错: {e}")
             return False
         return True
@@ -817,6 +902,11 @@ class EmojiManager:
                 logger.info(f"[数据库] 未找到哈希值为 {emoji_hash} 的表情包记录")
                 return None
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[数据库] 获取表情包时出错", exception=e)
             logger.error(f"[数据库] 获取表情包时出错: {e}")
             return None
 
@@ -837,6 +927,11 @@ class EmojiManager:
                     logger.warning(f"[封禁表情包] 未找到表情包记录: {emoji.file_name}")
                     return False
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[封禁表情包] 封禁时出错", exception=e)
             logger.error(f"[封禁表情包] 封禁时出错: {e}")
             return False
         return True
@@ -857,6 +952,11 @@ class EmojiManager:
                     logger.warning(f"[取消注册表情包] 未找到表情包记录: {emoji.file_name}")
                     return False
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[取消注册表情包] 取消注册时出错", exception=e)
             logger.error(f"[取消注册表情包] 取消注册时出错: {e}")
             return False
 
@@ -944,6 +1044,11 @@ class EmojiManager:
                 re.IGNORECASE,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[决策] 解析决策结果时出错", exception=e)
             logger.error(f"[决策] 解析决策结果时出错: {e}")
             return False
         if match:
@@ -997,6 +1102,11 @@ class EmojiManager:
             )
             llm_response = filtration_result.response
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[表情包审查] 调用视觉模型审查表情包时出错", exception=e)
             logger.error(f"[表情包审查] 调用视觉模型审查表情包时出错: {e}")
             return False
 
@@ -1035,6 +1145,11 @@ class EmojiManager:
                 try:
                     image_bytes = await asyncio.to_thread(ImageUtils.gif_2_static_image, image_bytes)
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "[构建描述] 转换 GIF 图片时出错", exception=e)
                     logger.error(f"[构建描述] 转换 GIF 图片时出错: {e}")
                     return False, target_emoji
                 prompt: str = (
@@ -1063,6 +1178,11 @@ class EmojiManager:
                 )
                 description = description_result.response
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[构建描述] 调用视觉模型生成表情包描述时出错", exception=e)
             logger.error(f"[构建描述] 调用视觉模型生成表情包描述时出错: {e}")
             return False, target_emoji
 
@@ -1126,6 +1246,11 @@ class EmojiManager:
                 image_record.vlm_processed = True
                 session.add(image_record)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "[register_emoji] 标记表情包 VLM 处理状态失败", exception=exc)
             logger.error(f"[register_emoji] 标记表情包 VLM 处理状态失败: {exc}")
 
     def check_emoji_file_integrity(self) -> None:
@@ -1161,6 +1286,11 @@ class EmojiManager:
                 try:
                     available_emojis.append(MaiEmoji.from_db_instance(record))
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "检查表情包文件完整性时出错，将删除异常记录", exception=exc)
                     logger.error(
                         f"[完整性检查] 加载表情包记录时出错，将删除异常记录: {exc}\n记录ID: {record.id}, 路径: {record.full_path}"
                     )
@@ -1214,6 +1344,11 @@ class EmojiManager:
                     try:
                         register_status = await self.register_emoji_by_filename(emoji_file)
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "表情包维护处理单个文件失败", exception=e)
                         logger.error(f"[emoji_maintenance] Failed to process {emoji_file.name}: {e}")
                         register_status = "failed"
                     if register_status == "registered":
@@ -1226,6 +1361,11 @@ class EmojiManager:
             try:
                 self.check_emoji_file_integrity()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "表情包维护任务失败", exception=e)
                 logger.error(f"[emoji_maintenance] Maintenance task failed: {e}")
 
     async def register_emoji_by_filename(self, filename: Path | str) -> EmojiRegisterStatus:
@@ -1237,6 +1377,11 @@ class EmojiManager:
         try:
             target_emoji = MaiEmoji(full_path=file_full_path)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[register_emoji] Failed to create emoji object", exception=e)
             logger.error(f"[register_emoji] Failed to create emoji object: {e}")
             return "failed"
 
@@ -1254,6 +1399,11 @@ class EmojiManager:
                 )
                 existing_record = session.exec(statement).first()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "[register_emoji] Failed to query database", exception=e)
             logger.error(f"[register_emoji] Failed to query database: {e}")
             return "failed"
 

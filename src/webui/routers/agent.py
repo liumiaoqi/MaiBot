@@ -1498,7 +1498,12 @@ async def get_autonomy_logs(
         try:
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()[-max_lines:]
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "获取自主性日志失败", exception=exc)
             logger.warning("操作异常 in agent.py", exc_info=True)
 
         for line in lines:
@@ -1581,7 +1586,12 @@ async def get_session_vitality(session_id: str):
         try:
             agent = registry.get_agent(agent_id)
             return agent.display_name
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "获取智能体显示名失败", exception=exc)
             logger.warning("操作异常 in agent.py", exc_info=True)
             return agent_id
 
@@ -1619,7 +1629,12 @@ async def get_session_vitality(session_id: str):
                     state="dormant",
                     vitality_value=0.0,
                 ))
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取会话活力状态失败", exception=exc)
         logger.warning("操作异常 in agent.py", exc_info=True)
 
     return SessionVitalityResponse(
@@ -1678,7 +1693,12 @@ async def get_state_awareness(session_id: str):
             rule_result = orch._rule_engine.evaluate_for_interjection(session_id)
             for rule_name in rule_result.triggered_rules:
                 active_rules.append({"rule_name": rule_name, "active": True})
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取状态互知概览失败", exception=exc)
         logger.warning("操作异常 in agent.py", exc_info=True)
 
     return ApiResponse(data=StateAwarenessResponse(

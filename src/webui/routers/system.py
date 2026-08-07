@@ -568,6 +568,11 @@ def _get_dbstat_table_sizes(connection, table_names: list[str]) -> dict[str, int
             text("SELECT name, SUM(pgsize) AS size FROM temp.local_cache_dbstat GROUP BY name")
         ).fetchall()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "当前 SQLite 环境不支持 dbstat，数据库表大小将使用估算值", exception=exc)
         logger.warning(f"当前 SQLite 环境不支持 dbstat，数据库表大小将使用估算值: {exc}")
         return None
 
@@ -1009,6 +1014,11 @@ def _remove_emoji_hashes_from_memory(image_hashes: set[str]) -> None:
         emoji_manager.emojis = [emoji for emoji in emoji_manager.emojis if emoji.file_hash not in image_hashes]
         emoji_manager._emoji_num = len(emoji_manager.emojis)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "同步移除内存表情包失败", exception=exc)
         logger.warning(f"同步移除内存表情包失败: {exc}")
 
 def _delete_image_records_for_file(image_type: ImageType, file_path: Path) -> tuple[int, set[str]]:
@@ -1124,6 +1134,11 @@ async def _stop_runtime_before_restart() -> None:
 
         await event_bus.emit(event_type=EventType.ON_STOP)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "WebUI 重启前触发 ON_STOP 事件失败", exception=exc)
         logger.warning(f"WebUI 重启前触发 ON_STOP 事件失败: {exc}")
 
     try:
@@ -1131,6 +1146,11 @@ async def _stop_runtime_before_restart() -> None:
 
         await get_plugin_runtime_manager().stop()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "WebUI 重启前停止插件运行时失败", exception=exc)
         logger.error(f"WebUI 重启前停止插件运行时失败: {exc}", exc_info=True)
 
     try:
@@ -1138,6 +1158,11 @@ async def _stop_runtime_before_restart() -> None:
 
         await async_task_manager.stop_and_wait_all_tasks()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "WebUI 重启前停止异步任务失败", exception=exc)
         logger.warning(f"WebUI 重启前停止异步任务失败: {exc}")
 
 async def _delayed_restart() -> None:
@@ -1148,6 +1173,11 @@ async def _delayed_restart() -> None:
     try:
         await run_on_main_loop(_stop_runtime_before_restart())
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "WebUI 重启前清理运行时失败，将继续退出以触发外部 runner 重启", exception=exc)
         logger.error(f"WebUI 重启前清理运行时失败，将继续退出以触发外部 runner 重启: {exc}", exc_info=True)
     finally:
         # ZG-6: 重启前触发 SHUTTING_DOWN 迁移（best-effort：订阅者做关闭准备 + 迁移历史导出）
@@ -1158,6 +1188,11 @@ async def _delayed_restart() -> None:
             if adapter is not None:
                 await adapter.trigger_shutdown()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "WebUI 重启前触发 SHUTTING_DOWN 失败", exception=exc)
             logger.warning(f"WebUI 重启前触发 SHUTTING_DOWN 失败: {exc}")
         logger.info(f"WebUI 请求重启，退出代码 {_RESTART_EXIT_CODE}")
         os._exit(_RESTART_EXIT_CODE)
@@ -1185,6 +1220,11 @@ async def restart_maibot():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "重启 MaiBot 失败", exception=e)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"重启失败: {str(e)}") from e
 
 @router.get("/status", response_model=ApiResponse[StatusResponse])
@@ -1206,6 +1246,11 @@ async def get_maibot_status():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取 MaiBot 状态失败", exception=e)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取状态失败: {str(e)}") from e
 
 
@@ -1237,6 +1282,11 @@ async def get_system_resources():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取系统资源失败", exception=e)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取系统资源失败: {str(e)}") from e
 
 @router.get("/local-cache", response_model=ApiResponse[LocalCacheStatsResponse])
@@ -1253,6 +1303,11 @@ async def get_local_cache_stats():
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取本地缓存统计失败", exception=e)
         logger.exception(f"获取本地缓存统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取本地缓存统计失败: {str(e)}") from e
 
@@ -1270,6 +1325,11 @@ async def get_local_cache_database_stats() -> DatabaseStorageStats:
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取数据库存储统计失败", exception=e)
         logger.exception(f"获取数据库存储统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取数据库存储统计失败: {str(e)}") from e
 
@@ -1283,6 +1343,11 @@ async def vacuum_local_cache_database() -> LocalCacheDatabaseVacuumResponse:
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "数据库 VACUUM 失败", exception=e)
         logger.exception(f"数据库 VACUUM 失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"数据库 VACUUM 失败: {str(e)}") from e
 
@@ -1296,6 +1361,11 @@ async def list_local_cache_data_entries(
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取 data 目录条目失败", exception=e)
         logger.exception(f"获取 data 目录条目失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取 data 目录条目失败: {str(e)}") from e
 
@@ -1309,6 +1379,11 @@ async def delete_local_cache_data_entry(request: LocalCacheDataEntryDeleteReques
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "删除 data 目录条目失败", exception=e)
         logger.exception(f"删除 data 目录条目失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"删除 data 目录条目失败: {str(e)}") from e
 
@@ -1333,6 +1408,11 @@ async def list_local_cache_images(
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取本地缓存图片列表失败", exception=e)
         logger.exception(f"获取本地缓存图片列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取本地缓存图片列表失败: {str(e)}") from e
 
@@ -1364,6 +1444,11 @@ async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> Loc
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "删除本地缓存图片失败", exception=e)
         logger.exception(f"删除本地缓存图片失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"删除本地缓存图片失败: {str(e)}") from e
 
@@ -1377,6 +1462,11 @@ async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteReque
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "批量删除本地缓存图片失败", exception=e)
         logger.exception(f"批量删除本地缓存图片失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"批量删除本地缓存图片失败: {str(e)}") from e
 
@@ -1388,6 +1478,11 @@ async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListRespon
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取日志目录列表失败", exception=e)
         logger.exception(f"获取日志目录列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取日志目录列表失败: {str(e)}") from e
 
@@ -1401,6 +1496,11 @@ async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDelete
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "清理日志目录失败", exception=e)
         logger.exception(f"清理日志目录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"清理日志目录失败: {str(e)}") from e
 
@@ -1414,6 +1514,11 @@ async def cleanup_local_cache(request: LocalCacheCleanupRequest):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "清理本地缓存失败", exception=e)
         logger.exception(f"清理本地缓存失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"清理本地缓存失败: {str(e)}") from e
 

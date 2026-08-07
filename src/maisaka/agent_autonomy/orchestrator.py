@@ -1034,6 +1034,11 @@ class AgentOrchestrator:
             self._check_timeout_exit()
 
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "编排异常，降级为仅主发言模式", exception=exc)
             logger.error(
                 f"[agent_autonomy] 编排异常，降级为仅主发言模式: "
                 f"session={self._session_name} error={exc}"

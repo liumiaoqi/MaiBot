@@ -331,6 +331,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 filter_command=True,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "恢复最近上下文失败", exception=exc)
             logger.warning(f"{self.log_prefix} 恢复最近上下文失败: {exc}", exc_info=True)
             return
 
@@ -521,6 +526,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             try:
                 await self._mcp_manager.close()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "关闭 MCP 连接失败", exception=exc)
                 logger.warning(f"{self.log_prefix} 关闭 MCP 连接失败: {exc}")
         self._mcp_manager = None
         self._mcp_host_bridge = None
@@ -590,6 +600,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             )
             return True
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "同步已发送消息到 Maisaka 历史失败", exception=exc)
             logger.warning(
                 f"{self.log_prefix} 同步已发送消息到 Maisaka 历史失败: message_id={message.message_id} error={exc}"
             )
@@ -639,6 +654,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                     wait_for_build=False,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "调度已发送图片识别失败", exception=exc)
                 logger.warning(
                     f"{self.log_prefix} 调度已发送图片识别失败: "
                     f"message_id={message_id} image_hash={image.binary_hash} error={exc}"
@@ -788,6 +808,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             _refresh_pending_visual_components(message.raw_message.components)
             self._register_monitor_visual_placeholder_refresh(message)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "刷新监控消息媒体描述失败", exception=exc)
             logger.warning(
                 f"{self.log_prefix} 刷新监控消息媒体描述失败: "
                 f"message_id={message.message_id} error={exc}"
@@ -918,6 +943,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             try:
                 asyncio.create_task(self._agent_orchestrator.handle_message(message))
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "[agent_autonomy] handle_message 调度异常", exception=exc)
                 logger.warning(f"[agent_autonomy] handle_message 调度异常: {exc}")
 
         if is_ambient_notice:
@@ -1027,7 +1057,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).talk_value_modifier
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "读取 agent talk_value_modifier 失败", exception=exc)
             logger.warning("读取 agent talk_value_modifier 失败: agent_id=%s", agent_id, exc_info=True)
             return 1.0
 
@@ -1089,6 +1124,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 context_snapshot=context_snapshot,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "创建回复效果观察记录失败", exception=exc)
             logger.warning(f"{self.log_prefix} 创建回复效果观察记录失败: {exc}")
 
     def _build_reply_effect_context_snapshot(
@@ -1460,7 +1500,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 agent_config = registry.get_agent(agent_id)
                 self._emotion_manager = EmotionManager(agent_config)
                 self._sync_emotion_to_prompt()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "EmotionManager 初始化失败", exception=exc)
             logger.warning(
                 "%s EmotionManager 初始化失败: agent_id=%s",
                 self.log_prefix, agent_id, exc_info=True,
@@ -1478,7 +1523,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if self._emotion_manager is not None:
                 rel_mgr.set_emotion_trigger_callback(self.trigger_emotion)
             self._relationship_manager = rel_mgr
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "RelationshipManager 初始化失败", exception=exc)
             logger.warning(
                 "%s RelationshipManager 初始化失败",
                 self.log_prefix, exc_info=True,
@@ -1543,11 +1593,21 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 if _query_port is not None:
                     asyncio.create_task(recovery.recover_all(_query_port))
             except Exception as recovery_exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "恢复自主性会话失败", exception=recovery_exc)
                 logger.warning(
                     f"[agent_autonomy] 会话恢复跳过: {recovery_exc}"
                 )
 
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "[agent_autonomy] 自主性架构初始化失败，将使用默认模式", exception=exc)
             logger.warning(f"[agent_autonomy] 自主性架构初始化失败，将使用默认模式: {exc}")
 
     def _sync_emotion_to_prompt(self) -> None:
@@ -2107,7 +2167,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         async def run_expression_learning() -> bool:
             try:
                 return await self._expression_learner.learn_from_context_messages(context_messages)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "裁切历史表达学习异常", exception=exc)
                 logger.exception(f"{self.log_prefix} 裁切历史表达学习异常")
                 return False
 
@@ -2117,14 +2182,24 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                     context_messages,
                     self._jargon_miner,
                 )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "裁切历史黑话学习异常", exception=exc)
                 logger.exception(f"{self.log_prefix} 裁切历史黑话学习异常")
                 return False
 
         async def run_high_frequency_learning() -> bool:
             try:
                 updated_count = update_high_frequency_terms_from_context_messages(context_messages)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "裁切历史高频词学习异常", exception=exc)
                 logger.exception(f"{self.log_prefix} 裁切历史高频词学习异常")
                 return False
             if updated_count <= 0:
@@ -2160,6 +2235,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         try:
             task.result()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "裁切历史后台学习任务异常", exception=exc)
             logger.error(f"{self.log_prefix} 裁切历史后台学习任务异常: {exc}")
 
     async def _cancel_trimmed_history_learning_task(self) -> None:
@@ -2180,6 +2260,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         except asyncio.TimeoutError:
             logger.warning(f"{self.log_prefix} 等待裁切历史后台学习取消超时，继续停止运行时")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "裁切历史后台学习取消时异常", exception=exc)
             logger.error(f"{self.log_prefix} 裁切历史后台学习取消时异常: {exc}")
         finally:
             if self._trimmed_history_learning_task is task:

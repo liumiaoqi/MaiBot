@@ -668,6 +668,11 @@ class ImportTaskManager:
                 {"hash": h, "status": "written"} for h in new_hashes
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "批量向量写入失败", exception=exc)
             logger.warning(f"批量向量写入失败: {exc}")
             if not self._allow_metadata_only_write():
                 raise
@@ -784,6 +789,11 @@ class ImportTaskManager:
                 "detail": "",
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "写入段落向量或入队回填失败", exception=exc)
             logger.warning("操作失败", exc_info=True)
             if not self._allow_metadata_only_write():
                 raise
@@ -2571,7 +2581,12 @@ class ImportTaskManager:
             try:
                 process.kill()
                 await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_kill_seconds"])
-            except Exception:
+            except Exception as exc2:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "终止迁移进程失败（kill 兜底）", exception=exc2)
                 logger.warning("操作异常: %s", exc)
 
     async def _reload_stores_after_external_migration(self) -> None:
@@ -3397,6 +3412,11 @@ class ImportTaskManager:
         try:
             data = json.loads(content)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理 JSON 文件失败", exception=e)
             raise RuntimeError(f"JSON 解析失败: {e}") from e
 
         schema = self._detect_json_schema(data)
@@ -3866,6 +3886,11 @@ class ImportTaskManager:
                 emb = await self.plugin.embedding_manager.encode(name_token)
                 target_store.add(emb.reshape(1, -1), [vector_id])
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "实体向量写入失败", exception=exc)
                 logger.warning("操作失败", exc_info=True)
                 if not self._allow_metadata_only_write():
                     raise

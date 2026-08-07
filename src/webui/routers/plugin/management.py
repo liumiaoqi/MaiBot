@@ -60,6 +60,11 @@ def _read_plugin_enabled(plugin_id: str, plugin_path: Path) -> bool:
         with open(config_path, "r", encoding="utf-8") as file_obj:
             config = tomlkit.load(file_obj).unwrap()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "读取插件启用状态失败，将按启用处理", exception=exc)
         logger.warning(f"读取插件 {plugin_id} 启用状态失败，将按启用处理: {exc}")
         return True
 
@@ -75,6 +80,11 @@ def _get_runtime_plugin_load_statuses() -> Dict[str, str]:
 
         return get_plugin_runtime_manager().get_plugin_load_statuses()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取插件运行时加载状态失败", exception=exc)
         logger.warning(f"获取插件运行时加载状态失败: {exc}")
         return {}
 
@@ -85,6 +95,11 @@ def _get_runtime_plugin_load_failure_reasons() -> Dict[str, str]:
 
         return get_plugin_runtime_manager().get_plugin_load_failure_reasons()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取插件运行时加载失败原因失败", exception=exc)
         logger.warning(f"获取插件运行时加载失败原因失败: {exc}")
         return {}
 
@@ -113,6 +128,11 @@ def _get_runtime_plugin_circuit_statuses() -> Dict[str, Dict[str, Any]]:
 
         return get_plugin_runtime_manager().get_plugin_circuit_statuses()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取插件熔断状态失败", exception=exc)
         logger.warning(f"获取插件熔断状态失败: {exc}")
         return {}
 
@@ -123,6 +143,11 @@ def _is_runtime_loading() -> bool:
 
         return bool(get_plugin_runtime_manager().is_loading)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取插件运行时加载中状态失败", exception=exc)
         logger.warning(f"获取插件运行时加载中状态失败: {exc}")
         return False
 
@@ -265,7 +290,12 @@ async def _update_non_git_plugin(
             "update_mode": "reinstall_from_backup",
             "backup_path": str(backup_path),
         }
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "更新非 Git 插件失败", exception=exc)
         logger.warning("操作异常 in management.py", exc_info=True)
         if candidate_path.exists():
             _remove_path(candidate_path)
@@ -301,6 +331,11 @@ async def _release_plugin_runtime_before_delete(plugin_id: str, plugin_path: Pat
 
         return await run_on_main_loop(get_plugin_runtime_manager().reload_plugins_globally([plugin_id], reason="uninstall"))
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "插件删除前运行时卸载失败，将继续尝试删除文件", exception=exc)
         logger.warning(f"插件 {plugin_id} 删除前运行时卸载失败，将继续尝试删除文件: {exc}")
         return False
 
@@ -412,6 +447,11 @@ async def install_plugin(request: InstallPluginRequest, maibot_session: Optional
                     json.dump(manifest, file_obj, ensure_ascii=False, indent=2)
             # manifest 声明 id 优先（保留声明 id，即使与请求安装 key 不同）
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "安装插件前清理失败", exception=e)
             remove_tree(target_path)
             await update_progress(
                 stage="error",
@@ -441,6 +481,11 @@ async def install_plugin(request: InstallPluginRequest, maibot_session: Optional
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "安装插件失败", exception=e)
         logger.error(f"安装插件失败: {e}", exc_info=True)
         await update_progress(
             stage="error", progress=0, message="安装失败", operation="install", plugin_id=plugin_id, error=str(e)
@@ -526,6 +571,11 @@ async def uninstall_plugin(
         )
         raise HTTPException(status_code=500, detail="权限不足，无法删除插件文件") from e
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "卸载插件失败", exception=e)
         logger.error(f"卸载插件失败: {e}", exc_info=True)
         await update_progress(
             stage="error", progress=0, message="卸载失败", operation="uninstall", plugin_id=plugin_id, error=str(e)
@@ -647,6 +697,11 @@ async def update_plugin(request: UpdatePluginRequest, maibot_session: Optional[s
             )
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, "更新插件进度失败", exception=e)
             await update_progress(
                 stage="error",
                 progress=0,
@@ -659,6 +714,11 @@ async def update_plugin(request: UpdatePluginRequest, maibot_session: Optional[s
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "更新插件失败", exception=e)
         logger.error(f"更新插件失败: {e}", exc_info=True)
         await update_progress(
             stage="error", progress=0, message="更新失败", operation="update", plugin_id=plugin_id, error=str(e)
@@ -724,6 +784,11 @@ async def get_installed_plugins(maibot_session: Optional[str] = Cookie(None)) ->
             except json.JSONDecodeError as e:
                 logger.warning(f"插件 {folder_name} 的 _manifest.json 解析失败: {e}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARN, "读取插件信息失败", exception=e)
                 logger.error(f"读取插件 {folder_name} 信息时出错: {e}")
 
         seen_ids: Dict[str, str] = {}
@@ -745,6 +810,11 @@ async def get_installed_plugins(maibot_session: Optional[str] = Cookie(None)) ->
         logger.info(f"找到 {len(unique_plugins)} 个已安装插件")
         return {"success": True, "plugins": unique_plugins, "total": len(unique_plugins)}
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取已安装插件列表失败", exception=e)
         logger.error(f"获取已安装插件列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -765,6 +835,11 @@ async def get_local_plugin_readme(plugin_id: str, maibot_session: Optional[str] 
 
         return {"success": False, "error": "本地未找到 README 文件"}
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取本地 README 失败", exception=e)
         logger.error(f"获取本地 README 失败: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
@@ -785,5 +860,10 @@ async def get_local_plugin_changelog(plugin_id: str, maibot_session: Optional[st
 
         return {"success": False, "error": "本地未找到 CHANGELOG.md 文件"}
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARN, "获取本地插件更新日志失败", exception=e)
         logger.error(f"获取本地插件更新日志失败: {e}", exc_info=True)
         return {"success": False, "error": str(e)}

@@ -71,6 +71,11 @@ def _create_bootstrap_logger():
 
         return get_logger("A_Memorix.MaiBotMigration")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "创建引导日志器失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 logger = _create_bootstrap_logger()
 
@@ -100,6 +105,11 @@ def _disable_unavailable_gemini_provider() -> None:
         from google import genai  # type: ignore  # noqa: F401
         return
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "禁用不可用 Gemini Provider 失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 
     from src.config.config import model_config as loaded_model_config
@@ -275,6 +285,11 @@ def _safe_int(value: Any, default: int) -> int:
     try:
         return int(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "安全解析整数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 def _safe_float(value: Any, default: float) -> float:
     if isinstance(value, datetime):
@@ -282,6 +297,11 @@ def _safe_float(value: Any, default: float) -> float:
     try:
         return float(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "安全解析浮点数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 
     text = str(value or "").strip()
@@ -291,6 +311,11 @@ def _safe_float(value: Any, default: float) -> float:
     try:
         return datetime.fromisoformat(normalized).timestamp()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "安全解析浮点数失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 def _sqlite_timestamp_expr(column_expr: str) -> str:
     return (
@@ -338,6 +363,11 @@ def _format_ts(ts: Optional[float]) -> str:
     try:
         return datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "格式化时间戳失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 def _parse_cli_datetime(text: str, is_end: bool = False) -> float:
     value = str(text or "").strip()
@@ -434,6 +464,11 @@ def _load_schema_defaults() -> Dict[str, Any]:
                     _set_nested_dict_value(defaults, str(section_name), section_defaults)
             return defaults
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取配置 schema 默认值失败，已回退空配置", exception=e)
         logger.warning(f"读取配置 schema 默认值失败，已回退空配置: {e}")
     return {}
 
@@ -856,6 +891,11 @@ class MigrationRunner:
             await self._verify(strict=True)
             return self._finalize()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "执行记忆迁移失败", exception=e)
             self.failed = True
             self.fail_reason = str(e)
             logger.error(f"迁移失败: {e}\n{traceback.format_exc()}")
@@ -881,6 +921,11 @@ class MigrationRunner:
                 if isinstance(raw, dict):
                     merged = _deep_merge_dict(merged, dict(raw))
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "读取 A_Memorix 配置失败，继续使用默认配置", exception=e)
                 logger.warning(f"读取 A_Memorix 配置失败，继续使用默认配置: {e}")
 
         self.plugin_config = merged
@@ -895,6 +940,11 @@ class MigrationRunner:
             value = _safe_int(payload.get("dimension"), fallback_dimension)
             return max(1, value)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "读取已有向量维度失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     async def _init_target_stores(self, require_embedding: bool) -> None:
         if VectorStore is None or GraphStore is None or MetadataStore is None:
@@ -939,6 +989,11 @@ class MigrationRunner:
                 if not has_existing_vectors:
                     detected_dim = await self.embedding_manager._detect_dimension()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "嵌入维度探测失败，回退配置维度", exception=e)
                 logger.warning(f"嵌入维度探测失败，回退配置维度: {e}")
                 detected_dim = self._read_existing_vector_dimension(emb_default_dim)
         else:
@@ -1239,6 +1294,11 @@ class MigrationRunner:
                     self._warn_list_field_coerced(row_id, field_name, f"JSON 类型为 {type(parsed).__name__}")
                 return self._normalize_list_field_items(parsed)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "解析 JSON 列表字段失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
 
             try:
@@ -1247,6 +1307,11 @@ class MigrationRunner:
                     self._warn_list_field_coerced(row_id, field_name, "使用 Python literal 兼容解析")
                     return self._normalize_list_field_items(parsed_literal)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "解析 JSON 列表字段失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
 
             separators = [",", "，", "、", ";", "；", "\n"]
@@ -1359,6 +1424,11 @@ class MigrationRunner:
                 try:
                     mapped = self._map_row(row)
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "迁移单行数据失败", exception=e)
                     self.stats["bad_rows"] += 1
                     self._append_bad_row(row, str(e))
                     max_errors = int(self.args.max_errors or 0)
@@ -1635,6 +1705,11 @@ class MigrationRunner:
 
             conn.commit()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "提交迁移批次失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         self.stats["relations_written"] += len(relation_records)
 
@@ -1761,6 +1836,11 @@ class MigrationRunner:
             try:
                 mapped = self._map_row(row)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "迁移校验失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             paragraph = self.metadata_store.get_paragraph(mapped.paragraph_hash)
             if paragraph is None:
@@ -1865,6 +1945,11 @@ class MigrationRunner:
             if self.metadata_store is not None:
                 self.metadata_store.close()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "关闭迁移器失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         self.source_db.close()
 

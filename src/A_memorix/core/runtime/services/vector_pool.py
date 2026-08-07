@@ -124,6 +124,11 @@ class VectorPoolManager:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取双池 ready manifest 失败", exception=exc)
             logger.warning(f"读取双池 ready manifest 失败: {exc}")
             return None
         return payload if isinstance(payload, dict) else None
@@ -160,6 +165,11 @@ class VectorPoolManager:
         try:
             self.dual_vector_ready_manifest_path().unlink(missing_ok=True)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "删除双池 ready manifest 失败", exception=exc)
             logger.warning(f"删除双池 ready manifest 失败: {exc}")
 
     def dual_vector_ready(self, *, expected_dimension: Optional[int] = None) -> bool:
@@ -203,6 +213,11 @@ class VectorPoolManager:
                 entity_count = min(graph_count, int(target_counts.get("entities", 0) or 0))
                 relation_count = max(0, graph_count - entity_count)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "刷新双池 ready manifest 统计失败，使用向量池计数", exception=exc)
                 logger.warning(f"刷新双池 ready manifest 统计失败，使用向量池计数: {exc}")
         stats = {
             "paragraphs": {"done": paragraph_count, "failed": 0},
@@ -250,6 +265,11 @@ class VectorPoolManager:
             shutil.rmtree(build_root, ignore_errors=True)
             shutil.rmtree(backup_root, ignore_errors=True)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "激活双池构建目录失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     def cleanup_stale_dual_vector_build_dirs(self) -> None:
         vectors_root = self.vectors_root()
@@ -267,6 +287,11 @@ class VectorPoolManager:
         try:
             shutil.rmtree(build_root, ignore_errors=True)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "清理双池临时构建目录失败", exception=exc)
             logger.warning(f"清理双池临时构建目录失败: {exc}")
 
     def clear_legacy_single_vector_files_after_dual_ready(self) -> None:
@@ -275,6 +300,11 @@ class VectorPoolManager:
             try:
                 (root / filename).unlink(missing_ok=True)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "清理旧单池向量文件失败", exception=exc)
                 logger.warning(f"清理旧单池向量文件失败: file={filename}, error={exc}")
         if self.vector_store is not None:
             self.vector_store = self.make_vector_store(root)
@@ -288,12 +318,22 @@ class VectorPoolManager:
             try:
                 requested_dimension = int(getter())
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "获取当前 embedding 维度状态失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             if requested_dimension > 0:
                 return requested_dimension
         try:
             default_dimension = int(getattr(manager, "default_dimension", 0) or 0)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取当前 embedding 维度状态失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         if default_dimension > 0:
             return default_dimension
@@ -319,6 +359,11 @@ class VectorPoolManager:
             effective_dimension = int(dimension or self.current_embedding_status_dimension())
             return self.normalize_embedding_fingerprint(getter(dimension=effective_dimension))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "生成 embedding 指纹失败", exception=exc)
             logger.warning(f"生成 embedding 指纹失败: {exc}")
             return None
 
@@ -343,6 +388,11 @@ class VectorPoolManager:
             with open(meta_path, "rb") as handle:
                 meta = pickle.load(handle)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取向量指纹元数据失败", exception=exc)
             logger.warning(f"读取向量指纹元数据失败: {exc}")
             return None
         if not isinstance(meta, dict):
@@ -359,6 +409,11 @@ class VectorPoolManager:
             try:
                 manifest_dimension = int(ready_manifest.get("dimension") or 0)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "读取向量维度失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             if manifest_dimension > 0:
                 return manifest_dimension
@@ -370,11 +425,21 @@ class VectorPoolManager:
             with open(meta_path, "rb") as handle:
                 meta = pickle.load(handle)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取向量元数据失败，将回退到 runtime self-check", exception=exc)
             logger.warning(f"读取向量元数据失败，将回退到 runtime self-check: {exc}")
             return None
         try:
             value = int(meta.get("dimension") or 0)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取向量维度失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         return value if value > 0 else None
 
@@ -500,6 +565,11 @@ class VectorPoolManager:
                 graph_store.load()
                 graph_store.warmup_index()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "加载双池向量失败，将暂时回退单池", exception=exc)
             logger.warning(f"加载双池向量失败，将暂时回退单池: {exc}")
             self._dual_vector_pools_ready = False
             return False
@@ -527,6 +597,11 @@ class VectorPoolManager:
             if graph_store.has_data():
                 graph_store.load()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "双池 ready manifest 自愈失败，加载向量池异常", exception=exc)
             logger.warning(f"双池 ready manifest 自愈失败，加载向量池异常: {exc}")
             return False
 
@@ -626,6 +701,11 @@ class VectorPoolManager:
         try:
             has_data = bool(store.has_data())
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "生成向量池快照失败", exception=exc)
             logger.warning("操作异常: %s", exc)
         return {
             "available": True,
