@@ -482,7 +482,7 @@ def _build_outbound_session_message(
     if idempotency_key:
         message_id = idempotency_key
     else:
-        message_id = f"send_api_{int(current_time * 1000)}_{uuid.uuid4().hex[:8]}"
+        message_id = f"send_api_{int(current_time * 1000)}_{uuid.uuid4().hex}"
     anchor_message = reply_message.deepcopy() if reply_message is not None else None
 
     group_info: Optional[GroupInfo] = None
@@ -776,6 +776,7 @@ async def _send_via_platform_io(
     reply_message: Optional[MaiMessage] = None,
     storage_message: bool,
     show_log: bool,
+    force_send: bool = False,
 ) -> Optional[SessionMessage]:
     """通过 Platform IO 发送消息。
 
@@ -786,6 +787,7 @@ async def _send_via_platform_io(
         reply_message_id: 被引用消息的 ID。
         storage_message: 发送成功后是否写入数据库。
         show_log: 是否输出发送成功日志。
+        force_send: 是否绕过去重窗口（重试/幂等发送时为 True）。
 
     Returns:
         bool: 发送成功时返回 ``True``。
@@ -836,7 +838,7 @@ async def _send_via_platform_io(
         delivery_batch = await platform_io_manager.send_message(
             message,
             route_key,
-            metadata={"show_log": False},
+            metadata={"show_log": False, "force_send": force_send},
         )
     except Exception as exc:
         logger.error(f"[SendService] Platform IO 发送异常: {exc}")
@@ -887,6 +889,7 @@ async def send_session_message_with_message(
     show_log: bool = True,
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
+    force_send: bool = False,
 ) -> Optional[SessionMessage]:
     """统一发送一条内部消息，并返回最终发送成功的消息对象。"""
     if not message.message_id:
@@ -901,6 +904,7 @@ async def send_session_message_with_message(
         reply_message=reply_message,
         storage_message=storage_message,
         show_log=show_log,
+        force_send=force_send,
     )
     if sent_message is not None and sync_to_maisaka_history:
         _sync_sent_message_to_maisaka_history(
@@ -921,6 +925,7 @@ async def send_session_message(
     show_log: bool = True,
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
+    force_send: bool = False,
 ) -> bool:
     """统一发送一条内部消息。
 
@@ -956,6 +961,7 @@ async def send_session_message(
             show_log=show_log,
             sync_to_maisaka_history=sync_to_maisaka_history,
             maisaka_source_kind=maisaka_source_kind,
+            force_send=force_send,
         )
         is not None
     )
@@ -1072,6 +1078,7 @@ async def _send_to_target_with_message(
             show_log=show_log,
             sync_to_maisaka_history=sync_to_maisaka_history,
             maisaka_source_kind=maisaka_source_kind,
+            force_send=bool(idempotency_key),
         )
         if sent_message is not None:
             logger.debug(f"[SendService] 成功发送消息到 {stream_id}")

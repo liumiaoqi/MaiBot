@@ -627,6 +627,7 @@ class MessagePortV2(Protocol):
         reply_to_id: str = "",
         agent_id: str = "",
         source: str = "core",
+        idempotency_key: str = "",
     ) -> SendMessageResult:
         """发送消息 — 统一接口，覆盖所有消息类型。
 
@@ -636,6 +637,7 @@ class MessagePortV2(Protocol):
             reply_to_id: 被引用消息的 ID（可选，找不到时降级为不引用）
             agent_id: 发言智能体 ID
             source: 消息来源标识（reply/interjection/reminder/proactive）
+            idempotency_key: 幂等键（ZG-23a），非空时复用为 message_id，重试时传入相同键
 
         Returns:
             SendMessageResult 包含发送结果
