@@ -4,14 +4,12 @@
 提供系统重启、状态查询等功能
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import func, inspect, text
-from sqlmodel import col, select
 
 import asyncio
 import mimetypes
@@ -19,14 +17,8 @@ import os
 import sqlite3
 import time
 
-from src.common.database.database import engine, get_db_session
-from src.common.database.database_model import Images, ImageType
+from src.common.database.database import get_db_session
 from src.common.logger import get_logger
-from src.common.utils.image_path import (
-    StoredImagePathError,
-    resolve_stored_image_path,
-    stored_image_paths_equal,
-)
 from src.config.config import MMC_VERSION
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
@@ -36,7 +28,6 @@ from src.webui.schemas.system import (
     CacheDirectoryStats,
     DatabaseFileStats,
     DatabaseStorageStats,
-    DatabaseTableStats,
     LocalCacheCleanupRequest,
     LocalCacheCleanupResponse,
     LocalCacheDataEntriesResponse,
@@ -57,6 +48,17 @@ from src.webui.schemas.system import (
     SystemLifecycleResponse,
     SystemResourcesResponse,
     TransitionRecordResponse,
+)
+from src.webui.services.system_image_service_web import (
+    IMAGE_TYPE_EMOJI,
+    IMAGE_TYPE_IMAGE,
+    delete_database_records as _delete_database_records,
+    delete_image_records as _delete_image_records,
+    delete_image_records_for_file as _delete_image_records_for_file,
+    get_database_table_stats as _get_database_table_stats,
+    get_image_record_count as _get_image_record_count,
+    get_image_records_by_path as _get_image_records_by_path,
+    resolve_monitor_media_file as _resolve_monitor_media_file,
 )
 
 
@@ -84,56 +86,7 @@ _CACHE_IMAGE_EXTENSIONS = {
     ".png",
     ".webp",
 }
-_DATABASE_CLEANUP_TABLES: dict[str, dict[str, str]] = {
-    "llm_usage": {
-        "label": "LLM 调用记录",
-        "category": "调用与统计",
-        "description": "模型调用、Token、耗时和费用记录。",
-        "date_column": "timestamp",
-    },
-    "tool_records": {
-        "label": "工具调用记录",
-        "category": "调用与统计",
-        "description": "内置工具和插件工具的调用过程记录。",
-        "date_column": "timestamp",
-    },
-    "mai_messages": {
-        "label": "消息记录",
-        "category": "聊天历史",
-        "description": "收到的聊天消息与消息元数据。",
-        "date_column": "timestamp",
-    },
-    "chat_history": {
-        "label": "聊天摘要历史",
-        "category": "聊天历史",
-        "description": "聊天片段摘要、主题和关键词记录。",
-        "date_column": "end_timestamp",
-    },
-    "online_time": {
-        "label": "在线时长记录",
-        "category": "运行统计",
-        "description": "运行在线时长统计记录。",
-        "date_column": "timestamp",
-    },
-    "statistics_message_hourly": {
-        "label": "消息小时统计",
-        "category": "统计缓存",
-        "description": "按小时聚合的消息统计缓存。",
-        "date_column": "bucket_time",
-    },
-    "statistics_tool_hourly": {
-        "label": "工具小时统计",
-        "category": "统计缓存",
-        "description": "按小时聚合的工具调用统计缓存。",
-        "date_column": "bucket_time",
-    },
-    "statistics_model_hourly": {
-        "label": "模型小时统计",
-        "category": "统计缓存",
-        "description": "按小时聚合的模型调用统计缓存。",
-        "date_column": "bucket_time",
-    },
-}
+
 _PROTECTED_DATA_PATHS = {
     _DATABASE_FILE.resolve(),
     *[Path(f"{_DATABASE_FILE}{suffix}").resolve() for suffix in _DATABASE_AUXILIARY_SUFFIXES],
@@ -146,7 +99,7 @@ _SPECIAL_CACHE_DIRS = (
 _restart_task: asyncio.Task[None] | None = None
 
 CacheImageTarget = Literal["images", "emoji"]
-DatabaseCleanupMode = Literal["all", "older_than_days"]
+
 MonitorMediaKind = Literal["image", "emoji"]
 
 _local_cache_stats_cache: tuple[float, LocalCacheStatsResponse] | None = None
@@ -262,10 +215,10 @@ def _build_data_entries_response(relative_path: str) -> LocalCacheDataEntriesRes
         data=sorted(entries, key=lambda item: (item.kind != "directory", -item.total_size, item.name.lower())),
     )
 
-def _get_cache_image_target(target: CacheImageTarget) -> tuple[Path, ImageType, str]:
+def _get_cache_image_target(target: CacheImageTarget) -> tuple[Path, Any, str]:
     if target == "images":
-        return _IMAGE_DIR, ImageType.IMAGE, "图片"
-    return _EMOJI_DIR, ImageType.EMOJI, "表情包"
+        return _IMAGE_DIR, IMAGE_TYPE_IMAGE, "图片"
+    return _EMOJI_DIR, IMAGE_TYPE_EMOJI, "表情包"
 
 def _resolve_cache_image_file(target: CacheImageTarget, relative_path: str) -> Path:
     root_dir, _, label = _get_cache_image_target(target)
@@ -283,50 +236,7 @@ def _resolve_cache_image_file(target: CacheImageTarget, relative_path: str) -> P
         raise AppError(ErrorCode.PARAM_INVALID, "只能浏览图片缓存文件")
     return file_path
 
-def _resolve_monitor_media_file(media_kind: MonitorMediaKind, media_hash: str) -> Path:
-    """根据监控事件中的媒体 hash 解析原始图片或表情文件。"""
 
-    normalized_hash = media_hash.strip()
-    if not normalized_hash:
-        raise AppError(ErrorCode.PARAM_INVALID, "媒体 hash 不能为空")
-
-    image_type = ImageType.IMAGE if media_kind == "image" else ImageType.EMOJI
-    label = "图片" if media_kind == "image" else "表情包"
-    with get_db_session(auto_commit=False) as session:
-        statement = select(Images).filter_by(image_hash=normalized_hash, image_type=image_type).limit(1)
-        image_record = session.exec(statement).first()
-
-    if image_record is None:
-        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到指定{label}记录", http_status=404)
-
-    try:
-        file_path = resolve_stored_image_path(image_record.full_path)
-    except (OSError, RuntimeError, StoredImagePathError) as exc:
-        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"无法解析指定{label}文件", http_status=404) from exc
-
-    if not file_path.is_file():
-        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到指定{label}文件", http_status=404)
-    return file_path
-
-def _paths_equal(left: str, right: Path) -> bool:
-    try:
-        return stored_image_paths_equal(left, right)
-    except (OSError, RuntimeError, StoredImagePathError):
-        return False
-
-def _get_image_records_by_path(image_type: ImageType) -> dict[Path, list[Images]]:
-    records_by_path: dict[Path, list[Images]] = {}
-    with get_db_session(auto_commit=False) as session:
-        statement = select(Images).where(col(Images.image_type) == image_type)
-        records = session.exec(statement).all()
-
-    for record in records:
-        try:
-            record_path = resolve_stored_image_path(record.full_path)
-        except (OSError, RuntimeError, StoredImagePathError):
-            continue
-        records_by_path.setdefault(record_path, []).append(record)
-    return records_by_path
 
 def _build_cache_image_items(target: CacheImageTarget) -> list[LocalCacheImageItem]:
     root_dir, image_type, _ = _get_cache_image_target(target)
@@ -334,7 +244,8 @@ def _build_cache_image_items(target: CacheImageTarget) -> list[LocalCacheImageIt
         return []
 
     root_path = root_dir.resolve()
-    records_by_path = _get_image_records_by_path(image_type)
+    with get_db_session(auto_commit=False) as session:
+        records_by_path = _get_image_records_by_path(session, image_type)
     items: list[LocalCacheImageItem] = []
 
     for file_path in _iter_files(root_path):
@@ -488,16 +399,11 @@ def _get_directory_size(directory: Path) -> tuple[int, int]:
     file_count, total_size, _ = _get_path_summary(directory)
     return file_count, total_size
 
-def _get_image_record_count(image_type: ImageType) -> int:
-    with get_db_session() as session:
-        statement = select(func.count()).select_from(Images).where(col(Images.image_type) == image_type)
-        return int(session.exec(statement).one())
-
 def _build_directory_stats(
     key: str,
     label: str,
     path: Path,
-    image_type: ImageType | None = None,
+    image_type: Any | None = None,
     extra_paths: tuple[Path, ...] = (),
 ) -> CacheDirectoryStats:
     file_count, total_size = _get_directory_size(path)
@@ -508,6 +414,11 @@ def _build_directory_stats(
         total_size += extra_total_size
         exists = exists or extra_path.exists()
 
+    db_records = 0
+    if image_type is not None:
+        with get_db_session() as session:
+            db_records = _get_image_record_count(session, image_type)
+
     return CacheDirectoryStats(
         key=key,
         label=label,
@@ -515,7 +426,7 @@ def _build_directory_stats(
         exists=exists,
         file_count=file_count,
         total_size=total_size,
-        db_records=_get_image_record_count(image_type) if image_type is not None else 0,
+        db_records=db_records,
     )
 
 def _get_database_files() -> list[DatabaseFileStats]:
@@ -550,98 +461,6 @@ def _get_database_page_stats() -> tuple[int, int, int]:
         return 0, 0, 0
     return page_size, page_count, freelist_count
 
-def _quote_sqlite_identifier(identifier: str) -> str:
-    return '"' + identifier.replace('"', '""') + '"'
-
-def _get_table_indexes(connection, table_name: str) -> list[str]:
-    quoted_table_name = _quote_sqlite_identifier(table_name)
-    indexes = []
-    for row in connection.execute(text(f"PRAGMA index_list({quoted_table_name})")).fetchall():
-        if len(row) > 1 and row[1]:
-            indexes.append(str(row[1]))
-    return indexes
-
-def _get_dbstat_table_sizes(connection, table_names: list[str]) -> dict[str, int] | None:
-    try:
-        connection.execute(text("CREATE VIRTUAL TABLE IF NOT EXISTS temp.local_cache_dbstat USING dbstat(main)"))
-        rows = connection.execute(
-            text("SELECT name, SUM(pgsize) AS size FROM temp.local_cache_dbstat GROUP BY name")
-        ).fetchall()
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARN, "当前 SQLite 环境不支持 dbstat，数据库表大小将使用估算值", exception=exc)
-        logger.warning(f"当前 SQLite 环境不支持 dbstat，数据库表大小将使用估算值: {exc}")
-        return None
-
-    object_sizes = {str(row[0]): int(row[1] or 0) for row in rows}
-    table_sizes: dict[str, int] = {}
-    for table_name in table_names:
-        table_size = object_sizes.get(table_name, 0)
-        for index_name in _get_table_indexes(connection, table_name):
-            table_size += object_sizes.get(index_name, 0)
-        table_sizes[table_name] = table_size
-    return table_sizes
-
-def _estimate_table_data_size(connection, table_name: str, rows: int) -> int:
-    if rows <= 0:
-        return 0
-
-    inspector = inspect(engine)
-    columns = inspector.get_columns(table_name)
-    if not columns:
-        return 0
-
-    quoted_table_name = _quote_sqlite_identifier(table_name)
-    sample_limit = min(rows, 200)
-    column_expressions = [
-        f"COALESCE(LENGTH(CAST({_quote_sqlite_identifier(column['name'])} AS BLOB)), 0)" for column in columns
-    ]
-    expression = " + ".join(column_expressions)
-    sample_size, sample_rows = connection.execute(
-        text(
-            f"SELECT COALESCE(SUM({expression}), 0), COUNT(*) "
-            f"FROM (SELECT * FROM {quoted_table_name} LIMIT {sample_limit})"
-        )
-    ).one()
-    if int(sample_rows or 0) == 0:
-        return 0
-    return int(int(sample_size or 0) * rows / int(sample_rows))
-
-def _get_database_table_stats() -> list[DatabaseTableStats]:
-    inspector = inspect(engine)
-    table_names = inspector.get_table_names()
-    table_stats: list[DatabaseTableStats] = []
-    with engine.connect() as connection:
-        dbstat_sizes = _get_dbstat_table_sizes(connection, table_names)
-        for table_name in table_names:
-            quoted_table_name = _quote_sqlite_identifier(table_name)
-            rows = connection.execute(text(f"SELECT COUNT(*) FROM {quoted_table_name}")).scalar_one()
-            row_count = int(rows)
-            if dbstat_sizes is None:
-                size = _estimate_table_data_size(connection, table_name, row_count)
-                size_source: Literal["dbstat", "estimated"] = "estimated"
-            else:
-                size = dbstat_sizes.get(table_name, 0)
-                size_source = "dbstat"
-            cleanup_config = _DATABASE_CLEANUP_TABLES.get(table_name)
-            table_stats.append(
-                DatabaseTableStats(
-                    name=table_name,
-                    rows=row_count,
-                    size=size,
-                    size_source=size_source,
-                    label=cleanup_config["label"] if cleanup_config is not None else table_name,
-                    category=cleanup_config["category"] if cleanup_config is not None else "其他",
-                    description=cleanup_config["description"] if cleanup_config is not None else "",
-                    cleanup_supported=cleanup_config is not None,
-                    cleanup_date_column=cleanup_config["date_column"] if cleanup_config is not None else None,
-                )
-            )
-    return sorted(table_stats, key=lambda item: item.name)
-
 def _build_database_stats(include_tables: bool = True) -> DatabaseStorageStats:
     files = _get_database_files()
     page_size, page_count, freelist_count = _get_database_page_stats()
@@ -658,12 +477,12 @@ def _build_database_stats(include_tables: bool = True) -> DatabaseStorageStats:
 def _build_local_cache_stats_response() -> LocalCacheStatsResponse:
     return LocalCacheStatsResponse(
         directories=[
-            _build_directory_stats("images", "图片缓存", _IMAGE_DIR, ImageType.IMAGE),
+            _build_directory_stats("images", "图片缓存", _IMAGE_DIR, IMAGE_TYPE_IMAGE),
             _build_directory_stats(
                 "emoji",
                 "表情包缓存",
                 _EMOJI_DIR,
-                ImageType.EMOJI,
+                IMAGE_TYPE_EMOJI,
                 extra_paths=(_EMOJI_THUMBNAIL_DIR,),
             ),
             _build_directory_stats("logs", "日志文件", _LOG_DIR),
@@ -881,7 +700,8 @@ def _vacuum_database_response() -> LocalCacheDatabaseVacuumResponse:
 def _cleanup_local_cache_response(request: LocalCacheCleanupRequest) -> LocalCacheCleanupResponse:
     if request.target == "images":
         removed_files, removed_bytes = _remove_directory_contents(_IMAGE_DIR)
-        removed_records = _delete_image_records(ImageType.IMAGE)
+        with get_db_session() as session:
+            removed_records = _delete_image_records(session, IMAGE_TYPE_IMAGE)
         return LocalCacheCleanupResponse(
             success=True,
             message="图片缓存已清理",
@@ -894,7 +714,8 @@ def _cleanup_local_cache_response(request: LocalCacheCleanupRequest) -> LocalCac
     if request.target == "emoji":
         emoji_files, emoji_bytes = _remove_directory_contents(_EMOJI_DIR)
         thumbnail_files, thumbnail_bytes = _remove_directory_contents(_EMOJI_THUMBNAIL_DIR)
-        removed_records = _delete_image_records(ImageType.EMOJI)
+        with get_db_session() as session:
+            removed_records = _delete_image_records(session, IMAGE_TYPE_EMOJI)
         return LocalCacheCleanupResponse(
             success=True,
             message="表情包缓存已清理",
@@ -1004,42 +825,6 @@ def _delete_emoji_thumbnail_files(image_hashes: set[str]) -> tuple[int, int]:
             logger.warning(f"删除表情包缩略图缓存失败: {thumbnail_path}, error={exc}")
     return removed_files, removed_bytes
 
-def _remove_emoji_hashes_from_memory(image_hashes: set[str]) -> None:
-    if not image_hashes:
-        return
-
-    try:
-        from src.emoji_system.emoji_manager import emoji_manager
-
-        emoji_manager.emojis = [emoji for emoji in emoji_manager.emojis if emoji.file_hash not in image_hashes]
-        emoji_manager._emoji_num = len(emoji_manager.emojis)
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARN, "同步移除内存表情包失败", exception=exc)
-        logger.warning(f"同步移除内存表情包失败: {exc}")
-
-def _delete_image_records_for_file(image_type: ImageType, file_path: Path) -> tuple[int, set[str]]:
-    removed_records = 0
-    removed_hashes: set[str] = set()
-
-    with get_db_session() as session:
-        statement = select(Images).where(col(Images.image_type) == image_type)
-        for record in session.exec(statement).all():
-            if not _paths_equal(record.full_path, file_path):
-                continue
-
-            if record.image_hash:
-                removed_hashes.add(record.image_hash)
-            session.delete(record)
-            removed_records += 1
-
-    if image_type == ImageType.EMOJI:
-        _remove_emoji_hashes_from_memory(removed_hashes)
-    return removed_records, removed_hashes
-
 def _delete_cache_image_file(target: CacheImageTarget, relative_path: str) -> tuple[int, int, int]:
     root_dir, image_type, label = _get_cache_image_target(target)
     file_path = _resolve_cache_image_file(target, relative_path)
@@ -1051,10 +836,11 @@ def _delete_cache_image_file(target: CacheImageTarget, relative_path: str) -> tu
         logger.warning(f"删除{label}缓存文件失败: {file_path}, error={exc}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"删除{label}缓存文件失败", http_status=500) from exc
 
-    removed_records, removed_hashes = _delete_image_records_for_file(image_type, file_path)
+    with get_db_session() as session:
+        removed_records, removed_hashes = _delete_image_records_for_file(session, image_type, file_path)
     thumbnail_files = 0
     thumbnail_bytes = 0
-    if image_type == ImageType.EMOJI:
+    if image_type == IMAGE_TYPE_EMOJI:
         thumbnail_files, thumbnail_bytes = _delete_emoji_thumbnail_files(removed_hashes)
 
     _remove_empty_parent_dirs(file_path.parent, root_dir)
@@ -1078,53 +864,6 @@ def _delete_cache_image_items(target: CacheImageTarget, items: list[LocalCacheIm
         removed_records += item_removed_records
     return removed_files, removed_bytes, removed_records
 
-def _delete_image_records(image_type: ImageType) -> int:
-    removed_records = 0
-    removed_hashes: set[str] = set()
-    with get_db_session() as session:
-        statement = select(Images).where(col(Images.image_type) == image_type)
-        for record in session.exec(statement).all():
-            if record.image_hash:
-                removed_hashes.add(record.image_hash)
-            session.delete(record)
-            removed_records += 1
-    if image_type == ImageType.EMOJI:
-        _remove_emoji_hashes_from_memory(removed_hashes)
-    return removed_records
-
-def _delete_database_records(
-    table_names: list[str],
-    mode: DatabaseCleanupMode,
-    older_than_days: int | None,
-) -> int:
-    allowed_tables = set(_DATABASE_CLEANUP_TABLES)
-    invalid_tables = set(table_names) - allowed_tables
-    if invalid_tables:
-        raise ValueError(f"不支持清理这些表: {', '.join(sorted(invalid_tables))}")
-    if mode == "older_than_days" and older_than_days is None:
-        raise AppError(ErrorCode.PARAM_INVALID, "按时间清理时必须设置保留天数")
-
-    removed_records = 0
-    existing_tables = set(inspect(engine).get_table_names())
-    with engine.begin() as connection:
-        for table_name in table_names:
-            if table_name not in existing_tables:
-                continue
-
-            quoted_table_name = _quote_sqlite_identifier(table_name)
-            if mode == "all":
-                result = connection.execute(text(f"DELETE FROM {quoted_table_name}"))
-            else:
-                cleanup_config = _DATABASE_CLEANUP_TABLES[table_name]
-                date_column = cleanup_config["date_column"]
-                cutoff_time = datetime.now() - timedelta(days=older_than_days or 0)
-                quoted_date_column = _quote_sqlite_identifier(date_column)
-                result = connection.execute(
-                    text(f"DELETE FROM {quoted_table_name} WHERE {quoted_date_column} < :cutoff_time"),
-                    {"cutoff_time": cutoff_time},
-                )
-            removed_records += int(result.rowcount or 0)
-    return removed_records
 
 async def _stop_runtime_before_restart() -> None:
     """WebUI 重启前主动停止插件运行时，避免遗留 runner 子进程。"""
@@ -1430,7 +1169,8 @@ async def preview_local_cache_image(
 async def get_maisaka_monitor_media(media_kind: MonitorMediaKind, media_hash: str) -> FileResponse:
     """返回 MaiSaka 观察面板消息中的原始图片或表情文件。"""
 
-    file_path = _resolve_monitor_media_file(media_kind, media_hash)
+    with get_db_session(auto_commit=False) as session:
+        file_path = _resolve_monitor_media_file(session, media_kind, media_hash)
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
     return ApiResponse(data=FileResponse(file_path, media_type=media_type, filename=file_path.name))
 
