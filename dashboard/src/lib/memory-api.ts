@@ -1248,7 +1248,7 @@ export async function previewMemoryDelete(
 export async function executeMemoryDelete(
   payload: MemoryDeleteRequestPayload,
 ): Promise<MemoryDeleteExecutePayload> {
-  return requestJson<MemoryDeleteExecutePayload>('/delete/execute', {
+  return requestJson<MemoryDeleteExecutePayload>(`/episodes/${payload.mode}/delete`, {
     method: 'POST',
     body: payload,
   })

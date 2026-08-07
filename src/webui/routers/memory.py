@@ -1817,11 +1817,11 @@ async def update_memory_edge_weight(payload: EdgeWeightRequest):
 async def list_memory_sources():
     return await _source_list()
 
-@router.post("/sources/delete")
-async def delete_memory_source(payload: SourceDeleteRequest):
-    return await _source_delete(payload)
+@router.delete("/sources/{id}")
+async def delete_memory_source(id: str):
+    return await memory_service.source_admin(action="delete", source=id)
 
-@router.post("/sources/batch-delete")
+@router.delete("/sources")
 async def batch_delete_memory_sources(payload: SourceBatchDeleteRequest):
     return await _source_batch_delete(payload)
 
@@ -1967,6 +1967,7 @@ async def get_memory_config_schema():
 async def get_memory_config():
     return await _memory_config_get()
 
+# C1 raw 例外：结构化配置写入，保留 PUT 语义（整体替换）
 @router.put("/config")
 async def update_memory_config(payload: MemoryConfigUpdateRequest):
     return await _memory_config_update(payload)
@@ -1975,6 +1976,7 @@ async def update_memory_config(payload: MemoryConfigUpdateRequest):
 async def get_memory_config_raw():
     return await _memory_config_get_raw()
 
+# C1 raw 例外：原始 TOML 配置写入，合并到单一 raw 例外分类
 @router.put("/config/raw")
 async def update_memory_config_raw(payload: MemoryRawConfigUpdateRequest):
     return await _memory_config_update_raw(payload)
@@ -2023,16 +2025,13 @@ async def freeze_memory_relation(payload: MaintainRequest):
 async def protect_memory_relation(payload: MaintainRequest):
     return await _maintenance_protect(payload)
 
-@router.get("/v5/status")
+@router.get("/status")
 async def get_memory_v5_status(
     target: str = Query(""),
     limit: int = Query(50, ge=1, le=200),
 ):
     return await _v5_status(target, limit)
 
-@router.get("/v5/recycle-bin")
-async def get_memory_v5_recycle_bin(limit: int = Query(50, ge=1, le=200)):
-    return await _v5_recycle_bin(limit)
 
 @router.post("/v5/reinforce")
 async def reinforce_memory_v5(payload: V5ActionRequest):
@@ -2046,20 +2045,22 @@ async def weaken_memory_v5(payload: V5ActionRequest):
 async def remember_forever_memory_v5(payload: V5ActionRequest):
     return await _v5_action("remember_forever", payload)
 
-@router.post("/v5/forget")
-async def forget_memory_v5(payload: V5ActionRequest):
+@router.delete("/episodes/{id}")
+async def forget_memory_episode(id: str, payload: V5ActionRequest):
+    payload.target = id
     return await _v5_action("forget", payload)
 
-@router.post("/v5/restore")
-async def restore_memory_v5(payload: V5ActionRequest):
+@router.post("/episodes/{id}/restore")
+async def restore_memory_episode(id: str, payload: V5ActionRequest):
+    payload.target = id
     return await _v5_action("restore", payload)
 
 @router.post("/delete/preview")
 async def preview_memory_delete(payload: DeleteActionRequest):
     return await _delete_preview(payload)
 
-@router.post("/delete/execute")
-async def execute_memory_delete(payload: DeleteActionRequest):
+@router.post("/episodes/{id}/delete")
+async def execute_memory_delete(id: str, payload: DeleteActionRequest):
     return await _delete_execute(payload)
 
 @router.post("/delete/restore")
@@ -2077,7 +2078,7 @@ async def list_memory_delete_operations(
 async def get_memory_delete_operation(operation_id: str):
     return await _delete_get(operation_id)
 
-@router.post("/delete/purge")
+@router.post("/maintenance/purge")
 async def purge_memory_delete(payload: DeletePurgeRequest):
     return await _delete_purge(payload)
 
