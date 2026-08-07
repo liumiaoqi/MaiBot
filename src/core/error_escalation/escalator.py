@@ -152,8 +152,6 @@ class ErrorEscalator:
         self._storm = storm or StormTracker(self._config, time_func=time_func)
         self._crash_dump_limiter = _CrashDumpLimiter(time_func=time_func)
         self._fatal_in_progress = False
-        # 内部动作失败再上报时的重入防护（避免 TAINT/派发失败递归上报）
-        self._report_in_progress = False
         self._last_event: ErrorEscalationEvent | None = None
 
         # 各 Port 注入（适配器层组装时注入，未注入跳过对应动作）
@@ -387,15 +385,6 @@ class ErrorEscalator:
             try:
                 self._rate_limiter_port.set_min_level(_LEVEL_CRITICAL)
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
-                port = get_error_escalation_port()
-                if port is not None and not self._report_in_progress:
-                    self._report_in_progress = True
-                    try:
-                        port.report(ErrorLevel.WARNING, "ERROR_RATE_LIMITER_FAILED: RateLimiterPort 设置最低日志级别失败", exception=exc)
-                    finally:
-                        self._report_in_progress = False
                 logger.warning("ERROR_RATE_LIMITER_FAILED: %s", exc)
         log_level = _LOG_LEVELS[level]
         logger.log(
@@ -430,15 +419,6 @@ class ErrorEscalator:
         try:
             self._taint_mask_port.add_taint(flag)
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None and not self._report_in_progress:
-                self._report_in_progress = True
-                try:
-                    port.report(ErrorLevel.WARNING, "ERROR_TAINT_FAILED: 污染位写入失败", exception=exc)
-                finally:
-                    self._report_in_progress = False
             logger.warning("ERROR_TAINT_FAILED: %s", exc)
 
     # ── 异步动作（create_task 派发，不阻塞）─────────────────
@@ -465,15 +445,6 @@ class ErrorEscalator:
         except Exception as exc:
             # create_task 兜底（spec §5.3.3 异常场景 2）：非协程/循环关闭等
             # 不阻断 report 主流程（CX 审查 P1 修复——原实现未包 try）
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None and not self._report_in_progress:
-                self._report_in_progress = True
-                try:
-                    port.report(ErrorLevel.ERROR, "ERROR_ACTION_DISPATCH_FAILED: 异步动作派发失败", exception=exc)
-                finally:
-                    self._report_in_progress = False
             logger.warning("ERROR_ACTION_DISPATCH_FAILED: %s: %s", description, exc)
             return
 
@@ -596,15 +567,6 @@ class ErrorEscalator:
             self._crash_dump_port.export_snapshot(f"error-escalation-{level.value}", context)
         except Exception as exc:
             # 同步导出失败不阻断 report 主流程（spec §5.5.1 规则 5）
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None and not self._report_in_progress:
-                self._report_in_progress = True
-                try:
-                    port.report(ErrorLevel.WARNING, "ERROR_CRASH_DUMP_FAILED: 崩溃快照导出失败", exception=exc)
-                finally:
-                    self._report_in_progress = False
             logger.warning("ERROR_CRASH_DUMP_FAILED: %s", exc)
 
     def _emit_event(
@@ -635,15 +597,6 @@ class ErrorEscalator:
         try:
             self._event_bus_port.emit_sync("error.escalation", event.__dict__)
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None and not self._report_in_progress:
-                self._report_in_progress = True
-                try:
-                    port.report(ErrorLevel.WARNING, "ERROR_NOTIFY_FAILED: 事件总线通知发送失败", exception=exc)
-                finally:
-                    self._report_in_progress = False
             logger.warning("ERROR_NOTIFY_FAILED: %s", exc)
 
     # ── 工具 ────────────────────────────────────────────────
