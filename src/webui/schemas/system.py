@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # 与 routers/system.py L148-149 的别名保持一致（本文件不得反向 import routers）
 CacheImageTarget = Literal["images", "emoji"]
@@ -10,11 +10,15 @@ DatabaseCleanupMode = Literal["all", "older_than_days"]
 class RestartResponse(BaseModel):
     """重启响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
 
 class StatusResponse(BaseModel):
     """状态响应"""
+
+    model_config = ConfigDict(extra='forbid')
 
     running: bool
     uptime: float
@@ -23,6 +27,8 @@ class StatusResponse(BaseModel):
 
 class CacheDirectoryStats(BaseModel):
     """本地缓存目录统计。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     key: str
     label: str
@@ -35,12 +41,16 @@ class CacheDirectoryStats(BaseModel):
 class DatabaseFileStats(BaseModel):
     """数据库文件统计。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     path: str
     exists: bool
     size: int
 
 class DatabaseTableStats(BaseModel):
     """数据库表统计。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     name: str
     rows: int
@@ -55,6 +65,8 @@ class DatabaseTableStats(BaseModel):
 class DatabaseStorageStats(BaseModel):
     """数据库存储统计。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     files: list[DatabaseFileStats]
     tables: list[DatabaseTableStats]
     total_size: int
@@ -66,11 +78,15 @@ class DatabaseStorageStats(BaseModel):
 class LocalCacheStatsResponse(BaseModel):
     """本地缓存统计响应。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     directories: list[CacheDirectoryStats]
     database: DatabaseStorageStats
 
 class LocalCacheImageItem(BaseModel):
     """本地缓存图片文件条目。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     relative_path: str
     file_name: str
@@ -88,12 +104,16 @@ class LocalCacheImageItem(BaseModel):
 class LocalCacheImageDateGroup(BaseModel):
     """本地缓存图片日期分组。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     date: str
     file_count: int
     total_size: int
 
 class LocalCacheImageListResponse(BaseModel):
     """本地缓存图片列表响应。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     success: bool
     target: CacheImageTarget
@@ -107,6 +127,8 @@ class LocalCacheImageListResponse(BaseModel):
 class LocalCacheLogDirectoryItem(BaseModel):
     """本地日志目录条目。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     relative_path: str
     name: str
     full_path: str
@@ -119,12 +141,16 @@ class LocalCacheLogDirectoryItem(BaseModel):
 class LocalCacheLogDirectoryListResponse(BaseModel):
     """本地日志目录列表响应。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     total: int
     data: list[LocalCacheLogDirectoryItem]
 
 class LocalCacheDataEntry(BaseModel):
     """data 目录中的文件或文件夹条目。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     relative_path: str
     name: str
@@ -139,6 +165,8 @@ class LocalCacheDataEntry(BaseModel):
 class LocalCacheDataEntriesResponse(BaseModel):
     """data 目录浏览响应。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     root_path: str
     relative_path: str
@@ -152,6 +180,8 @@ class LocalCacheDataEntriesResponse(BaseModel):
 class LocalCacheCleanupRequest(BaseModel):
     """本地缓存清理请求。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     target: Literal["images", "emoji", "log_files", "database_logs"]
     tables: list[str] = Field(default_factory=list)
     database_mode: DatabaseCleanupMode = "all"
@@ -160,6 +190,8 @@ class LocalCacheCleanupRequest(BaseModel):
 
 class LocalCacheCleanupResponse(BaseModel):
     """本地缓存清理响应。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     success: bool
     message: str
@@ -175,6 +207,8 @@ class LocalCacheCleanupResponse(BaseModel):
 class LocalCacheDatabaseVacuumResponse(BaseModel):
     """数据库 VACUUM 维护响应。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
     database_size_before: int
@@ -187,11 +221,15 @@ class LocalCacheDatabaseVacuumResponse(BaseModel):
 class LocalCacheImageDeleteRequest(BaseModel):
     """本地缓存单张图片删除请求。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     target: CacheImageTarget
     relative_path: str
 
 class LocalCacheImageBulkDeleteRequest(BaseModel):
     """本地缓存图片批量删除请求。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     target: CacheImageTarget
     mode: Literal["date_range", "older_than_recent_days"]
@@ -202,16 +240,22 @@ class LocalCacheImageBulkDeleteRequest(BaseModel):
 class LocalCacheLogDirectoryDeleteRequest(BaseModel):
     """本地日志目录清理请求。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     relative_path: str
 
 class LocalCacheDataEntryDeleteRequest(BaseModel):
     """data 目录条目删除请求。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     relative_path: str
 
 
 class SystemResourcesResponse(BaseModel):
     """系统资源使用情况。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     cpu_percent: float = Field(0.0, description="CPU 使用率百分比")
     memory_percent: float = Field(0.0, description="内存使用率百分比")
@@ -227,6 +271,8 @@ class SystemResourcesResponse(BaseModel):
 class TransitionRecordResponse(BaseModel):
     """迁移历史条目（ZG-6）。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     timestamp: float = Field(0.0, description="迁移时间戳")
     old_state: str = Field("", description="旧状态 snake_case")
     new_state: str = Field("", description="新状态 snake_case")
@@ -236,6 +282,8 @@ class TransitionRecordResponse(BaseModel):
 
 class SystemLifecycleResponse(BaseModel):
     """系统生命周期状态（ZG-6）。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     state: str = Field("", description="生命周期状态 booting/ready/degrading/shutting_down")
     health_level: str = Field("", description="健康等级 healthy/degraded/fault/recovering")

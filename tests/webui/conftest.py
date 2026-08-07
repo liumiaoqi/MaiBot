@@ -17,6 +17,10 @@ def _register_webui_ports():
         reset_app_config_port,
         set_app_config_port,
     )
+    from src.core.bot_config_port_registry import (
+        reset_bot_config_port,
+        set_bot_config_port,
+    )
 
     set_app_config_port(
         SimpleNamespace(
@@ -26,6 +30,16 @@ def _register_webui_ports():
             get_webui_trust_xff=lambda: False,
             get_webui_secure_cookie=lambda: False,
             get_webui_mode=lambda: "development",
+            get_a_memorix_full_config=lambda: {},
+        )
+    )
+    set_bot_config_port(
+        SimpleNamespace(
+            get_bot_platform=lambda: "aiocqhttp",
+            get_bot_primary_account=lambda: "",
+            get_bot_platforms=lambda: [],
+            get_bot_nickname=lambda: "MaiBot",
+            get_bot_qq_account=lambda platform: 0,
         )
     )
     set_agent_config_provider(
@@ -41,6 +55,7 @@ def _register_webui_ports():
     )
     yield
     reset_app_config_port()
+    reset_bot_config_port()
 
 
 @pytest.fixture

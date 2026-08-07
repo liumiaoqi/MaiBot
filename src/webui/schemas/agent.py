@@ -1,12 +1,16 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class EmotionBaselineResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     emotions: Dict[str, int] = Field(default_factory=dict, description="情绪基线值")
     labels: Dict[str, str] = Field(default_factory=dict, description="情绪中文标签")
 
 class InternalRelationshipResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     target_agent_id: str
     relationship_type: str
     attitude: str
@@ -15,6 +19,8 @@ class InternalRelationshipResponse(BaseModel):
     anti_mechanization: str = ""
 
 class LayeredPersonalityResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     existence_layer: str = ""
     expression_layer: str = ""
     experience_layer: str = ""
@@ -22,6 +28,8 @@ class LayeredPersonalityResponse(BaseModel):
     self_constraints: str = ""
 
 class AgentConfigResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str
     display_name: str
     layered_personality: Optional[LayeredPersonalityResponse] = None
@@ -38,35 +46,51 @@ class AgentConfigResponse(BaseModel):
     anti_mechanization_rules: List[str] = Field(default_factory=list)
 
 class AgentListResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     total: int
     data: List[AgentConfigResponse]
 
 class AgentDetailResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     data: AgentConfigResponse
 
 class SessionBindingResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     agent_id: Optional[str] = None
     display_name: Optional[str] = None
 
 class BindSessionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str = Field(..., description="要绑定的智能体ID")
 
 class BatchBindItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     session_id: str = Field(..., description="会话ID")
     agent_id: str = Field(..., description="要绑定的智能体ID")
 
 class BatchBindRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     bindings: List[BatchBindItem] = Field(..., description="批量绑定列表")
 
 class BatchBindError(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     session_id: str
     error: str
 
 class BatchBindResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     total: int
     succeeded: int
@@ -74,20 +98,28 @@ class BatchBindResponse(BaseModel):
     errors: List[BatchBindError] = Field(default_factory=list)
 
 class BindGroupRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     group_id: str = Field(..., description="群ID")
     agent_id: str = Field(..., description="要绑定的智能体ID")
 
 class GroupBindingResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     group_id: str
     agent_id: str
     display_name: Optional[str] = None
 
 class GroupBindingsListResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     bindings: Dict[str, str]
 
 class CohabitantInfo(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str
     display_name: str
     is_primary: bool = False
@@ -95,6 +127,8 @@ class CohabitantInfo(BaseModel):
     vitality_value: float = 0.0
 
 class SessionAgentInfo(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     session_id: str
     display_name: str
     agent_id: str
@@ -106,16 +140,22 @@ class SessionAgentInfo(BaseModel):
     cohabitants: List[CohabitantInfo] = Field(default_factory=list)
 
 class SessionsByAgentResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     agent_id: str
     sessions: List[SessionAgentInfo]
 
 class ReloadResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
     total: int
 
 class EmotionStateResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     agent_id: str
     emotions: Dict[str, float] = Field(default_factory=dict)
@@ -124,11 +164,15 @@ class EmotionStateResponse(BaseModel):
     emotion_labels: Dict[str, str] = Field(default_factory=dict)
 
 class RelationshipSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     agent_id: str
     relationships: List[Dict[str, Any]] = Field(default_factory=list)
 
 class SubAgentRecordResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     id: int
     subagent_id: str
     agent_id: str
@@ -148,11 +192,15 @@ class SubAgentRecordResponse(BaseModel):
     result_summary: str = ""
 
 class SubAgentListResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     total: int
     data: List[SubAgentRecordResponse]
 
 class SubAgentStatsResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     total_executions: int
     by_type: Dict[str, int] = Field(default_factory=dict)
@@ -162,27 +210,37 @@ class SubAgentStatsResponse(BaseModel):
     total_cache_hit_tokens: int = 0
 
 class EmotionBehaviorRuleResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     emotion_type: str
     intensity_threshold: int
     behavior_tendency: str
     reply_style_modifier: str
 
 class EmotionBehaviorRulesResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     agent_id: str
     rules: List[EmotionBehaviorRuleResponse] = Field(default_factory=list)
 
 class BatchEmotionItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     emotions: Dict[str, float] = Field(default_factory=dict)
     dominant_emotion: str = "calm"
     dominant_emotion_label: str = "平静"
     emotion_labels: Dict[str, str] = Field(default_factory=dict)
 
 class BatchEmotionResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     data: Dict[str, BatchEmotionItem] = Field(default_factory=dict)
 
 class RelationshipItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     user_id: str
     level: int
     level_name: str
@@ -190,20 +248,28 @@ class RelationshipItem(BaseModel):
     total_interactions: int
 
 class InternalRelationshipSummaryItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     target_agent_id: str
     relationship_type: str
     mention_tendency: float
 
 class BatchRelationshipResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     data: Dict[str, List[RelationshipItem]] = Field(default_factory=dict)
     internal_relationships_summary: Dict[str, List[InternalRelationshipSummaryItem]] = Field(default_factory=dict)
 
 class BatchSessionCountResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     data: Dict[str, int] = Field(default_factory=dict)
 
 class BatchLatestSubAgentItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     id: int
     subagent_id: str
     agent_id: str
@@ -213,10 +279,14 @@ class BatchLatestSubAgentItem(BaseModel):
     result_summary: str = ""
 
 class BatchLatestSubAgentResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     data: Dict[str, Optional[BatchLatestSubAgentItem]] = Field(default_factory=dict)
 
 class MigrationStateResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     plugin_id: str
     plugin_name: str
     current_phase: str
@@ -225,12 +295,16 @@ class MigrationStateResponse(BaseModel):
     notes: str = ""
 
 class MigrationAdvanceResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     plugin_id: str
     current_phase: str
     previous_phase: str
 
 class MonologueEventResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     monologue_id: str
     agent_id: str
     emotion_snapshot: str
@@ -240,6 +314,8 @@ class MonologueEventResponse(BaseModel):
     created_at: Optional[str] = None
 
 class AgentProfileResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     observer_agent_id: str
     target_agent_id: str
     summary: str
@@ -249,6 +325,8 @@ class AgentProfileResponse(BaseModel):
     refresh_status: str = "pending"
 
 class InteractionEventResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     event_id: str
     initiator_agent_id: str
     target_agent_id: str
@@ -264,17 +342,23 @@ class InteractionEventResponse(BaseModel):
     created_at: Optional[str] = None
 
 class ManualTriggerRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     initiator_id: str
     target_id: str
     interaction_type: str
     reason: str = ""
 
 class ManualTriggerResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     event_id: str = ""
     error: str = ""
 
 class InteractionConfigResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     enabled: bool = True
     cooldown_minutes: int = 30
     max_interactions_per_hour: int = 2
@@ -288,6 +372,8 @@ class InteractionConfigResponse(BaseModel):
     monologue_emotion_intensity_threshold: int = 40
 
 class ActiveAgentItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str
     is_primary: bool = False
     activation_reason: str = ""
@@ -295,11 +381,15 @@ class ActiveAgentItem(BaseModel):
     last_spoke_at: Optional[str] = None
 
 class ActiveAgentsResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     data: List[ActiveAgentItem] = Field(default_factory=list)
 
 class PrimaryAgentResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     agent_id: Optional[str] = None
@@ -307,28 +397,38 @@ class PrimaryAgentResponse(BaseModel):
     activated_at: Optional[str] = None
 
 class SwitchSpeakerRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     session_id: str = Field(..., description="会话ID")
     target_agent_id: str = Field(..., description="目标智能体ID")
     reason: str = "manual_switch"
 
 class SwitchSpeakerResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     from_agent_id: str = ""
     to_agent_id: str = ""
 
 class TriggerInterjectionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     session_id: str = Field(..., description="会话ID")
     agent_id: str = Field(..., description="插话智能体ID")
     reason: str = "manual_trigger"
 
 class TriggerInterjectionResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     agent_id: str = ""
     error: str = ""
 
 class BehaviorIntentItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     intent_id: str
     agent_id: str
     intent_type: str
@@ -339,11 +439,15 @@ class BehaviorIntentItem(BaseModel):
     created_at: Optional[str] = None
 
 class BehaviorIntentsResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     data: List[BehaviorIntentItem] = Field(default_factory=list)
 
 class InterjectionEventItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     event_id: str
     agent_id: str
     primary_agent_id: str
@@ -354,11 +458,15 @@ class InterjectionEventItem(BaseModel):
     created_at: Optional[str] = None
 
 class InterjectionEventsResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     data: List[InterjectionEventItem] = Field(default_factory=list)
 
 class SpeakerChangeItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     record_id: str
     from_agent_id: str
     to_agent_id: str
@@ -367,11 +475,15 @@ class SpeakerChangeItem(BaseModel):
     created_at: Optional[str] = None
 
 class SpeakerChangesResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     data: List[SpeakerChangeItem] = Field(default_factory=list)
 
 class AutonomyLogItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str = ""
     event_type: str = ""
     detail: str = ""
@@ -380,12 +492,16 @@ class AutonomyLogItem(BaseModel):
     log_level: str = "info"
 
 class AutonomyLogResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     items: List[AutonomyLogItem] = Field(default_factory=list)
     total: int = 0
     page: int = 1
     page_size: int = 50
 
 class VitalityAgentItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str
     display_name: str = ""
     state: str = "active"
@@ -393,6 +509,8 @@ class VitalityAgentItem(BaseModel):
     last_stimulus_at: Optional[str] = None
 
 class SessionVitalityResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     active_agents: List[VitalityAgentItem] = Field(default_factory=list)
@@ -400,6 +518,8 @@ class SessionVitalityResponse(BaseModel):
     dormant_agents: List[VitalityAgentItem] = Field(default_factory=list)
 
 class CohabitantEntryItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str
     display_name: str
     state: str
@@ -407,6 +527,8 @@ class CohabitantEntryItem(BaseModel):
     emotion_tendency: str = ""
 
 class StateAwarenessResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     session_id: str
     cohabitant_entries: List[CohabitantEntryItem] = Field(default_factory=list)
