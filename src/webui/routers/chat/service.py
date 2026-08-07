@@ -105,6 +105,11 @@ class ChatHistoryManager:
             if raw_message is not None and getattr(raw_message, "components", None):
                 segments = serialize_message_sequence(raw_message)
         except Exception as exc:  # 仅记录警告，退化为纯文本
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "序列化历史消息段失败", exception=exc)
             logger.debug(f"序列化历史消息段失败，退化为纯文本: {exc}")
             segments = []
 
@@ -171,6 +176,11 @@ class ChatHistoryManager:
 
                     target_msg = get_message_by_id(str(target_message_id), session_id or None)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "按 ID 回查 reply 目标消息失败", exception=exc)
                     logger.warning(f"按 ID 回查 reply 目标消息失败: {exc}")
                     target_msg = None
             if target_msg is None:
@@ -256,6 +266,11 @@ class ChatHistoryManager:
             )
             return result
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "从数据库加载聊天记录失败", exception=exc)
             logger.error(f"从数据库加载聊天记录失败: {exc}")
             return []
 
@@ -286,6 +301,11 @@ class ChatHistoryManager:
             )
             return deleted
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "清空聊天记录失败", exception=exc)
             logger.error(f"清空聊天记录失败: {exc}")
             return 0
 
@@ -497,6 +517,11 @@ class ChatConnectionManager:
         try:
             await session_connection.sender(message)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"发送聊天消息失败: session={session_id}", exception=exc)
             logger.error(f"发送聊天消息失败: session={session_id}, error={exc}")
 
     async def broadcast(self, message: Dict[str, Any]) -> None:
@@ -707,6 +732,11 @@ def resolve_initial_virtual_identity(
         )
         return virtual_config
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "通过参数配置虚拟身份失败", exception=exc)
         logger.warning(f"通过参数配置虚拟身份失败: {exc}")
         return None
 
@@ -731,7 +761,12 @@ def _resolve_agent_id_for_session(
             cs = db.exec(statement).first()
             if cs and cs.agent_id:
                 return cs.agent_id
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析会话 agent_id 失败", exception=exc)
         logger.warning("操作异常 in service.py", exc_info=True)
     return None
 
@@ -1254,6 +1289,11 @@ async def handle_chat_message(
         )
         await get_message_ingestion_port().message_process(message_data)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "处理消息时出错", exception=exc)
         logger.error(f"处理消息时出错: {exc}")
         await send_chat_error(session_id, f"处理消息时出错: {str(exc)}")
     finally:
@@ -1377,6 +1417,11 @@ async def enable_virtual_identity(
         )
         return current_virtual_config
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "设置虚拟身份失败", exception=exc)
         logger.error(f"设置虚拟身份失败: {exc}")
         await send_chat_error(session_id, f"设置虚拟身份失败: {str(exc)}")
         return None

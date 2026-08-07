@@ -40,7 +40,12 @@ def _to_builtin_data(obj: Any) -> Any:
     if hasattr(obj, "unwrap"):
         try:
             obj = obj.unwrap()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "插件配置对象 unwrap 失败", exception=exc)
             logger.warning("操作异常 in config_routes.py", exc_info=True)
 
     if isinstance(obj, dict):
@@ -373,6 +378,11 @@ async def get_plugin_config_bundle(plugin_id: str, maibot_session: Optional[str]
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取插件配置初始化数据失败", exception=e)
         logger.error(f"获取插件配置初始化数据失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -416,6 +426,11 @@ async def get_plugin_config_schema(plugin_id: str, maibot_session: Optional[str]
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取插件配置 Schema 失败", exception=e)
         logger.error(f"获取插件配置 Schema 失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -449,6 +464,11 @@ async def get_plugin_config_raw(plugin_id: str, maibot_session: Optional[str] = 
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取插件原始配置失败", exception=e)
         logger.error(f"获取插件原始配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -482,6 +502,12 @@ async def update_plugin_config_raw(
         try:
             tomlkit.loads(request.config)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "插件原始配置 TOML 格式错误", exception=e)
+            logger.warning(f"插件原始配置 TOML 格式错误: {e}")
             raise HTTPException(status_code=400, detail=f"TOML 格式错误: {str(e)}") from e
 
         backup_path = backup_file(config_path, "backup")
@@ -497,6 +523,11 @@ async def update_plugin_config_raw(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "更新插件原始配置失败", exception=e)
         logger.error(f"更新插件原始配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -543,6 +574,11 @@ async def get_plugin_config(plugin_id: str, maibot_session: Optional[str] = Cook
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取插件配置失败", exception=e)
         logger.error(f"获取插件配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -613,6 +649,11 @@ async def update_plugin_config(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "更新插件配置失败", exception=e)
         logger.error(f"更新插件配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -647,6 +688,11 @@ async def reset_plugin_config(plugin_id: str, maibot_session: Optional[str] = Co
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "重置插件配置失败", exception=e)
         logger.error(f"重置插件配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -711,5 +757,10 @@ async def toggle_plugin(plugin_id: str, maibot_session: Optional[str] = Cookie(N
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "切换插件状态失败", exception=e)
         logger.error(f"切换插件状态失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e

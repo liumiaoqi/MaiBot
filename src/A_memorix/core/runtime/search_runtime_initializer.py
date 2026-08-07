@@ -156,6 +156,11 @@ def build_search_runtime(
     try:
         sparse_cfg = SparseBM25Config(**sparse_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"[{owner}] sparse 配置非法", exception=e)
         logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] sparse 配置非法，回退默认: {e}")
         sparse_cfg = SparseBM25Config()
@@ -163,6 +168,11 @@ def build_search_runtime(
     try:
         fusion_cfg = FusionConfig(**fusion_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"[{owner}] fusion 配置非法", exception=e)
         logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] fusion 配置非法，回退默认: {e}")
         fusion_cfg = FusionConfig()
@@ -170,6 +180,11 @@ def build_search_runtime(
     try:
         relation_intent_cfg = RelationIntentConfig(**relation_intent_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"[{owner}] relation_intent 配置非法", exception=e)
         logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] relation_intent 配置非法，回退默认: {e}")
         relation_intent_cfg = RelationIntentConfig()
@@ -177,6 +192,11 @@ def build_search_runtime(
     try:
         graph_recall_cfg = GraphRelationRecallConfig(**graph_recall_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"[{owner}] graph_recall 配置非法", exception=e)
         logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] graph_recall 配置非法，回退默认: {e}")
         graph_recall_cfg = GraphRelationRecallConfig()
@@ -184,6 +204,11 @@ def build_search_runtime(
     try:
         posterior_graph_cfg = PosteriorGraphConfig(**posterior_graph_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"[{owner}] posterior_graph 配置非法", exception=e)
         logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] posterior_graph 配置非法，回退默认: {e}")
         posterior_graph_cfg = PosteriorGraphConfig()
@@ -191,6 +216,11 @@ def build_search_runtime(
     try:
         vector_pools_cfg = VectorPoolsConfig(**vector_pools_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"[{owner}] vector_pools 配置非法", exception=e)
         logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] vector_pools 配置非法，回退默认: {e}")
         vector_pools_cfg = VectorPoolsConfig()
@@ -250,6 +280,11 @@ def build_search_runtime(
         runtime.error = ""
         log.info(f"{prefix_text}[{owner}] 检索运行时就绪")
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, f"[{owner}] 检索运行时初始化失败", exception=e)
         logger.warning("操作失败", exc_info=True)
         runtime.retriever = None
         runtime.threshold_filter = None

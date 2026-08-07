@@ -705,6 +705,11 @@ async def get_jargon_list(
         )
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取黑话列表失败", exception=e)
         logger.error(f"获取黑话列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取黑话列表失败: {str(e)}") from e
 
@@ -768,6 +773,11 @@ async def get_chat_list(include_empty: bool = Query(False, description="是否�
         return ChatListResponse(success=True, data=result)
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取聊天列表失败", exception=e)
         logger.error(f"获取聊天列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取聊天列表失败: {str(e)}") from e
 
@@ -827,6 +837,11 @@ async def get_jargon_stats() -> JargonStatsResponse:
         )
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取黑话统计失败", exception=e)
         logger.error(f"获取黑话统计失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取黑话统计失败: {str(e)}") from e
 
@@ -855,6 +870,11 @@ async def get_jargon_detail(jargon_id: int) -> JargonDetailResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取黑话详情失败", exception=e)
         logger.error(f"获取黑话详情失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取黑话详情失败: {str(e)}") from e
 
@@ -922,6 +942,11 @@ async def create_jargon(request: JargonCreateRequest) -> JargonCreateResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "创建黑话失败", exception=e)
         logger.error(f"创建黑话失败: {e}")
         raise HTTPException(status_code=500, detail=f"创建黑话失败: {str(e)}") from e
 
@@ -974,6 +999,11 @@ async def update_jargon(jargon_id: int, request: JargonUpdateRequest) -> JargonU
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "更新黑话失败", exception=e)
         logger.error(f"更新黑话失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新黑话失败: {str(e)}") from e
 
@@ -1004,6 +1034,11 @@ async def delete_jargon(jargon_id: int) -> JargonDeleteResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "删除黑话失败", exception=e)
         logger.error(f"删除黑话失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除黑话失败: {str(e)}") from e
 
@@ -1037,6 +1072,11 @@ async def batch_delete_jargons(request: BatchDeleteRequest) -> JargonDeleteRespo
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "批量删除黑话失败", exception=e)
         logger.error(f"批量删除黑话失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量删除黑话失败: {str(e)}") from e
 
@@ -1074,5 +1114,10 @@ async def batch_set_jargon_status(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "批量更新黑话状态失败", exception=e)
         logger.error(f"批量更新黑话状态失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量更新黑话状态失败: {str(e)}") from e

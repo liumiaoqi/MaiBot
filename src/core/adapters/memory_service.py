@@ -80,6 +80,12 @@ class AMemorixMemoryServicePort:
             effective_agent = agent_id or person_id
             return await self._get_memory_service().migration_search(query, agent_id=effective_agent)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"记忆搜索失败: query={query}", exception=exc)
+            logger.warning(f"记忆搜索失败: query={query}, error={exc}")
             raise _classify_memory_error(f"搜索失败: query={query}", original=exc) from exc
 
     async def get_person_profile(self, person_id: str, *, limit: int = 4) -> dict[str, Any]:
@@ -89,6 +95,12 @@ class AMemorixMemoryServicePort:
                 return result.to_dict()
             return {}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"画像查询失败: person_id={person_id}", exception=exc)
+            logger.warning(f"画像查询失败: person_id={person_id}, error={exc}")
             raise PermanentMemoryError(
                 f"画像查询失败: person_id={person_id}", original=exc,
             ) from exc
@@ -97,6 +109,12 @@ class AMemorixMemoryServicePort:
         try:
             return await self._get_memory_service().profile_admin(action=action, **kwargs)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"画像管理失败: action={action}", exception=exc)
+            logger.warning(f"画像管理失败: action={action}, error={exc}")
             raise _classify_memory_error(
                 f"画像管理失败: action={action}", original=exc,
             ) from exc
@@ -115,6 +133,12 @@ class AMemorixMemoryServicePort:
                 action=action, target=target, hours=hours, reason=reason, limit=limit,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"记忆维护失败: action={action} target={target}", exception=exc)
+            logger.warning(f"记忆维护失败: action={action} target={target}, error={exc}")
             raise _classify_memory_error(
                 f"记忆维护失败: action={action} target={target}", original=exc,
             ) from exc
@@ -125,6 +149,12 @@ class AMemorixMemoryServicePort:
                 action=action, timeout_ms=timeout_ms, **kwargs,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"删除管理失败: action={action}", exception=exc)
+            logger.warning(f"删除管理失败: action={action}, error={exc}")
             raise _classify_memory_error(
                 f"删除管理失败: action={action}", original=exc,
             ) from exc
@@ -140,6 +170,12 @@ class AMemorixMemoryServicePort:
         try:
             await self._get_memory_service().register_agent(agent_id, params)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"设置记忆性格失败: agent={agent_id}", exception=exc)
+            logger.warning(f"设置记忆性格失败: agent={agent_id}, error={exc}")
             raise PermanentMemoryError(
                 f"设置记忆性格失败: agent={agent_id}", original=exc,
             ) from exc
@@ -155,6 +191,12 @@ class AMemorixMemoryServicePort:
                 return [RecallItem(**item) if isinstance(item, dict) else item for item in raw]
             return []
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"概念召回失败: agent={agent_id}", exception=exc)
+            logger.warning(f"概念召回失败: agent={agent_id}, error={exc}")
             raise _classify_memory_error(f"概念召回失败: agent={agent_id}", original=exc) from exc
 
     async def recall_with_intuition(
@@ -181,6 +223,12 @@ class AMemorixMemoryServicePort:
                 )
             return RecallResult()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"直觉召回失败: agent={agent_id}", exception=exc)
+            logger.warning(f"直觉召回失败: agent={agent_id}, error={exc}")
             raise _classify_memory_error(f"直觉召回失败: agent={agent_id}", original=exc) from exc
 
     async def derive_profile(self, subject: str, *, observer: str = "") -> ProfileView:
@@ -190,6 +238,12 @@ class AMemorixMemoryServicePort:
                 return ProfileView(**raw)
             return ProfileView(subject=subject, observer=observer)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"画像视图失败: subject={subject}", exception=exc)
+            logger.warning(f"画像视图失败: subject={subject}, error={exc}")
             raise _classify_memory_error(f"画像视图失败: subject={subject}", original=exc) from exc
 
     async def reflect(self, subject: str, *, agent_id: str = "") -> ReflectResult:
@@ -199,12 +253,24 @@ class AMemorixMemoryServicePort:
                 return ReflectResult(**raw)
             return ReflectResult(subject=subject, agent_id=agent_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"反思失败: subject={subject}", exception=exc)
+            logger.warning(f"反思失败: subject={subject}, error={exc}")
             raise _classify_memory_error(f"反思失败: subject={subject}", original=exc) from exc
 
     async def weave_narrative(self, *, agent_id: str = "") -> dict[str, Any]:
         try:
             return await self._get_memory_service().weave_narrative(agent_id=agent_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"叙事编织失败: agent={agent_id}", exception=exc)
+            logger.warning(f"叙事编织失败: agent={agent_id}, error={exc}")
             raise _classify_memory_error(f"叙事编织失败: agent={agent_id}", original=exc) from exc
 
     async def heartbeat_maintenance(self, *, agent_id: str = "", elapsed_hours: float = 1.0) -> dict[str, Any]:
@@ -213,6 +279,12 @@ class AMemorixMemoryServicePort:
                 agent_id=agent_id, elapsed_hours=elapsed_hours,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"心跳维护失败: agent={agent_id}", exception=exc)
+            logger.warning(f"心跳维护失败: agent={agent_id}, error={exc}")
             raise _classify_memory_error(f"心跳维护失败: agent={agent_id}", original=exc) from exc
 
 

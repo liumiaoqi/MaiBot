@@ -50,7 +50,13 @@ class PlatformIOManager:
                 ttl_seconds=aa_config.outbound_dedup_window_seconds,
                 max_entries=aa_config.outbound_dedup_max_entries,
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "初始化出站去重窗口失败", exception=exc)
+            logger.warning(f"初始化出站去重窗口失败: {exc}")
             self._outbound_dedup = OutboundDedupWindow()
         self._inbound_dispatcher: Optional[InboundDispatcher] = None
         self._inbound_dispatch_tasks: Set[asyncio.Task[None]] = set()
@@ -80,12 +86,22 @@ class PlatformIOManager:
             for driver in self._driver_registry.list():
                 await driver.start()
                 started_drivers.append(driver)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "启动 Platform IO 驱动失败", exception=exc)
             logger.warning("操作异常 in manager", exc_info=True)
             for driver in reversed(started_drivers):
                 try:
                     await driver.stop()
-                except Exception:
+                except Exception as exc2:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, f"回滚驱动停止失败: driver_id={driver.driver_id}", exception=exc2)
                     logger.exception(f"回滚驱动停止失败: driver_id={driver.driver_id}")
             raise
 
@@ -118,6 +134,11 @@ class PlatformIOManager:
             try:
                 await driver.stop()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"驱动停止失败: driver_id={driver.driver_id}", exception=exc)
                 stop_errors.append(f"{driver.driver_id}: {exc}")
                 logger.exception(f"驱动停止失败: driver_id={driver.driver_id}")
 
@@ -149,7 +170,12 @@ class PlatformIOManager:
 
         try:
             await driver.start()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"启动驱动失败: driver_id={driver.driver_id}", exception=exc)
             logger.warning("操作异常 in manager", exc_info=True)
             self._unregister_driver_internal(driver.driver_id)
             raise
@@ -515,7 +541,12 @@ class PlatformIOManager:
             return
         try:
             task.result()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "Platform IO 入站消息后台分发失败", exception=exc)
             logger.exception("Platform IO 入站消息后台分发失败")
 
     async def send_message(
@@ -596,6 +627,11 @@ class PlatformIOManager:
             try:
                 receipt = await driver.send_message(message=message, route_key=route_key, metadata=metadata)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"驱动发送消息失败: driver_id={driver.driver_id}", exception=exc)
                 logger.warning("操作异常 in manager", exc_info=True)
                 receipt = DeliveryReceipt(
                     internal_message_id=message.message_id,

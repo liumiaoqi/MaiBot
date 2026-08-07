@@ -155,6 +155,11 @@ async def test_model_capability(request: ModelTestRequest):
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, f"模型测试失败: model={model_name}", exception=e)
         logger.error(f"模型测试失败: model={model_name}, error={e}", exc_info=True)
         latency_ms = round((time.time() - start_time) * 1000, 2)
         return _build_model_test_response(
@@ -302,6 +307,11 @@ async def _fetch_models_from_provider(
                 status_code=502, detail=f"上游服务请求失败 ({e.response.status_code}): {e.response.text[:200]}"
             ) from e
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取模型列表失败", exception=e)
         logger.error(f"获取模型列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取模型列表失败: {str(e)}") from e
 
@@ -336,6 +346,11 @@ def _get_provider_config(provider_name: str) -> Optional[Dict]:
         provider = next((provider for provider in providers if provider.get("name") == provider_name), None)
         return dict(provider) if provider is not None else None
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "读取提供商配置失败", exception=e)
         logger.error(f"读取提供商配置失败: {e}")
         return None
 
@@ -362,6 +377,11 @@ def _get_model_config(model_name: str) -> Optional[Dict]:
         model = next((model for model in models if model.get("name") == model_name), None)
         return dict(model) if model is not None else None
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "读取模型配置失败", exception=e)
         logger.error(f"读取模型配置失败: {e}")
         return None
 
@@ -383,6 +403,11 @@ def _get_embedding_task_model_names() -> Set[str]:
         task_config = config_data.get("model_task_config", {}).get("embedding", {})
         return {str(name) for name in task_config.get("model_list", [])}
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "读取嵌入任务配置失败", exception=e)
         logger.error(f"读取嵌入任务配置失败: {e}")
         return set()
 
@@ -414,6 +439,11 @@ async def _test_embedding_model(model_name: str) -> ModelTestResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, f"嵌入模型测试失败: model={model_name}", exception=e)
         logger.error(f"嵌入模型测试失败: model={model_name}, error={e}", exc_info=True)
         latency_ms = round((time.time() - start_time) * 1000, 2)
         return ModelTestResponse(
@@ -675,6 +705,12 @@ async def test_provider_connection(
         result["error"] = f"请求错误：{str(e)}"
         return result
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "模型网络连通性检测未知错误", exception=e)
+        logger.warning(f"模型网络连通性检测未知错误: {e}")
         result["error"] = f"未知错误：{str(e)}"
         return result
 
@@ -707,6 +743,11 @@ async def test_provider_connection(
                     result["api_key_valid"] = None
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "API Key 验证失败", exception=e)
             # API Key 验证失败不影响网络连通性结果
             logger.warning(f"API Key 验证失败: {e}")
             result["api_key_valid"] = None

@@ -278,6 +278,11 @@ class OnlineTimeRecordTask(AsyncTask):
                         session.flush()
                         self.record_id = new_record.id
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "在线时间记录失败", exception=e)
             logger.error(f"在线时间记录失败，错误信息：{e}")
 
 
@@ -499,6 +504,11 @@ class StatisticOutputTask(AsyncTask):
                 try:
                     await refresh_dashboard_statistics_cache()
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "刷新 WebUI 统计缓存失败", exception=e)
                     logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                 logger.info("统计数据收集完成")
 
@@ -511,6 +521,11 @@ class StatisticOutputTask(AsyncTask):
 
             logger.info("统计数据输出完成")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "输出统计数据过程中发生异常", exception=e)
             logger.exception(f"输出统计数据过程中发生异常，错误信息：{e}")
 
     async def run_async_background(self):
@@ -534,6 +549,11 @@ class StatisticOutputTask(AsyncTask):
                     try:
                         await refresh_dashboard_statistics_cache()
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "刷新 WebUI 统计缓存失败", exception=e)
                         logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                     logger.info("统计数据收集完成")
 
@@ -548,6 +568,11 @@ class StatisticOutputTask(AsyncTask):
 
                 logger.info("统计数据后台输出完成")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "后台统计数据输出过程中发生异常", exception=e)
                 logger.exception(f"后台统计数据输出过程中发生异常：{e}")
 
         # 创建后台任务，立即返回
@@ -918,6 +943,11 @@ class StatisticOutputTask(AsyncTask):
                 reply_count = count_tool_records_since(period_start_dt, "reply")
                 StatisticOutputTask._add_int_stat(stats[period_key], TOTAL_REPLY_CNT, reply_count)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "统计 reply 工具次数失败", exception=e)
             logger.warning(f"统计 reply 工具次数失败，将回复数视为 0，错误信息：{e}")
 
         return stats
@@ -957,6 +987,11 @@ class StatisticOutputTask(AsyncTask):
                 ]  # 删除"所有时间"的统计时段
                 self.stat_period.append(("all_time", now - last_stat_timestamp, "自部署以来的"))
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "加载上次完整统计数据失败", exception=e)
             logger.warning(f"加载上次完整统计数据失败，进行全量统计，错误信息：{e}")
 
         stat_start_timestamp = [(period[0], now - period[1]) for period in self.stat_period]
@@ -1333,6 +1368,11 @@ class StatisticOutputTask(AsyncTask):
             else:
                 return chat_id
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"获取聊天显示名称失败: chat_id={chat_id}", exception=e)
             logger.warning(f"获取聊天显示名称失败: {e}")
             return chat_id
 
@@ -2909,6 +2949,11 @@ class AsyncStatisticOutputTask(AsyncTask):
                     try:
                         await refresh_dashboard_statistics_cache()
                     except Exception as e:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "刷新 WebUI 统计缓存失败", exception=e)
                         logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                     logger.info("统计数据收集完成")
 
@@ -2923,6 +2968,11 @@ class AsyncStatisticOutputTask(AsyncTask):
 
                 logger.info("统计数据后台输出完成")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "后台统计数据输出过程中发生异常", exception=e)
                 logger.exception(f"后台统计数据输出过程中发生异常：{e}")
 
         # 创建后台任务，立即返回

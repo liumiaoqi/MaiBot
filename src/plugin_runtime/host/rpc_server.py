@@ -236,6 +236,12 @@ class RPCServer:
             self._pending_request_metadata.pop(request_id, None)
             raise RPCError(ErrorCode.E_TIMEOUT, f"请求 {method} 超时 ({timeout_ms}ms)") from None
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"发送 RPC 请求失败: method={method}", exception=e)
+            logger.warning(f"发送 RPC 请求失败: method={method}, error={e}")
             self._pending_requests.pop(request_id, None)
             self._pending_request_metadata.pop(request_id, None)
             if isinstance(e, RPCError):
@@ -266,6 +272,12 @@ class RPCServer:
                     send_future.set_exception(RPCError(ErrorCode.E_TIMEOUT, "服务器关闭"))
                 raise
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "RPC 发送帧失败", exception=e)
+                logger.warning(f"RPC 发送帧失败: {e}")
                 send_error = RPCError.from_exception(e, {ConnectionError: ErrorCode.E_PLUGIN_CRASHED})
                 if not send_future.done():
                     send_future.set_exception(send_error)
@@ -286,6 +298,11 @@ class RPCServer:
                 logger.info("Runner staged 握手成功")
                 self._connection = conn
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "RPC 握手失败", exception=e)
             logger.error(f"握手失败: {e}")
             await conn.close()
             return
@@ -294,6 +311,11 @@ class RPCServer:
         try:
             await self._recv_loop(conn)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "RPC 连接异常断开", exception=e)
             logger.error(f"连接异常断开: {e}")
         finally:
             should_fail_pending_requests = False
@@ -381,12 +403,22 @@ class RPCServer:
                 logger.info("Runner 连接已断开")
                 break
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "RPC 接收帧失败", exception=e)
                 logger.error(f"接收帧失败: {e}")
                 break
 
             try:
                 envelope = self._codec.decode_envelope(data)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "RPC 解码消息失败", exception=e)
                 logger.error(f"解码消息失败: {e}")
                 continue
 
@@ -438,6 +470,11 @@ class RPCServer:
             error_resp = envelope.make_error_response(e.code.value, e.message, e.details)
             await conn.send_frame(self._codec.encode_envelope(error_resp))
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, f"处理 RPC 请求异常: method={envelope.method}", exception=e)
             logger.error(f"处理请求 {envelope.method} 异常: {e}", exc_info=True)
             error_resp = envelope.make_error_response(ErrorCode.E_UNKNOWN.value, str(e))
             await conn.send_frame(self._codec.encode_envelope(error_resp))
@@ -450,6 +487,11 @@ class RPCServer:
                 if result.error:
                     logger.warning(f"事件 {envelope.method} handler 返回错误: {result.error.get('message', '')}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, f"处理 RPC 事件异常: method={envelope.method}", exception=e)
                 logger.error(f"处理事件 {envelope.method} 异常: {e}", exc_info=True)
 
     def _fail_pending_requests(self, error_code: ErrorCode, message: str) -> int:

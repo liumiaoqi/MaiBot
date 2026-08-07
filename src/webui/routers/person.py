@@ -214,6 +214,11 @@ async def get_person_list(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取人物列表失败", exception=e)
         logger.exception(f"获取人物列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取人物列表失败: {str(e)}") from e
 
@@ -243,6 +248,11 @@ async def get_person_stats() -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取统计数据失败", exception=e)
         logger.exception(f"获取统计数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
 
@@ -272,6 +282,11 @@ async def get_person_detail(person_id: str) -> PersonDetailResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, f"获取人物详情失败: person_id={person_id}", exception=e)
         logger.exception(f"获取人物详情失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取人物详情失败: {str(e)}") from e
 
@@ -326,6 +341,11 @@ async def update_person(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, f"更新人物信息失败: person_id={person_id}", exception=e)
         logger.exception(f"更新人物信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新人物信息失败: {str(e)}") from e
 
@@ -360,6 +380,11 @@ async def delete_person(person_id: str) -> PersonDeleteResponse:
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, f"删除人物信息失败: person_id={person_id}", exception=e)
         logger.exception(f"删除人物信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除人物信息失败: {str(e)}") from e
 
@@ -399,6 +424,11 @@ async def batch_delete_persons(
                         failed_count += 1
                         failed_ids.append(person_id)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"删除人物失败: person_id={person_id}", exception=e)
                 logger.error(f"删除 {person_id} 失败: {e}")
                 failed_count += 1
                 failed_ids.append(person_id)
@@ -418,5 +448,10 @@ async def batch_delete_persons(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "批量删除人物信息失败", exception=e)
         logger.exception(f"批量删除人物信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}") from e

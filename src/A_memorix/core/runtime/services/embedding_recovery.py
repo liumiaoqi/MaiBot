@@ -78,6 +78,11 @@ class EmbeddingRecoveryService:
         try:
             setter(self._health.is_degraded)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "设置 retriever sparse-only 运行时状态失败", exception=exc)
             logger.warning(f"设置 retriever sparse-only 运行时状态失败: {exc}")
 
     async def refresh_runtime_self_check(self, *, sample_text: str = "A_Memorix runtime self check") -> Dict[str, Any]:
@@ -116,6 +121,11 @@ class EmbeddingRecoveryService:
             try:
                 value = int(report.get(key, 0) or 0)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "自检有效嵌入维度解析失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             if value > 0:
                 return value
@@ -193,6 +203,11 @@ class EmbeddingRecoveryService:
                 error=str(error or ""),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "登记 paragraph 向量回填任务失败", exception=exc)
             logger.warning(f"登记 paragraph 向量回填任务失败: {exc}")
 
     async def write_paragraph_vector_or_enqueue(
@@ -256,6 +271,11 @@ class EmbeddingRecoveryService:
                 "detail": "",
             }
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "写入 paragraph 向量失败", exception=exc)
             error_msg = str(exc)[:500]
             logger.warning(f"写入 paragraph 向量失败，登记回填: {error_msg}")
             self.set_embedding_degraded(active=True, reason=error_msg, checked_at=time.time())
@@ -367,10 +387,20 @@ class EmbeddingRecoveryService:
                 try:
                     await self.recover_embedding_once()
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "embedding 恢复探测失败", exception=exc)
                     logger.warning(f"embedding 恢复探测失败: {exc}")
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "embedding_probe loop 异常", exception=exc)
             logger.warning(f"embedding_probe loop 异常: {exc}")
 
     async def paragraph_vector_backfill_loop(self) -> None:
@@ -391,6 +421,11 @@ class EmbeddingRecoveryService:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "paragraph_vector_backfill loop 异常", exception=exc)
             logger.warning(f"paragraph_vector_backfill loop 异常: {exc}")
 
     def paragraph_vector_backfill_counts(self) -> Dict[str, int]:
@@ -400,5 +435,10 @@ class EmbeddingRecoveryService:
         try:
             return metadata_store.get_paragraph_vector_backfill_status_counts()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取 paragraph 回填状态失败", exception=exc)
             logger.warning(f"读取 paragraph 回填状态失败: {exc}")
             return {"pending": 0, "running": 0, "failed": 0, "done": 0}

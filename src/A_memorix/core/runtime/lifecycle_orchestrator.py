@@ -31,6 +31,11 @@ def _dual_vector_ready(data_dir: Path, *, expected_dimension: int) -> bool:
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取双池 ready manifest 失败", exception=exc)
         logger.warning(f"读取双池 ready manifest 失败: {exc}")
         return False
     if not isinstance(payload, dict) or payload.get("status") != "ready":
@@ -179,6 +184,11 @@ async def cancel_background_tasks(plugin: Any) -> None:
         except asyncio.CancelledError:
             pass
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"后台任务 {name} 退出异常", exception=e)
             logger.warning(f"后台任务 {name} 退出异常: {e}")
 
     plugin._scheduled_import_task = None
@@ -212,6 +222,11 @@ async def initialize_storage_async(plugin: Any) -> None:
         detected_dimension = await plugin.embedding_manager._detect_dimension()
         logger.info(f"嵌入维度: {detected_dimension}")
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "嵌入维度检测失败", exception=e)
         logger.warning(f"嵌入维度检测失败: {e}，使用默认值")
         detected_dimension = plugin.embedding_manager.default_dimension
 
@@ -291,6 +306,11 @@ async def initialize_storage_async(plugin: Any) -> None:
     try:
         sparse_cfg = SparseBM25Config(**sparse_cfg_raw)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "sparse 配置非法", exception=e)
         logger.warning(f"sparse 配置非法，回退默认配置: {e}")
         sparse_cfg = SparseBM25Config()
     plugin.sparse_index = SparseBM25Index(
@@ -308,6 +328,11 @@ async def initialize_storage_async(plugin: Any) -> None:
         try:
             warmup_summary = plugin.sparse_index.warmup()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "稀疏索引预热异常", exception=e)
             logger.warning(f"稀疏索引预热异常，后续检索将按需重试: {e}")
             warmup_summary = {"ok": False, "error": str(e)}
         if warmup_summary.get("ok"):
@@ -330,6 +355,11 @@ async def initialize_storage_async(plugin: Any) -> None:
             plugin.vector_store.load()
             logger.debug(f"向量数据已加载，共 {plugin.vector_store.num_vectors} 个向量")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "加载向量数据失败", exception=e)
             logger.warning(f"加载向量数据失败: {e}")
     if dual_vector_ready:
         for store_name in ("paragraph_vector_store", "graph_vector_store"):
@@ -340,6 +370,11 @@ async def initialize_storage_async(plugin: Any) -> None:
                 store.load()
                 logger.debug(f"{store_name} 数据已加载，共 {store.num_vectors} 个向量")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"加载 {store_name} 数据失败", exception=e)
                 logger.warning(f"加载 {store_name} 数据失败: {e}")
 
     try:
@@ -350,6 +385,11 @@ async def initialize_storage_async(plugin: Any) -> None:
             f"dimension={warmup_summary.get('dimension')}"
         )
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "向量索引预热异常", exception=e)
         logger.warning(f"向量索引预热异常，继续启用 sparse 降级路径: {e}")
     if dual_vector_ready:
         for store_name in ("paragraph_vector_store", "graph_vector_store"):
@@ -359,6 +399,11 @@ async def initialize_storage_async(plugin: Any) -> None:
             try:
                 store.warmup_index()
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"{store_name} 预热失败", exception=e)
                 logger.warning(f"{store_name} 预热失败，后续检索可能降级: {e}")
 
     if plugin.graph_store.has_data():
@@ -366,6 +411,11 @@ async def initialize_storage_async(plugin: Any) -> None:
             plugin.graph_store.load()
             logger.debug(f"图数据已加载，共 {plugin.graph_store.num_nodes} 个节点")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "加载图数据失败", exception=e)
             logger.warning(f"加载图数据失败: {e}")
 
     logger.info(f"知识库数据目录: {data_dir}")

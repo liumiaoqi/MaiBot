@@ -67,6 +67,12 @@ try:
         SCHEMA_VERSION,
     )
 except Exception as e:  # pragma: no cover
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.ERROR, "导入 storage 模块失败", exception=e)
+    logger.warning(f"导入 storage 模块失败: {e}")
     print(f"❌ failed to import storage modules: {e}")
     raise SystemExit(2) from e
 
@@ -132,6 +138,11 @@ def _sqlite_column_exists(conn: sqlite3.Connection, table: str, column: str) -> 
     try:
         rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "查询 sqlite 表列信息失败", exception=exc)
         logger.warning("操作异常: %s", exc)
     return any(str(row[1] or "") == str(column or "") for row in rows)
 
@@ -172,12 +183,22 @@ def _guess_vector_dimension(config_doc: Dict[str, Any], vectors_dir: Path) -> in
             if dim > 0:
                 return dim
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取向量元数据失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     try:
         dim_cfg = int(_get_nested(config_doc, ("embedding", "dimension"), 1024))
         if dim_cfg > 0:
             return dim_cfg
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析嵌入维度配置失败", exception=exc)
         logger.warning("操作异常: %s", exc)
     return 1024
 
@@ -379,6 +400,11 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                         )
                     )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "读取 graph metadata 失败", exception=e)
                 logger.warning("操作失败", exc_info=True)
                 checks.append(
                     CheckItem(
@@ -657,12 +683,22 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                 if not graph_store.has_edge_hash_map():
                     checks.append(CheckItem("CP-06", "error", "edge_hash_map is empty"))
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "metadata strict connect 失败", exception=e)
         logger.warning("操作失败", exc_info=True)
         checks.append(CheckItem("CP-08", "error", f"metadata strict connect failed: {e}"))
     finally:
         try:
             store.close()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "关闭 metadata store 失败", exception=exc)
             logger.warning("操作异常: %s", exc)
 
     has_error = any(c.level == "error" for c in checks)

@@ -148,10 +148,20 @@ def _message_timestamp(message: Any) -> Optional[float]:
             try:
                 return float(timestamp_func())
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "消息时间戳函数转换失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
         try:
             return float(value)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "消息时间戳转换失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     return None
 
@@ -160,6 +170,11 @@ def _paragraph_created_at(paragraph: Dict[str, Any]) -> float:
     try:
         return float(paragraph.get("created_at") or 0.0)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "段落创建时间转换失败", exception=exc)
         logger.warning("操作异常: %s", exc)
 class SummaryImporter:
     """总结并导入知识的工具类"""
@@ -250,6 +265,11 @@ class SummaryImporter:
                 embedding = embedding.reshape(1, -1)
             target_store.add(vectors=embedding, ids=[vector_id])
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "总结导入实体向量写入失败", exception=exc)
             if not self._allow_metadata_only_write():
                 raise
             logger.warning(f"总结导入实体向量写入失败，保留 metadata/graph: entity={text} error={exc}")
@@ -284,6 +304,11 @@ class SummaryImporter:
         try:
             return getattr(self._model_config_port.get_model_config(), "models_dict", {}) or {}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取当前模型字典失败", exception=exc)
             logger.warning(f"读取当前模型字典失败: {exc}")
             return {}
 
@@ -408,6 +433,11 @@ class SummaryImporter:
         try:
             return max(0, int(raw_value or 0))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "总结回顾数量配置解析失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     @staticmethod
     def _clean_review_summary(text: str) -> str:
@@ -451,6 +481,11 @@ class SummaryImporter:
         try:
             paragraphs = self.metadata_store.get_live_paragraphs_by_source(f"chat_summary:{stream_id}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"读取历史摘要回顾失败: stream_id={stream_id}", exception=exc)
             logger.warning(f"读取历史摘要回顾失败: stream_id={stream_id} error={exc}", exc_info=True)
             return ""
         if not paragraphs:
@@ -610,6 +645,11 @@ class SummaryImporter:
             )
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "总结导入过程中出错", exception=e)
             logger.error(f"总结导入过程中出错: {e}\n{traceback.format_exc()}")
             return SummaryImportResult(False, f"错误: {str(e)}")
 
@@ -651,6 +691,11 @@ class SummaryImporter:
                 return json.loads(json_match.group())
             return {}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析总结 JSON 失败", exception=e)
             logger.warning(f"解析总结 JSON 失败: {e}")
             return {}
 
@@ -691,6 +736,11 @@ class SummaryImporter:
                 embedding = await self.embedding_manager.encode(summary)
                 self.vector_store.add(vectors=embedding.reshape(1, -1), ids=[hash_value])
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "总结导入段落向量写入失败", exception=exc)
                 if not self._allow_metadata_only_write():
                     raise
                 logger.warning(f"总结导入段落向量写入失败，改为回填队列: {exc}")
@@ -731,6 +781,11 @@ class SummaryImporter:
                     try:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "关系向量状态写入失败", exception=exc)
                         logger.warning("操作异常: %s", exc)
 
         logger.info(f"总结导入完成: hash={hash_value[:8]}")

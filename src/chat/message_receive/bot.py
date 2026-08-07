@@ -199,7 +199,13 @@ class ChatBot:
             if adapter.is_booting():
                 logger.info(f"系统启动中（BOOTING，消息管道未就绪），拒绝入站消息: session={session_id}")
                 return True
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "查询系统生命周期状态失败，放行消息", exception=exc)
+            logger.warning(f"查询系统生命周期状态失败: {exc}")
             return False
         return False
 
@@ -260,6 +266,11 @@ class ChatBot:
             try:
                 mutated_message = deserialize_session_message(raw_message)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"Hook {hook_name} 返回消息反序列化失败", exception=exc)
                 logger.warning(f"Hook {hook_name} 返回的 message 无法反序列化，已忽略: {exc}")
         return hook_result, mutated_message
 
@@ -277,7 +288,13 @@ class ChatBot:
             if not get_app_config_port().get_control_message_global_enabled():
                 return
             port = get_control_message_port()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "获取控制消息端口失败", exception=exc)
+            logger.warning(f"获取控制消息端口失败: {exc}")
             return
         try:
             while True:
@@ -285,7 +302,13 @@ class ChatBot:
                 if message is None:
                     break
                 self._dispatch_control_message(session_id, message)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "消费控制消息失败", exception=exc)
+            logger.warning(f"消费控制消息失败: {exc}")
             return
 
     def _dispatch_control_message(self, session_id: str, message: Any) -> None:
@@ -345,10 +368,21 @@ class ChatBot:
                         await config_manager.reload_config()
                         logger.info("[control] 配置已重载")
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "配置重载失败", exception=exc)
                         logger.warning(f"[control] 配置重载失败: {exc}")
 
                 asyncio.create_task(_reload())
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "调度配置重载任务失败", exception=exc)
+                logger.warning(f"调度配置重载任务失败: {exc}")
                 return
         # DEBUG_TRACE / INSPECT_REQUEST / URGENT_NOTICE / RATE_LIMIT_HIT：审计日志已记录
 
@@ -411,6 +445,11 @@ class ChatBot:
                     )
                     continue_process = not bool(intercept_message_level)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, f"执行命令时出错: {command_name}", exception=exc)
                     logger.error(f"执行命令时出错: {command_name} - {exc}")
                     logger.error(traceback.format_exc())
                     success = False
@@ -450,6 +489,11 @@ class ChatBot:
             return False, None, True
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "处理命令时出错", exception=e)
             logger.error(f"处理命令时出错: {e}")
             return False, None, True  # 出错时继续处理消息
 
@@ -605,6 +649,11 @@ class ChatBot:
             await self.receive_message(message)
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "预处理消息失败", exception=e)
             logger.error(f"预处理消息失败: {e}")
             traceback.print_exc()
 
@@ -763,6 +812,11 @@ class ChatBot:
             await preprocess()
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "接收消息预处理失败", exception=e)
             logger.error(f"预处理消息失败: {e}")
             traceback.print_exc()
 

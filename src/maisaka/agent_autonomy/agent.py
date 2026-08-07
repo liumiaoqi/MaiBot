@@ -57,6 +57,11 @@ class AutonomousAgent:
             if registry.has_agent(self._agent_id):
                 self._agent_config = registry.get_agent(self._agent_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"加载智能体配置失败: agent={self._agent_id}", exception=exc)
             logger.warning(
                 f"[agent_autonomy] 加载智能体配置失败: agent={self._agent_id} error={exc}"
             )
@@ -67,6 +72,11 @@ class AutonomousAgent:
             emotion_registry = AgentEmotionManagerRegistry()
             self._emotion_manager = emotion_registry.get_emotion_manager(self._agent_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"情绪管理器初始化失败: agent={self._agent_id}", exception=exc)
             logger.warning("情绪管理器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
         try:
@@ -75,6 +85,11 @@ class AutonomousAgent:
             rel_manager = AgentRelationshipManager()
             self._relationship_manager = rel_manager
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"关系管理器初始化失败: agent={self._agent_id}", exception=exc)
             logger.warning("关系管理器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
         try:
@@ -83,6 +98,11 @@ class AutonomousAgent:
 
             self._memory_adapter = AgentMemoryAdapter(get_memory_service_port())
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"记忆适配器初始化失败: agent={self._agent_id}", exception=exc)
             logger.warning("记忆适配器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
         if self._agent_config is not None:
@@ -91,11 +111,21 @@ class AutonomousAgent:
                     self._agent_id, self._agent_config, inner_need_engine=self._inner_need_engine
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"内心世界初始化失败: agent={self._agent_id}", exception=exc)
                 logger.warning("内心世界初始化失败: agent=%s error=%s", self._agent_id, exc)
 
             try:
                 self._set_memory_personality()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"记忆性格传递失败: agent={self._agent_id}", exception=exc)
                 logger.warning("记忆性格传递失败: agent=%s error=%s", self._agent_id, exc)
 
     def _init_engines(self) -> None:
@@ -172,6 +202,11 @@ class AutonomousAgent:
                     )
                 self._set_memory_personality()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"配置刷新失败: agent={self._agent_id}", exception=exc)
             logger.warning("配置刷新失败: agent=%s error=%s", self._agent_id, exc)
 
     def _set_memory_personality(self) -> None:
@@ -190,6 +225,11 @@ class AutonomousAgent:
             except RuntimeError:
                 asyncio.run(port.set_memory_personality(self._agent_id, params))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"记忆性格传递跳过: agent={self._agent_id}", exception=exc)
             logger.warning("记忆性格传递跳过: agent=%s error=%s", self._agent_id, exc)
 
     def get_emotion_state(self) -> Any | None:

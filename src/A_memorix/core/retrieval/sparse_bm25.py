@@ -26,6 +26,11 @@ try:
 
     HAS_JIEBA = True
 except Exception as exc:
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, "导入 jieba 失败", exception=exc)
     logger.warning("操作异常: %s", exc)
 @dataclass
 class SparseBM25Config:
@@ -265,6 +270,11 @@ class SparseBM25Index:
             conn.close()
             return False
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "稀疏检索 backend 加载失败", exception=e)
             logger.warning(f"稀疏检索 backend 加载失败: {e}")
             self._last_load_error = str(e)
             conn.close()
@@ -347,6 +357,11 @@ class SparseBM25Index:
                 }
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "SparseBM25Index warmup 失败", exception=e)
             summary["error"] = str(e)
             logger.warning(f"SparseBM25Index warmup 失败: {e}")
         finally:
@@ -368,6 +383,11 @@ class SparseBM25Index:
                 jieba.load_userdict(user_dict)  # type: ignore[union-attr]
                 logger.info(f"已加载 jieba 用户词典: {user_dict}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "加载 jieba 用户词典失败", exception=e)
                 logger.warning(f"加载 jieba 用户词典失败: {e}")
         self._jieba_dict_loaded = True
 
@@ -378,6 +398,11 @@ class SparseBM25Index:
             tokens = list(jieba.cut_for_search(text))  # type: ignore[union-attr]
             return [t.strip().lower() for t in tokens if t and t.strip()]
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "jieba 分词失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     def _tokenize_char_ngram(self, text: str, n: int) -> List[str]:
         compact = re.sub(r"\s+", "", text.lower())
@@ -489,6 +514,11 @@ class SparseBM25Index:
                     if rows:
                         return rows
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "ngram 倒排回退失败", exception=e)
                 logger.warning(f"ngram 倒排回退失败，将按配置决定是否使用 LIKE 回退: {e}")
 
         if not self.config.enable_like_fallback:
@@ -654,10 +684,20 @@ class SparseBM25Index:
                 if self.config.shrink_memory_on_unload:
                     self.metadata_store.shrink_memory(conn=self._conn)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "释放内存失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
             try:
                 self._conn.close()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "关闭稀疏索引连接失败", exception=exc)
                 logger.warning("操作异常: %s", exc)
         self._conn = None
         self._loaded = False

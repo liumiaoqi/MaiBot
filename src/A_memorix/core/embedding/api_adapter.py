@@ -96,7 +96,13 @@ class EmbeddingAPIAdapter:
         try:
             resolved = self._model_config_port.resolve_by_capability(["embedding"])
             configured = [resolved.name]
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析 embedding 候选模型失败", exception=exc)
+            logger.warning(f"解析 embedding 候选模型失败: {exc}")
             configured = []
         if self.model_name and self.model_name != "auto":
             return [self.model_name, *[name for name in configured if name != self.model_name]]
@@ -115,6 +121,11 @@ class EmbeddingAPIAdapter:
         try:
             return str(self._find_model_info(token).api_provider or "").strip()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析模型提供商名称失败", exception=exc)
             logger.warning("操作异常: %s", exc)
     def get_embedding_fingerprint(self, *, dimension: Optional[int] = None) -> Dict[str, Any]:
         """Return a compact fingerprint for the vector space used by this adapter."""
@@ -266,6 +277,11 @@ class EmbeddingAPIAdapter:
                 )
                 await asyncio.sleep(wait_seconds)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "Embedding 请求未知异常", exception=exc)
                 logger.warning("操作异常: %s", exc)
         if last_exc is not None:
             raise last_exc
@@ -319,6 +335,11 @@ class EmbeddingAPIAdapter:
                 self._last_success_provider_name = str(model_info.api_provider or "").strip()
                 return vector.tolist()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"embedding 模型 {candidate_name} 请求失败", exception=exc)
                 last_exc = exc
                 logger.warning(f"embedding 模型 {candidate_name} 请求失败: {exc}")
 
@@ -372,6 +393,11 @@ class EmbeddingAPIAdapter:
                     self._GLOBAL_DIMENSION_CACHE[cache_key] = int(detected_dim)
                     return detected_dim
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "带维度参数探测失败", exception=exc)
                 logger.warning(f"带维度参数探测失败: {exc}，尝试不带维度参数探测", exc_info=True)
 
         try:
@@ -385,6 +411,11 @@ class EmbeddingAPIAdapter:
                 return detected_dim
             logger.warning(f"嵌入维度检测失败，使用 configured_dimension: {self.default_dimension}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "嵌入维度检测异常", exception=exc)
             logger.error(f"嵌入维度检测异常: {exc}，使用 configured_dimension: {self.default_dimension}")
 
         self._dimension = self.default_dimension
@@ -444,6 +475,11 @@ class EmbeddingAPIAdapter:
             )
             return embeddings[0] if single_input else embeddings
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "Embedding 编码失败", exception=exc)
             self._total_errors += 1
             logger.error(f"编码失败: {exc}")
             raise RuntimeError(f"embedding encode failed: {exc}") from exc

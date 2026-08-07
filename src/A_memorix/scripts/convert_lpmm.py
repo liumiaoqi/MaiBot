@@ -48,6 +48,11 @@ try:
 
     logger = get_logger("A_Memorix.LPMMConverter")
 except Exception as exc:
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, "初始化统一日志体系失败", exception=exc)
     logger.warning("操作异常: %s", exc)
 try:
     import networkx as nx
@@ -158,6 +163,11 @@ class LPMMConverter:
                 parsed = tomlkit.load(f)
             return dict(parsed) if isinstance(parsed, dict) else {}
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取 config.toml 失败", exception=e)
             logger.warning(f"读取 config.toml 失败，使用默认 embedding 配置: {e}")
             return {}
 
@@ -184,6 +194,11 @@ class LPMMConverter:
                 embedding_manager=self.embedding_manager,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "初始化关系向量重建服务失败", exception=e)
             self.embedding_manager = None
             self.relation_write_service = None
             logger.warning(f"初始化关系向量重建服务失败，将跳过关系向量回填: {e}")
@@ -251,6 +266,11 @@ class LPMMConverter:
         try:
             parquet_file = pq.ParquetFile(relation_path)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"读取 relation.parquet 失败: {relation_path}", exception=e)
             logger.warning(f"读取 relation.parquet 失败，跳过关系元数据导入: {e}")
             return 0
 
@@ -289,6 +309,11 @@ class LPMMConverter:
                 try:
                     self.metadata_store.set_relation_vector_state(rel_hash, "none")
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "设置关系向量状态失败", exception=exc)
                     logger.warning("操作异常: %s", exc)
                 imported += 1
 
@@ -416,6 +441,11 @@ class LPMMConverter:
                 )
                     
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, f"处理 {p_path} 时出错", exception=e)
                 logger.error(f"处理 {p_path} 时出错: {e}")
                 
         # 提交向量存储
@@ -449,6 +479,11 @@ class LPMMConverter:
                                 nx_graph = data
                     break
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, f"加载 {g_path} 失败", exception=e)
                     logger.error(f"加载 {g_path} 失败: {e}")
         
         if nx_graph is None:

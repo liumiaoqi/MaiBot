@@ -203,6 +203,11 @@ class ChatConfigUtils:
 
             chat_stream = get_session_info(session_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"解析额外 Prompt 聊天流失败: session_id={session_id}", exception=e)
             logger.debug(f"解析额外 Prompt 聊天流失败: session_id={session_id} error={e}")
             chat_stream = None
 
@@ -306,6 +311,11 @@ class ChatConfigUtils:
 
             return get_session_info(session_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"获取聊天流失败: session_id={session_id}", exception=e)
             logger.debug(f"获取聊天流失败: session_id={session_id} error={e}")
             return None
 
@@ -337,6 +347,11 @@ class ChatConfigUtils:
                 chat_type=str(rule_type or "").strip(),
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"解析配置目标真实聊天流失败: platform={platform} item_id={item_id}", exception=e)
             logger.debug(
                 f"解析配置目标真实聊天流失败: platform={platform} item_id={item_id} rule_type={rule_type} error={e}"
             )
@@ -375,6 +390,11 @@ class ChatConfigUtils:
                     ):
                         matched_session_ids.add(chat_stream.session_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"解析通配配置内存聊天流失败: platform={platform} item_id={item_id}", exception=e)
             logger.debug(f"解析通配配置内存聊天流失败: platform={platform} item_id={item_id} error={e}")
 
         try:
@@ -395,6 +415,11 @@ class ChatConfigUtils:
                         continue
                     matched_session_ids.add(chat_session.session_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"解析通配配置数据库聊天流失败: platform={platform} item_id={item_id}", exception=e)
             logger.debug(f"解析通配配置数据库聊天流失败: platform={platform} item_id={item_id} error={e}")
 
         return matched_session_ids
@@ -474,6 +499,11 @@ class ChatConfigUtils:
                     return False
                 return bool(str(chat_session.group_id or "").strip()) == config_is_group
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"解析平台兜底配置失败: platform={platform} session_id={session_id}", exception=e)
             logger.debug(f"解析平台兜底配置失败: platform={platform} session_id={session_id} error={e}")
             return False
 
@@ -537,6 +567,11 @@ class ChatConfigUtils:
 
             chat_stream = get_session_info(session_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"解析聊天流类型失败: session_id={session_id}", exception=e)
             logger.debug(f"解析聊天流类型失败: session_id={session_id} error={e}")
             return None
         if chat_stream is None:
@@ -671,7 +706,12 @@ class ChatConfigUtils:
             sh, sm = [int(x) for x in start_str.split(":")]
             eh, em = [int(x) for x in end_str.split(":")]
             return sh * 60 + sm, eh * 60 + em
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "解析时间范围失败", exception=exc)
             logger.warning("操作异常 in utils_config.py", exc_info=True)
 
 

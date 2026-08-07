@@ -89,7 +89,12 @@ class CrashDump:
             }
             try:
                 data["degrade_on_taint_mask"] = self._taint_mask_port.get_degrade_on_taint_mask()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "查询掩码降级状态失败", exception=exc)
                 # 查询掩码失败：字段降级为 N/A（spec §5.2.3.1）；标记债务
                 # （崩溃场景 logger 不可用，用 _print 兜底，不留普通日志）
                 from src.core.tainted_mask.mark import mark_exception_swallowed
@@ -97,7 +102,12 @@ class CrashDump:
                 mark_exception_swallowed()
                 data["degrade_on_taint_mask"] = "N/A"
             return json.dumps(data, ensure_ascii=False)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "构建污染状态行失败", exception=exc)
             return None
 
     def export(self, reason: str) -> None:
@@ -129,6 +139,11 @@ class CrashDump:
             self._write_dump(path, None, entries, reason)
             _print(f"[logger] 崩溃缓冲已导出: {path}（{len(entries)} 条，原因: {reason}）")
         except Exception as e:  # best-effort：失败仅记录
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "崩溃缓冲导出失败", exception=e)
             _print(f"[logger] 崩溃缓冲导出失败: {e}")
 
     def export_snapshot(self, reason: str, context: dict | None = None) -> None:
@@ -162,6 +177,11 @@ class CrashDump:
             self._write_dump(path, meta, entries, reason)
             _print(f"[logger] 主动快照已导出: {path}（{len(entries)} 条，原因: {reason}）")
         except Exception as e:  # IOError 等：跳过本次快照（spec §5.5.3 异常场景 1）
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "主动快照导出失败", exception=e)
             _print(f"[logger] 主动快照导出失败: {e}")
 
     def _write_dump(self, path: Path, meta: dict | None, entries, reason: str) -> None:
@@ -195,7 +215,12 @@ class CrashDump:
         try:
             signal.signal(signal.SIGTERM, self._make_signal_handler(signal.SIGTERM))
             signal.signal(signal.SIGINT, self._make_signal_handler(signal.SIGINT))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "注册信号处理失败", exception=exc)
             pass  # 非主线程等场景注册失败忽略
         sys.excepthook = self._make_excepthook(sys.excepthook)
 
@@ -226,7 +251,12 @@ def _get_pid() -> int:
         import os
 
         return os.getpid()
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "获取进程 PID 失败", exception=exc)
         return 0
 
 
@@ -234,5 +264,10 @@ def _print(message: str) -> None:
     """崩溃场景 logger 可能不可用，用 print 兜底。"""
     try:
         print(message)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "崩溃日志 print 输出失败", exception=exc)
         pass
