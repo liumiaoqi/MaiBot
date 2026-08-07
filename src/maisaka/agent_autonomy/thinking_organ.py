@@ -39,6 +39,8 @@ class ToolCycleResult:
     reply_detected: bool = False
     reply_text: str = ""
     reply_failed: bool = False
+    reply_message_id: str = ""
+    receipt_status: str = ""
 
 
 PLANNER_CAPABILITIES = ("text_generation", "tool_calling")
@@ -403,13 +405,15 @@ class ThinkingOrgan:
             # reply 工具调用失败 → 重试 1 次，仍失败才返回 SILENT
             if cycle_result.reply_detected and cycle_result.reply_failed:
                 if self._reply_retry_count < SILENT_RETRY_MAX:
-                    # ZG-23a: 重试前幂等检查（按 receipt 状态区分）
-                    # 尝试获取上一轮 message_id 进行去重窗口查询
-                    last_message_id = getattr(context, "last_reply_message_id", "") or ""
-                    if self._check_retry_idempotency(last_message_id):
+                    # ZG-23a: 重试前幂等检查（按 receipt 状态三分支）
+                    if self._check_retry_idempotency(
+                        cycle_result.reply_message_id,
+                        cycle_result.receipt_status,
+                    ):
                         logger.info(
                             f"[thinking_organ] reply 重试幂等检查：消息已发送，跳过重试 "
-                            f"agent={self._agent_id} message_id={last_message_id}"
+                            f"agent={self._agent_id} message_id={cycle_result.reply_message_id} "
+                            f"status={cycle_result.receipt_status}"
                         )
                         # 不重试，继续走 SILENT 路径
                     else:
@@ -551,6 +555,8 @@ class ThinkingOrgan:
         reply_detected = False
         reply_text = ""
         reply_failed = False
+        reply_message_id = ""
+        receipt_status = ""
         availability_context = ToolAvailabilityContext(
             session_id=context.session_id,
             stream_id=context.session_id,
@@ -593,14 +599,22 @@ class ThinkingOrgan:
             # reply 工具调用检测
             if tool_call.func_name == "reply":
                 reply_detected = True
+                sent_ids = list(result.metadata.get("sent_message_ids", [])) if result.metadata else []
                 if result.success:
                     structured = result.structured_content if hasattr(result, "structured_content") else None
                     if isinstance(structured, dict) and "reply_text" in structured:
                         reply_text = str(structured["reply_text"])
                     elif result.content:
                         reply_text = result.content
+                    receipt_status = "SENT"
+                    reply_message_id = sent_ids[0] if sent_ids else ""
                 else:
                     reply_failed = True
+                    if sent_ids:
+                        receipt_status = "SENT"
+                        reply_message_id = sent_ids[0]
+                    else:
+                        receipt_status = "UNKNOWN"
                     logger.warning(
                         f"[thinking_organ] reply 工具调用失败详情: agent={self._agent_id} "
                         f"error={result.error_message[:200] if result.error_message else 'unknown'} "
@@ -646,6 +660,8 @@ class ThinkingOrgan:
                     reply_detected=reply_detected,
                     reply_text=reply_text,
                     reply_failed=reply_failed,
+                    reply_message_id=reply_message_id,
+                    receipt_status=receipt_status,
                 )
             if bool(result.metadata.get("pause_execution", False)):
                 return ToolCycleResult(
@@ -656,6 +672,8 @@ class ThinkingOrgan:
                     reply_detected=reply_detected,
                     reply_text=reply_text,
                     reply_failed=reply_failed,
+                    reply_message_id=reply_message_id,
+                    receipt_status=receipt_status,
                 )
 
         return ToolCycleResult(
@@ -885,18 +903,26 @@ class ThinkingOrgan:
             return SilenceReason.MAX_CYCLES
         return SilenceReason.NO_CONTENT
 
-    def _check_retry_idempotency(self, message_id: str) -> bool:
-        """ZG-23a: reply 重试前幂等检查。
+    def _check_retry_idempotency(self, message_id: str, receipt_status: str = "") -> bool:
+        """ZG-23a: reply 重试前幂等检查（三分支）。
 
-        检查上一轮发送的消息是否已在去重窗口内（已发送），
-        若已发送则跳过重试（避免"超时但已到达"场景下的重复发送）。
+        按 receipt 状态区分：
+        - SENT: 消息已发送成功 → 跳过重试（避免重复）
+        - UNKNOWN: 发送状态未知（超时/异常）→ 查去重窗口，命中则跳过
+        - FAILED/其他: 发送明确失败 → 直接重试（不查窗口）
 
         Args:
             message_id: 上一轮 reply 的 message_id。
+            receipt_status: 回执状态（"SENT"/"UNKNOWN"/"FAILED"）。
 
         Returns:
             bool: True 表示应跳过重试（消息已发送），False 表示可以重试。
         """
+        status = (receipt_status or "").upper()
+        if status == "SENT":
+            return True
+        if status != "UNKNOWN":
+            return False
         if not message_id:
             return False
         try:
@@ -911,7 +937,7 @@ class ThinkingOrgan:
             from src.core.tainted_mask.mark import mark_exception_swallowed
 
             get_logger("thinking_organ").warning(f"reply 重试幂等检查异常，降级允许重试: {e}")
-            mark_exception_swallowed(e, "thinking_organ._check_retry_idempotency")
+            mark_exception_swallowed("thinking_organ._check_retry_idempotency")
             return False
 
     def _log_cycle(

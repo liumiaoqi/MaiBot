@@ -144,7 +144,7 @@ class OutboundDedupWindow:
         except Exception as e:
             # fail-open 降级：异常时放行
             logger.error(f"出站去重窗口异常，降级放行: {e}")
-            mark_exception_swallowed(e, "outbound_dedup.check_and_record")
+            mark_exception_swallowed("outbound_dedup.check_and_record")
             return DedupDecision(allow=True)
 
     def is_recently_sent(self, message_id: str) -> bool:
@@ -171,7 +171,7 @@ class OutboundDedupWindow:
         except Exception as e:
             # fail-open 降级：异常时返回 False（未发送），允许重试
             logger.error(f"出站去重窗口查询异常，降级返回 False: {e}")
-            mark_exception_swallowed(e, "outbound_dedup.is_recently_sent")
+            mark_exception_swallowed("outbound_dedup.is_recently_sent")
             return False
 
     def clear(self) -> None:

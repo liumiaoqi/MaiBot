@@ -294,7 +294,8 @@ class AgentOrchestrator:
                     f"event_id={result.event_id}"
                 )
                 # ZG-23a: 触发成功后更新会话级连锁深度（depth+1）
-                self._mention_chain_ctx[self._session_id] = (chain_id, depth + 1)
+                event_session_id = getattr(event, "session_id", "") or self._session_id
+                self._mention_chain_ctx[event_session_id] = (chain_id, depth + 1)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -902,6 +903,12 @@ class AgentOrchestrator:
         """处理用户消息，编排主发言智能体回复。"""
         if self._degraded:
             return
+
+        # ZG-23a: 新入站消息重置连锁深度状态（防止会话永久熔断）
+        inbound_msg_id = getattr(message, "message_id", "") or ""
+        if inbound_msg_id:
+            self._mention_chain_ctx[self._session_id] = (inbound_msg_id, 1)
+            self._mention_chain_throttle.reset_chain(self._session_id)
 
         notice_kind = self._classify_notice(message)
         if notice_kind in (NoticeKind.AMBIENT, NoticeKind.INPUT_STATUS):

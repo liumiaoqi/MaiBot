@@ -379,6 +379,7 @@ async def handle_tool(
                     message=reply_sequence,
                     reply_to_id=reply_to_id,
                     source="guided_reply",
+                    idempotency_key=getattr(tool_ctx.runtime, "idempotency_key", "") or "",
                 )
                 sent = result.success
                 if not sent:

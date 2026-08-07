@@ -115,8 +115,18 @@ class MentionChainThrottle:
             # 概率衰减计算
             probability = self._compute_probability(depth)
 
-            # 随机抽样判定
-            sample = random.random()
+            # 随机抽样判定（单独 try，异常时保守不触发）
+            try:
+                sample = random.random()
+            except Exception as e:
+                logger.warning(f"随机数生成异常，降级不触发（保守）: {e}")
+                mark_exception_swallowed("mention_chain_throttle.random_error")
+                return ChainThrottleDecision(
+                    allow=False,
+                    trigger_probability=probability,
+                    reason="random_error",
+                )
+
             if sample < probability:
                 return ChainThrottleDecision(
                     allow=True,
@@ -137,7 +147,7 @@ class MentionChainThrottle:
         except Exception as e:
             # 降级：允许触发，probability = base ** 1
             logger.warning(f"连锁深度节流异常，降级允许触发: {e}")
-            mark_exception_swallowed(e, "mention_chain_throttle.check_and_decide")
+            mark_exception_swallowed("mention_chain_throttle.check_and_decide")
             fallback_prob = self._base ** 1
             return ChainThrottleDecision(
                 allow=True,
@@ -163,7 +173,7 @@ class MentionChainThrottle:
         except Exception as e:
             # 降级：用默认 base 0.6 重新计算
             logger.warning(f"概率计算异常，降级使用默认 base 0.6: {e}")
-            mark_exception_swallowed(e, "mention_chain_throttle._compute_probability")
+            mark_exception_swallowed("mention_chain_throttle._compute_probability")
             return 0.6 ** depth
 
     def _purge_expired_chains(self, now: float) -> None:

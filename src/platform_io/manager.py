@@ -42,8 +42,16 @@ class PlatformIOManager:
         self._legacy_send_drivers: Dict[str, PlatformIODriver] = {}
         self._deduplicator = MessageDeduplicator()
         self._outbound_tracker = OutboundTracker()
-        # ZG-23a: 出站消息幂等去重窗口
-        self._outbound_dedup = OutboundDedupWindow()
+        # ZG-23a: 出站消息幂等去重窗口（从配置读取参数）
+        try:
+            from src.core.app_config_port_registry import get_app_config_port
+            aa_config = get_app_config_port().get_agent_autonomy_config()
+            self._outbound_dedup = OutboundDedupWindow(
+                ttl_seconds=aa_config.outbound_dedup_window_seconds,
+                max_entries=aa_config.outbound_dedup_max_entries,
+            )
+        except Exception:
+            self._outbound_dedup = OutboundDedupWindow()
         self._inbound_dispatcher: Optional[InboundDispatcher] = None
         self._inbound_dispatch_tasks: Set[asyncio.Task[None]] = set()
         self._started = False
@@ -532,14 +540,36 @@ class PlatformIOManager:
 
         # ZG-23a: 出站消息幂等去重拦截（driver 循环之前）
         force_send = bool(metadata and metadata.get("force_send"))
+        source_path = str(metadata.get("source", "")) if metadata else ""
+        if not source_path:
+            source_path = "platform_io.manager.send_message"
         dedup_decision = self._outbound_dedup.check_and_record(
             message_id=message.message_id,
             route_key=route_key,
-            source_path="platform_io.manager.send_message",
+            source_path=source_path,
             force_send=force_send,
         )
         if not dedup_decision.allow:
-            return DeliveryBatch(internal_message_id=message.message_id, route_key=route_key)
+            suppressed_metadata: Dict[str, Any] = {
+                "suppressed": True,
+                "dedup_reason": dedup_decision.reason,
+            }
+            if dedup_decision.hit_record is not None:
+                suppressed_metadata["dedup_hit_first_seen_at"] = dedup_decision.hit_record.first_seen_at
+                suppressed_metadata["dedup_hit_source_path"] = dedup_decision.hit_record.source_path
+            suppressed_receipt = DeliveryReceipt(
+                internal_message_id=message.message_id,
+                route_key=route_key,
+                status=DeliveryStatus.SENT,
+                driver_id="dedup",
+                error=None,
+                metadata=suppressed_metadata,
+            )
+            return DeliveryBatch(
+                internal_message_id=message.message_id,
+                route_key=route_key,
+                receipts=[suppressed_receipt],
+            )
 
         receipts: List[DeliveryReceipt] = []
         for driver in drivers:

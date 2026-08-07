@@ -349,6 +349,11 @@ class VitalityManager:
             bound_count = 1
 
         if bound_count < 3:
+            if bound_count <= 1:
+                logger.debug(
+                    f"共居参数未生效: bound_count={bound_count} session={session_id}，"
+                    f"需 ≥3 才触发递减"
+                )
             return CohabitationParams(
                 intent_threshold=config.interjection_intent_threshold,
                 cooldown_minutes=float(config.interjection_cooldown_minutes),
