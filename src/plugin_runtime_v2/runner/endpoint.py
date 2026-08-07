@@ -123,6 +123,11 @@ class RunnerEndpoint:
                 try:
                     await self._plugin_instance.on_load()
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "插件 on_load 失败", exception=exc)
                     logger.error("插件 on_load 失败: %s", exc)
 
         while True:
@@ -146,6 +151,11 @@ class RunnerEndpoint:
                 self._transition(ConnectionState.DISCONNECTED)
                 return
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "Runner 连接失败", exception=exc)
                 logger.warning(
                     "Runner %s 连接失败: %s", self._config.runner_id, exc
                 )
@@ -347,6 +357,11 @@ class RunnerEndpoint:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "Runner 接收循环异常", exception=exc)
             logger.warning("Runner %s 接收循环异常: %s", self._config.runner_id, exc)
         finally:
             self._stream_call = None

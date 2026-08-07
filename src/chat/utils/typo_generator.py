@@ -91,7 +91,12 @@ class ChineseTypoGenerator:
             try:
                 py = pinyin(char, style=Style.TONE3)[0][0]
                 pinyin_dict[py].append(char)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常 in typo_generator.py", exception=exc)
                 logger.warning("操作异常 in typo_generator.py", exc_info=True)
 
         return pinyin_dict
@@ -104,6 +109,11 @@ class ChineseTypoGenerator:
         try:
             return "\u4e00" <= char <= "\u9fff"
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "判断中文字符失败", exception=e)
             logger.debug(str(e))
             return False
 

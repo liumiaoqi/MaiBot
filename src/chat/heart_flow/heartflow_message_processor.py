@@ -55,6 +55,11 @@ class HeartFCMessageReceiver:
             try:
                 chat = await heartflow_manager.get_or_create_heartflow_chat(message.session_id)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "出现错误", exception=e)
                 logger.error(f"出现错误: {e}")
 
             def _freq_provider(_chat=chat):
@@ -94,5 +99,10 @@ class HeartFCMessageReceiver:
             )
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "消息处理失败", exception=e)
             logger.error(f"消息处理失败: {e}")
             print(traceback.format_exc())

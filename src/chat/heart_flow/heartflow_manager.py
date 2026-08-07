@@ -53,6 +53,11 @@ class HeartflowManager:
                 await self._evict_over_limit_chats(protected_session_id=session_id)
                 return new_chat
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "创建心流聊天失败", exception=exc)
             logger.error(f"创建心流聊天 {session_id} 失败: {exc}", exc_info=True)
             traceback.print_exc()
             raise
@@ -95,6 +100,11 @@ class HeartflowManager:
             await chat.stop()
             logger.info(f"已淘汰心流聊天 {session_id}: reason={reason}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "淘汰心流聊天失败", exception=exc)
             logger.warning(f"淘汰心流聊天 {session_id} 失败: {exc}", exc_info=True)
 
     def adjust_talk_frequency(self, session_id: str, frequency: float) -> None:

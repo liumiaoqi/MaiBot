@@ -118,7 +118,12 @@ async def tolerant_stdio_client(
                             continue
                         try:
                             message = types.JSONRPCMessage.model_validate_json(line)
-                        except Exception:
+                        except Exception as exc:
+                            from src.core.error_escalation.types import ErrorLevel
+                            from src.core.error_escalation_port_registry import get_error_escalation_port
+                            port = get_error_escalation_port()
+                            if port is not None:
+                                port.report(ErrorLevel.WARNING, "丢弃 MCP stdio 非法 JSON-RPC 行", exception=exc)
                             logger.warning(
                                 "Dropped malformed JSON-RPC line from MCP stdio server: %r",
                                 line[:_MAX_GARBAGE_PREVIEW],
@@ -157,7 +162,12 @@ async def tolerant_stdio_client(
             if process.stdin:
                 try:
                     await process.stdin.aclose()
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "操作异常 in stdio_filter", exception=exc)
                     logger.warning("操作异常 in stdio_filter", exc_info=True)
             try:
                 with anyio.fail_after(PROCESS_TERMINATION_TIMEOUT):

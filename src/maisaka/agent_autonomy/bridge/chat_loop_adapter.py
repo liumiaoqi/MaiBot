@@ -50,7 +50,12 @@ class ChatLoopServiceAdapter:
                 self._chat_loop_service.update_emotion_state_text(
                     emotion_state.to_prompt_text()
                 )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in chat_loop_adapter.py", exception=exc)
             logger.warning("操作异常 in chat_loop_adapter.py", exc_info=True)
             self._chat_loop_service.update_emotion_state_text("")
 
@@ -61,7 +66,12 @@ class ChatLoopServiceAdapter:
             _ = AgentRelationshipManager()
             # 关系文本在 build_prompt_template_context 中动态获取
             self._chat_loop_service.update_relationship_text("")
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "切换智能体上下文失败", exception=exc)
             pass
 
         logger.warning(

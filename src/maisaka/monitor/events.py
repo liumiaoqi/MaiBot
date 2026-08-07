@@ -34,13 +34,23 @@ def _normalize_payload_value(value: Any) -> Any:
     if hasattr(value, "model_dump"):
         try:
             return _normalize_payload_value(value.model_dump())
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in events.py", exception=exc)
             logger.warning("操作异常 in events.py", exc_info=True)
             return str(value)
     if hasattr(value, "__dict__"):
         try:
             return _normalize_payload_value(dict(value.__dict__))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in events.py", exception=exc)
             logger.warning("操作异常 in events.py", exc_info=True)
             return str(value)
     return str(value)
@@ -290,6 +300,11 @@ async def _broadcast(event: str, data: Dict[str, Any]) -> None:
             data=data,
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "MaiSaka 监控事件广播失败", exception=exc)
         logger.warning(f"MaiSaka 监控事件广播失败: {exc}", exc_info=True)
 
 

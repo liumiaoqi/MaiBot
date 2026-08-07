@@ -67,7 +67,12 @@ class BuiltinToolRuntimeContext:
         if not agent_id and self.runtime is not None:
             try:
                 agent_id = self.runtime._chat_loop_service.agent_id
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常 in context.py", exception=exc)
                 logger.warning("操作异常 in context.py", exc_info=True)
         is_multi = self.is_multi_agent_active
         if not is_multi and self.runtime is not None:
@@ -75,7 +80,12 @@ class BuiltinToolRuntimeContext:
                 session_info = self.runtime._session_info
                 if session_info.cohabitant_agent_ids:
                     is_multi = True
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常 in context.py", exception=exc)
                 logger.warning("操作异常 in context.py", exc_info=True)
         return agent_id, is_multi
 

@@ -141,6 +141,11 @@ class DataConverter:
                 if result.concepts:
                     return result
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "LLM 提取失败，降级到 jieba", exception=e)
                 logger.warning(f"LLM 提取失败，降级到 jieba: {e}")
 
         if self._semantic_extractor:
@@ -149,6 +154,11 @@ class DataConverter:
                 if result.concepts:
                     return result
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "jieba 降级提取也失败", exception=e)
                 logger.warning(f"jieba 降级提取也失败: {e}")
 
         return None

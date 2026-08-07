@@ -92,6 +92,11 @@ class Server:
             await self.shutdown()
             raise RuntimeError(f"服务器运行错误: {str(e)}") from e
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "消息服务器运行错误", exception=e)
             await self.shutdown()
             raise RuntimeError(f"服务器运行错误: {str(e)}") from e
         finally:
@@ -107,7 +112,12 @@ class Server:
             except asyncio.TimeoutError:
                 # 超时就强制标记为 None，让垃圾回收处理
                 pass
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常 in server.py", exception=exc)
                 logger.warning("操作异常 in server.py", exc_info=True)
                 # 忽略其他异常
                 pass

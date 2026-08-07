@@ -24,7 +24,12 @@ def _is_butler_agent(ctx: BuiltinToolRuntimeContext) -> bool:
             return False
         agent_cfg = registry.get_agent(ctx.agent_id)
         return bool(getattr(agent_cfg, "is_butler", False))
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "操作异常 in butler.py", exception=exc)
         logger.warning("操作异常 in butler.py", exc_info=True)
 
 
@@ -73,6 +78,11 @@ async def handle_switch_primary(
         logger.info(f"管家工具: switch_primary agent={agent_id}")
         return ToolExecutionResult(content=f"已将主发言权切换给 {agent_id}")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "switch_primary 异常", exception=exc)
         logger.error(f"switch_primary 异常: {traceback.format_exc()}")
         return ToolExecutionResult(error=str(exc))
 
@@ -117,5 +127,10 @@ async def handle_activate_agent(
         logger.info(f"管家工具: activate_agent agent={agent_id}")
         return ToolExecutionResult(content=f"已激活智能体 {agent_id}")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "activate_agent 异常", exception=exc)
         logger.error(f"activate_agent 异常: {traceback.format_exc()}")
         return ToolExecutionResult(error=str(exc))

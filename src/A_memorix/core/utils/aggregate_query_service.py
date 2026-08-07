@@ -40,12 +40,22 @@ class AggregateQueryService:
         try:
             return float(value)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
             logger.warning("操作异常: %s", exc)
     @staticmethod
     def _as_int(value: Any, default: int = 0) -> int:
         try:
             return int(value)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
             logger.warning("操作异常: %s", exc)
     def _rrf_k(self) -> float:
         raw = self._cfg("retrieval.aggregate.rrf_k", 60.0)

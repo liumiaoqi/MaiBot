@@ -1,10 +1,12 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FetchRawFileRequest(BaseModel):
     """获取 Raw 文件请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     owner: str = Field(..., description="仓库所有者", example="MaiM-with-u")
     repo: str = Field(..., description="仓库名称", example="plugin-repo")
@@ -17,6 +19,8 @@ class FetchRawFileRequest(BaseModel):
 class FetchRawFileResponse(BaseModel):
     """获取 Raw 文件响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = Field(..., description="是否成功")
     data: Optional[str] = Field(None, description="文件内容")
     error: Optional[str] = Field(None, description="错误信息")
@@ -27,6 +31,8 @@ class FetchRawFileResponse(BaseModel):
 
 class CloneRepositoryRequest(BaseModel):
     """克隆仓库请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     owner: str = Field(..., description="仓库所有者", example="MaiM-with-u")
     repo: str = Field(..., description="仓库名称", example="plugin-repo")
@@ -40,6 +46,8 @@ class CloneRepositoryRequest(BaseModel):
 class CloneRepositoryResponse(BaseModel):
     """克隆仓库响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = Field(..., description="是否成功")
     path: Optional[str] = Field(None, description="克隆路径")
     error: Optional[str] = Field(None, description="错误信息")
@@ -52,6 +60,8 @@ class CloneRepositoryResponse(BaseModel):
 class MirrorConfigResponse(BaseModel):
     """镜像源配置响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     id: str = Field(..., description="镜像源 ID")
     name: str = Field(..., description="镜像源名称")
     raw_prefix: str = Field(..., description="Raw 文件前缀")
@@ -63,12 +73,16 @@ class MirrorConfigResponse(BaseModel):
 class AvailableMirrorsResponse(BaseModel):
     """可用镜像源列表响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     mirrors: List[MirrorConfigResponse] = Field(..., description="镜像源列表")
     default_priority: List[str] = Field(..., description="默认优先级顺序（ID 列表）")
 
 
 class AddMirrorRequest(BaseModel):
     """添加镜像源请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     id: str = Field(..., description="镜像源 ID", example="custom-mirror")
     name: str = Field(..., description="镜像源名称", example="自定义镜像源")
@@ -81,6 +95,8 @@ class AddMirrorRequest(BaseModel):
 class UpdateMirrorRequest(BaseModel):
     """更新镜像源请求"""
 
+    model_config = ConfigDict(extra='forbid')
+
     name: Optional[str] = Field(None, description="镜像源名称")
     raw_prefix: Optional[str] = Field(None, description="Raw 文件前缀")
     clone_prefix: Optional[str] = Field(None, description="克隆前缀")
@@ -91,6 +107,8 @@ class UpdateMirrorRequest(BaseModel):
 class GitStatusResponse(BaseModel):
     """Git 安装状态响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     installed: bool = Field(..., description="是否已安装 Git")
     version: Optional[str] = Field(None, description="Git 版本号")
     path: Optional[str] = Field(None, description="Git 可执行文件路径")
@@ -99,6 +117,8 @@ class GitStatusResponse(BaseModel):
 
 class InstallPluginRequest(BaseModel):
     """安装插件请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     plugin_id: str = Field(..., description="插件 ID")
     repository_url: str = Field(..., description="插件仓库 URL")
@@ -109,6 +129,8 @@ class InstallPluginRequest(BaseModel):
 class VersionResponse(BaseModel):
     """麦麦版本响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     version: str = Field(..., description="麦麦版本号")
     version_major: int = Field(..., description="主版本号")
     version_minor: int = Field(..., description="次版本号")
@@ -118,11 +140,15 @@ class VersionResponse(BaseModel):
 class UninstallPluginRequest(BaseModel):
     """卸载插件请求"""
 
+    model_config = ConfigDict(extra='forbid')
+
     plugin_id: str = Field(..., description="插件 ID")
 
 
 class UpdatePluginRequest(BaseModel):
     """更新插件请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     plugin_id: str = Field(..., description="插件 ID")
     repository_url: str = Field(..., description="插件仓库 URL")
@@ -132,5 +158,7 @@ class UpdatePluginRequest(BaseModel):
 
 class UpdatePluginConfigRequest(BaseModel):
     """更新插件配置请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     config: Dict[str, Any] = Field(..., description="配置数据")

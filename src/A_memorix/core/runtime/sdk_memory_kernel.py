@@ -473,11 +473,21 @@ class SDKMemoryKernel:
             try:
                 await self.import_task_manager.shutdown()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "关闭导入任务管理器失败", exception=exc)
                 logger.warning(f"关闭导入任务管理器失败: {exc}")
         if self.retrieval_tuning_manager is not None:
             try:
                 await self.retrieval_tuning_manager.shutdown()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "关闭调优任务管理器失败", exception=exc)
                 logger.warning(f"关闭调优任务管理器失败: {exc}")
         self.close()
 

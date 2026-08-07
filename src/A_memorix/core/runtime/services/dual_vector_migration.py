@@ -138,6 +138,11 @@ class DualVectorMigrationService:
                 source_store.load()
                 source_store.warmup_index()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "加载旧单池向量用于双池增量补齐失败，将回退 embedding 重建", exception=exc)
                 logger.warning(f"加载旧单池向量用于双池增量补齐失败，将回退 embedding 重建: {exc}")
 
         paragraph_where = self._active_row_filter_sql("paragraphs")
@@ -421,6 +426,11 @@ class DualVectorMigrationService:
             )
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "双池后台自动迁移异常，继续使用单池", exception=exc)
             logger.warning(f"双池后台自动迁移异常，继续使用单池: {exc}")
             finished_at = time.time()
             progress = self.normalize_dual_vector_auto_migration_progress(

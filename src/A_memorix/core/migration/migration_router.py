@@ -53,6 +53,11 @@ class MigrationRouter:
                     f"连接主义 {len(connectionist_result.hits)} 条"
                 )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "DUAL_READ 连接主义 recall 失败", exception=e)
                 logger.warning(f"DUAL_READ 连接主义 recall 失败: {e}")
             return legacy_result
 
@@ -77,6 +82,11 @@ class MigrationRouter:
                     f"连接主义 associations={len(profile_view.associations)}"
                 )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "DUAL_READ 连接主义 derive_profile 失败", exception=e)
                 logger.warning(f"DUAL_READ 连接主义 derive_profile 失败: {e}")
             return legacy_profile
 

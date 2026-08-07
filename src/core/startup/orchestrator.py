@@ -311,7 +311,6 @@ class StartupOrchestrator:
                     component_id=component_id,
                 )
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:

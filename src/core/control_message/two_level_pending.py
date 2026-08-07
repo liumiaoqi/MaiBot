@@ -57,13 +57,23 @@ class TwoLevelPendingManager:
         if app_config_port is not None:
             try:
                 private_limit = app_config_port.get_control_message_private_queue_limit()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "私有队列上限配置读取失败，使用默认", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("私有队列上限配置读取失败，使用默认 %s", _DEFAULT_PRIVATE_LIMIT, exc_info=True)
             try:
                 shared_limit = app_config_port.get_control_message_shared_queue_limit()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "共享队列上限配置读取失败，使用默认", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("共享队列上限配置读取失败，使用默认 %s", _DEFAULT_SHARED_LIMIT, exc_info=True)

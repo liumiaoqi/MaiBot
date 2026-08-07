@@ -177,7 +177,12 @@ class SoftirqBatcher(Generic[T]):
             await drainer
         except asyncio.CancelledError:
             pass
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "SoftirqBatcher drainer 停止时异常", exception=exc)
             logger.exception("SoftirqBatcher drainer 停止时异常")
         self._drainer = None
         logger.debug("SoftirqBatcher drainer 已停止 剩余积压=%d", self.queue_size())
@@ -204,7 +209,12 @@ class SoftirqBatcher(Generic[T]):
             await self._handler(payloads)
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "SoftirqBatcher 批量处理异常", exception=exc)
             # 批量 handler 异常：记录并继续下一轮，drainer 主循环不退出
             logger.exception("SoftirqBatcher 批量处理异常 batch_size=%d", len(payloads))
         # 积压续处理（对标 wakeup_softirqd）

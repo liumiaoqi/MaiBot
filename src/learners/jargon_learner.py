@@ -463,6 +463,11 @@ class JargonLearner:
             )
             response = generation_result.response
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "学习黑话失败", exception=e)
             logger.error(f"学习黑话失败: {e}")
             return False
 
@@ -685,6 +690,11 @@ class JargonLearner:
                 metadata={"model_name": generation_result.model_name},
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "黑话抽取 Prompt 保存失败", exception=exc)
             logger.warning(f"{self.session_id} 黑话抽取 Prompt 保存失败: {exc}")
             return
 

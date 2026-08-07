@@ -166,6 +166,11 @@ class EventDispatcher:
             else:
                 modified_message_obj = None
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "构建修改后的 SessionMessage 失败", exception=e)
             logger.error(f"构建修改后的 SessionMessage 失败: {e}")
             modified_message_obj = None
         return should_continue, modified_message_obj
@@ -208,6 +213,11 @@ class EventDispatcher:
             logger.error(f"EventHandler {handler_entry.full_name} 执行失败: {e}", exc_info=True)
             result = EventResult(handler_name=handler_entry.full_name, success=False, continue_processing=True)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "EventHandler 执行失败", exception=e)
             logger.error(f"EventHandler {handler_entry.full_name} 执行失败: {e}", exc_info=True)
             result = EventResult(handler_name=handler_entry.full_name, success=False, continue_processing=True)
 

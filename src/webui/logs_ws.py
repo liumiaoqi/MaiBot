@@ -105,6 +105,11 @@ def load_recent_logs(limit: int = 100) -> List[Dict]:
                     except (json.JSONDecodeError, KeyError):
                         continue
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "读取日志文件失败", exception=e)
             logger.error(f"读取日志文件失败 {log_file}: {e}")
             continue
 
@@ -159,6 +164,11 @@ async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None
         for log_entry in recent_logs:
             await websocket.send_text(json.dumps(log_entry, ensure_ascii=False))
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "发送历史日志失败", exception=e)
         logger.error(f"发送历史日志失败: {e}")
 
     try:
@@ -177,6 +187,11 @@ async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None
         active_connections.discard(websocket)
         logger.info(f"📡 WebSocket 客户端已断开，当前连接数: {len(active_connections)}")
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "WebSocket 错误", exception=e)
         logger.error(f"❌ WebSocket 错误: {e}")
         active_connections.discard(websocket)
 

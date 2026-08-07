@@ -129,6 +129,11 @@ async def handle_tool(
         await tool_ctx.memory_port.observe_experience(observe_request)
         memorix_success = True
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "A_memorix 写入失败，反思仅影响本次会话", exception=exc)
         # A_memorix 不可用 → 本地缓存 + 警告
         memorix_warning = f"A_memorix 写入失败（{exc}），反思仅影响本次会话。"
         # 本地缓存：记录反思哈希
@@ -157,7 +162,12 @@ async def handle_tool(
                 rel = await relationship_manager.get_relationship(agent_id, target.agent_id)
                 if rel is not None:
                     interaction_count += rel.interaction_count
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "统计交互次数失败，按 0 处理", exception=exc)
             interaction_count = 0
 
         plasticity = plasticity_calc.compute(interaction_count)

@@ -103,6 +103,11 @@ def migrate(source_db: Path) -> Path:
                     )
                     print(f"  {table}: {len(rows)} rows migrated")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "迁移表处理失败，已跳过", exception=e)
                 print(f"  {table}: SKIPPED ({e})")
 
     # 迁移 FTS5 数据
@@ -116,6 +121,11 @@ def migrate(source_db: Path) -> Path:
                 )
                 print(f"  paragraphs_fts: {len(rows)} rows indexed")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "迁移 paragraphs_fts 失败，已跳过", exception=e)
             print(f"  paragraphs_fts: SKIPPED ({e})")
 
     src.close()

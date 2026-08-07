@@ -116,7 +116,12 @@ class HeartbeatManager:
         try:
             sig = inspect.signature(timeout_callback)
             callback_param_count = len(sig.parameters)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "检测 timeout_callback 签名失败", exception=exc)
             callback_param_count = 1
             logger.warning("无法检测 timeout_callback 签名，按旧签名(1参数)调用")
         try:
@@ -127,7 +132,12 @@ class HeartbeatManager:
 
                 try:
                     await send_callback()
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "发送心跳请求失败，计入丢失", exception=exc)
                     logger.warning(
                         "Runner %s 发送心跳请求失败，计入丢失", runner_id
                     )
@@ -165,7 +175,12 @@ class HeartbeatManager:
                         ):
                             try:
                                 await listener(runner_id, context)
-                            except Exception:
+                            except Exception as exc:
+                                from src.core.error_escalation.types import ErrorLevel
+                                from src.core.error_escalation_port_registry import get_error_escalation_port
+                                port = get_error_escalation_port()
+                                if port is not None:
+                                    port.report(ErrorLevel.ERROR, "插件心跳循环异常", exception=exc)
                                 logger.exception(
                                     "心跳监听器异常（runner_id=%s）", runner_id
                                 )

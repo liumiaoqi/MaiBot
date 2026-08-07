@@ -77,13 +77,23 @@ def _structured_prompt_content_to_text(content: Any) -> str:
                 continue
             try:
                 parts.append(json.dumps(item, ensure_ascii=False, indent=2, default=str))
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "结构化 Prompt 内容转文本失败", exception=exc)
                 logger.warning("操作异常 in reasoning_process", exc_info=True)
                 parts.append(str(item))
         return "\n".join(part for part in parts if part).strip()
     try:
         return json.dumps(content, ensure_ascii=False, indent=2, default=str)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "结构化 Prompt 内容转文本失败", exception=exc)
         logger.warning("操作异常 in reasoning_process", exc_info=True)
         return str(content)
 
@@ -886,6 +896,11 @@ def _resolve_replay_task_name(stage: str, model_name: str) -> str:
             options=ResolutionOptions(prefer=(("llm", model_name),)),
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "重放模型按 llm 形态解析失败，回退默认", exception=exc)
         # prefer 不存在（模型非 llm 形态）时退化为默认能力解析
         logger.warning(f"重放模型 {model_name} 按 llm 形态解析失败，回退默认: {exc}")
         resolved = port.resolve_by_capability(("text_generation",))

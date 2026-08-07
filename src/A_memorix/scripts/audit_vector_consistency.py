@@ -48,6 +48,11 @@ try:
     from A_memorix.core.storage.metadata_store import MetadataStore
     from A_memorix.core.storage import QuantizationType
 except Exception as e:  # pragma: no cover
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.CRITICAL, "导入核心模块失败", exception=e)
     logger.warning("操作失败", exc_info=True)
     print(f"❌ 导入核心模块失败: {e}")
     sys.exit(1)
@@ -167,6 +172,11 @@ def main() -> int:
     try:
         result = run_audit(data_dir)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "向量一致性审计失败", exception=e)
         logger.warning("操作失败", exc_info=True)
         print(f"❌ 审计失败: {e}")
         return 2

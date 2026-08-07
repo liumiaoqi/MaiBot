@@ -62,7 +62,12 @@ class InteractionScheduler:
         while self._running:
             try:
                 await self._evaluate_all_agents()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, "调度循环异常，降级静默", exception=exc)
                 logger.exception("[agent_interaction] 调度循环异常，降级静默")
             await asyncio.sleep(self._interval)
 
@@ -77,7 +82,12 @@ class InteractionScheduler:
                         "[agent_interaction] 触发成功: event_id=%s",
                         result.event_id,
                     )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "智能体评估异常，跳过", exception=exc)
                 logger.warning(
                     "[agent_interaction] 智能体 %s 评估异常，跳过",
                     agent.agent_id,

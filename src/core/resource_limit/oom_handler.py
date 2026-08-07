@@ -136,7 +136,6 @@ class OOMHandler:
                         "limit": limit,
                     })
                 except Exception as e:
-                    from src.core.error_escalation.types import ErrorLevel
                     from src.core.error_escalation_port_registry import get_error_escalation_port
                     port = get_error_escalation_port()
                     if port is not None:
@@ -158,7 +157,6 @@ class OOMHandler:
                     "trigger_dimension": dimension.value,
                 })
             except Exception as e:
-                from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
@@ -176,7 +174,6 @@ class OOMHandler:
                     f"dimension={dimension.value}, usage={usage}, limit={limit}",
                 )
             except Exception as e:
-                from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:

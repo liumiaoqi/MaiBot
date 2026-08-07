@@ -153,6 +153,11 @@ def _read_metadata_file(metadata_path: Path) -> dict[str, Any]:
         else:
             metadata = parse_toml(metadata_path.read_text(encoding="utf-8"))
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取 Prompt 元信息文件失败", exception=exc)
         logger.warning(f"读取 Prompt 元信息文件 {metadata_path} 失败：{exc}")
         return {}
 
@@ -378,6 +383,11 @@ def _format_prompt_template(name: str, template: str, **kwargs: object) -> str:
         logger.error(f"{error}")
         return template
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "Prompt 模板格式化失败", exception=exc)
         logger.error(t("prompt.format_failed", name=name, error=exc))
         if is_strict_prompt_i18n_mode():
             raise

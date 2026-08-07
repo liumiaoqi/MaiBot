@@ -55,6 +55,11 @@ class MaisakaExpressionSelector:
             use_expression, _ = ExpressionConfigUtils.get_expression_config_for_chat(session_id)
             return use_expression
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "检查表达方式使用开关失败", exception=exc)
             logger.error(f"检查表达方式使用开关失败: {exc}")
             return False
 
@@ -294,7 +299,12 @@ class MaisakaExpressionSelector:
             return []
         try:
             parsed_result = json.loads(repair_json(raw_response))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "表达方式选择结果解析失败", exception=exc)
             logger.warning(f"表达方式选择结果解析失败: {raw_response!r}")
             return []
 
@@ -538,6 +548,11 @@ class MaisakaExpressionSelector:
         try:
             raw_response = await sub_agent_runner(selector_prompt)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "表达方式 LLM 选择子代理执行失败，回退为直接注入", exception=exc)
             logger.warning(f"表达方式 LLM 选择子代理执行失败，回退为直接注入: {exc}")
             return self._build_direct_selection_result(
                 session_id=session_id,

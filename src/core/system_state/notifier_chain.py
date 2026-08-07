@@ -264,6 +264,11 @@ class NotifierChain:
             logger.warning("状态迁移通知超时，视为 DONE（订阅者 priority=%d）", subscriber.priority)
             return Vote.DONE, None
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "状态迁移订阅者异常，已隔离", exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("状态迁移订阅者异常，已隔离（priority=%d）", subscriber.priority)
@@ -277,7 +282,12 @@ class NotifierChain:
             result = subscriber.on_rollback()
             if asyncio.iscoroutine(result):
                 await asyncio.wait_for(result, timeout=self._timeout)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "状态迁移回滚异常，回滚继续", exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("状态迁移回滚异常（priority=%d），回滚继续", subscriber.priority)

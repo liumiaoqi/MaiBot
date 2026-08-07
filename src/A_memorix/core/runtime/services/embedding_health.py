@@ -76,6 +76,11 @@ class EmbeddingHealthService:
         try:
             setter(self.is_degraded)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "设置 retriever sparse-only 运行时状态失败", exception=exc)
             logger.warning(f"设置 retriever sparse-only 运行时状态失败: {exc}")
 
     def mark_startup_self_check_deferred(
@@ -123,6 +128,11 @@ class EmbeddingHealthService:
             try:
                 value = int(report.get(key, 0) or 0)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
                 logger.warning("操作异常: %s", exc)
             if value > 0:
                 return value

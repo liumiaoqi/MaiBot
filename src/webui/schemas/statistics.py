@@ -1,10 +1,12 @@
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StatisticsSummary(BaseModel):
     """统计数据摘要"""
+
+    model_config = ConfigDict(extra='forbid')
 
     total_requests: int = Field(0, description="总请求数")
     total_cost: float = Field(0.0, description="总花费")
@@ -20,6 +22,8 @@ class StatisticsSummary(BaseModel):
 class ModelStatistics(BaseModel):
     """模型统计"""
 
+    model_config = ConfigDict(extra='forbid')
+
     model_name: str
     request_count: int
     total_cost: float
@@ -30,6 +34,8 @@ class ModelStatistics(BaseModel):
 class TimeSeriesData(BaseModel):
     """时间序列数据"""
 
+    model_config = ConfigDict(extra='forbid')
+
     timestamp: str
     requests: int = 0
     cost: float = 0.0
@@ -39,6 +45,8 @@ class TimeSeriesData(BaseModel):
 class AgentStatsInfo(BaseModel):
     """智能体统计信息"""
 
+    model_config = ConfigDict(extra='forbid')
+
     total_agents: int = Field(0, description="智能体总数")
     active_agents: int = Field(0, description="有活跃会话的智能体数量")
     total_active_sessions: int = Field(0, description="活跃会话总数")
@@ -46,6 +54,8 @@ class AgentStatsInfo(BaseModel):
 
 class DashboardData(BaseModel):
     """仪表盘数据"""
+
+    model_config = ConfigDict(extra='forbid')
 
     summary: StatisticsSummary
     model_stats: List[ModelStatistics]
@@ -58,6 +68,8 @@ class DashboardData(BaseModel):
 class AgentStatisticsItem(BaseModel):
     """按智能体维度的统计项。"""
 
+    model_config = ConfigDict(extra='forbid')
+
     agent_id: str = Field(description="智能体 ID")
     request_count: int = Field(0, description="调用次数")
     total_input_tokens: int = Field(0, description="输入 Token 总数")
@@ -68,6 +80,8 @@ class AgentStatisticsItem(BaseModel):
 
 class AgentStatisticsResponse(BaseModel):
     """智能体维度统计响应。"""
+
+    model_config = ConfigDict(extra='forbid')
 
     hours: int = Field(description="统计时间范围（小时）")
     agents: List[AgentStatisticsItem] = Field(default_factory=list)

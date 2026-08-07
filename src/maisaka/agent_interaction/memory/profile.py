@@ -117,7 +117,12 @@ class AgentProfileService:
                 emotion_tag = metadata.get("emotion_tag", "")
                 if emotion_tag:
                     emotion_counts[emotion_tag] = emotion_counts.get(emotion_tag, 0) + 1
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "刷新画像失败", exception=exc)
                 logger.warning("操作异常 in profile.py", exc_info=True)
 
             evidence_list.append({
@@ -187,6 +192,11 @@ class AgentProfileService:
                 if len(content) > 20:
                     traits_set.add(content[:20])
             return list(traits_set)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "抽取画像特征失败", exception=exc)
             logger.warning("操作异常 in profile.py", exc_info=True)
             return []

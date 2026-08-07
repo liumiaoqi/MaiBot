@@ -194,6 +194,11 @@ class PluginMessageUtils:
                 return ""
             return base64.b64encode(image_path.read_bytes()).decode("utf-8")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "通过 hash 加载历史媒体失败", exception=exc)
             logger.warning(f"通过 hash 加载历史媒体失败: type={image_type} hash={binary_hash} error={exc}")
             return ""
 
@@ -356,6 +361,11 @@ class PluginMessageUtils:
             try:
                 binary_data = base64.b64decode(raw_binary_base64)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "消息处理异常", exception=exc)
                 logger.warning("消息处理异常: %s", exc)
                 binary_data = b""
 

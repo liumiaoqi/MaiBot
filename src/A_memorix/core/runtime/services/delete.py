@@ -636,6 +636,11 @@ class DeleteService:
                 error="" if (entity_hashes or relation_hashes or paragraph_hashes or matched_source_tokens) else "未命中可删除内容",
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "delete_admin execute 失败", exception=exc)
             conn.rollback()
             logger.warning(f"delete_admin execute 失败: {exc}")
             return self.build_standard_delete_result(mode=act_mode, error=str(exc))
@@ -958,6 +963,11 @@ class DeleteService:
         try:
             await manager.invalidate_manifest_for_sources(sources)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "删除来源后清理导入清单失败", exception=exc)
             logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
             result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
             return

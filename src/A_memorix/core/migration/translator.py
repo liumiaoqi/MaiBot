@@ -109,11 +109,21 @@ class ConnectionistTranslator:
                 words = [w.strip() for w in jieba.cut(query) if w.strip() and len(w.strip()) >= 2]
                 seeds = words if words else [query]
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
                 logger.warning("操作异常: %s", exc)
         if concept_index is not None:
             try:
                 expanded = concept_index.expand_seeds(seeds)
                 return expanded
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
                 logger.warning("操作异常: %s", exc)
         return seeds

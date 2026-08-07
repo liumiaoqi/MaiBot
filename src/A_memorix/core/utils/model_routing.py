@@ -96,6 +96,11 @@ def get_text_generation_model_tasks(llm_api: Any, *, include_empty: bool = False
     try:
         resolved = resolve_text_generation_task(llm_api)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "能力解析失败，返回空任务表", exception=exc)
         logger.warning(f"[A_Memorix.ModelRouting] 能力解析失败，返回空任务表: {exc}")
         return {}
     return {resolved.task_name: resolved.task_config}
@@ -219,6 +224,11 @@ async def generate_with_resolved_model(
         )
         return llm_api.LLMServiceResult.from_response_result(completion)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "生成内容时出错", exception=exc)
         error_message = f"生成内容时出错: {exc}"
         logger.error(f"[A_Memorix.ModelRouting] {error_message}")
         return llm_api.LLMServiceResult.from_error(error_message, str(exc))

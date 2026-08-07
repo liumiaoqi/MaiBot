@@ -242,6 +242,11 @@ async def handle_tool(
             group_id=group_id,
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "长期记忆检索执行异常", exception=exc)
         logger.exception(f"{runtime.log_prefix} 长期记忆检索执行异常: {exc}")
         return tool_ctx.build_failure_result(
             invocation.tool_name,
@@ -286,6 +291,11 @@ async def handle_tool(
                     f"error={fallback_result.error}"
                 )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "关键词降级检索异常，回退原结果", exception=exc)
             logger.warning(f"{runtime.log_prefix} 关键词降级检索异常，回退原结果: {exc}")
 
     structured_content: Dict[str, Any] = result.to_dict()

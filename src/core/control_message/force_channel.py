@@ -60,7 +60,12 @@ class ForceChannel:
             try:
                 configured = app_config_port.get_control_message_force_caller_whitelist()
                 whitelist = frozenset(configured) or whitelist
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "force 白名单配置读取失败，使用默认", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("force 白名单配置读取失败，使用默认", exc_info=True)
@@ -70,7 +75,12 @@ class ForceChannel:
         if self._event_bus is not None:
             try:
                 await self._event_bus.emit(event_type, data)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "control 事件发布失败", exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("control 事件发布失败: %s", event_type, exc_info=True)

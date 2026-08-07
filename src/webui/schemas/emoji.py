@@ -1,10 +1,12 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class EmojiResponse(BaseModel):
     """表情包响应"""
+
+    model_config = ConfigDict(extra='forbid')
 
     id: int
     full_path: str
@@ -24,6 +26,8 @@ class EmojiResponse(BaseModel):
 class EmojiListResponse(BaseModel):
     """表情包列表响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     total: int
     page: int
@@ -34,12 +38,16 @@ class EmojiListResponse(BaseModel):
 class EmojiDetailResponse(BaseModel):
     """表情包详情响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     data: EmojiResponse
 
 
 class EmojiUpdateRequest(BaseModel):
     """表情包更新请求"""
+
+    model_config = ConfigDict(extra='forbid')
 
     description: Optional[str] = None
     is_registered: Optional[bool] = None
@@ -50,6 +58,8 @@ class EmojiUpdateRequest(BaseModel):
 class EmojiUpdateResponse(BaseModel):
     """表情包更新响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
     data: Optional[EmojiResponse] = None
@@ -58,6 +68,8 @@ class EmojiUpdateResponse(BaseModel):
 class EmojiDeleteResponse(BaseModel):
     """表情包删除响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
 
@@ -65,11 +77,15 @@ class EmojiDeleteResponse(BaseModel):
 class BatchDeleteRequest(BaseModel):
     """批量删除请求"""
 
+    model_config = ConfigDict(extra='forbid')
+
     emoji_ids: List[int]
 
 
 class BatchDeleteResponse(BaseModel):
     """批量删除响应"""
+
+    model_config = ConfigDict(extra='forbid')
 
     success: bool
     message: str
@@ -81,6 +97,8 @@ class BatchDeleteResponse(BaseModel):
 class EmojiUploadResponse(BaseModel):
     """表情包上传响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
     data: Optional[EmojiResponse] = None
@@ -88,6 +106,8 @@ class EmojiUploadResponse(BaseModel):
 
 class ThumbnailCacheStatsResponse(BaseModel):
     """缩略图缓存统计响应"""
+
+    model_config = ConfigDict(extra='forbid')
 
     success: bool
     cache_dir: str
@@ -100,6 +120,8 @@ class ThumbnailCacheStatsResponse(BaseModel):
 class ThumbnailCleanupResponse(BaseModel):
     """缩略图清理响应"""
 
+    model_config = ConfigDict(extra='forbid')
+
     success: bool
     message: str
     cleaned_count: int
@@ -108,6 +130,8 @@ class ThumbnailCleanupResponse(BaseModel):
 
 class ThumbnailPreheatResponse(BaseModel):
     """缩略图预热响应"""
+
+    model_config = ConfigDict(extra='forbid')
 
     success: bool
     message: str

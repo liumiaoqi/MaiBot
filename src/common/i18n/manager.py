@@ -85,6 +85,11 @@ class I18nManager:
         try:
             plural_category = select_plural_category(translation_locale, count)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "选择 plural category 失败，已回退到 other", exception=exc)
             logger.warning(f"为 key '{key}' 选择 plural category 失败: {exc}，已回退到 other")
             plural_category = "other"
 
@@ -123,6 +128,11 @@ class I18nManager:
         try:
             return format_template(template, **kwargs)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "翻译 key 格式化失败", exception=exc)
             logger.error(f"翻译 key '{key}' 格式化失败: {exc}")
             return template
 

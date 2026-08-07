@@ -68,6 +68,11 @@ class AsyncWriteQueue:
                 try:
                     await self._write_with_retry(kwargs)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
                     logger.warning("操作异常: %s", exc)
                 finally:
                     self._queue.task_done()
@@ -81,6 +86,11 @@ class AsyncWriteQueue:
                 await self._observer.observe(**kwargs)
                 return
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作失败", exception=exc)
                 logger.warning("操作失败", exc_info=True)
                 last_error = str(exc)
                 if attempt < _MAX_RETRIES:

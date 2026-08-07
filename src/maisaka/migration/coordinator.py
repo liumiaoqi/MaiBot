@@ -159,6 +159,11 @@ class MigrationCoordinator:
                     except (json.JSONDecodeError, KeyError, ValueError):
                         continue
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "加载迁移状态失败", exception=e)
             logger.warning("加载迁移状态失败: %s", e)
 
     def _save_states(self) -> None:
@@ -177,4 +182,9 @@ class MigrationCoordinator:
                     }
                     f.write(json.dumps(data, ensure_ascii=False) + "\n")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "保存迁移状态失败", exception=e)
             logger.error("保存迁移状态失败: %s", e)

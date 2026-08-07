@@ -133,6 +133,11 @@ class FusedWritePipeline:
                     self._store.upsert_trace_edge(edge)
                 self._store.mark_event_written(event_id)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "概念图写入失败", exception=exc)
             logger.error("概念图写入失败: event_id=%s error=%s", event_id, exc, exc_info=True)
             raise ConceptGraphWriteError(f"概念图写入失败: {exc}") from exc
 
@@ -147,6 +152,11 @@ class FusedWritePipeline:
                         pending.append(node.id)
                         self._mark_embedding_pending(node.id)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "向量写入失败，标记 embedding_pending 后台补写", exception=exc)
                 logger.warning(
                     "向量写入失败，标记 embedding_pending 后台补写: event_id=%s error=%s",
                     event_id,

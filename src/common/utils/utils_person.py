@@ -25,6 +25,11 @@ class PersonUtils:
                 if result := session.exec(statement).first():
                     return MaiPersonInfo.from_db_instance(result)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "查询用户信息失败", exception=e)
             logger.error(f"查询用户信息失败: {str(e)}")
         return None
 
@@ -51,5 +56,10 @@ class PersonUtils:
                 if result := session.exec(statement).first():
                     return MaiPersonInfo.from_db_instance(result)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "根据 user_id 和 platform 查询用户信息失败", exception=e)
             logger.error(f"根据 user_id 和 platform 查询用户信息失败: {str(e)}")
         return None

@@ -1,10 +1,12 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class VirtualIdentityConfig(BaseModel):
     """虚拟身份配置"""
+
+    model_config = ConfigDict(extra='forbid')
 
     enabled: bool = False
     platform: Optional[str] = None
@@ -17,6 +19,8 @@ class VirtualIdentityConfig(BaseModel):
 
 class ChatHistoryMessage(BaseModel):
     """聊天历史消息"""
+
+    model_config = ConfigDict(extra='forbid')
 
     id: str
     type: str  # 'user' | 'bot' | 'system'

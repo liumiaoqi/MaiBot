@@ -53,6 +53,11 @@ def _get_replyer(
             request_type=request_type,
         )
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "获取回复器时发生意外错误", exception=e)
         logger.error(f"[GeneratorService] 获取回复器时发生意外错误: {e}", exc_info=True)
         traceback.print_exc()
         return None
@@ -165,6 +170,11 @@ async def generate_reply(
         return False, None
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "生成回复时出错", exception=e)
         logger.error(f"[GeneratorService] 生成回复时出错: {e}")
         logger.error(traceback.format_exc())
         return False, None
@@ -221,6 +231,11 @@ async def rewrite_reply(
         raise ve
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "重写回复时出错", exception=e)
         logger.error(f"[GeneratorService] 重写回复时出错: {e}")
         return False, None
 

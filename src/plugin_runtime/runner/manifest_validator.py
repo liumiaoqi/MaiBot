@@ -912,6 +912,11 @@ class ManifestValidator:
             with manifest_path.open("r", encoding="utf-8") as manifest_file:
                 manifest_data = json.load(manifest_file)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in manifest_validator.py", exception=exc)
             logger.warning("操作异常 in manifest_validator.py", exc_info=True)
             self.errors.append(f"manifest 解析失败: {exc}")
             self._log_errors(source=str(plugin_path))
@@ -1267,6 +1272,11 @@ class ManifestValidator:
             with sdk_pyproject_path.open("rb") as pyproject_file:
                 pyproject_data = tomllib.load(pyproject_file)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "manifest 校验异常", exception=exc)
             logger.warning("manifest 校验异常: %s", exc)
             return ""
 
@@ -1295,6 +1305,11 @@ class ManifestValidator:
             with pyproject_path.open("rb") as pyproject_file:
                 pyproject_data = tomllib.load(pyproject_file)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "manifest 校验异常", exception=exc)
             logger.warning("manifest 校验异常: %s", exc)
             return {}
 

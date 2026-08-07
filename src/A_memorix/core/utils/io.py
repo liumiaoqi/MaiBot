@@ -49,6 +49,11 @@ def atomic_write(file_path: Union[str, Path], mode: str = "w", encoding: str = N
         os.replace(tmp_path, path)
         
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "原子写入文件失败", exception=e)
         logger.warning("操作失败", exc_info=True)
         # 清理临时文件
         if tmp_path.exists():
@@ -81,6 +86,11 @@ def atomic_save_path(file_path: Union[str, Path]):
             os.replace(tmp_path, path)
             
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "原子保存路径失败", exception=e)
         logger.warning("操作失败", exc_info=True)
         if Path(tmp_path).exists():
             try:

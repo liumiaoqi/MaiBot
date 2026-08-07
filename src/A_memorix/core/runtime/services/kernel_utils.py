@@ -105,6 +105,11 @@ def optional_float(value: Any) -> Optional[float]:
     try:
         return float(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
         logger.warning("操作异常: %s", exc)
 def optional_int(value: Any) -> Optional[int]:
     if value in {None, ""}:
@@ -112,6 +117,11 @@ def optional_int(value: Any) -> Optional[int]:
     try:
         return int(value)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
         logger.warning("操作异常: %s", exc)
 def table_has_column(metadata_store: Any, table: str, column: str) -> bool:
     if metadata_store is None:

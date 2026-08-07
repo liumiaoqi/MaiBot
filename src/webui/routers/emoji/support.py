@@ -54,6 +54,11 @@ def _background_generate_thumbnail(source_path: str, file_hash: str) -> None:
     try:
         _generate_thumbnail(source_path, file_hash)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "后台生成缩略图失败", exception=e)
         logger.warning(f"后台生成缩略图失败 {file_hash}: {e}")
     finally:
         with _generating_lock:
@@ -97,6 +102,11 @@ def _generate_thumbnail(source_path: str, file_hash: str) -> Path:
                 img.save(cache_path, "WEBP", quality=THUMBNAIL_QUALITY, method=6)
                 logger.debug(f"生成缩略图: {file_hash} -> {cache_path}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "生成缩略图失败，将返回原图", exception=e)
             logger.warning(f"生成缩略图失败 {file_hash}: {e}，将返回原图")
             raise
 
@@ -133,6 +143,11 @@ def cleanup_orphaned_thumbnails() -> Tuple[int, int]:
                 cleaned += 1
                 logger.debug(f"清理孤立缩略图: {cache_file.name}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "清理缩略图失败", exception=e)
                 logger.warning(f"清理缩略图失败 {cache_file.name}: {e}")
         else:
             kept += 1

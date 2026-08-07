@@ -500,6 +500,11 @@ def _save_mid_term_memory_prompt_preview(
         )
         logger.debug(f"{log_prefix} 聊天回想生成 Prompt 预览已保存")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "聊天回想生成 Prompt 预览保存失败，已跳过", exception=exc)
         logger.warning(f"{log_prefix} 聊天回想生成 Prompt 预览保存失败，已跳过: {exc}")
 
 
@@ -658,7 +663,12 @@ def _parse_json_candidate(candidate: str) -> Any:
 
     try:
         return repair_json(candidate, return_objects=True, logging=False)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析 JSON 候选失败", exception=exc)
         logger.warning("操作异常 in mid_term.py", exc_info=True)
 
 

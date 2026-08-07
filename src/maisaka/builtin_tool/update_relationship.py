@@ -69,7 +69,12 @@ async def handle_tool(
                     invocation.tool_name,
                     f"update_relationship 仅供主发言智能体使用。当前主发言：{primary.agent_id}",
                 )
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "检查关系权限失败，已放行", exception=exc)
         pass  # 无法检查权限时放行（非多智能体场景）
 
     if target == agent_id:
@@ -118,7 +123,12 @@ async def handle_tool(
             target_agent_id=target,
             delta=0.12,  # 提及共激活增量
         )
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "共激活更新失败，不阻断主流程", exception=exc)
         pass  # 共激活更新失败不阻断主流程
 
     # 持久化修改记录

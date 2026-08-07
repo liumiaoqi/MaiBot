@@ -60,6 +60,11 @@ class CapabilityService:
         try:
             req = CapabilityRequestPayload.model_validate(envelope.payload)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in capability_service.py", exception=exc)
             logger.warning("操作异常 in capability_service.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, f"能力调用 payload 非法: {exc}")
 
@@ -84,6 +89,11 @@ class CapabilityService:
         except RPCError as e:
             return envelope.make_error_response(e.code.value, e.message, e.details)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "能力执行异常", exception=e)
             logger.error(f"能力 {capability} 执行异常: {e}", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_CAPABILITY_FAILED.value, str(e))
 

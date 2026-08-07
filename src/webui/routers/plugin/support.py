@@ -256,7 +256,12 @@ def load_manifest_json(manifest_path: Path) -> Optional[Dict[str, Any]]:
     try:
         with open(manifest_path, "r", encoding="utf-8") as file_obj:
             return cast(dict[str, Any], json.load(file_obj))
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取插件 manifest 失败", exception=exc)
         logger.warning("操作异常 in support.py", exc_info=True)
 
 
@@ -273,6 +278,11 @@ def read_plugin_changelog(plugin_path: Path) -> Optional[str]:
             with open(changelog_path, "r", encoding="utf-8") as file_obj:
                 return file_obj.read(MAX_PLUGIN_CHANGELOG_CHARS + 1)[:MAX_PLUGIN_CHANGELOG_CHARS]
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取插件更新日志失败", exception=exc)
             logger.warning(f"读取插件更新日志失败: {changelog_path} ({exc})")
             return None
 
@@ -292,6 +302,11 @@ def read_plugin_readme(plugin_path: Path) -> Optional[str]:
             with open(readme_path, "r", encoding="utf-8") as file_obj:
                 return file_obj.read(MAX_PLUGIN_README_CHARS + 1)[:MAX_PLUGIN_README_CHARS]
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "读取插件 README 失败", exception=exc)
             logger.warning(f"读取插件 README 失败: {readme_path} ({exc})")
             return None
 

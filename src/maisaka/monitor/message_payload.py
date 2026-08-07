@@ -46,6 +46,11 @@ def build_monitor_message_content(
             if body_text or has_media:
                 return body_text
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "构造监控消息正文失败", exception=exc)
             logger.warning(
                 f"{log_prefix} 构造监控消息正文失败: "
                 f"message_id={message.message_id} error={exc}"
@@ -61,6 +66,11 @@ def build_monitor_message_content(
         refresh_visual_components(message)
         return build_visible_text_from_sequence(message.raw_message).strip()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "构造监控消息可见文本失败", exception=exc)
         logger.warning(
             f"{log_prefix} 构造监控消息可见文本失败: "
             f"message_id={message.message_id} error={exc}"
@@ -80,6 +90,11 @@ def build_monitor_message_media(message: SessionMessage, *, log_prefix: str = ""
     try:
         default_original = resolve_enable_visual_planner()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析监控媒体默认展示模式失败", exception=exc)
         logger.warning(f"{log_prefix} 解析监控媒体默认展示模式失败: {exc}")
         default_original = False
 

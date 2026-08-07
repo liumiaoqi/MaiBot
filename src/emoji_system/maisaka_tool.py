@@ -209,6 +209,11 @@ async def send_emoji_for_maisaka(
         if not emoji_base64:
             raise ValueError("表情图片转换为 base64 失败")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "操作异常 in maisaka_tool.py", exception=exc)
         logger.warning("操作异常 in maisaka_tool.py", exc_info=True)
         return MaisakaEmojiSendResult(
             success=False,
@@ -249,6 +254,11 @@ async def send_emoji_for_maisaka(
             sent = result.success
             sent_message_id = result.message_id
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "操作异常 in maisaka_tool.py", exception=exc)
         logger.warning("操作异常 in maisaka_tool.py", exc_info=True)
         return MaisakaEmojiSendResult(
             success=False,

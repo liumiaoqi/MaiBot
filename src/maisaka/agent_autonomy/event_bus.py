@@ -120,6 +120,11 @@ class AutonomyEventBus:
             try:
                 await handler(event)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "事件处理异常", exception=exc)
                 logger.warning(
                     f"[agent_autonomy] 事件处理异常: type={event_type} error={exc}"
                 )
@@ -144,6 +149,11 @@ class AutonomyEventBus:
             try:
                 await handler(event)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "事件处理异常", exception=exc)
                 handler_name = getattr(handler, "__name__", repr(handler))
                 logger.warning(
                     f"[agent_autonomy] 事件处理异常: handler={handler_name} error={exc}"

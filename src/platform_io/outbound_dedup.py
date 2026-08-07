@@ -142,6 +142,11 @@ class OutboundDedupWindow:
             return DedupDecision(allow=True)
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "出站去重窗口异常，降级放行", exception=e)
             # fail-open 降级：异常时放行
             logger.error(f"出站去重窗口异常，降级放行: {e}")
             mark_exception_swallowed("outbound_dedup.check_and_record")
@@ -169,6 +174,11 @@ class OutboundDedupWindow:
             return False
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, "出站去重窗口查询异常，降级返回 False", exception=e)
             # fail-open 降级：异常时返回 False（未发送），允许重试
             logger.error(f"出站去重窗口查询异常，降级返回 False: {e}")
             mark_exception_swallowed("outbound_dedup.is_recently_sent")

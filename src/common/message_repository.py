@@ -221,6 +221,11 @@ def find_messages(
 
             return [_message_to_instance(msg) for msg in results]
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "查询消息记录失败", exception=e)
         log_message = (
             "使用 SQLModel 查找消息失败 "
             f"(session_id={session_id}, user_id={user_id}, group_id={group_id}, platform={platform}, "
@@ -284,6 +289,11 @@ def count_messages(
             result = session.exec(statement).one()
         return int(result or 0)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "统计消息数量失败", exception=e)
         log_message = (
             "使用 SQLModel 计数消息失败 "
             f"(session_id={session_id}, user_id={user_id}, group_id={group_id}, platform={platform}, "

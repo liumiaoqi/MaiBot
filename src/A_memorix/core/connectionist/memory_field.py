@@ -137,6 +137,11 @@ class MemoryField:
                     mr.observation_id, mr.agent_id,
                 ))
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "操作异常", exception=exc)
                 logger.warning("操作异常: %s", exc)
         return result
 
@@ -161,7 +166,12 @@ class MemoryField:
                         item.cognitive_type = best.type
                     if best.contradicts_id is not None and item.contradicts_id is None:
                         item.contradicts_id = best.contradicts_id
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "记忆字段 recall 操作失败", exception=exc)
                 pass
         return items
 

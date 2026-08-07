@@ -72,6 +72,11 @@ class AmbientAwarenessProcessor:
                     info.agent_id, session_id, delta, "ambient_message"
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "消息感知异常", exception=exc)
                 logger.warning(
                     f"[ambient] 消息感知异常: agent={info.agent_id} error={exc}"
                 )
@@ -105,6 +110,11 @@ class AmbientAwarenessProcessor:
                     infection_strength += bonus
                 emotion_mgr.apply_trigger(event.emotion_type, infection_strength)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "情绪感染异常", exception=exc)
                 logger.warning(
                     f"[ambient] 情绪感染异常: agent={info.agent_id} error={exc}"
                 )

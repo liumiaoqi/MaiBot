@@ -157,6 +157,11 @@ class MCPConnection:
             return True
 
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "MCP 服务器连接失败", exception=exc)
             logger.warning("操作异常 in connection", exc_info=True)
             console.print(f"[warning]⚠️ MCP 服务器 '{self.config.name}' 连接失败: {exc}[/warning]")
             await self.close()
@@ -571,6 +576,11 @@ class MCPConnection:
                 read_timeout_seconds=timedelta(seconds=self.config.read_timeout_seconds),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in connection", exception=exc)
             logger.warning("操作异常 in connection", exc_info=True)
             return ToolExecutionResult(
                 tool_name=tool_name,
@@ -642,7 +652,12 @@ class MCPConnection:
 
         try:
             await self._exit_stack.aclose()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "操作异常 in connection", exception=exc)
             logger.warning("操作异常 in connection", exc_info=True)
 
         self.session = None

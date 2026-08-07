@@ -1,9 +1,11 @@
 from typing import Any, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConfigSaveResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = True
     message: str = "配置已保存"
     needs_restart: bool = Field(default=False, description="修改的配置节是否需要重启才能生效")
@@ -11,6 +13,8 @@ class ConfigSaveResponse(BaseModel):
 
 
 class PromptFileInfo(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     name: str = Field(..., description="Prompt 文件名")
     size: int = Field(..., description="文件大小")
     modified_at: float = Field(..., description="最后修改时间戳")
@@ -22,6 +26,8 @@ class PromptFileInfo(BaseModel):
 
 
 class PromptValidationResult(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     valid: bool = True
     missing_placeholders: List[str] = Field(default_factory=list)
     extra_placeholders: List[str] = Field(default_factory=list)
@@ -29,6 +35,8 @@ class PromptValidationResult(BaseModel):
 
 
 class PromptVersionInfo(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     id: str
     label: str
     created_at: float
@@ -38,12 +46,16 @@ class PromptVersionInfo(BaseModel):
 
 
 class PromptCatalogResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = True
     languages: List[str]
     files: dict[str, List[PromptFileInfo]]
 
 
 class PromptFileResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = True
     language: str
     filename: str
@@ -55,10 +67,14 @@ class PromptFileResponse(BaseModel):
 
 
 class PromptVersionFileResponse(PromptFileResponse):
+    model_config = ConfigDict(extra='forbid')
+
     version_id: str
 
 
 class PromptVersionListResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = True
     language: str
     filename: str
@@ -67,6 +83,8 @@ class PromptVersionListResponse(BaseModel):
 
 
 class PromptUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     content: str
     version_id: str | None = None
     label: str = ""
@@ -74,6 +92,8 @@ class PromptUpdateRequest(BaseModel):
 
 
 class PromptGeneratorChatPrompt(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     platform: str = Field(default="", description="平台名")
     item_id: str = Field(default="", description="目标 ID")
     rule_type: str = Field(default="group", description="规则类型：group/private")
@@ -81,6 +101,8 @@ class PromptGeneratorChatPrompt(BaseModel):
 
 
 class PromptGeneratorParsedResult(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     personality: str = Field(default="", description="对应 [personality].personality")
     reply_style: str = Field(default="", description="对应 [personality].reply_style")
     multiple_reply_style: List[str] = Field(default_factory=list, description="对应 multiple_reply_style")
@@ -94,6 +116,8 @@ class PromptGeneratorParsedResult(BaseModel):
 
 
 class PromptGeneratorConfigBlock(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     id: str = Field(..., description="配置块 ID")
     section: str = Field(..., description="目标配置节")
     field: str = Field(..., description="目标字段")
@@ -104,6 +128,8 @@ class PromptGeneratorConfigBlock(BaseModel):
 
 
 class PromptGeneratorRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     model_name: str = Field(..., min_length=1, description="model_config.toml 中定义的模型名称")
     source_text: str = Field(..., min_length=1, max_length=20000, description="任意人设、角色卡或风格描述")
     target_scene: str = Field(default="group", description="目标场景：group/private/both")
@@ -114,6 +140,8 @@ class PromptGeneratorRequest(BaseModel):
 
 
 class PromptGeneratorResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = True
     model_name: str
     result: PromptGeneratorParsedResult
@@ -127,10 +155,14 @@ class PromptGeneratorResponse(BaseModel):
 
 
 class PromptGeneratorApplyRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     blocks: List[PromptGeneratorConfigBlock] = Field(default_factory=list, description="要写入的配置块")
 
 
 class PromptGeneratorApplyResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     success: bool = True
     message: str
     applied_blocks: int

@@ -397,6 +397,11 @@ class Butler:
                 result[aid] = await rel_manager.get_coactivation(aid, self._primary_agent_id)
             self._coactivation_cache = result
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "共激活加载失败", exception=exc)
             logger.debug(f"[butler] 共激活加载失败: error={exc}")
             self._coactivation_cache = {}
 
@@ -619,6 +624,11 @@ class Butler:
                 return None
             return response
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "[butler] 管家发言失败", exception=e)
             logger.warning(f"[butler] 管家发言失败: {e}")
             return None
 
