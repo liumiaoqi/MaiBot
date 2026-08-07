@@ -136,6 +136,11 @@ def log_tracked_image_recognition_completed(image_hash: str) -> None:
         try:
             refresher(image_hash)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '通知 MaiSaka 监控图片占位刷新失败', exception=exc)
             logger.warning(f"通知 MaiSaka 监控图片占位刷新失败，image_hash={image_hash}: {exc}")
 
 
@@ -156,6 +161,11 @@ def _is_vlm_task_configured() -> bool:
         vlm_models = port.get_task_config("vlm").model_list
         return any(str(model_name).strip() for model_name in vlm_models)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取 VLM 模型配置失败，跳过图片识别等待', exception=exc)
         logger.warning(f"读取 VLM 模型配置失败，跳过图片识别等待: {exc}")
         return False
 
@@ -216,6 +226,11 @@ def _is_image_description_pending(image_hash: str) -> bool:
                 return False
             return not bool(image_record.vlm_processed)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取图片识别状态失败', exception=exc)
         logger.warning(f"读取图片识别状态失败，image_hash={image_hash}: {exc}")
         return False
 
@@ -280,6 +295,11 @@ def _lookup_cached_image_description(image_hash: str) -> str:
                 if image_record.vlm_processed and image_record.description:
                     return str(image_record.description).strip()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取图片缓存描述失败', exception=exc)
         logger.warning(f"读取图片缓存描述失败，image_hash={image_hash}: {exc}")
 
     return ""
@@ -299,6 +319,11 @@ def _lookup_cached_emoji_description(emoji_hash: str) -> str:
                     return ""
                 return str(image_record.description).strip()
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取表情缓存描述失败', exception=exc)
         logger.warning(f"读取表情缓存描述失败，emoji_hash={emoji_hash}: {exc}")
 
     return ""

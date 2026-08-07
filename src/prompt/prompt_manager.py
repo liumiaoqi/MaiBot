@@ -306,6 +306,11 @@ class PromptManager:
                 try:
                     prompt_file.unlink()
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, '删除自定义 Prompt 文件失败', exception=exc)
                     logger.error(f"删除自定义 Prompt 文件 '{prompt_file}' 时出错，错误信息: {exc}")
                     raise
         for prompt_name in self._prompt_to_save:
@@ -316,6 +321,11 @@ class PromptManager:
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_text(prompt.template, encoding="utf-8")
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '保存 Prompt 文件失败', exception=exc)
                 logger.error(f"保存 Prompt '{prompt_name}' 时出错，文件路径: '{file_path}'，错误信息: {exc}")
                 raise
 
@@ -359,6 +369,11 @@ class PromptManager:
                         prompt_locale=prompt_locale,
                     )
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, '加载 Prompt 文件失败', exception=exc)
                     logger.error(f"加载 Prompt 文件 '{prompt_template.path}' 时出错，错误信息: {exc}")
                     raise
             loaded_custom_prompts = set(prompt_templates)
@@ -384,6 +399,11 @@ class PromptManager:
                         )
                         loaded_custom_prompts.add(prompt_file.stem)
                     except Exception as exc:
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.ERROR, '加载自定义 Prompt 文件失败', exception=exc)
                         logger.error(f"加载自定义 Prompt 文件 '{prompt_file}' 时出错，错误信息: {exc}")
                         raise
             self.prompts = loaded_prompts
@@ -430,6 +450,11 @@ class PromptManager:
                 res = await res
             return res
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '调用 Prompt 文件失败', exception=exc)
             if is_prompt_context:
                 logger.error(f"调用 Prompt '{prompt_name}' 内部上下文构造函数 '{field_name}' 时出错，错误信息: {exc}")
             else:

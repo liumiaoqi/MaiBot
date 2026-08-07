@@ -38,6 +38,11 @@ def _to_builtin_data(obj: Any) -> Any:
         try:
             obj = obj.unwrap()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '转换内置数据失败', exception=exc)
             logger.warning("操作异常: %s", exc)
     if isinstance(obj, dict):
         return {str(key): _to_builtin_data(value) for key, value in obj.items()}
@@ -572,6 +577,11 @@ class AMemorixHostService:
                 try:
                     await kernel.initialize()
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, '记忆内核初始化失败', exception=exc)
                     # 半初始化内核不得注册对外服务（否则 _memory_field=None 静默 AttributeError）；
                     # 保持 _kernel=None，后续 invoke 会重试初始化
                     logger.error("记忆内核初始化失败: %s", exc, exc_info=True)
@@ -621,6 +631,12 @@ class AMemorixHostService:
                     curiosity=float(p_cfg.get("curiosity", 1.0)),
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '读取智能体记忆性格配置失败', exception=exc)
+                logger.error(f"读取智能体记忆性格配置失败: {exc}")
                 raise ValueError(f"智能体 {agent_id} 的记忆性格配置无效: {exc}") from exc
 
             voices: list[InnerVoice] = []
@@ -685,6 +701,11 @@ class AMemorixHostService:
             # 缺 storage 曾导致 data_dir 回落默认 ./data（记忆检索空结果回归）
             config_dict = _get_app_config_port().get_a_memorix_full_config()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '读取 A_Memorix 主配置失败，使用默认值', exception=exc)
             logger.warning(f"读取 A_Memorix 主配置失败，使用默认值: {exc}")
             defaults = self._build_default_config()
             self._config_cache = defaults
@@ -847,6 +868,11 @@ class AMemorixHostService:
         try:
             await self._kernel.shutdown()
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A_Memorix 关闭流程异常', exception=exc)
             logger.warning("操作异常: %s", exc)
         self._kernel = None
         set_runtime_kernel(None)

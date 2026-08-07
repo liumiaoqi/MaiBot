@@ -311,6 +311,11 @@ class StartupOrchestrator:
                     component_id=component_id,
                 )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'ZG-14 启动失败上报出错，传播继续', exception=e)
             logger.warning("ZG-14 启动失败上报出错，传播继续: %s", e)
 
     def _mark_phase_skipped(
@@ -337,6 +342,11 @@ class StartupOrchestrator:
             # P0-1: WEAK 降级项仍执行；成功后保持 DEGRADED（降级运行）
             state.status = ComponentStatus.DEGRADED if was_degraded else ComponentStatus.SUCCESS
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '启动组件失败', exception=exc)
             state.status = ComponentStatus.FAILED
             state.error = exc
             if self._items[name].critical:
@@ -371,6 +381,11 @@ class StartupOrchestrator:
             self._subsystem_status[name] = ComponentStatus.FAILED
             logger.warning(f"[{name}] 子系统启动超时")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '启动编排失败', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             state.status = ComponentStatus.FAILED
@@ -428,7 +443,12 @@ class StartupOrchestrator:
             freeze = getattr(config_manager, "freeze", None)
             if callable(freeze):
                 freeze()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '配置冻结失败（不阻断启动）', exception=exc)
             logger.warning("配置冻结失败（不阻断启动）", exc_info=True)
 
     async def _emit_startup_complete(self, result: StartupResult) -> None:
@@ -447,7 +467,12 @@ class StartupOrchestrator:
                 f"耗时={result.total_duration_ms}ms | failed={result.failed_components} | "
                 f"skipped={result.skipped_components} | degraded={result.degraded_components}"
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'StartupCompleteEvent 发布失败（不阻断启动）', exception=exc)
             logger.warning("StartupCompleteEvent 发布失败（不阻断启动）", exc_info=True)
 
     def _build_result(

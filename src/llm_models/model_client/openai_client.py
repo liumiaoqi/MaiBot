@@ -316,6 +316,11 @@ def _normalize_image_part_for_openai(part: ImageMessagePart) -> Tuple[str, str] 
             converted_base64 = base64.b64encode(output_buffer.getvalue()).decode("utf-8")
             return "png", converted_base64
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '图片内容无法被识别为有效图片，已跳过该图片片段', exception=exc)
         logger.warning(f"图片内容无法被识别为有效图片，已跳过该图片片段: {exc}")
         return None
 
@@ -672,7 +677,12 @@ def _extract_xml_tool_calls(
         if normalized_value.startswith(("{", "[")):
             try:
                 return repair_json(normalized_value, return_objects=True, logging=False)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'XML 参数值转换失败', exception=exc)
                 logger.warning("操作异常 in openai_client.py", exc_info=True)
                 return normalized_value
         return normalized_value
@@ -1535,6 +1545,11 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
         except ReqAbortException:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'OpenAI 响应请求执行失败', exception=exc)
             logger.warning("操作异常 in openai_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
@@ -1618,6 +1633,11 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'OpenAI embedding 请求执行失败', exception=exc)
             logger.warning("操作异常 in openai_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
@@ -1725,6 +1745,11 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'OpenAI 音频转写请求执行失败', exception=exc)
             logger.warning("操作异常 in openai_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise

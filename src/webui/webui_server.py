@@ -193,6 +193,11 @@ class WebUIServer:
                 logger.error(f"❌ WebUI 服务器启动失败 (网络错误): {e}")
             raise
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'WebUI 服务器运行错误', exception=e)
             logger.error(f"❌ WebUI 服务器运行错误: {e}", exc_info=True)
             raise
         finally:
@@ -209,6 +214,11 @@ class WebUIServer:
             except asyncio.TimeoutError:
                 logger.warning("⚠️ WebUI 服务器关闭超时")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'WebUI 服务器关闭失败', exception=e)
                 logger.error(f"❌ WebUI 服务器关闭失败: {e}")
             finally:
                 self._server = None
@@ -264,6 +274,11 @@ class ThreadedWebUIServer:
             self._startup_event.set()
             loop.run_until_complete(self._server.start())
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'WebUI 独立线程运行失败', exception=exc)
             self._startup_error = exc
             if not self._startup_event.is_set():
                 self._startup_event.set()
@@ -279,6 +294,11 @@ class ThreadedWebUIServer:
                     loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))
                 loop.run_until_complete(loop.shutdown_asyncgens())
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '清理 WebUI 线程事件循环时出现异常', exception=exc)
                 logger.warning(f"清理 WebUI 线程事件循环时出现异常: {exc}")
             finally:
                 loop.close()
@@ -347,6 +367,11 @@ class ThreadedWebUIServer:
                 logger.warning("WebUI 线程关闭等待超时")
                 future.cancel()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'WebUI 线程关闭时出现异常', exception=exc)
                 logger.warning(f"WebUI 线程关闭时出现异常: {exc}")
 
         if thread.is_alive():

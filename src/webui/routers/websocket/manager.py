@@ -77,6 +77,11 @@ class UnifiedWebSocketManager:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '统一 WebSocket 发送失败', exception=exc)
             logger.error(f"统一 WebSocket 发送失败: connection={connection.connection_id}, error={exc}")
 
     async def connect(self, connection_id: str, websocket: WebSocket) -> WebSocketConnection:
@@ -108,6 +113,11 @@ class UnifiedWebSocketManager:
         try:
             await self._close_websocket(connection)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '关闭统一 WebSocket 底层连接时出现异常', exception=exc)
             logger.warning(f"关闭统一 WebSocket 底层连接时出现异常: connection={connection_id}, error={exc}")
 
         await connection.send_queue.put(None)
@@ -117,6 +127,11 @@ class UnifiedWebSocketManager:
             except asyncio.CancelledError:
                 pass
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '等待发送协程退出时出现异常', exception=exc)
                 logger.warning(f"等待发送协程退出时出现异常: connection={connection_id}, error={exc}")
 
     def get_connection(self, connection_id: str) -> Optional[WebSocketConnection]:
@@ -242,6 +257,11 @@ class UnifiedWebSocketManager:
             future.cancel()
             raise
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '统一 WebSocket 等待跨线程投递时出现异常', exception=exc)
             logger.warning(f"统一 WebSocket 等待跨线程投递时出现异常: connection={connection_id}, error={exc}")
 
     async def send_response(

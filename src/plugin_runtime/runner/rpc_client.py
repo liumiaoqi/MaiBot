@@ -40,6 +40,11 @@ def _get_sdk_version() -> str:
 
         return version("maibot-plugin-sdk")
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, 'SDK 版本读取失败', exception=exc)
         logger.warning("SDK 版本读取失败: %s", exc)
         return "1.0.0"
 
@@ -212,6 +217,11 @@ class RPCClient:
             self._pending_requests.pop(request_id, None)
             raise RPCError(ErrorCode.E_TIMEOUT, f"请求 {method} 超时 ({timeout_ms}ms)") from None
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'RPC 请求发送失败', exception=exc)
             logger.warning("操作异常 in rpc_client.py", exc_info=True)
             self._pending_requests.pop(request_id, None)
             if isinstance(exc, RPCError):
@@ -256,12 +266,22 @@ class RPCClient:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '接收帧失败', exception=exc)
                 logger.error(f"接收帧失败: {exc}")
                 break
 
             try:
                 envelope = self._codec.decode_envelope(data)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '解码消息失败', exception=exc)
                 logger.error(f"解码消息失败: {exc}")
                 continue
 
@@ -313,6 +333,11 @@ class RPCClient:
             error_resp = envelope.make_error_response(exc.code.value, exc.message, exc.details)
             await connection.send_frame(self._codec.encode_envelope(error_resp))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '处理请求失败', exception=exc)
             logger.error(f"处理请求 {envelope.method} 异常: {exc}", exc_info=True)
             error_resp = envelope.make_error_response(ErrorCode.E_UNKNOWN.value, str(exc))
             await connection.send_frame(self._codec.encode_envelope(error_resp))
@@ -330,6 +355,11 @@ class RPCClient:
         try:
             await handler(envelope)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '处理广播失败', exception=exc)
             logger.error(f"处理广播 {envelope.method} 异常: {exc}", exc_info=True)
 
     def _track_background_task(self, task: asyncio.Task[Any]) -> None:

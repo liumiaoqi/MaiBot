@@ -66,12 +66,22 @@ class EpisodeService:
         try:
             return float(value)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '转换可选浮点数失败', exception=exc)
             logger.warning("操作异常: %s", exc)
     @staticmethod
     def _clamp_score(value: Any, default: float = 1.0) -> float:
         try:
             num = float(value)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'clamp 评分失败', exception=exc)
             logger.warning("操作异常: %s", exc)
             return default
         if num < 0.0:
@@ -88,6 +98,11 @@ class EpisodeService:
                 if value is not None:
                     return float(value)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '生成段落锚点失败', exception=exc)
                 logger.warning("操作异常: %s", exc)
         return 0.0
 
@@ -253,6 +268,11 @@ class EpisodeService:
             try:
                 entities = self.metadata_store.get_paragraph_entities(p_hash)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '收集参与者失败', exception=exc)
                 logger.warning("操作异常: %s", exc)
             for item in entities:
                 name = str(item.get("name", "")).strip()
@@ -383,6 +403,11 @@ class EpisodeService:
             if not episodes:
                 raise ValueError("llm_empty_episodes")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'Episode 分段失败，使用回退逻辑', exception=e)
             logger.warning(
                 "Episode segmentation fallback: "
                 f"source={source} "
@@ -502,6 +527,11 @@ class EpisodeService:
                 episode_count += int(result.get("episode_count") or 0)
                 fallback_count += int(result.get("fallback_count") or 0)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '处理待处理 Episode 行失败', exception=e)
                 logger.warning("操作失败", exc_info=True)
                 err = str(e)[:500]
                 for h in group_hashes:
@@ -574,6 +604,11 @@ class EpisodeService:
                 kernel.metadata_store.mark_episode_source_done(source)
                 items.append(result)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '重建 Episode 来源失败', exception=exc)
                 logger.warning("操作失败", exc_info=True)
                 err = str(exc)[:500]
                 kernel.metadata_store.mark_episode_source_failed(source, err)

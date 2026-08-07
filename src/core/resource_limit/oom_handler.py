@@ -136,6 +136,11 @@ class OOMHandler:
                         "limit": limit,
                     })
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, '发布 oom_unresolvable 事件失败', exception=e)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.error("发布 oom_unresolvable 事件失败: %s", e)
@@ -153,6 +158,11 @@ class OOMHandler:
                     "trigger_dimension": dimension.value,
                 })
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '发布 OOM 事件失败', exception=e)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.error("发布 OOM 事件失败: %s", e)
@@ -166,6 +176,11 @@ class OOMHandler:
                     f"dimension={dimension.value}, usage={usage}, limit={limit}",
                 )
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '故障上报失败，OOM 流程继续', exception=e)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.error("故障上报失败，OOM 流程继续: %s", e)
@@ -202,6 +217,11 @@ class OOMHandler:
             if port is not None:
                 port.report(level, message, component_id=component_id)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'ZG-14 上报失败，OOM 处置继续', exception=e)
             logger.warning("ZG-14 上报失败，OOM 处置继续: %s", e)
 
     def _select_victim(self, dimension: ResourceDimension) -> Optional[Any]:
@@ -299,6 +319,11 @@ class OOMHandler:
                                 _REAP_MAX_ATTEMPTS,
                             )
                 except Exception as e:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, 'OOM 杀除异常', exception=e)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     all_killed = False

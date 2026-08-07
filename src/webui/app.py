@@ -179,6 +179,11 @@ def _setup_anti_crawler(app: FastAPI):
         mode_desc = mode_descriptions.get(anti_crawler_mode, t("startup.webui_anti_crawler_mode_basic"))
         logger.debug(t("startup.webui_anti_crawler_configured", mode_desc=mode_desc))
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "t('startup.webui_anti_crawler_config_failed', error=e)", exception=e)
         logger.error(t("startup.webui_anti_crawler_config_failed", error=e), exc_info=True)
 
 
@@ -192,6 +197,11 @@ def _setup_robots_txt(app: FastAPI):
 
         logger.debug(t("startup.webui_robots_route_registered"))
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "t('startup.webui_robots_route_register_failed', error=e)", exception=e)
         logger.error(t("startup.webui_robots_route_register_failed", error=e), exc_info=True)
 
 
@@ -204,6 +214,11 @@ def _register_api_routes(app: FastAPI):
 
         logger.debug(t("startup.webui_api_routes_registered"))
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "t('startup.webui_api_routes_register_failed', error=e)", exception=e)
         logger.error(t("startup.webui_api_routes_register_failed", error=e), exc_info=True)
 
 
@@ -213,6 +228,11 @@ def _register_webui_chat_broadcast() -> None:
         from src.webui.routers.chat.service import WEBUI_CHAT_PLATFORM, chat_manager
         register_webui_chat_broadcast(chat_manager.broadcast_to_group, WEBUI_CHAT_PLATFORM)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, 'WebUI 聊天广播注册跳过（WebUI 未启用或 chat 模块未就绪）', exception=e)
         logger.debug(f"WebUI 聊天广播注册跳过（WebUI 未启用或 chat 模块未就绪）: {e}")
 
 
@@ -288,7 +308,12 @@ def _resolve_static_path() -> Path | None:
             package_path = get_dist_path()
             if isinstance(package_path, Path) and package_path.exists():
                 return package_path
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '解析 WebUI 静态资源路径失败', exception=exc)
         logger.warning("操作异常 in app.py", exc_info=True)
 
     return None
@@ -305,4 +330,9 @@ def show_access_token():
             logger.info(t("startup.webui_access_token", token=current_token))
             logger.info(t("startup.webui_access_token_login_hint"))
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "t('startup.webui_access_token_failed', error=e)", exception=e)
         logger.error(t("startup.webui_access_token_failed", error=e))

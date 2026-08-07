@@ -103,6 +103,11 @@ def get_lunar_info(target_date: date | None = None) -> LunarInfo | None:
         logger.debug("zhdate 库未安装，农历计算不可用")
         return None
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '农历计算失败，降级为公历', exception=e)
         logger.warning("农历计算失败，降级为公历: %s", e)
         return None
 
@@ -138,12 +143,22 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
                         date=target_date,
                         is_today=True,
                     )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '获取今日节气失败', exception=exc)
                 logger.warning("操作异常 in lunar.py", exc_info=True)
 
     except ImportError:
         pass
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '节气计算失败', exception=e)
         logger.warning("节气计算失败: %s", e)
 
     return None
@@ -181,12 +196,23 @@ def get_solar_terms_near(target_date: date | None = None, days: int = 7) -> list
                             date=check_date,
                             is_today=delta == 0,
                         ))
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '计算节气失败，跳过该节气', exception=exc)
+                logger.warning(f"计算节气失败，跳过该节气: {exc}")
                 continue
 
     except ImportError:
         logger.warning("lunarcalendar 库未安装，节气计算不可用")
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '节气范围计算失败', exception=e)
         logger.warning("节气范围计算失败: %s", e)
 
     return results

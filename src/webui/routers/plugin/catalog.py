@@ -79,6 +79,11 @@ async def add_mirror(request: AddMirrorRequest, maibot_session: Optional[str] = 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '添加镜像源失败', exception=e)
         logger.error(f"添加镜像源失败: {e}")
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -110,6 +115,11 @@ async def update_mirror(
     except HTTPException:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '更新镜像源失败', exception=e)
         logger.error(f"更新镜像源失败: {e}")
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e
 
@@ -170,7 +180,12 @@ async def fetch_raw_file(
                     total_plugins=total,
                     loaded_plugins=total,
                 )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '获取 Raw 文件失败', exception=exc)
                 logger.warning("操作异常 in catalog.py", exc_info=True)
                 await update_progress(
                     stage="success", progress=100, message="加载完成", total_plugins=0, loaded_plugins=0
@@ -178,6 +193,11 @@ async def fetch_raw_file(
 
         return FetchRawFileResponse(**result)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取 Raw 文件失败', exception=e)
         logger.error(f"获取 Raw 文件失败: {e}")
         await update_progress(
             stage="error", progress=0, message="加载失败", error=str(e), total_plugins=0, loaded_plugins=0
@@ -207,5 +227,10 @@ async def clone_repository(
         )
         return CloneRepositoryResponse(**result)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '克隆仓库失败', exception=e)
         logger.error(f"克隆仓库失败: {e}")
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}") from e

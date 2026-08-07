@@ -187,6 +187,11 @@ async def extract_reminder_with_llm(text: str, client) -> Reminder | None:
             agent_id="",
         )
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '[reminder] LLM提取失败', exception=e)
         logger.warning(f"[reminder] LLM提取失败: {e}")
         return None
 
@@ -221,6 +226,11 @@ class ReminderStore:
                     except (json.JSONDecodeError, KeyError):
                         continue
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[reminder] 加载提醒失败', exception=e)
             logger.warning(f"[reminder] 加载提醒失败: session={session_id} error={e}")
 
         return [r for r in reminders if not r.fired]
@@ -232,6 +242,11 @@ class ReminderStore:
             with open(file_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(reminder.to_dict(), ensure_ascii=False) + "\n")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[reminder] 保存提醒失败', exception=e)
             logger.error(f"[reminder] 保存提醒失败: {e}")
 
     def mark_fired(self, reminder: Reminder) -> None:
@@ -254,6 +269,11 @@ class ReminderStore:
                     except (json.JSONDecodeError, KeyError):
                         continue
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[reminder] 读取提醒失败', exception=e)
             logger.warning(f"[reminder] 读取提醒失败: session={session_id} error={e}")
             return
 
@@ -266,6 +286,11 @@ class ReminderStore:
                 for r in all_reminders:
                     f.write(json.dumps(r.to_dict(), ensure_ascii=False) + "\n")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[reminder] 更新提醒失败', exception=e)
             logger.error(f"[reminder] 更新提醒失败: {e}")
 
 

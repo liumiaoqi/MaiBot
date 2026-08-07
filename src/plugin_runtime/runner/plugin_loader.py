@@ -207,6 +207,11 @@ class PluginLoader:
             with open(manifest_path, "r", encoding="utf-8") as file_obj:
                 manifest_data = json.load(file_obj)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '读取插件失败', exception=exc)
             logger.warning(f"读取插件 {plugin_dir.name} manifest ID 失败，无法按插件 ID 上报失败原因: {exc}")
             return None
 
@@ -244,6 +249,11 @@ class PluginLoader:
                 if meta := self._load_single_plugin(plugin_id, plugin_dir, manifest, plugin_path):
                     results.append(meta)
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '加载插件失败', exception=e)
                 self._failed_plugins[plugin_id] = str(e)
                 logger.error(f"加载插件失败 [{plugin_id}]: {e}", exc_info=True)
 
@@ -299,6 +309,11 @@ class PluginLoader:
             try:
                 module_path = Path(module_file).resolve()
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '模块路径解析失败', exception=exc)
                 logger.warning("模块路径解析失败: %s", exc)
                 continue
 
@@ -529,6 +544,11 @@ class PluginLoader:
                         manifest=manifest,
                     )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '插件加载失败', exception=exc)
             logger.warning("插件加载失败: %s", exc)
             sys.modules.pop(module_name, None)
             raise
@@ -624,5 +644,10 @@ class PluginLoader:
             legacy_instance = legacy_cls()
             return LegacyPluginAdapter(legacy_instance)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '旧版插件加载失败', exception=e)
             logger.error(f"旧版插件 {plugin_id} 适配失败: {e}", exc_info=True)
             return None

@@ -61,7 +61,13 @@ class SystemLifecycleAdapter:
         try:
             view = self._agg.build_view()
             return view.level
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '获取系统健康等级失败', exception=exc)
+            logger.warning(f"获取系统健康等级失败: {exc}")
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             return None
@@ -119,7 +125,13 @@ class SystemLifecycleAdapter:
             port = get_taint_mask_port()
             tainted_mask = port.get_taint()
             tainted_verbose = port.print_tainted_verbose()
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '获取系统生命周期视图失败', exception=exc)
+            logger.warning(f"获取系统生命周期视图失败: {exc}")
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             pass
@@ -150,7 +162,12 @@ class SystemLifecycleAdapter:
         for flag in _CORE_FLAGS:
             try:
                 self._crp.update_flag(flag, value)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '强制核心就绪标志失败', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.exception("强制核心就绪标志失败: %s", flag)
@@ -166,7 +183,12 @@ class SystemLifecycleAdapter:
             self._crp.update_flag("message_pipeline_ready", msg)
             self._crp.update_flag("agent_thinking_ready", agent)
             self._crp.update_flag("reply_capability_ready", reply)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '同步核心就绪标志失败', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("同步核心就绪标志失败")
@@ -185,7 +207,13 @@ class SystemLifecycleAdapter:
             for signum in (signal.SIGTERM, signal.SIGINT):
                 prev = signal.getsignal(signum)
                 signal.signal(signum, self._make_signal_handler(signum, prev))
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '注册崩溃钩子失败', exception=exc)
+            logger.warning(f"注册崩溃钩子失败: {exc}")
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             pass  # 非主线程等场景注册失败忽略
@@ -219,7 +247,13 @@ class SystemLifecycleAdapter:
 
             path = TransitionHistory.default_export_path(self._crash_export_dir)
             self._sm.export_history_to(path)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '导出生命周期历史失败', exception=exc)
+            logger.warning(f"导出生命周期历史失败: {exc}")
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             pass  # best-effort

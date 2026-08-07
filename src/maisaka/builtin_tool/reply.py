@@ -195,7 +195,12 @@ async def handle_tool(
             request_type="maisaka.replyer",
             replyer_type="maisaka",
         )
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '构建回复消息失败', exception=exc)
         logger.exception(f"{tool_ctx.runtime.log_prefix} 获取回复生成器时发生异常: 目标消息编号={target_message_id}")
         logger.info(traceback.format_exc())
         return tool_ctx.build_failure_result(
@@ -229,6 +234,11 @@ async def handle_tool(
         reply_result.completion.response_text = direct_text
         reply_result.completion.request_prompt = latest_thought
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '执行回复工具失败', exception=exc)
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 回复生成器执行异常: 目标消息编号={target_message_id} 异常={exc}"
         )
@@ -252,6 +262,11 @@ async def handle_tool(
                 reply_tool_args=reply_tool_args,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '执行回复工具失败', exception=exc)
             logger.exception(f"{tool_ctx.runtime.log_prefix} 丰富回复检查器执行异常: {exc}")
         else:
             rich_reply_event = {
@@ -337,6 +352,11 @@ async def handle_tool(
                     continue
                 break
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '执行回复工具失败', exception=exc)
         reply_result.completion.response_text = reply_text
         reply_result.monitor_detail = build_reply_monitor_detail(reply_result)
         reply_metadata = _build_monitor_metadata(reply_result)
@@ -409,7 +429,12 @@ async def handle_tool(
                         message_id=sent_message_id,
                     )
                 )
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '构建回复失败', exception=exc)
         logger.exception(f"{tool_ctx.runtime.log_prefix} 发送文字消息时发生异常，目标消息编号={target_message_id}")
         return tool_ctx.build_failure_result(
             invocation.tool_name,

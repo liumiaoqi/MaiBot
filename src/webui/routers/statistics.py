@@ -30,6 +30,11 @@ async def get_dashboard_data(hours: int = 24):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取仪表盘数据失败', exception=e)
         logger.error(f"获取仪表盘数据失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取统计数据失败: {str(e)}") from e
 
@@ -45,6 +50,11 @@ async def get_summary(hours: int = 24):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取统计摘要失败', exception=e)
         logger.error(f"获取统计摘要失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取统计摘要失败: {str(e)}") from e
 
@@ -60,6 +70,11 @@ async def get_model_stats(hours: int = 24):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取模型统计失败', exception=e)
         logger.error(f"获取模型统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取模型统计失败: {str(e)}") from e
 
@@ -116,6 +131,11 @@ async def get_agent_statistics(hours: int = 24):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '获取智能体统计失败', exception=e)
         logger.error(f"获取智能体统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取智能体统计失败: {str(e)}") from e
 
@@ -165,5 +185,10 @@ async def export_statistics(hours: int = 24, format: str = "csv"):
     except AppError:
         raise
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '导出统计数据失败', exception=e)
         logger.error(f"导出统计数据失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"导出统计数据失败: {str(e)}") from e

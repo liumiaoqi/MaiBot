@@ -206,7 +206,12 @@ class _PluginHostServicer(PluginHostServicer):
                 watchdog.register_v2_supervisor(
                     runner_id, supervisor, self._heartbeat_mgr, "plugin_runtime_v2",
                 )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'V2 Runner 注册到看门狗桥接失败，已降级跳过', exception=exc)
             logger.warning(
                 "V2 Runner 注册到看门狗桥接失败，已降级跳过（runner_id=%s）",
                 runner_id,
@@ -239,7 +244,12 @@ class _PluginHostServicer(PluginHostServicer):
                     elif payload_kind == "heartbeat":
                         self._heartbeat_mgr.record_response(runner_id)
                         conn.record_heartbeat()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'Runner 接收循环退出', exception=exc)
                 logger.warning("Runner %s 接收循环退出", runner_id, exc_info=True)
             finally:
                 await outbox.put(None)  # 发送终止信号
@@ -423,7 +433,12 @@ class _PluginHostServicer(PluginHostServicer):
 
             watchdog = get_watchdog_port()
             watchdog.unregister_runner(runner_id)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'V2 Runner 从看门狗桥接注销失败，已降级跳过', exception=exc)
             logger.warning(
                 "V2 Runner 从看门狗桥接注销失败，已降级跳过（runner_id=%s）",
                 runner_id,
@@ -529,6 +544,11 @@ class _PluginHostServicer(PluginHostServicer):
                 )
             return plugin_host_pb2.SendMessageResponse(success=False, error=result.error or "SEND_FAILED")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'SendMessage RPC 转发失败', exception=e)
             logger.error("SendMessage RPC 转发失败: %s", e, exc_info=True)
             return plugin_host_pb2.SendMessageResponse(success=False, error="INTERNAL_ERROR")
 

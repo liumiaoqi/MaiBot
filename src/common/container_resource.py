@@ -28,7 +28,12 @@ def get_cpu_limit() -> int:
                 period = int(parts[1])
                 if period > 0:
                     return max(1, int(quota / period))
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取容器 CPU 限制失败', exception=exc)
         logger.warning("操作异常 in container_resource.py", exc_info=True)
 
     try:
@@ -41,7 +46,12 @@ def get_cpu_limit() -> int:
                 period = int(f.read().strip())
             if quota > 0 and period > 0:
                 return max(1, int(quota / period))
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取容器 CPU 限制失败', exception=exc)
         logger.warning("操作异常 in container_resource.py", exc_info=True)
 
     return os.cpu_count() or 2
@@ -62,7 +72,12 @@ def get_memory_limit_mb() -> int:
                 limit_bytes = int(content)
                 if limit_bytes > 0:
                     return limit_bytes // (1024 * 1024)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取容器内存限制失败', exception=exc)
         logger.warning("操作异常 in container_resource.py", exc_info=True)
 
     try:
@@ -72,7 +87,12 @@ def get_memory_limit_mb() -> int:
                 limit_bytes = int(f.read().strip())
             if 0 < limit_bytes < 2**63:
                 return limit_bytes // (1024 * 1024)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取容器内存限制失败', exception=exc)
         logger.warning("操作异常 in container_resource.py", exc_info=True)
 
     return 0
@@ -95,7 +115,12 @@ def is_running_in_container() -> bool:
                 content = f.read()
             if "docker" in content or "containerd" in content:
                 return True
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '检测容器运行环境失败', exception=exc)
         logger.warning("操作异常 in container_resource.py", exc_info=True)
 
     return False

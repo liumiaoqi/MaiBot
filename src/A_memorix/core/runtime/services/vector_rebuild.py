@@ -189,6 +189,11 @@ class VectorRebuildService:
                 legacy_source_store.warmup_index()
                 self._update_dual_vector_auto_migration_stage("legacy_source_ready")
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '加载旧单池向量用于双池迁移失败，将回退 embedding 重建', exception=exc)
                 logger.warning(f"加载旧单池向量用于双池迁移失败，将回退 embedding 重建: {exc}")
         if not dual_mode:
             self._vpm.dual_pools_ready = False
@@ -435,6 +440,11 @@ class VectorRebuildService:
                         self._update_dual_vector_auto_migration_stage("clear_legacy_single_pool")
                         self._clear_legacy_single_vector_files_after_dual_ready()
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '双池临时构建目录切换失败，保留原有向量池', exception=exc)
                     activation_ok = False
                     self._vpm.dual_pools_ready = False
                     errors.append(f"dual_pool_activation:{str(exc)[:500]}")
@@ -558,6 +568,11 @@ class VectorRebuildService:
                 done += len(ids)
                 done_ids.extend(ids)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '重建向量批次失败', exception=exc)
                 last_error = str(exc)[:500]
                 failed += len(ids)
                 failed_ids.extend(ids)
@@ -588,6 +603,11 @@ class VectorRebuildService:
             else:
                 vector_batches = [getter(source_ids)]
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '读取旧向量失败，将回退 embedding 重建', exception=exc)
             logger.warning(f"读取旧向量失败，将回退 embedding 重建: {exc}")
             return 0, [], list(id_pairs)
 
@@ -616,6 +636,11 @@ class VectorRebuildService:
                 if added < len(target_ids):
                     logger.debug(f"复制旧向量到新池时存在已写入项: requested={len(target_ids)} added={added}")
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '复制旧向量到新池失败，将回退 embedding 重建', exception=exc)
             logger.warning(f"复制旧向量到新池失败，将回退 embedding 重建: {exc}")
             return 0, [], list(id_pairs)
 

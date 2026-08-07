@@ -63,6 +63,11 @@ def get_person_id_by_person_name(person_name: str) -> str:
             person_id = session.exec(statement).first()
             return str(person_id) if person_id else ""
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '根据用户名查询用户失败', exception=e)
         logger.error(f"根据用户名 {person_name} 获取用户ID时出错: {e}")
         return ""
 
@@ -449,6 +454,11 @@ class Person:
                     logger.info(f"用户 {self.person_id} 在数据库中不存在，使用默认值并创建")
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '从数据库加载用户信息失败', exception=e)
             logger.error(f"从数据库加载用户 {self.person_id} 信息时出错: {e}")
             # 出错时保持默认值
 
@@ -504,6 +514,11 @@ class Person:
                     logger.debug(f"已创建用户 {self.person_id} 的信息到数据库")
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '同步用户信息失败', exception=e)
             logger.error(f"同步用户 {self.person_id} 信息到数据库时出错: {e}")
 
 
@@ -595,4 +610,9 @@ async def store_person_memory_from_answer(
             )
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '存储人物记忆失败', exception=e)
         logger.error(f"存储人物记忆失败: {e}")

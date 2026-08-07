@@ -76,6 +76,11 @@ class VitalityManager:
             )
             get_event_bus_port().emit_sync("agent_state_change", event)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality] 状态变更事件发布失败', exception=exc)
             logger.warning(
                 f"[vitality] 状态变更事件发布失败: agent={agent_id} error={exc}"
             )
@@ -111,6 +116,11 @@ class VitalityManager:
                     agent_id, session_id, reason="sync_from_registry"
                 )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality] 同步待命列表异常', exception=exc)
             logger.warning(f"[vitality] 同步待命列表异常: session={session_id} error={exc}")
 
     def add_to_standby(
@@ -237,6 +247,11 @@ class VitalityManager:
                         info, now, activation_threshold, fallback_timeout, decay_per_minute
                     )
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '[vitality] 心跳评估异常', exception=exc)
                     logger.warning(
                         f"[vitality] 心跳评估异常: agent={info.agent_id} error={exc}"
                     )
@@ -271,6 +286,11 @@ class VitalityManager:
                         f"{n.need_type}({n.strength:.0f})" for n in needs[:3]
                     )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '[vitality] 内在需求评估跳过', exception=exc)
                 logger.warning(f"[vitality] 内在需求评估跳过: agent={agent_id} error={exc}")
 
         # 情绪加成（仅活跃智能体）
@@ -344,7 +364,12 @@ class VitalityManager:
             active_count = len(self._orchestrator._active_agents)
             standby_count = len(self._registry.get_by_session(session_id))
             bound_count = active_count + standby_count
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality] 获取同居参数失败', exception=exc)
             logger.warning("操作异常 in vitality_manager.py", exc_info=True)
             bound_count = 1
 
@@ -416,6 +441,11 @@ class VitalityManager:
                 f"summary={inner_need_summary[:50]} session={session_id}"
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality] 主动发言欲望状态更新失败', exception=exc)
             logger.debug(
                 f"[vitality] agent={agent_id} desire_state=update_failed "
                 f"error={exc} session={session_id}"

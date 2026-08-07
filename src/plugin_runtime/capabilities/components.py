@@ -582,6 +582,11 @@ class RuntimeComponentCapabilityMixin:
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '插件组件加载失败', exception=exc)
             logger.error(f"插件 {target_plugin_id} 配置更新失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
@@ -589,6 +594,11 @@ class RuntimeComponentCapabilityMixin:
             config_path.parent.mkdir(parents=True, exist_ok=True)
             save_toml_with_format(config_data, str(config_path))
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '插件组件加载失败', exception=exc)
             logger.error(f"插件 {target_plugin_id} 配置写入失败: {exc}", exc_info=True)
             return {"success": False, "error": f"配置写入失败: {exc}"}
 
@@ -763,6 +773,11 @@ class RuntimeComponentCapabilityMixin:
         try:
             loaded = await self.load_plugin_globally(plugin_name, reason=f"load {plugin_name}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[cap.component.load_plugin] 热重载失败', exception=e)
             logger.error(f"[cap.component.load_plugin] 热重载失败: {e}")
             return {"success": False, "error": str(e)}
 
@@ -792,6 +807,11 @@ class RuntimeComponentCapabilityMixin:
         try:
             reloaded = await self.reload_plugins_globally([plugin_name], reason=f"reload {plugin_name}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[cap.component.reload_plugin] 热重载失败', exception=e)
             logger.error(f"[cap.component.reload_plugin] 热重载失败: {e}")
             return {"success": False, "error": str(e)}
 
@@ -841,6 +861,11 @@ class RuntimeComponentCapabilityMixin:
                 timeout_ms=resolve_component_rpc_timeout_ms(entry.timeout_ms),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '[cap.api.call] 调用 API 失败', exception=exc)
             logger.error(f"[cap.api.call] 调用 API {entry.full_name} 失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 

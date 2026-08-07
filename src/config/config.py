@@ -508,6 +508,11 @@ class ConfigManager:
                         True,
                     )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '重新加载配置失败', exception=exc)
                 logger.error(t("config.reload_failed", error=exc))
                 return False
 
@@ -524,7 +529,13 @@ class ConfigManager:
                 from src.core.tainted_mask.taint_flag import TaintFlag
 
                 mark_taint(TaintFlag.TAINT_CONFIG_OVERRIDE)
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '重新加载配置文件失败', exception=exc)
+                logger.warning(f"重新加载配置文件失败: {exc}")
                 pass
             logger.info(t("config.hot_reload_completed"))
 
@@ -532,6 +543,11 @@ class ConfigManager:
                 try:
                     await self._invoke_reload_callback(callback, normalized_scopes)
                 except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.WARNING, '配置重载回调执行失败', exception=exc)
                     logger.warning(t("config.reload_callback_failed", error=exc))
             return True
 
@@ -653,6 +669,11 @@ def load_config_from_file(
             updated = True
         return target_config, updated
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.CRITICAL, '解析配置文件失败', exception=e)
         logger.critical(t("config.parse_failed", file_name=config_path.name))
         raise e
 
@@ -700,7 +721,12 @@ def write_config_to_file(
             a_memorix_web = full_config_data["a_memorix"]["web"]
             if "import_config" in a_memorix_web and "import" not in a_memorix_web:
                 a_memorix_web["import"] = a_memorix_web.pop("import_config")
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'A_Memorix 配置写出时转换 web.import_config 失败', exception=exc)
             logger.warning("A_Memorix 配置写出时转换 web.import_config 失败", exc_info=True)
 
     # 备份旧文件

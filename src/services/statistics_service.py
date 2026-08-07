@@ -98,6 +98,11 @@ def get_cached_dashboard_statistics(
         expanded_entry = _expand_dashboard_cache_entry(entry, hours=hours, generated_at=float(generated_at))
         return DashboardData.model_validate(expanded_entry)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '读取 WebUI 统计缓存失败，将实时计算', exception=e)
         logger.warning(f"读取 WebUI 统计缓存失败，将实时计算: {e}")
         return None
 
@@ -228,7 +233,12 @@ def _compute_agent_stats() -> AgentStatsInfo:
         registry.load()
         all_agents = registry.list_agents()
         total_agents = len(all_agents)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '计算智能体统计失败', exception=exc)
         logger.warning("操作异常 in statistics_service.py", exc_info=True)
         return AgentStatsInfo()
 
@@ -242,7 +252,12 @@ def _compute_agent_stats() -> AgentStatsInfo:
             total_active_sessions = sum(agent_session_counts.values())
             active_agent_ids = {aid for aid, cnt in agent_session_counts.items() if cnt > 0}
             active_agents = len(active_agent_ids)
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '计算智能体统计失败', exception=exc)
         logger.warning("操作异常 in statistics_service.py", exc_info=True)
         active_agents = 0
         total_active_sessions = 0
@@ -516,6 +531,11 @@ def get_earliest_statistics_time(fallback_time: datetime) -> datetime:
                 session.exec(select(func.min(ToolRecord.timestamp))).first(),
             ]
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '获取全量统计起始时间失败，将使用回退时间', exception=e)
         logger.warning(f"获取全量统计起始时间失败，将使用回退时间: {e}")
         return fallback_time
 

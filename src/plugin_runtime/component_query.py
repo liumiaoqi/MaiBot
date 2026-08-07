@@ -451,6 +451,11 @@ class ComponentQueryService:
                     timeout_ms=rpc_timeout_ms,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '运行时 Action 调用失败', exception=exc)
                 logger.error(f"运行时 Action {plugin_id}.{component_name} 执行失败: {exc}", exc_info=True)
                 return False, str(exc)
 
@@ -530,6 +535,11 @@ class ComponentQueryService:
                     timeout_ms=rpc_timeout_ms,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '运行时 Command 调用失败', exception=exc)
                 logger.error(f"运行时 Command {plugin_id}.{component_name} 执行失败: {exc}", exc_info=True)
                 return False, str(exc), True
 
@@ -589,6 +599,11 @@ class ComponentQueryService:
                     timeout_ms=rpc_timeout_ms,
                 )
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '运行时 Tool 调用失败', exception=exc)
                 logger.error(f"运行时 Tool {plugin_id}.{component_name} 执行失败: {exc}", exc_info=True)
                 return {"content": f"工具 {component_name} 执行失败: {exc}"}
 
@@ -946,6 +961,11 @@ class ComponentQueryService:
                 timeout_ms=resolve_component_rpc_timeout_ms(tool_entry.timeout_ms),
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '运行时工具调用失败', exception=exc)
             logger.error(f"运行时工具 {tool_entry.plugin_id}.{tool_entry.name} 执行失败: {exc}", exc_info=True)
             return ToolExecutionResult(
                 tool_name=tool_entry.name,
@@ -1012,6 +1032,11 @@ class ComponentQueryService:
         try:
             return runtime_manager._load_plugin_config_for_supervisor(supervisor, plugin_name)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '读取插件信息失败', exception=exc)
             logger.error(f"读取插件 {plugin_name} 配置失败: {exc}", exc_info=True)
             return None
 

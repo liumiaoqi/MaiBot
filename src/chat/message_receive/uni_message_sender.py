@@ -73,7 +73,12 @@ def _resolve_bot_agent_id(message: SessionMessage) -> str:
             cs = db.exec(statement).first()
             if cs and cs.agent_id:
                 return cs.agent_id
-    except Exception:
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '解析机器人智能体 ID 失败', exception=exc)
         logger.warning("操作异常 in uni_message_sender.py", exc_info=True)
     return "silver_wolf"
 
@@ -232,6 +237,11 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 else:
                     logger.warning(f"[API Server Fallback] 没有连接发送成功, results={results}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '[API Server Fallback] 发生异常', exception=e)
                 logger.error(f"[API Server Fallback] 发生异常: {e}")
                 import traceback
 
@@ -258,11 +268,22 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 return fallback_result
 
         except Exception as legacy_e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '旧版发送 API 调用失败，尝试新 API 兜底', exception=legacy_e)
+            logger.warning(f"旧版发送 API 调用失败，尝试新 API 兜底: {legacy_e}")
             # Legacy API 抛出异常，尝试 Fallback
             # 如果 Fallback 也失败，将重新抛出 legacy_e
             return await send_with_new_api(legacy_exception=legacy_e)
 
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '发送消息失败', exception=e)
         logger.error(f"发送消息   '{message_preview}'   发往平台'{message.platform}' 失败: {str(e)}")
         traceback.print_exc()
         raise e  # 重新抛出其他异常
@@ -401,10 +422,20 @@ class UniversalMessageSender:
 
                 await memory_automation_service.on_message_sent(message)
             except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '长期记忆人物事实写回注册失败', exception=exc)
                 logger.warning(f"[{chat_id}] 长期记忆人物事实写回注册失败: {exc}")
 
             return sent_msg
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '处理或存储消息失败', exception=e)
             logger.error(f"[{chat_id}] 处理或存储消息 {message_id} 时出错: {e}")
             raise e

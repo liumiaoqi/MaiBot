@@ -408,6 +408,11 @@ class ExpressionLearner:
             )
             response = generation_result.response
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '学习表达方式失败', exception=e)
             logger.error(f"学习表达方式失败: {e}")
             return False
 
@@ -602,6 +607,11 @@ class ExpressionLearner:
                 output_content=output_content,
             )
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '表达学习上下文预览保存失败', exception=exc)
             logger.warning(f"{self.session_id} 表达学习上下文预览保存失败: {exc}")
             return
 
@@ -794,6 +804,11 @@ class ExpressionLearner:
                 db.refresh(new_expr)
                 return MaiExpression.from_db_instance(new_expr)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '创建表达方式失败', exception=e)
             logger.error(f"创建表达方式失败: {e}")
         return None
 
@@ -836,6 +851,11 @@ class ExpressionLearner:
                 else:
                     logger.warning(f"表达方式 ID {expr.item_id} 在数据库中未找到，无法更新")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '更新表达方式失败', exception=e)
             logger.error(f"更新表达方式失败: {e}")
         return None
 
@@ -906,6 +926,11 @@ class ExpressionLearner:
             if summary := summary.strip():
                 return summary
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '使用 LLM 生成表达方式概括失败', exception=e)
             logger.error(f"使用 LLM 生成表达方式概括失败: {e}")
         return None
 
@@ -950,5 +975,10 @@ class ExpressionLearner:
                             return expression, 1.0
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '查找相似表达方式失败', exception=e)
             logger.error(f"查找相似表达方式失败: {e}")
         return None

@@ -57,6 +57,11 @@ class EmbodiedPlannerPromptBuilder:
             context = self._build_embodied_context(tools_section)
             return load_prompt("maisaka_chat_embodied", **context)
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '角色化提示词构建失败，降级为旁观者模板', exception=exc)
             logger.warning(
                 f"[agent_autonomy] 角色化提示词构建失败，降级为旁观者模板: "
                 f"agent={self._agent_id} error={exc}"
@@ -135,7 +140,12 @@ class EmbodiedPlannerPromptBuilder:
             layered = getattr(agent_config, "layered_personality", None)
             if layered is not None:
                 return getattr(layered, "expression_layer", "") or ""
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '构建表达层文本失败', exception=exc)
             logger.warning("操作异常 in prompt_builder.py", exc_info=True)
         return ""
 
@@ -194,7 +204,12 @@ class EmbodiedPlannerPromptBuilder:
             context = self._build_embodied_context(tools_section)
             context["bot_name"] = get_bot_config_port().get_bot_nickname()
             return load_prompt("maisaka_chat", **context)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '构建兜底提示词失败', exception=exc)
             logger.warning("操作异常 in prompt_builder.py", exc_info=True)
             return f"你是一个有用的AI助手。\n\n{tools_section}"
 
@@ -235,7 +250,12 @@ class EmbodiedPlannerPromptBuilder:
             if not results:
                 return ""
             return "## 最近的交互动态\n" + "\n".join(results)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '构建智能体交互记忆失败', exception=exc)
             logger.warning("操作异常 in prompt_builder.py", exc_info=True)
             return ""
 
@@ -248,6 +268,11 @@ class EmbodiedPlannerPromptBuilder:
             if registry.has_agent(self._agent_id):
                 agent_config = registry.get_agent(self._agent_id)
                 return agent_config.display_name or self._agent_id
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '获取智能体显示名称失败', exception=exc)
             logger.warning("操作异常 in prompt_builder.py", exc_info=True)
         return self._agent_id

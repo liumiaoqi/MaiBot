@@ -26,7 +26,12 @@ from ._utils import (
 try:
     import jieba  # type: ignore
     HAS_JIEBA = True
-except Exception:
+except Exception as exc:
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, '导入 jieba 失败，使用基础分词', exception=exc)
     HAS_JIEBA = False
 
 logger = get_logger("A_Memorix.ParagraphStore")
@@ -302,6 +307,11 @@ class ParagraphStore:
                 )
             return cleanup_plan
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'DB Transaction failed', exception=e)
             self._conn.rollback()
             logger.error(f"DB Transaction failed: {e}")
             raise
@@ -666,7 +676,13 @@ class ParagraphStore:
                     for token in jieba.cut_for_search(source)
                     if token.strip()
                 ]
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, '段落 FTS 分词失败，降级为基础分词', exception=exc)
+                logger.warning(f"段落 FTS 分词失败，降级为基础分词: {exc}")
                 tokens = list(source.lower())
         else:
             tokens = list(source.lower())
@@ -779,6 +795,11 @@ class ParagraphStore:
             )
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'paragraph tokenized FTS 回填失败', exception=e)
             logger.warning(f"paragraph tokenized FTS 回填失败: {e}")
             self._conn.rollback()
             return False
@@ -1110,6 +1131,11 @@ class ParagraphStore:
             )
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'paragraph ngram 回填失败', exception=e)
             logger.warning(f"paragraph ngram 回填失败: {e}")
             self._conn.rollback()
             return False

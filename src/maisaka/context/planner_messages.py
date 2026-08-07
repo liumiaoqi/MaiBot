@@ -1,4 +1,4 @@
-﻿"""Maisaka 规划器消息构造工具。"""
+"""Maisaka 规划器消息构造工具。"""
 
 from datetime import datetime
 from html import escape

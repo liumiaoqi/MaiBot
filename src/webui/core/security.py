@@ -63,6 +63,11 @@ class TokenManager:
                     else:
                         logger.info(f"WebUI Token 已加载: {config['access_token'][:8]}...")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, '读取 WebUI 配置文件失败', exception=e)
                 logger.error(f"读取 WebUI 配置文件失败: {e}，正在重新创建")
                 self._create_new_token()
 
@@ -97,6 +102,11 @@ class TokenManager:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '加载 WebUI 配置失败', exception=e)
             logger.error(f"加载 WebUI 配置失败: {e}")
             return {}
 
@@ -107,6 +117,11 @@ class TokenManager:
                 json.dump(config, f, ensure_ascii=False, indent=2)
             logger.info(f"WebUI 配置已保存到: {self.config_path}")
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '保存 WebUI 配置失败', exception=e)
             logger.error(f"保存 WebUI 配置失败: {e}")
             raise
 
@@ -205,6 +220,11 @@ class TokenManager:
 
             return True, "Token 更新成功"
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '更新 Token 失败', exception=e)
             logger.error(f"更新 Token 失败: {e}")
             return False, f"更新失败: {str(e)}"
 
@@ -325,6 +345,11 @@ class TokenManager:
             logger.info("首次配置已标记为完成")
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '标记首次配置完成失败', exception=e)
             logger.error(f"标记首次配置完成失败: {e}")
             return False
 
@@ -344,6 +369,11 @@ class TokenManager:
             logger.info("首次配置状态已重置")
             return True
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '重置首次配置状态失败', exception=e)
             logger.error(f"重置首次配置状态失败: {e}")
             return False
 

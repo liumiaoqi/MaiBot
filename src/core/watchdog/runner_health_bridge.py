@@ -82,7 +82,12 @@ class RunnerHealthBridge:
         # heartbeat_manager 缺该方法时防御性降级，不阻断桥接其余能力
         try:
             heartbeat_manager.add_timeout_listener(runner_id, self._on_v2_timeout)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'V2 心跳监听器注入失败，已降级跳过', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception(
@@ -107,7 +112,12 @@ class RunnerHealthBridge:
             await self._report_runner_unresponsive(
                 runner_id, DetectionSource.HEARTBEAT, consecutive_failures
             )
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'V2 超时回调处理异常', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("V2 超时回调处理异常（runner_id=%s）", runner_id)
@@ -144,7 +154,12 @@ class RunnerHealthBridge:
                         await self._report_runner_unresponsive(runner_id, source, 1)
                     elif status_str == "running":
                         await self._on_runner_recovered(runner_id)
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, 'V2 diff 轮询异常', exception=exc)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.exception("V2 diff 轮询异常（runner_id=%s）", runner_id)
@@ -233,7 +248,12 @@ class RunnerHealthBridge:
                             status = self._bridge_status.get(runner_id)
                             if status and status.is_recovering:
                                 await self._on_runner_recovered(runner_id)
-                except Exception:
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, 'V1 旁路轮询异常', exception=exc)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.exception("V1 旁路轮询异常（runner_id=%s）", runner_id)
@@ -296,7 +316,12 @@ class RunnerHealthBridge:
 
         try:
             await self._report_callback(event)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'Runner 上报回调异常', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("Runner 上报回调异常（runner_id=%s）", runner_id)
@@ -349,7 +374,12 @@ class RunnerHealthBridge:
                 heartbeat_manager.remove_timeout_listener(
                     runner_id, self._on_v2_timeout
                 )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.ERROR, 'V2 心跳监听器摘除失败，已降级跳过', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.exception(

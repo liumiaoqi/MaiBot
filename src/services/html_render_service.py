@@ -239,7 +239,12 @@ class HTMLRenderService:
                     height=height,
                     render_ms=int((time.perf_counter() - start_time) * 1000),
                 )
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'HTML 渲染失败', exception=exc)
                 logger.warning("操作异常 in html_render_service.py", exc_info=True)
                 await self.reset_browser(restart_playwright=False)
                 raise
@@ -345,7 +350,12 @@ class HTMLRenderService:
             return False
         try:
             return bool(browser.is_connected())
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '检查浏览器连接状态失败', exception=exc)
             logger.warning("操作异常 in html_render_service.py", exc_info=True)
 
     async def _connect_to_existing_browser(self, playwright: Any, config: PluginRuntimeRenderConfig) -> Any:
@@ -375,6 +385,11 @@ class HTMLRenderService:
             logger.info("HTML 渲染服务已连接到现有浏览器")
             return browser
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '连接现有浏览器失败，将回退为本地启动', exception=exc)
             logger.warning(f"连接现有浏览器失败，将回退为本地启动: {exc}")
             return None
 
@@ -408,6 +423,11 @@ class HTMLRenderService:
                 logger.info("HTML 渲染服务已启动 Playwright 托管浏览器")
             return browser
         except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'HTML 渲染服务未找到可用浏览器，将尝试自动下载 Chromium', exception=exc)
             if self._should_auto_download_browser(exc, launch_options, config):
                 logger.warning(f"HTML 渲染服务未找到可用浏览器，将尝试自动下载 Chromium: {exc}")
                 await self._install_chromium_browser(config)
@@ -426,7 +446,12 @@ class HTMLRenderService:
 
         try:
             browser.on("disconnected", self._handle_browser_disconnected)
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '绑定浏览器事件失败', exception=exc)
             logger.warning("操作异常 in html_render_service.py", exc_info=True)
 
     def _handle_browser_disconnected(self, *_args: Any) -> None:

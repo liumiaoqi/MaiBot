@@ -989,6 +989,11 @@ class DualPathRetriever:
                 stage="paragraph_only",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '段落检索 embedding 生成失败，将尝试 sparse 回退', exception=e)
             logger.warning(f"段落检索 embedding 生成失败，将尝试 sparse 回退: {e}")
 
         if embedding_ok:
@@ -1062,6 +1067,11 @@ class DualPathRetriever:
                 stage="relation_only",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '关系检索 embedding 生成失败，将尝试 sparse 回退', exception=e)
             logger.warning(f"关系检索 embedding 生成失败，将尝试 sparse 回退: {e}")
 
         if embedding_ok:
@@ -1238,6 +1248,11 @@ class DualPathRetriever:
                 stage="dual_path",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '双路检索 embedding 生成失败，将尝试 sparse 回退', exception=e)
             logger.warning(f"双路检索 embedding 生成失败，将尝试 sparse 回退: {e}")
 
         para_results: List[RetrievalResult] = []
@@ -1366,6 +1381,11 @@ class DualPathRetriever:
                 relation_top_k,
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, '并行检索失败', exception=e)
             logger.error(f"并行检索失败: {e}")
             return [], []
 
@@ -1719,6 +1739,11 @@ class DualPathRetriever:
                 stage="dual_vector_pool",
             )
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '双向量池检索 embedding 生成失败，将尝试 sparse 回退', exception=e)
             logger.warning(f"双向量池检索 embedding 生成失败，将尝试 sparse 回退: {e}")
             embedding_ok = False
             query_emb = None
@@ -2194,6 +2219,11 @@ class DualPathRetriever:
             )
             return results
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, 'PPR 重排序失败，回退原排序', exception=e)
             logger.warning(f"PPR 重排序失败，回退原排序: {e}")
             return results
 

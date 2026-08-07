@@ -46,6 +46,11 @@ class DataMigrationTool:
         try:
             self._resolve_default_agent()
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '无法解析默认智能体，使用 silver_wolf', exception=e)
             logger.warning("无法解析默认智能体，使用 silver_wolf: %s", e)
 
         if not skip_backup:
@@ -70,7 +75,12 @@ class DataMigrationTool:
             registry = get_agent_config_provider()
             default = registry.get_default_agent()
             self._default_agent_id = default.agent_id
-        except Exception:
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '解析默认智能体失败', exception=exc)
             logger.warning("操作异常 in data_migration", exc_info=True)
 
     def backup_database(self) -> Path:
@@ -113,6 +123,11 @@ class DataMigrationTool:
                 session.commit()
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'ChatSession agent_id 迁移失败', exception=e)
             logger.error("ChatSession agent_id 迁移失败: %s", e)
             return {"success": False, "error": str(e), "updated": updated, "total": total}
 
@@ -172,6 +187,11 @@ class DataMigrationTool:
                 session.commit()
 
         except Exception as e:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.ERROR, 'PersonInfo → AgentRelationship 迁移失败', exception=e)
             logger.error("PersonInfo → AgentRelationship 迁移失败: %s", e)
             return {
                 "success": False,

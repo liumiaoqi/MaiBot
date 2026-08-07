@@ -1,4 +1,4 @@
-﻿"""Maisaka 历史消息处理辅助工具。"""
+"""Maisaka 历史消息处理辅助工具。"""
 
 from typing import TYPE_CHECKING
 

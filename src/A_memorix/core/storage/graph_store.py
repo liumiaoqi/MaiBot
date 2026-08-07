@@ -200,6 +200,11 @@ class GraphStore:
                      self._adjacency = self._adjacency.tolil()
                      logger.debug("已转换为 LIL 格式")
                  except Exception as e:
+                     from src.core.error_escalation.types import ErrorLevel
+                     from src.core.error_escalation_port_registry import get_error_escalation_port
+                     port = get_error_escalation_port()
+                     if port is not None:
+                         port.report(ErrorLevel.WARNING, '转换为 LIL 失败', exception=e)
                      logger.warning(f"转换为 LIL 失败: {e}")
 
         elif new_mode in [GraphModificationMode.BATCH, GraphModificationMode.READ_ONLY]:
@@ -344,6 +349,11 @@ class GraphStore:
                  logger.debug(f"增量添加 {len(edges)} 条边 (LIL)")
                  return len(edges)
              except Exception as e:
+                 from src.core.error_escalation.types import ErrorLevel
+                 from src.core.error_escalation_port_registry import get_error_escalation_port
+                 port = get_error_escalation_port()
+                 if port is not None:
+                     port.report(ErrorLevel.WARNING, 'LIL 增量更新失败，回退到通用方法', exception=e)
                  logger.warning(f"LIL 增量更新失败，回退到通用方法: {e}")
                  # Fallback to general method below
 
@@ -1520,6 +1530,11 @@ class GraphStore:
                 self._adjacency.resize((new_n, new_n))
                 # logger.debug(f"扩展 LIL 矩阵: {old_n} -> {new_n}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'LIL resize 失败，回退到通用方法', exception=e)
                 logger.warning(f"LIL resize 失败，回退到通用方法: {e}")
                 self._expand_generic(new_n, old_n)
 
@@ -1541,6 +1556,11 @@ class GraphStore:
                 )
                 # logger.debug(f"扩展矩阵 (bmat): {old_n} -> {new_n}")
             except Exception as e:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'bmat 扩展失败', exception=e)
                 logger.warning(f"bmat 扩展失败: {e}")
                 self._expand_generic(new_n, old_n)
 
@@ -1559,7 +1579,12 @@ class GraphStore:
         if self._modification_mode == GraphModificationMode.INCREMENTAL:
              try:
                  self._adjacency = self._adjacency.tolil()
-             except Exception:
+             except Exception as exc:
+                 from src.core.error_escalation.types import ErrorLevel
+                 from src.core.error_escalation_port_registry import get_error_escalation_port
+                 port = get_error_escalation_port()
+                 if port is not None:
+                     port.report(ErrorLevel.ERROR, '图存储操作异常', exception=exc)
                  logger.error("图存储操作异常", exc_info=True)
                  pass
 

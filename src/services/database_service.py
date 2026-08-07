@@ -96,6 +96,11 @@ async def db_save(
             session.refresh(record)
             return _to_dict(record)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[DatabaseService] 保存数据库记录出错', exception=e)
         logger.error(f"[DatabaseService] 保存数据库记录出错: {e}")
         traceback.print_exc()
         return None
@@ -122,6 +127,11 @@ async def db_get(
                 return data[0] if data else None
             return data
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[DatabaseService] 获取数据库记录出错', exception=e)
         logger.error(f"[DatabaseService] 获取数据库记录出错: {e}")
         traceback.print_exc()
         return None if single_result else []
@@ -141,6 +151,11 @@ async def db_update(model_class: type[SQLModel], data: dict[str, Any], filters: 
                 session.add(record)
             return len(records)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[DatabaseService] 更新数据库记录出错', exception=e)
         logger.error(f"[DatabaseService] 更新数据库记录出错: {e}")
         traceback.print_exc()
         return 0
@@ -155,6 +170,11 @@ async def db_delete(model_class: type[SQLModel], filters: Optional[dict[str, Any
             result = session.exec(statement)
             return result.rowcount or 0
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[DatabaseService] 删除数据库记录出错', exception=e)
         logger.error(f"[DatabaseService] 删除数据库记录出错: {e}")
         traceback.print_exc()
         return 0
@@ -169,6 +189,11 @@ async def db_count(model_class: type[SQLModel], filters: Optional[dict[str, Any]
             result = session.exec(cast(Any, statement)).one()
             return int(result or 0)
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[DatabaseService] 统计数据库记录出错', exception=e)
         logger.error(f"[DatabaseService] 统计数据库记录出错: {e}")
         traceback.print_exc()
         return 0
@@ -198,6 +223,11 @@ async def store_tool_info(
             logger.error(f"[DatabaseService] 存储工具信息失败: {tool_name}")
         return saved_record
     except Exception as e:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, '[DatabaseService] 存储工具信息时发生错误', exception=e)
         logger.error(f"[DatabaseService] 存储工具信息时发生错误: {e}")
         traceback.print_exc()
         return None
