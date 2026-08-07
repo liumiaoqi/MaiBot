@@ -56,7 +56,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 ## ZG 方向清单与优先级（2026-08-04 刷新）
 
-### ✅ 已完成（7/12）
+### ✅ 已完成（11/12）
 
 | 编号 | 方向 | 完成日期 | 核心产出 |
 |------|------|---------|---------|
@@ -68,6 +68,10 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-6** | 系统状态机（system_state 化） | 2026-08-01 | BOOTING→READY→DEGRADING→SHUTTING_DOWN + 通知链 + 崩溃导出 + WebUI /lifecycle，38 测试 |
 | **ZG-7** | 污染标记（tainted_mask 化） | 2026-08-03 | 8 位 TaintFlag + 6 位运行时接线 + TaintActionMapper + CrashDump 内省，68 测试 |
 | **ZG-9** | 极端环境加固 | 2026-07-31 | mem_limit/swap=0/OOM保护/tmpfs，WSL2 内核 6.18 |
+| **ZG-15** | 插件活体引用（try_module_get 化） | 2026-08-07 | 排空重写（mark_going→wait_drained→cancel→on_unload）+ 任务契约 + ServiceManager 集成 + 竞态集成测试，v2 186 passed |
+| **ZG-21** | 事件回调预算（ksoftirqd 化） | 2026-08-07 | SoftirqBatcher（budget_ms=2/count=200）+ EventBus 批量化 + 日志广播批量，852 passed |
+| **ZG-22** | 无锁读延迟回收（RCU 化） | 2026-08-07 | 索引热替换（IndexIDMap2 包装 + 原子替换），5 文件 68 行 |
+| **ZG-23a** | 消息发送去重 + 发言节流 | 2026-08-07 | OutboundDedupWindow + MentionChainThrottle + 幂等键 metadata 通道 + FAILED 枚举，962 passed（CX 审查 3 P0 两轮修复定稿） |
 
 ### 🔴 P0 — 剩余必做
 
@@ -88,13 +92,10 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-10** | 启动编排演进（initcall→systemd 化） | 📚 源码调研完成（混合模式设计定），见下方 ZG-10 子项详情 | 应用 |
 | **ZG-11** | 多核利用（SMP 化） | 见下方 ZG-11 子项详情 | 基础 |
 | **ZG-13** | 角色语音（TTS 输出） | 见下方 ZG-13 子项详情 | 应用 |
-| **ZG-15** | 插件活体引用（try_module_get 化） | 📚 调研完成（zg15_try_module_get_survey：四态机 + 原子 acquire 防卸载竞态），见下方 Linux 化扩展详情 | 基础 |
-| **ZG-14** | 错误升级梯（WARN→oops→panic 化） | 📚 调研完成（zg14_error_escalation_survey：错误最小代价处理 + 配置开关升级），见下方详情 | 基础 |
+| **ZG-14** | 错误升级梯（WARN→oops→panic 化） | ✅ 编码完成（7 文件，CX 审查 P0 修复后合并）；**Phase 5 待 ZG-12 定稿** | 基础 |
 | **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收），见下方详情 | 基础 |
 | **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸），见下方详情 | 基础 |
 | **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
-| **ZG-21** | 事件回调预算（ksoftirqd 化） | 📚 调研完成（zg_ksoftirqd_budget_survey：延迟处理 + 单次预算防回调风暴）🔬 **需算法实验**（回调风暴基准→预算参数依据），见下方详情 | 基础 |
-| **ZG-22** | 无锁读延迟回收（RCU 化） | 📚 调研完成（zg_rcu_grace_period_survey：宽限期 + call_rcu 延迟释放）🔬 **需算法实验**（FAISS 读写互斥实测→RCU 收益验证），见下方详情 | 基础 |
 | **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 立项） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | P2（发布前必做） | 插件运行时 + agent 自主性 |
 | **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
