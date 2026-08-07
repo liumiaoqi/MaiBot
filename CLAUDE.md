@@ -124,6 +124,9 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 28. **"开关+列表"两层配置，开关没开列表就是摆设**（2026-08-07 事故）— napcat 适配器 `enable_chat_list_filter = false` + `group_list = []`：过滤开关没开 → 白名单列表完全不生效 → **MaiBot 在未配置的群里主动发言刷屏**（用户"没配置白名单"的直觉 = 实际"全部放行"，默认值是最危险的配置）。规则：① 检查"白名单/过滤"类配置必须同时看**开关和列表**两层——开关没开时列表值无效 ② 安全默认值应取"全禁"（开开关 + 空列表）再逐步放行，而不是"全放"（关开关）③ 遇到"没配置=放行"语义的配置，改配置时先确认意图（放行还是禁止）④ 止损操作：开过滤开关 + 空列表 = 群聊全禁私聊照常（保险模式）
 29. **.dockerignore/.gitignore 必须 LF 换行，CRLF 会让 buildkit 静默忽略全部排除规则**（2026-08-07 镜像体积事故）— Windows 环境创建的 .dockerignore 是 CRLF——buildkit 解析时行尾 `\r` 污染模式匹配，**所有排除静默失效**（不报错）：.git（4GB）+ data（857MB）+ lab（150MB）全被 COPY 进镜像 → COPY 层 7.38GB、镜像 14.3GB（正常应 2-3GB）。规则：① 编辑 .dockerignore/.gitignore 后 `file` 检查换行（"with CRLF line terminators" = 有问题）② 修复：`tr -d '\r' < file > tmp && mv tmp file` ③ 排查镜像异常大：`docker history <img> --format "{{.Size}}\t{{.CreatedBy}}"` 找 COPY 层大头 ④ docker-desktop 发行版 /mnt/e 挂载可能陈旧（内容与 Ubuntu 不一致）——查 daemon 侧文件用 `wsl.exe -d docker-desktop -- ls /mnt/e/...`
 
+30. **.codeartsdoer 目录 gitignore 需 `-f` 强制添加** — `.codeartsdoer/` 有独立 ignore 规则（specs 等不入主仓库 git），`git add .codeartsdoer/xxx` 会静默跳过——需 `git add -f`。规则：add 后 `git status` 确认实际进 index
+31. **"全量 pytest"必须真的全量**（2026-08-08 明堂-1 教训）— CA 自审声称"全量 pytest 57 passed 0 failed"，实际只跑了 `tests/webui` 局部（57 个）——真全量（tests + pytests 双目录，1956 collected）是 1860 passed / 11 failed / 32 errors——**pytests/webui 32 errors 因此被漏**（jargon/model monkeypatch 目标失效——下沉后字符串引用没同步）。规则：① 验收声明"全量"时对照 `pytest --collect-only` 的总数（1956 量级）② 局部跑只能称"局部" ③ 重构模块（下沉/拆分/改名）后必须 grep 全部 `"src.x.y"` monkeypatch 字符串引用并同步（踩坑 9 再犯——CA 修 memory 漏 jargon/model）④ 双目录并存时 `tests/` 与 `pytests/` 根目录都需 `__init__.py`——否则同名 conftest（webui.conftest）插件注册冲突，全量收集 ERROR
+
 `.shared/` 是异步上下文共享区（git 子仓库），写新文件时必须遵守：
 
 1. **头部元数据**：每个 .md 文件头部加 `> 最后更新：YYYY-MM-DD`，decisions/ 文件额外加状态标记（📚参考 / 🔬研究 / 🏗️设计 / 🔧工程）
