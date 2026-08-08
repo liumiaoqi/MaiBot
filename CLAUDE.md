@@ -15,6 +15,19 @@
 - frozen dataclass 更新用 `copy.replace()`，替代 `dataclasses.replace()`
   -在main干活需要许可，一般在工作树干活，不要擅自合并
 
+## TypeScript 速查（写前端代码必读）
+
+详细版：`.shared/decisions/typescript_new_code_cheatsheet.md`
+
+**验收终点**（对齐 Python 的 ruff+pytest）：`cd dashboard && npm run lint && npm run test`（vitest）+ `npm run build`（tsc 类型检查 + vite 构建）
+
+**写 TS 代码时必须遵守**：
+- **类型优先**：不引入新 `any`（eslint no-explicit-any 只是 warn——规范要求新代码零 any，对齐 Python"类型注解用具体类型而非 Any"）；tsconfig `strict: true` 已开——不新增 `@ts-ignore`；`@ts-expect-error` 必须带理由注释
+- **多语言文本用 `LocalizedText`**（`config-label.ts` 基础设施）不用裸 string——对齐现有 i18n 体系
+- **schema 类型同步**：后端 `config_schema.py` 改字段 → 前端 `types/config-schema.ts` + `field-hooks.ts` 同步（对齐"删模块必须同步测试"规则）
+- **命名**：组件 PascalCase / hooks useXxx / 文件 kebab-case；路径别名 `@/`
+- **测试先行**（vitest）：每个实现任务先写配套测试——不凑绿（对齐 pytest 纪律）；前端测试先例：`dashboard/src/lib/__tests__/`、`routes/config/__tests__/`
+
 ## 运行环境
 
 - Docker 容器：`maim-bot-core`，Python 3.14.6
