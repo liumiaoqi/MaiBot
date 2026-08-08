@@ -119,6 +119,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | ZG-7 | 3 个候选新标志（UNHANDLED_FATAL/EXTERNAL_FALLBACK/LOOP_STALL） | P2 | 对应场景出现时 |
 | ZG-3 | V2 Runner 注册（register_v2_supervisor 方法已存在未调用） | 低 | V2 Runner 普及后 |
 | ZG-5 | §11 WebUI 内省接口暂缓（适配器方法已实现，缺 WebUI 路由暴露） | 低 | 用户决定恢复 WebUI 资源监控时 |
+| 防御扫描 2026-08-08 | **mcp SDK 2.0 迁移**（FastMCP→MCPServer/Client 重构/无握手协议纪元——mcp_module 三文件 + 插件生态，官方建议 pin `<2` 先迁移后升级；当前锁 mcp>=1.28.1,<2.0） | P2 | 协议新纪元收益明确时（stateless/负载均衡/新扩展 API）专项排期 |
 | ZG-2 | L1 deferred output 已实现；L2 锁已实测否决；L3 ratelimit 已完成 | — | 全部关闭 |
 
 ## ZG-10 启动编排演进 — 子项详情
