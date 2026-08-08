@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   parseHSL,
   formatHSL,
@@ -9,8 +9,15 @@ import {
   DEFAULT_ACCENT_COLOR_HEX,
 } from '../theme/palette'
 import { defaultLightPreset, defaultDarkPreset, getPresetById, builtInPresets } from '../theme/presets'
-import { defaultLightTokens, defaultDarkTokens, tokenToCSSVarName } from '../theme/tokens'
+import {
+  defaultLightTokens,
+  defaultDarkTokens,
+  tokenToCSSVarName,
+  DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
+} from '../theme/tokens'
 import { sanitizeCSS } from '../theme/sanitizer'
+import { loadThemeConfig, THEME_STORAGE_KEYS } from '../theme/storage'
+import { buildFutureRetroTexture } from '../theme/future-retro'
 
 describe('R1-2-4：主题搬移行为等价', () => {
   describe('palette', () => {
@@ -96,6 +103,79 @@ describe('R1-2-4：主题搬移行为等价', () => {
       expect(result.css).toContain('color')
       expect(result.css).toContain('red')
       expect(result.warnings).toHaveLength(0)
+    })
+  })
+
+  describe('storage（future-retro 五维配置——原版对齐）', () => {
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('存储为空时返回五维默认配置', () => {
+      const config = loadThemeConfig()
+      expect(config.styleConfig.futureRetro).toEqual(DEFAULT_FUTURE_RETRO_STYLE_CONFIG)
+      expect(config.styleConfig.futureRetro.textureStyle).toBe('fine')
+    })
+
+    it('旧版 paperTexture 布尔迁移：false → none', () => {
+      localStorage.setItem(
+        THEME_STORAGE_KEYS.STYLE_CONFIG,
+        JSON.stringify({
+          futureRetro: { paperTexture: false },
+        })
+      )
+      const config = loadThemeConfig()
+      expect(config.styleConfig.futureRetro.textureStyle).toBe('none')
+    })
+
+    it('非法值回退与范围钳制', () => {
+      localStorage.setItem(
+        THEME_STORAGE_KEYS.STYLE_CONFIG,
+        JSON.stringify({
+          futureRetro: {
+            paperTexture: true,
+            paperWarmth: 180,
+            textureStyle: 'bogus',
+            textureIntensity: -20,
+            panelDepth: 'deep',
+          },
+        })
+      )
+      const config = loadThemeConfig()
+      expect(config.styleConfig.futureRetro).toEqual({
+        paperWarmth: 100,
+        textureStyle: 'fine',
+        textureIntensity: 0,
+        panelDepth: 100,
+        strokeScale: 100,
+      })
+    })
+  })
+
+  describe('future-retro 纹理生成器（原版对齐）', () => {
+    it('none 风格返回 none', () => {
+      expect(buildFutureRetroTexture('none', 55, true)).toBe('none')
+    })
+
+    it('强度为 0 或负值返回 none', () => {
+      expect(buildFutureRetroTexture('dot-grid', 0, true)).toBe('none')
+      expect(buildFutureRetroTexture('ruled', -10, false)).toBe('none')
+    })
+
+    it('dot-grid 生成 SVG data URL', () => {
+      const result = buildFutureRetroTexture('dot-grid', 55, false)
+      expect(result).toContain('data:image/svg+xml')
+      expect(result).toContain('svg')
+    })
+
+    it('ruled 暗色使用深色墨水', () => {
+      const result = buildFutureRetroTexture('ruled', 100, true)
+      expect(decodeURIComponent(result)).toContain('#d2c0a9')
+    })
+
+    it('强度钳制在 0-100（130 → 满强度）', () => {
+      const result = buildFutureRetroTexture('fine', 130, false)
+      expect(decodeURIComponent(result)).toContain('opacity="0.3')
     })
   })
 })
