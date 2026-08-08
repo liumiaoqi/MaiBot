@@ -1,0 +1,1645 @@
+{
+  "header": {
+    "collapseSidebar": "サイドバーを折りたたむ",
+    "expandSidebar": "サイドバーを展開する",
+    "collapseTopbar": "トップバーを折りたたむ",
+    "expandTopbar": "トップバーを展開する",
+    "toggleConnection": "バックエンド接続を切り替える",
+    "viewAnnualSummary": "年間サマリーを表示",
+    "annualSummary": "2025 年間サマリー",
+    "searchPlaceholder": "検索...",
+    "viewDocs": "MaiBot ドキュメントを表示",
+    "docs": "MaiBot ドキュメント",
+    "switchToLight": "ライトモードに切り替える",
+    "switchToDark": "ダークモードに切り替える",
+    "logout": "ログアウト",
+    "logoutLabel": "ログアウト",
+    "switchLanguage": "言語を切り替える",
+    "moreActions": "その他の操作",
+    "notConnected": "未接続"
+  },
+  "sidebar": {
+    "groups": {
+      "overview": "概要",
+      "botConfig": "設定",
+      "botResources": "リソース",
+      "extensionsMonitor": "拡張",
+      "system": "システム"
+    },
+    "menu": {
+      "home": "ホーム",
+      "focusCompanion": "集中コンパニオン",
+      "botMainConfig": "ボットメイン設定",
+      "aiModelProvider": "AIモデルプロバイダー",
+      "modelManagement": "モデル管理",
+      "promptManagement": "Prompt管理",
+      "promptGenerator": "人格生成器（テスト機能）",
+      "emojiManagement": "絵文字管理",
+      "expressionManagement": "表現管理",
+      "slangManagement": "スラング管理",
+      "personInfo": "人物情報",
+      "knowledgeGraph": "長期記憶グラフ",
+      "knowledgeBase": "長期記憶",
+      "pluginMarket": "プラグインマーケット",
+      "configTemplate": "設定テンプレート",
+      "pluginConfig": "プラグイン管理",
+      "mcpSettings": "MCP 設定",
+      "logViewer": "ログビューア",
+      "reasoningProcess": "推論プロセス",
+      "maisakaMonitor": "MaiSaka チャット監視",
+      "systemMonitor": "システム監視",
+      "agentManagement": "エージェント管理",
+      "emotionMonitor": "感情モニター",
+      "relationshipMonitor": "関係確認",
+      "subagentMonitor": "サブエージェント監視",
+      "chatManagement": "チャット管理",
+      "localChat": "ローカルチャット",
+      "settings": "設定",
+      "deepseekMonitor": "DeepSeek最適化"
+    }
+  },
+  "workspace": {
+    "switcherLabel": "麦麦ワークスペースを切り替え",
+    "settings": "麦麦設定",
+    "chat": "麦麦チャット",
+    "logs": "麦麦ログ"
+  },
+  "chat": {
+    "botNameFallback": "麦麦",
+    "userFallback": "ユーザー",
+    "userNameFallback": "WebUIユーザー",
+    "virtualGroupFallback": "WebUI仮想グループチャット",
+    "status": {
+      "connected": "接続済み",
+      "connecting": "接続中...",
+      "disconnected": "未接続"
+    },
+    "actions": {
+      "cancel": "キャンセル",
+      "addImage": "画像を追加",
+      "reconnect": "再接続",
+      "removeImage": "画像を削除",
+      "save": "保存",
+      "send": "メッセージを送信"
+    },
+    "identity": {
+      "current": "現在の身份：",
+      "editName": "ニックネームを変更",
+      "group": "グループ：{{group}}",
+      "namePlaceholder": "ニックネームを入力",
+      "virtual": "仮想身份："
+    },
+    "input": {
+      "placeholder": "メッセージを入力...",
+      "waiting": "接続待ち..."
+    },
+    "message": {
+      "empty": "{{bot}} と会話を始めましょう！",
+      "emptyHint": "下の入力欄にメッセージを入力し、Enter キーで送信",
+      "errorFallback": "エラーが発生しました",
+      "thinking": "考え中..."
+    },
+    "composer": {
+      "hint": "Enter で送信・Shift + Enter で改行"
+    },
+    "sidebar": {
+      "closeConversation": "{{label}} を閉じる",
+      "conversations": "チャット会話",
+      "emptyPreview": "まだメッセージはありません",
+      "identityHint": "ローカルチャット身份",
+      "newVirtual": "仮想身份チャットを作成",
+      "online": "オンライン",
+      "offline": "オフライン",
+      "subtitle": "{{count}} 件の会話",
+      "title": "チャット",
+      "virtualBadge": "仮想",
+      "profileTitle": "自分の身份",
+      "editName": "ニックネームを編集",
+      "saveName": "保存"
+    },
+    "dialog": {
+      "create": "会話を作成",
+      "description": "麦麦がすでに知っているユーザーを選び、そのユーザーとして麦麦と会話します。麦麦はそのユーザーへの記憶と理解を使って返信します。",
+      "groupName": "仮想グループ名（任意）",
+      "groupNameHint": "麦麦はこれをこの名前のグループチャットとして認識します",
+      "knownUserSuffix": " · 既知",
+      "loading": "読み込み中...",
+      "noUsers": "ユーザーが見つかりません",
+      "personCount": "({{count}} 人)",
+      "platform": "プラットフォームを選択",
+      "platformPlaceholder": "プラットフォームを選択",
+      "searchUser": "ユーザー名を検索...",
+      "title": "仮想身份チャットを作成",
+      "user": "ユーザーを選択"
+    },
+    "media": {
+      "audioUnsupported": "お使いのブラウザは音声再生に対応していません",
+      "emoji": "絵文字",
+      "face": "[表情:{{data}}]",
+      "file": "[ファイル: {{data}}]",
+      "forward": "[転送メッセージ]",
+      "image": "画像",
+      "loadFailed": "[{{type}}の読み込みに失敗]",
+      "music": "[音楽共有]",
+      "noCaptions": "字幕なし",
+      "reply": "[返信メッセージ]",
+      "unknown": "[{{type}}]",
+      "unknownMessage": "不明なメッセージ",
+      "videoUnsupported": "お使いのブラウザは動画再生に対応していません"
+    },
+    "toast": {
+      "backendUnavailable": "バックエンドサービスに接続できません。MaiBot が起動しているか確認してください",
+      "backendUnavailableShort": "バックエンドサービスに接続できません",
+      "connectionFailed": "接続に失敗しました",
+      "currentSessionUnavailable": "現在のチャットセッションは利用できません。しばらくしてから再試行してください",
+      "error": "エラー",
+      "incompleteConfig": "設定が未完了です",
+      "imageLimit": "画像数の上限に達しました",
+      "imageLimitDesc": "一度に送信できる画像は {{count}} 枚までです。",
+      "imageReadFailed": "画像の読み込みに失敗しました",
+      "imageReadFailedDesc": "別の画像を選んで再試行してください。",
+      "imageUnsupported": "対応していないファイルです",
+      "imageUnsupportedDesc": "画像ファイルを選択してください。",
+      "networkError": "ネットワークエラー",
+      "platformFailed": "プラットフォームの取得に失敗しました",
+      "selectPlatformAndUser": "プラットフォームとユーザーを選択してください",
+      "sendFailed": "送信に失敗しました",
+      "serverError": "サーバーエラー: {{status}}",
+      "sessionUnavailable": "チャットセッションを開始できません。しばらくしてから再試行してください",
+      "virtualTabCreated": "仮想身份タブ",
+      "virtualTabCreatedDesc": "{{label}} の会話を作成しました"
+    }
+  },
+  "layout": {
+    "verifyingLogin": "ログイン状態を確認中...",
+    "logoTitle": "MaiBot WebUI",
+    "logoTitleShort": "M"
+  },
+  "httpWarning": {
+    "title": "セキュリティ通知：",
+    "message": "WebUI に HTTP でアクセスしています。",
+    "description": "ローカル以外の HTTP 接続では、アクセストークンや設定内容が漏えいする可能性があります。可能であれば HTTPS または信頼できる内網接続を使用してください。",
+    "dismiss": "HTTP セキュリティ通知を閉じる"
+  },
+  "settings": {
+    "title": "設定",
+    "description": "アプリの設定を管理する",
+    "tabs": {
+      "appearance": "外観",
+      "security": "セキュリティ",
+      "other": "その他",
+      "about": "について"
+    },
+    "appearance": {
+      "themeMode": "テーマモード",
+      "themeModeDesc": "ライト / ダーク / システムに従う",
+      "light": "ライト",
+      "dark": "ダーク",
+      "system": "システム",
+      "accentColor": "アクセントカラー",
+      "resetDefault": "デフォルトにリセット",
+      "colorPreview": "カラープレビュー",
+      "styleTweaks": "スタイル調整",
+      "typography": "タイポグラフィ",
+      "visualEffects": "視覚効果",
+      "layout": "レイアウト",
+      "animation": "アニメーション",
+      "background": "背景",
+      "customCss": "カスタム CSS",
+      "animationEffect": "アニメーション効果",
+      "importExportTheme": "テーマのインポート / エクスポート",
+      "importTheme": "テーマをインポート",
+      "exportTheme": "テーマをエクスポート",
+      "importSuccess": "インポート成功",
+      "importFailed": "インポート失敗",
+      "resetSuccess": "リセット成功",
+      "fontFamily": "フォントファミリー",
+      "fontSize": "フォントサイズ",
+      "borderRadius": "ボーダー半径",
+      "contentWidth": "コンテンツ幅",
+      "sidebarWidth": "サイドバー幅",
+      "animationSpeed": "アニメーション速度",
+      "backgroundImage": "背景画像",
+      "backgroundBlur": "背景ぼかし",
+      "backgroundOpacity": "背景の透明度",
+      "lightDesc": "常にライトテーマを使用",
+      "darkDesc": "常にダークテーマを使用",
+      "systemDesc": "システム設定に従って自動切り替え",
+      "accentPrimary": "メインカラー",
+      "accentHint": "カラーリングをクリックするか、HEX 値を入力してください",
+      "resetTheme": "デフォルトにリセット",
+      "confirmResetTheme": "テーマのリセットを確認",
+      "confirmResetThemeDesc": "これにより、色、フォント、レイアウト、カスタム CSS を含むすべてのテーマ設定がデフォルトにリセットされます。この操作は元に戻せません。よろしいですか？",
+      "confirmResetAction": "リセットを確認",
+      "cssWarningTitle": "以下の内容はセキュリティフィルターされました：",
+      "cssPlaceholder": "/* カスタム CSS をここに入力 */\n\n/* 例： */\n/* .sidebar { background: #1a1a2e; } */",
+      "cssDescription": "カスタム CSS を記述して、インターフェースをさらにカスタマイズしてください。危険な CSS（@import、url() など）は自動的にフィルターされます。",
+      "clearCss": "クリア",
+      "exportDesc": "テーマを JSON ファイルとしてエクスポートして共有またはバックアップ。インポート時にすべての設定が自動適用されます。",
+      "importSuccessDesc": "テーマ設定がインポートされました。ページが自動的にリロードされます",
+      "resetSuccessDesc": "テーマがデフォルトにリセットされました",
+      "enableAnimations": "アニメーションを有効にする",
+      "enableAnimationsDesc": "無効にすると、すべてのトランジションアニメーションとエフェクトが無効化されパフォーマンスが向上します",
+      "inheritParentBg": "上位背景を継承",
+      "inheritParentBgDesc": "有効にすると上位レイヤーの背景設定を使用します",
+      "fontFamilyLabel": "フォントファミリー",
+      "fontFamilyPlaceholder": "フォントファミリーを選択",
+      "fontFamilySystem": "システムデフォルト (System)",
+      "fontFamilySans": "サンセリフ (Sans-serif)",
+      "fontFamilySerif": "セリフ (Serif)",
+      "fontFamilyMono": "等幅 (Monospace)",
+      "baseFontSize": "基準フォントサイズ (Base Size)",
+      "lineHeight": "行の高さ (Line Height)",
+      "lineHeightPlaceholder": "行高を選択",
+      "lineHeightCompact": "コンパクト (1.2)",
+      "lineHeightNormal": "標準 (1.5)",
+      "lineHeightLoose": "ルーズ (1.75)",
+      "borderRadiusLabel": "圆角の大きさ (Radius)",
+      "shadowLabel": "シャドウの強度 (Shadow)",
+      "shadowPlaceholder": "シャドウの強度を選択",
+      "shadowNone": "なし (None)",
+      "shadowSm": "軽微 (Small)",
+      "shadowMd": "中程度 (Medium)",
+      "shadowLg": "強い (Large)",
+      "shadowXl": "極強 (Extra Large)",
+      "blurLabel": "ボカシ効果 (Blur)",
+      "sidebarWidthLabel": "サイドバー幅 (Sidebar Width)",
+      "animationSpeedLabel": "アニメーション速度 (Speed)",
+      "animationSpeedPlaceholder": "アニメーション速度を選択",
+      "animationFast": "高速 (100ms)",
+      "animationNormal": "標準 (300ms)",
+      "animationSlow": "低速 (500ms)",
+      "animationOff": "オフ (0ms)",
+      "bgPage": "ページ",
+      "bgSidebar": "サイドバー",
+      "typographyGroup": "タイポグラフィ (Typography)",
+      "visualGroup": "視覚効果 (Visual)",
+      "layoutGroup": "レイアウト (Layout)",
+      "animationGroup": "アニメーション (Animation)",
+      "backgroundGroup": "背景設定 (Backgrounds)"
+    },
+    "security": {
+      "currentToken": "現在のアクセストークン",
+      "yourToken": "あなたのアクセストークン",
+      "regenerate": "再生成",
+      "customToken": "カスタムアクセストークン",
+      "securityTip": "セキュリティのヒント",
+      "cannotCopy": "コピーできません",
+      "copySuccess": "コピーしました",
+      "copyFailed": "コピー失敗",
+      "updateSuccess": "更新しました",
+      "updateFailed": "更新失敗",
+      "generateSuccess": "生成しました",
+      "generateFailed": "生成失敗",
+      "newToken": "新しいアクセストークン",
+      "confirmRegenerate": "トークンの再生成を確認",
+      "confirmRegenerateDesc": "再生成後、古いトークンは無効になります。再ログインが必要です。",
+      "cancel": "キャンセル",
+      "confirm": "確認",
+      "cannotCopyDesc": "Token はセキュアな Cookie に保存されています。新しい Token を取得するには再生成してください。",
+      "copySuccessDesc": "Token をクリップボードにコピーしました",
+      "copyFailedDesc": "Token を手動でコピーしてください",
+      "inputError": "入力エラー",
+      "inputErrorDesc": "新しい Token を入力してください",
+      "formatError": "フォーマットエラー",
+      "formatErrorDesc": "Token が要件を満たしていません: {{failedRules}}",
+      "updateSuccessDesc": "Access Token を更新しました。ログインページにリダイレクトします。",
+      "updateFailedDesc": "Token を更新できません",
+      "updateFailedConn": "サーバーへの接続に失敗しました",
+      "generateSuccessDesc": "新しい Access Token を生成しました。すぐに保存してください。",
+      "generateFailedDesc": "新しい Token を生成できません",
+      "generateFailedConn": "サーバーへの接続に失敗しました",
+      "cannotView": "表示できません",
+      "cannotViewDesc": "Token はセキュアな Cookie に保存されています。新しい Token が必要な場合は\"再生成\"をクリックしてください。",
+      "hide": "非表示",
+      "show": "表示",
+      "copyTip": "クリップボードにコピー",
+      "regenerateShort": "生成する",
+      "confirmRegenerateFullDesc": "新しい 64 桁のセキュアトークンを生成し、現在の Token を即座に無効にします。新しい Token で再ログインが必要です。この操作は元に戻せません。続けますか？",
+      "confirmGenerate": "生成を確認",
+      "tokenStorePlaceholder": "Token はセキュアな Cookie に保存されています",
+      "safekeepTip": "Access Token を安全に保管し、他人に漏洩しないでください。",
+      "newTokenLabel": "新しいアクセストークン",
+      "customTokenPlaceholder": "カスタム Token を入力",
+      "tokenReqTitle": "Token セキュリティ要件:",
+      "tokenValid": "Token のフォーマットは正しく使用できます",
+      "updateBtn": "カスタム Token を更新",
+      "updating": "更新しています...",
+      "dialogTitle": "新しい Access Token",
+      "dialogDesc": "これが新しい Token です。すぐに保存してください。このウィンドウを閉じるとログインページにリダイレクトされます。",
+      "dialogTokenLabel": "新しい Token (64 桁セキュアトークン)",
+      "important": "重要なお知らせ",
+      "tip1": "この Token は一度しか表示されません。閉じた後は表示できません",
+      "tip2": "すぐにコピーして安全な場所に保存してください",
+      "tip3": "閉じると自動的にログインページにリダイレクトされます",
+      "tip4": "新しい Token で再ログインしてください",
+      "copied": "コピー済み",
+      "copyToken": "Token をコピー",
+      "savedClose": "保存しました。閉じる",
+      "securityTip1": "再生成するとシステムがランダムに生成した 64 桁のセキュアトークンが作成されます",
+      "securityTip2": "カスタム Token はすべてのセキュリティ要件を満たす必要があります",
+      "securityTip3": "Token を更新すると、古い Token は即座に無効になります",
+      "securityTip4": "安全な環境で Token を表示してコピーしてください",
+      "securityTip5": "Token の漏洩が疑われる場合は、すぐに再生成または更新してください",
+      "securityTip6": "最高のセキュリティのためにシステム生成の Token を推奨します"
+    },
+    "other": {
+      "display": "表示設定",
+      "enableAvatarFetch": "ユーザーアバターを取得して表示",
+      "enableAvatarFetchDesc": "無効にすると、チャットと推論過程ビューはアバター画像を要求せず、既定のアバターを表示します。",
+      "performance": "パフォーマンス & ストレージ",
+      "localStorage": "ローカルストレージ使用量",
+      "logCache": "ログキャッシュサイズ",
+      "importExport": "設定のインポート / エクスポート",
+      "configWizard": "設定ウィザード",
+      "devTools": "開発者ツール",
+      "clearStorage": "ローカルストレージを削除",
+      "clearStorageDesc": "すべてのローカルストレージデータを削除します",
+      "clearStorageConfirm": "削除を確認",
+      "clearLogCache": "ログキャッシュを削除",
+      "clearLogCacheDesc": "すべてのキャッシュされたログデータを削除します",
+      "clearLogCacheConfirm": "削除を確認",
+      "importSettings": "設定をインポート",
+      "exportSettings": "設定をエクスポート",
+      "resetAllSettings": "すべての設定をリセット",
+      "resetAllSettingsDesc": "すべての設定をデフォルトに戻します",
+      "resetAllSettingsConfirm": "リセットを確認",
+      "clearStorageSuccess": "ローカルストレージを削除しました",
+      "clearStorageFailed": "削除失敗",
+      "clearLogSuccess": "ログキャッシュを削除しました",
+      "clearLogFailed": "削除失敗",
+      "importSuccess": "インポート成功",
+      "importFailed": "インポート失敗",
+      "exportSuccess": "エクスポート成功",
+      "exportFailed": "エクスポート失敗",
+      "resetSuccess": "リセット成功",
+      "resetFailed": "リセット失敗",
+      "storageItems": "{{count}} 件のアイテム",
+      "logCacheSizeDesc": "ログビューアがキャッシュする最大ログ数を制御します。大きい値はより多くのメモリを使用します。",
+      "logCacheSizeUnit": "件",
+      "dataSyncIntervalLabel": "ホームデータ更新間隔",
+      "dataSyncIntervalUnit": "秒間",
+      "dataSyncIntervalDesc": "ホーム画面の統計データの自動更新間隔を制御します",
+      "wsReconnectLabel": "WebSocket 再接続間隔",
+      "wsReconnectUnit": "秒間",
+      "wsReconnectDesc": "ログ WebSocket 切断後の再接続基本間隔",
+      "wsMaxReconnectLabel": "WebSocket 最大再接続回数",
+      "wsMaxReconnectUnit": "回",
+      "wsMaxReconnectDesc": "接続失敗後の最大再接続試行回数",
+      "clearLogCacheFn": "ログキャッシュをクリア",
+      "clearLocalCache": "ローカルキャッシュをクリア",
+      "confirmClearCache": "ローカルキャッシュのクリアを確認",
+      "confirmClearCacheDesc": "ローカルにキャッシュされたすべての設定とデータ（ログイン資格情報を除く）をクリアします。一部の設定を再構成する必要があるかもしれません。続けますか？",
+      "confirmClear": "クリアを確認",
+      "importExportDesc": "現在のインターフェース設定をエクスポートしてバックアップしたり、以前のファイルから復元したりできます。",
+      "exporting": "エクスポート中...",
+      "importing": "インポート中...",
+      "resetAllSettingsBtn": "すべての設定をデフォルトにリセット",
+      "confirmResetAll": "すべての設定のリセットを確認",
+      "confirmResetAllDesc": "テーマ、色、アニメーションなどのインターフェース設定をデフォルトに戻します。ログイン状態には影響しません。続けますか？",
+      "configWizardDesc": "初回設定ウィザードを再実行してシステムの基本設定を再構成できます。",
+      "rerunSetup": "初回設定を再実行",
+      "confirmRerunSetup": "再構成を確認",
+      "confirmRerunSetupDesc": "初回設定ウィザードに戻ります。システムの基本設定を再設定できます。続けますか？",
+      "devToolsDesc": "以下の機能は開発・デバッグ目的のみです。クラッシュや異常動作を引き起こす可能性があります。",
+      "triggerError": "テストエラーを発生させる",
+      "confirmTriggerError": "エラーの発生を確認",
+      "confirmTriggerErrorDesc": "React エラーを手動で発生させ、エラーボーダーコンポーネントをテストします。ページを更新するかホームに戻ることで復元できます。",
+      "confirmTrigger": "発生を確認",
+      "logCleared": "ログをクリアしました",
+      "logClearedDesc": "ログキャッシュをクリアしました",
+      "cacheCleared": "キャッシュをクリアしました",
+      "cacheClearedDesc": "{{count}} 件のキャッシュデータをクリアしました",
+      "exportSuccessDesc": "設定を JSON ファイルとしてエクスポートしました",
+      "exportFailedDesc": "設定のエクスポートに失敗しました",
+      "importSuccessDesc": "{{imported}} 件の設定をインポートしました",
+      "importSkippedSuffix": "、{{skipped}} 件をスキップ",
+      "importRefreshHint": "お知らせ",
+      "importRefreshHintDesc": "一部の設定はページを更新するまで完全に有効になりません",
+      "importNoDataDesc": "インポートする有効な設定がありません",
+      "importInvalidDesc": "ファイルフォーマットが無効です",
+      "resetDone": "リセット完了",
+      "resetDoneDesc": "すべての設定がデフォルトに戻りました。変更を適用するにはページを更新してください。"
+    },
+    "about": {
+      "openSource": "オープンソース",
+      "aboutApp": "MaiBot Dashboard について",
+      "version": "バージョン:",
+      "author": "開発者",
+      "techStack": "技術スタック",
+      "frontendFramework": "フロントエンドフレームワーク",
+      "uiComponents": "UI コンポーネント",
+      "backend": "バックエンド",
+      "buildTool": "ビルドツール",
+      "openSourceThanks": "使用オープンソースライブラリ",
+      "openSourceLicense": "オープンソースライセンス",
+      "openSourceDesc": "このプロジェクトは GitHub で公開されています。Star ⭐ でサポートしてください！",
+      "visitGitHub": "GitHub へ進む",
+      "appDesc": "MaiBot のモダンな Web 管理インターフェース",
+      "maimaiCore": "MaiBot コア",
+      "uiFrameworkGroup": "UI フレームワーク & コンポーネント",
+      "routingStateGroup": "ルーティング & 状態管理",
+      "formGroup": "フォーム処理",
+      "utilsGroup": "ユーティリティライブラリ",
+      "animationGroup": "アニメーション",
+      "backendGroup": "バックエンドフレームワーク",
+      "devToolsGroup": "開発ツール",
+      "openSourceThanksDesc": "このプロジェクトは以下の優れたオープンソースライブラリを使用しています。貢献に感謝します:",
+      "licenseDesc": "このプロジェクトは GNU General Public License v3.0 でライセンスされています。同じオープンソースライセンスを保持する限り、自由に使用・修正・配布できます。",
+      "licenseDeps": "このプロジェクトのすべての依存オープンソースライブラリはそれぞれのライセンス（MIT、Apache-2.0、BSD など）に従っています。すべてのオープンソース貢献者に感謝します。",
+      "lib": {
+        "react": "UIを構築するためのライブラリ",
+        "shadcn": "エレガントな React コンポーネントライブラリ",
+        "radix": "スタイルなしのアクセシブルなコンポーネント",
+        "tailwind": "ユーティリティファーストの CSS フレームワーク",
+        "lucide": "美しいアイコンライブラリ",
+        "iconifyReact": "統一されたアイコン描画コンポーネント",
+        "streamlineSharp": "Streamline がデザインし、Iconify 経由で提供される Sharp アイコンセット。CC BY 4.0 ライセンスに基づき帰属表示を保持",
+        "streamlineBlock": "Streamline がデザインし、Iconify 経由で提供される Block アイコンセット。CC BY 4.0 ライセンスに基づき帰属表示を保持",
+        "tanstackRouter": "型安全なルーティングライブラリ",
+        "zustand": "軽量な状態管理ライブラリ",
+        "reactHookForm": "高パフォーマンスなフォームライブラリ",
+        "zod": "TypeScript ファーストのスキーマ検証",
+        "clsx": "条件付き className ビルダー",
+        "tailwindMerge": "Tailwind クラス名マージツール",
+        "cva": "コンポーネントバリアント管理",
+        "dateFns": "モダンな日付ユーティリティライブラリ",
+        "framerMotion": "React アニメーションライブラリ",
+        "vaul": "ドロワーコンポーネントアニメーション",
+        "fastapi": "モダンな Python Web フレームワーク",
+        "uvicorn": "ASGI サーバー",
+        "pydantic": "データ検証ライブラリ",
+        "pythonMultipart": "ファイルアップロードサポート",
+        "typescript": "JavaScript のスーパーセット",
+        "vite": "次世代フロントエンドビルドツール",
+        "eslint": "JavaScript コードリンター"
+      }
+    }
+  },
+  "auth": {
+    "title": "ログイン",
+    "description": "続行するにはアクセストークンを入力してください",
+    "tokenLabel": "アクセストークン",
+    "tokenPlaceholder": "アクセストークンを入力",
+    "loginButton": "ログイン",
+    "loggingIn": "ログイン中...",
+    "loginFailed": "ログイン失敗",
+    "loginSuccess": "ログイン成功",
+    "checkingAuth": "ログイン状態を確認中...",
+    "welcome": "MaiBot へようこそ",
+    "accessDesc": "システムにアクセスするためにアクセストークンを入力してください",
+    "tokenRequired": "アクセストークンを入力してください",
+    "verifyingLabel": "検証中...",
+    "verifyEnter": "検証して入る",
+    "helpLink": "Token がありません。どこで取得できますか？",
+    "helpTitle": "Access Token の取得方法",
+    "helpDesc": "Access Token は MaiBot WebUI にアクセスする唯一の証明情報です。次の方法で取得してください",
+    "method1Title": "方法１：起動ログを確認",
+    "method1Desc": "MaiBot 起動時にコンソールに WebUI Access Token が表示されます。",
+    "method1Example1": "🔑 WebUI Access Token: abc123...",
+    "method1Example2": "💡 この Token で WebUI にログインしてください",
+    "method2Title": "方法２：設定ファイルを確認",
+    "method2Desc": "Token はプロジェクトルートの設定ファイルに保存されています：",
+    "method2FileHint": "このファイルを開いて access_token フィールドの値をコピーしてください",
+    "securityTipTitle": "セキュリティノート",
+    "securityTip1": "Token を安全に保管し、他人に漏洩しないでください",
+    "securityTip2": "Token をリセットするには、ログイン後にシステム設定へ進んでください",
+    "verifyFailed": "Token の検証に失敗しました。確認して再試行してください。",
+    "connFailed": "サーバーへの接続に失敗しました。ネットワーク接続を確認してください。",
+    "switchToLight": "ライトモードに切り替える",
+    "switchToDark": "ダークモードに切り替える"
+  },
+  "setupPage": {
+    "steps": {
+      "botProfile": {
+        "title": "基本情報と人格",
+        "description": "ニックネーム、人格、返信スタイルを設定します"
+      },
+      "botBasic": {
+        "title": "Bot基本設定",
+        "description": "ボットの基本情報を設定します"
+      },
+      "personality": {
+        "title": "人格設定",
+        "description": "ボットの性格や話し方を定義します"
+      },
+      "apiProvider": {
+        "title": "API設定",
+        "description": "APIプロバイダーを設定します"
+      },
+      "modelSetup": {
+        "title": "モデル設定",
+        "description": "planner と replyer モデルを設定します"
+      }
+    },
+    "loading": {
+      "title": "設定を読み込み中...",
+      "description": "既存の設定を読み取っています"
+    },
+    "header": {
+      "title": "初回セットアップウィザード",
+      "description": "{{appName}} の初期設定を一緒に完了しましょう"
+    },
+    "progress": {
+      "stepCounter": "ステップ {{current}} / {{total}}"
+    },
+    "validation": {
+      "selectPlatform": "プラットフォームを選択してください",
+      "enterNickname": "ニックネームを入力してください",
+      "enterQqAccount": "QQ アカウントを入力してください",
+      "enterAccountId": "アカウント ID を入力してください",
+      "enterProviderName": "APIプロバイダー名を入力してください",
+      "enterBaseUrl": "API Base URL を入力してください",
+      "enterApiKey": "API Key を入力してください",
+      "enterPlannerModelIdentifier": "planner モデル識別子を入力してください",
+      "enterReplyerModelIdentifier": "replyer モデル識別子を入力してください"
+    },
+    "toast": {
+      "loadFailedTitle": "設定の読み込みに失敗しました",
+      "loadFailedDescription": "既存の設定を読み込めなかったため、デフォルト値を使用します",
+      "saveSuccessTitle": "保存しました",
+      "saveSuccessDescription": "{{step}} を保存しました",
+      "saveFailedTitle": "保存に失敗しました",
+      "validationFailedTitle": "入力内容を確認してください",
+      "completeSuccessTitle": "設定が完了しました",
+      "completeSuccessDescription": "{{appName}} の設定を保存して適用しました。",
+      "completeFailedTitle": "設定の完了に失敗しました",
+      "skipFailedTitle": "セットアップのスキップに失敗しました",
+      "unknownError": "不明なエラー"
+    },
+    "actions": {
+      "previous": "前へ",
+      "next": "次へ",
+      "skip": "ウィザードをスキップ",
+      "complete": "設定を完了",
+      "saving": "保存中...",
+      "completing": "完了処理中..."
+    },
+    "skipDialog": {
+      "title": "セットアップウィザードをスキップしますか？",
+      "description": "システム設定からいつでも再度セットアップウィザードを開けます。スキップしてもよろしいですか？",
+      "confirm": "スキップする"
+    },
+    "footer": "これらの設定はいつでも設定画面から変更できます",
+    "defaults": {
+      "personality": {
+        "personality": "女子大生で、現在大学2年生。掲示板を見るのが好き。",
+        "replyStyle": "返信は淡々と、短めにし、中国語で話してください。自分の学科背景をわざと強調しないでください。Tieba、Zhihu、Weibo の返信スタイルを参考にできます。",
+        "multipleReplyStyles": {
+          "plain": "淡々として少し皮肉っぽく、とても短く口語的に返信します。Tieba や Weibo の返信スタイルを参考にできます。",
+          "shortText": "1〜2文字で返信する",
+          "shortSymbol": "1〜2個の記号で返信する",
+          "translation": "少し翻訳調にするが、長くしない"
+        }
+      },
+      "emoji": {
+        "filtrationPrompt": "公序良俗に反しないこと"
+      }
+    },
+    "forms": {
+      "botBasic": {
+        "platform": {
+          "label": "プラットフォーム *",
+          "placeholder": "プラットフォームを選択",
+          "description": "ボットが動作するプラットフォームを選択します",
+          "options": {
+            "custom": "その他のプラットフォーム"
+          }
+        },
+        "customPlatform": {
+          "label": "プラットフォーム名 *",
+          "placeholder": "matrix などのプラットフォーム名を入力"
+        },
+        "qqAccount": {
+          "label": "QQ アカウント *",
+          "placeholder": "ボットの QQ アカウントを入力",
+          "description": "ボットのログインに使用する QQ アカウントです"
+        },
+        "primaryAccount": {
+          "label": "アカウント ID *",
+          "placeholder": "ボットのアカウント ID を入力",
+          "description": "このプラットフォーム上でのボットのアカウント識別子です"
+        },
+        "nickname": {
+          "label": "ニックネーム *",
+          "placeholder": "ボットのニックネームを入力",
+          "description": "ボットの主な呼び名です"
+        },
+        "alias": {
+          "label": "別名",
+          "placeholder": "別名を入力して Enter で追加",
+          "add": "追加",
+          "description": "ボットの他の呼び名を複数追加できます",
+          "remove": "別名 {{alias}} を削除"
+        }
+      },
+      "personality": {
+        "personality": {
+          "label": "人格特性 *",
+          "placeholder": "ボットの人格や設定を説明してください（120文字以内推奨）",
+          "description": "例：大学2年生の女子大生で、Tieba をよく見ている"
+        },
+        "replyStyle": {
+          "label": "話し方 *",
+          "placeholder": "ボットの話し方や表現の癖を説明してください",
+          "description": "例：返信は淡々と短めにし、中国語で話し、Tieba・Zhihu・Weibo の雰囲気を参考にする"
+        },
+        "multipleReplyStyle": {
+          "label": "代替返信スタイル",
+          "placeholder": "1行につき1つの代替返信スタイルを入力",
+          "description": "リストが空でない場合、MaiBot は下の確率で代替スタイルを一時的な返信ヒントとして注入します"
+        },
+        "multipleProbability": {
+          "label": "一時スタイル注入確率",
+          "description": "返信を構築するたびに、一時的な代替スタイルヒントを注入する確率です"
+        }
+      },
+      "emoji": {
+        "emojiSendNum": {
+          "label": "絵文字候補数",
+          "description": "送信前にいくつの絵文字から選ぶかを指定します。最大 64 です"
+        },
+        "maxRegNum": {
+          "label": "最大絵文字数",
+          "description": "ボットが保存できる絵文字の最大数です"
+        },
+        "doReplace": {
+          "label": "上限到達時に置き換える",
+          "description": "有効にすると古い絵文字を削除し、無効にすると新しい絵文字を収集しません"
+        },
+        "checkInterval": {
+          "label": "確認間隔（分）",
+          "description": "絵文字の登録、破損、削除を確認する間隔です"
+        },
+        "stealEmoji": {
+          "label": "絵文字を収集する",
+          "description": "一部の絵文字をボットが自分用に保存できるようにします"
+        },
+        "contentFiltration": {
+          "label": "絵文字フィルタリングを有効にする",
+          "description": "条件に合う絵文字だけを保存します"
+        },
+        "filtrationPrompt": {
+          "label": "フィルタ条件",
+          "placeholder": "例：公序良俗に反しないこと",
+          "description": "保存する絵文字の条件を説明してください"
+        }
+      },
+      "other": {
+        "allGlobal": {
+          "label": "グローバルスラングモードを有効にする",
+          "description": "グループ内のスラングを学習して使えるようにします"
+        }
+      },
+      "apiProvider": {
+        "providerName": {
+          "label": "APIプロバイダー名 *",
+          "placeholder": "例: OpenAI、DeepSeek、自ホストサービス",
+          "description": "この名前は model_config.toml に保存され、下のモデルから参照されます"
+        },
+        "baseUrl": {
+          "label": "API Base URL *",
+          "description": "OpenAI互換エンドポイントを入力してください。例: https://api.example.com/v1"
+        },
+        "apiKey": {
+          "label": "API Key *",
+          "description": "このプロバイダーの API Key を入力してください",
+          "show": "API Key を表示",
+          "hide": "API Key を非表示"
+        }
+      },
+      "modelSetup": {
+        "planner": {
+          "identifier": {
+            "label": "planner モデル識別子 *",
+            "description": "APIサービスが提供する実際のモデルID。モデル名はこの識別子で初期化されます"
+          },
+          "visual": {
+            "label": "ビジョンを有効化"
+          }
+        },
+        "replyer": {
+          "identifier": {
+            "label": "replyer モデル識別子 *",
+            "description": "APIサービスが提供する実際のモデルID。モデル名はこの識別子で初期化されます"
+          },
+          "visual": {
+            "label": "ビジョンを有効化"
+          }
+        },
+        "saveHint": "より詳細なタスク割り当ては後で設定できます。"
+      }
+    }
+  },
+  "common": {
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "retry": "再試行",
+    "save": "保存する",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "delete": "削除",
+    "edit": "編集",
+    "close": "閉じる",
+    "search": "検索",
+    "noData": "データなし",
+    "success": "成功しました",
+    "failed": "失敗"
+  },
+  "restart": {
+    "preparing": "再起動を準備中",
+    "preparingDesc": "再起動リクエストを送信中...",
+    "preparingTip": "🔄 MaiBot の再起動を準備中...",
+    "restarting": "MaiBot を再起動中",
+    "restartingDesc": "しばらくお待ちください、MaiBot が再起動中です...",
+    "restartingTip": "🔄 設定を保存しました、メインプロセスを再起動中...",
+    "checking": "サービス状態を確認中",
+    "checkingDesc": "サービスの回復を待機中... ({{current}}/{{max}})",
+    "checkingTip": "⏳ サービスの回復を待機中、ページを閉じないでください...",
+    "success": "再起動成功",
+    "successDesc": "ログインページにリダイレクト中...",
+    "successTip": "✅ 設定が適用されました、サービスは正常に動作しています",
+    "failed": "再起動タイムアウト",
+    "failedDesc": "サービスが予定時間内に回復しませんでした",
+    "failedTip": "⚠️ 長時間応答がない場合は、手動で再起動してください",
+    "refreshPage": "ページを更新",
+    "retryCheck": "再試行",
+    "elapsed": "経過時間:"
+  },
+  "errorBoundary": {
+    "title": "問題が発生しました",
+    "description": "アプリケーションが予期しないエラーを検出しました。ページを更新するかホームに戻ることができます。",
+    "refreshPage": "ページを更新",
+    "goHome": "ホームに戻る",
+    "footer": "問題が解決しない場合は、エラー情報をコピーして開発者に報告してください",
+    "copiedToClipboard": "クリップボードにコピーしました",
+    "copyError": "エラー情報をコピー"
+  },
+  "search": {
+    "placeholder": "ページを検索...",
+    "title": "検索",
+    "noResults": "一致するページが見つかりません",
+    "startSearch": "キーワードを入力して検索を開始",
+    "recent": "最近",
+    "navigate": "ナビゲート",
+    "select": "選択",
+    "close": "閉じる",
+    "categories": {
+      "overview": "概要",
+      "config": "設定",
+      "resources": "リソース",
+      "monitor": "監視",
+      "extensions": "拡張機能",
+      "system": "システム"
+    },
+    "items": {
+      "home": "ホーム",
+      "homeDesc": "ダッシュボード概要を表示",
+      "focusCompanionDesc": "MaiBot の没入型集中コンパニオンを開く",
+      "botConfig": "ボットメイン設定",
+      "botConfigDesc": "ボットのコア設定を構成",
+      "model": "モデル設定",
+      "modelDesc": "モデルパラメーターを設定",
+      "promptGeneratorDesc": "文章から注入可能な人格設定ブロックを生成",
+      "emoji": "絵文字管理",
+      "emojiDesc": "ボットの絵文字を管理",
+      "expression": "表現管理",
+      "expressionDesc": "ボットの表現を管理",
+      "person": "人物情報",
+      "personDesc": "人物情報を管理",
+      "jargon": "スラング管理",
+      "jargonDesc": "ボットが学習したスラングを管理",
+      "statistics": "統計情報",
+      "statisticsDesc": "使用統計を表示",
+      "plugins": "プラグインマーケット",
+      "pluginsDesc": "プラグインを閲覧してインストール",
+      "logs": "ログビューア",
+      "logsDesc": "システムログを表示",
+      "reasoningProcessDesc": "Maisaka prompt の推論ログを閲覧",
+      "settings": "設定",
+      "settingsDesc": "システム設定を構成",
+      "agentManagementDesc": "サブエージェントを管理",
+      "emotionMonitorDesc": "感情状態モニタリングを表示",
+      "relationshipMonitorDesc": "ユーザーとの関係データを表示",
+      "subagentMonitorDesc": "サブエージェントの実行状態を監視",
+      "deepseekMonitorDesc": "DeepSeek最適化パネルを表示",
+      "maisakaMonitorDesc": "Maisakaチャットフロー監視を表示",
+      "systemMonitorDesc": "システム実行状態監視を表示",
+      "chatManagementDesc": "チャットセッションと設定を管理",
+      "promptManagementDesc": "プロンプトテンプレートを管理",
+      "knowledgeBaseDesc": "ナレッジベースを管理",
+      "pluginConfigDesc": "インストール済みプラグインを設定",
+      "mcpSettingsDesc": "MCPサーバー設定を構成"
+    }
+  },
+  "a11y": {
+    "skipToContent": "メインコンテンツにスキップ",
+    "sidebarNav": "メインナビゲーション",
+    "closeMenu": "メニューを閉じる",
+    "navigatedTo": "{{page}} に移動しました"
+  },
+  "memory": {
+    "tuning": {
+      "task": {
+        "title": "調整タスク",
+        "description": "検索パラメータ評価"
+      },
+      "form": {
+        "strategy": "調整方針",
+        "objective": "最適化目標",
+        "intensity": "評価の深さ",
+        "evalScope": "評価範囲",
+        "sampleSize": "サンプル数",
+        "topKEval": "評価 Top-K",
+        "persist": "設定ファイルにも書き込む"
+      },
+      "objectives": {
+        "precision": "精度を優先",
+        "balanced": "精度と再現率を両立",
+        "recall": "再現率を優先"
+      },
+      "intensity": {
+        "quick": "高速",
+        "standard": "標準",
+        "deep": "詳細"
+      },
+      "actions": {
+        "createTask": "調整タスクを作成",
+        "applyBest": "最良結果を適用",
+        "showToml": "設定断片を表示",
+        "showSummary": "結果サマリーに戻る"
+      },
+      "tasks": {
+        "title": "最近の調整タスク",
+        "description": "タスク結果",
+        "recommended": "推奨",
+        "notRecommended": "非推奨",
+        "empty": "調整タスクはまだありません"
+      },
+      "status": {
+        "completed": "完了",
+        "running": "実行中",
+        "queued": "待機中",
+        "failed": "失敗",
+        "cancelled": "キャンセル済み"
+      },
+      "result": {
+        "noTask": "調整結果はまだありません。タスクが完了すると評価結果がここに表示されます。",
+        "statusTitle": "タスク状態",
+        "progressTitle": "進捗",
+        "roundsTitle": "評価ラウンド",
+        "recommendationTitle": "適用判断",
+        "recommended": "検証を通過しました。適用を推奨します。",
+        "notRecommended": "検証を通過していません。適用は推奨しません。",
+        "scoreTitle": "総合スコア",
+        "validationTitle": "Holdout 検証",
+        "validationPassed": "通過",
+        "validationFailed": "未通過",
+        "holdoutWithCount": "{{result}}、{{count}} 件のサンプル",
+        "metricsTitle": "主要指標",
+        "metricsDescription": "基準値から最良結果への変化を表示します。",
+        "reason": "理由：{{reason}}",
+        "errorReason": "失敗理由：{{reason}}",
+        "reasons": {
+          "holdoutEmpty": "Holdout サンプルが不足しているため、調整結果を検証できません。",
+          "holdoutOnlineLikeValidationFailed": "Holdout とオンライン相当の検証を通過しませんでした。",
+          "unknown": "{{reason}}"
+        },
+        "metrics": {
+          "precisionAt1": "P@1",
+          "recallAtK": "Recall@K",
+          "emptyRate": "空結果率",
+          "avgElapsedMs": "平均所要時間"
+        }
+      },
+      "snapshot": {
+        "title": "現在の調整結果",
+        "summaryDescription": "最新の完了タスクの評価結果を優先表示し、パラメータは詳細にまとめます。",
+        "tomlDescription": "手動コピーや調査用の設定断片です。",
+        "runtimeTitle": "実行中の設定",
+        "runtimeDescription": "現在の検索ランタイムに即時適用されているパラメータです。",
+        "runtimeResultApplied": "調整結果は現在の検索ランタイムに反映されています。",
+        "runtimeResultEmpty": "実行中の結果はまだありません。",
+        "persistableTitle": "保存可能な設定",
+        "persistableDescription": "設定ファイルへ書き込めるパラメータです。",
+        "persistableResultReady": "この結果は必要に応じて設定ファイルに保存できます。",
+        "persistableResultEmpty": "保存可能な結果はまだありません。",
+        "diffTitle": "差分",
+        "diffDescription": "実行中の設定と保存可能な設定で異なる項目です。",
+        "diffResultClean": "実行中の設定と保存可能な設定は一致しています。",
+        "diffResultChanged": "実行中の設定と保存可能な設定に差分があります。詳細で確認できます。",
+        "detailsTitle": "パラメータと設定詳細",
+        "detailsHint": "調査と比較用",
+        "parameterDetailsTitle": "パラメータ詳細",
+        "runtimeShort": "実行中",
+        "persistableShort": "保存可能",
+        "empty": "データなし",
+        "noDiff": "現在、2つの設定に差分はありません。",
+        "technicalCount": "サマリーでは {{count}} 件の技術項目を非表示にしています。設定断片で確認できます。",
+        "technicalDiffCount": "サマリーでは {{count}} 件の技術的な差分を非表示にしています。設定断片で確認できます。"
+      },
+      "values": {
+        "enabled": "有効",
+        "disabled": "無効",
+        "auto": "自動",
+        "always": "常に有効",
+        "off": "無効",
+        "weightedRrf": "重み付き融合",
+        "rrf": "順位融合",
+        "alphaLegacy": "旧式の重み付き融合",
+        "singlePool": "単一ベクトルプール",
+        "dualPool": "二重ベクトルプール"
+      },
+      "parameters": {
+        "retrieval_top_k": "総候補数",
+        "retrieval_top_k_paragraphs": "段落候補数",
+        "retrieval_top_k_relations": "関係候補数",
+        "retrieval_top_k_final": "最終返却数",
+        "retrieval_alpha": "段落と関係の重み",
+        "retrieval_enable_ppr": "グラフランキング",
+        "retrieval_ppr_alpha": "グラフ遷移係数",
+        "retrieval_ppr_timeout_seconds": "グラフランキングのタイムアウト",
+        "retrieval_search_smart_fallback_enabled": "スマートフォールバック",
+        "retrieval_sparse_enabled": "キーワード検索",
+        "retrieval_sparse_mode": "キーワード検索モード",
+        "retrieval_sparse_candidate_k": "キーワード段落候補",
+        "retrieval_sparse_relation_candidate_k": "キーワード関係候補",
+        "retrieval_fusion_method": "結果融合方式",
+        "retrieval_fusion_rrf_k": "融合スムージング係数",
+        "retrieval_fusion_vector_weight": "ベクトル検索の重み",
+        "retrieval_fusion_bm25_weight": "キーワード検索の重み",
+        "retrieval_vector_pools_mode": "ベクトルプールモード",
+        "retrieval_vector_pools_paragraph_top_k": "段落ベクトル候補",
+        "retrieval_vector_pools_graph_top_k": "グラフベクトル候補",
+        "retrieval_vector_pools_graph_expand_paragraph_k": "グラフ展開段落数",
+        "retrieval_vector_pools_relation_expand_per_hit": "ヒットごとの関係展開数",
+        "retrieval_vector_pools_entity_expand_per_hit": "ヒットごとのエンティティ展開数",
+        "retrieval_vector_pools_relation_evidence_weight": "関係証拠の重み",
+        "retrieval_vector_pools_entity_evidence_weight": "エンティティ証拠の重み",
+        "threshold_percentile": "動的しきい値の分位",
+        "threshold_min_results": "最小返却数",
+        "threshold_min_threshold": "最小しきい値",
+        "threshold_max_threshold": "最大しきい値",
+        "threshold_enable_auto_adjust": "しきい値の自動調整"
+      }
+    }
+  },
+  "home": {
+    "title": "リアルタイムモニター",
+    "subtitle": "MaiBotの稼働状況と統計データの一覧",
+    "loading": "統計データを読み込み中...",
+    "loadingHint": "読み込み中...",
+    "timeRange": {
+      "24h": "24時間",
+      "7d": "7日間",
+      "30d": "30日間"
+    },
+    "autoRefresh": "自動更新",
+    "cards": {
+      "add": "カードを追加",
+      "edit": "カードを編集",
+      "done": "完了",
+      "reset": "既定のレイアウトに戻す",
+      "row": {
+        "low": "低い行",
+        "high": "高い行"
+      },
+      "dialog": {
+        "title": "ホームカード管理",
+        "description": "プラグインまたは組み込みのカードを追加するか、既定のレイアウトに戻せます。",
+        "hiddenCards": "追加できるカード",
+        "noHiddenCards": "追加できるカードはありません",
+        "restore": "追加",
+        "reset": "既定のレイアウトに戻す",
+        "cancel": "閉じる"
+      }
+    },
+    "systemStatus": {
+      "title": "システムステータス",
+      "status": "ステータス",
+      "uptime": "稼働時間",
+      "version": "メインバージョン",
+      "webuiVersion": "WebUI バージョン"
+    },
+    "agentStatus": {
+      "title": "エージェントステータス",
+      "activeAgents": "アクティブエージェント",
+      "totalAgents": "総エージェント数",
+      "activeSessions": "バインドセッション数"
+    },
+    "llmOverview": {
+      "title": "LLM 概要",
+      "requests": "リクエスト数",
+      "cost": "総コスト",
+      "tokens": "トークン使用量"
+    },
+    "chatStream": {
+      "title": "チャットストリーム",
+      "activeSessions": "アクティブセッション",
+      "todayCalls": "本日の呼び出し"
+    },
+    "botStatus": {
+      "title": "MaiBot ステータス",
+      "loading": "読み取り中",
+      "running": "稼働中",
+      "stopped": "停止中",
+      "unknown": "不明",
+      "uptime": "稼働 {{time}}",
+      "visualEnabled": "ビジョン有効",
+      "memoryEnabled": "メモリ有効"
+    },
+    "versionCard": {
+      "title": "MaiBot バージョン",
+      "mainVersion": "本体バージョン",
+      "webuiVersion": "WebUI バージョン",
+      "latestVersion": "最新バージョン",
+      "stableLatest": "最新安定版",
+      "testLatest": "最新テスト版",
+      "githubReleases": "GitHub Releases",
+      "unknown": "不明"
+    },
+    "platformGuide": {
+      "title": "プラットフォームアカウントを追加",
+      "description": "MaiBot をメッセージプラットフォームに接続するアカウントがまだ設定されていません。",
+      "detail": "プラットフォームとアカウントを設定すると、MaiBot が QQ などのメッセージアプリで送受信できます。",
+      "action": "アカウントを追加"
+    },
+    "quickActions": {
+      "title": "クイック操作",
+      "restart": "MaiBotを再起動",
+      "restarting": "再起動中...",
+      "expressionReview": "表現レビュー",
+      "viewLogs": "ログを見る",
+      "pluginManage": "プラグイン管理",
+      "systemSettings": "システム設定",
+      "pluginConfig": "プラグイン設定",
+      "appearanceSettings": "外観設定",
+      "localCache": "ローカルキャッシュ",
+      "modelProviders": "モデルプロバイダー設定",
+      "modelList": "モデル一覧",
+      "modelTasks": "モデル機能割り当て",
+      "botConfig": "本体設定",
+      "emojiManagement": "絵文字管理",
+      "expressionManagement": "表現管理",
+      "statistics": "詳細統計データ",
+      "customize": "カスタマイズ",
+      "empty": "クイックショートカットがまだ選択されていません",
+      "add": "ショートカットを追加",
+      "descriptions": {
+        "restart": "MaiBot 本体プロセスを再起動",
+        "expressionReview": "表現学習レビューのダイアログを開く",
+        "viewLogs": "WebUI ログを表示",
+        "pluginManage": "プラグインマーケットと管理ページを開く",
+        "systemSettings": "システム設定を開く",
+        "pluginConfig": "インストール済みプラグインの設定ページを開く",
+        "appearanceSettings": "設定 / 外観を開く",
+        "localCache": "設定 / ローカルキャッシュを開く",
+        "modelProviders": "モデル管理 / プロバイダー設定を開く",
+        "modelList": "モデル管理 / モデル一覧を開く",
+        "modelTasks": "モデル管理 / 機能割り当てを開く",
+        "botConfig": "MaiBot 本体設定を開く",
+        "emojiManagement": "絵文字リソース管理を開く",
+        "expressionManagement": "表現管理を開く",
+        "statistics": "maibot_statistics.html を開く"
+      },
+      "categories": {
+        "system": "システム",
+        "config": "設定",
+        "resource": "リソース",
+        "plugin": "プラグイン",
+        "monitor": "監視",
+        "external": "外部"
+      },
+      "dialog": {
+        "title": "クイックショートカットをカスタマイズ",
+        "description": "ホームのクイック操作カードに表示する入口を選択します。ページタブやプラグイン設定ページも含められます。",
+        "searchPlaceholder": "入口、プラグイン、タブを検索...",
+        "loadingPluginEntries": "プラグインショートカットを読み込み中...",
+        "noMatches": "一致する入口が見つかりません",
+        "restoreDefault": "デフォルトに戻す",
+        "done": "完了"
+      }
+    },
+    "pluginShortcuts": {
+      "baseLabel": "{{plugin}} 設定",
+      "baseDescription": "{{plugin}} のプラグイン設定ページを開く",
+      "tabDescription": "{{plugin}} の {{tab}} タブを開く",
+      "fallbackLabel": "プラグイン設定：{{plugin}}",
+      "fallbackTabLabel": "プラグイン設定：{{plugin}} / {{tab}}",
+      "fallbackDescription": "指定したプラグイン設定ページを開く",
+      "fallbackTabDescription": "指定したプラグイン設定タブを開く"
+    },
+    "survey": {
+      "title": "フィードバック",
+      "description": "製品体験の改善にご協力ください",
+      "webui": "WebUI フィードバック",
+      "maibot": "MaiBot フィードバック"
+    },
+    "stats": {
+      "overviewTitle": "統計概要",
+      "totalRequests": "総リクエスト数",
+      "totalCost": "総コスト",
+      "tokenUsage": "トークン消費",
+      "avgResponse": "平均応答",
+      "avgResponseDesc": "API平均レイテンシ",
+      "onlineTime": "オンライン時間",
+      "messageProcessing": "メッセージ処理",
+      "costEfficiency": "コスト効率",
+      "recentPeriod": "直近{{range}}",
+      "perHour": "{{value}}/時",
+      "noData": "データなし",
+      "replied": "返信 {{num}} 件",
+      "per100Messages": "100メッセージあたり",
+      "seconds": "秒間",
+      "hours": "時間",
+      "days": "日"
+    },
+    "storage": {
+      "title": "ストレージ使用量",
+      "reading": "読み取り中",
+      "summary": "画像 {{image}} · 絵文字 {{emoji}} · ログ {{logs}} · データベース {{database}}",
+      "images": "画像",
+      "emoji": "絵文字",
+      "logs": "ログ",
+      "database": "データベース",
+      "files": "{{count}} ファイル",
+      "filesAndRecords": "{{files}} ファイル · {{records}} 件の記録",
+      "databaseDetail": "{{files}} ファイル · {{tables}} テーブル",
+      "readingDescription": "ローカルストレージ使用量を読み取り中...",
+      "unavailable": "ローカルストレージ使用量を取得できません",
+      "manage": "ストレージ管理"
+    },
+    "charts": {
+      "tabs": {
+        "trends": "トレンド",
+        "models": "モデル",
+        "activity": "アクティビティ",
+        "daily": "日次統計"
+      },
+      "requestTrend": "リクエストトレンド",
+      "requestTrendDesc": "直近{{hours}}時間のリクエスト量の変化",
+      "costTrend": "コストトレンド",
+      "costTrendDesc": "API呼び出しコストの変化",
+      "tokenUsage": "トークン消費",
+      "tokenUsageDesc": "トークン使用量の変化",
+      "modelDistribution": "モデルコスト分布",
+      "modelDistributionDesc": "各モデルのコスト割合（{{count}}モデル）",
+      "modelDetails": "モデル詳細統計",
+      "modelDetailsDesc": "リクエスト数、コスト、パフォーマンス",
+      "recentActivity": "最近のアクティビティ",
+      "recentActivityDesc": "最新のAPI呼び出し記録",
+      "dailyStats": "日次統計",
+      "dailyStatsDesc": "直近7日間のデータサマリー",
+      "requests": "リクエスト数",
+      "cost": "コスト(¥)",
+      "requestCount": "リクエスト数",
+      "costLabel": "コスト",
+      "avgTime": "平均所要時間",
+      "timeCost": "所要時間",
+      "status": "ステータス"
+    },
+    "time": {
+      "hoursMinutes": "{{hours}}時間{{minutes}}分"
+    },
+    "hitokotoFallback": "人生はチョコレートの箱のようなもの、次に何が出てくるか分からない。",
+    "hitokotoFallbackFrom": "フォレスト・ガンプ",
+    "unknownSource": "不明",
+    "ariaLabel": {
+      "requestTrend": "時間ごとのリクエスト数トレンドチャート、直近のリクエスト数変化を表示",
+      "costTrend": "APIコストトレンドチャート、直近のAPI呼び出しコスト変化を表示",
+      "tokenUsage": "Token消費トレンドチャート、直近のToken使用量変化を表示"
+    },
+    "agentOverview": {
+      "title": "エージェント概要",
+      "summary": "{{agents}}エージェント · {{active}}アクティブ · {{sessions}}セッション",
+      "loading": "読み込み中..."
+    }
+  },
+  "agent": {
+    "indicator": {
+      "default": "デフォルト"
+    },
+    "selectPopover": {
+      "searchPlaceholder": "エージェントを検索...",
+      "noMatch": "一致するエージェントなし"
+    },
+    "switcher": {
+      "title": "エージェント切替",
+      "searchPlaceholder": "エージェントを検索...",
+      "noMatch": "一致するエージェントなし",
+      "current": "現在"
+    },
+    "binding": {
+      "defaultName": "銀狼",
+      "switchFailed": "エージェントの切替に失敗"
+    },
+    "header": {
+      "currentAgentLabel": "現在のエージェント: {{name}}",
+      "avatarAlt": "{{name}}のアバター"
+    },
+    "chatManagement": {
+      "bindFailed": "エージェントのバインドに失敗",
+      "defaultName": "銀狼",
+      "allAgents": "全エージェント"
+    },
+    "commandCenter": {
+      "title": "エージェント指揮センター",
+      "subtitle": "物語の結末ではなく、命の序章",
+      "searchPlaceholder": "エージェントを検索...",
+      "dashboard": "ダッシュボード",
+      "constellation": "コンステレーション",
+      "global": "グローバル"
+    },
+    "vitalSigns": {
+      "emotionPulse": {
+        "unavailable": "パルス感知不可"
+      },
+      "activity": {
+        "active": "アクティブ",
+        "quiet": "静穏",
+        "dormant": "休眠"
+      },
+      "warmth": {
+        "warm": "温かい",
+        "moderate": "穏やか",
+        "cold": "冷たい",
+        "no_data": "交流データなし",
+        "unavailable": "温度感知不可",
+        "basedOnInternal": "キャラクター関係に基づく"
+      },
+      "innerActivity": {
+        "introspecting": "内省中",
+        "quiet": "静穏",
+        "unavailable": "活動感知不可"
+      },
+      "coreBadge": "コア",
+      "sessionCount": "{{count}} セッション",
+      "relationshipCount": "{{count}} 関係"
+    },
+    "constellation": {
+      "title": "エージェント星図",
+      "noRelationships": "内部関係データなし",
+      "dataIncomplete": "感知不可",
+      "legend": {
+        "active": "アクティブ",
+        "quiet": "静穏",
+        "dormant": "休眠"
+      },
+      "mention": {
+        "close": "緊密",
+        "moderate": "普通",
+        "distant": "疎遠",
+        "mentioned": "言及された",
+        "mentions": "言及",
+        "by": "{{name}}に言及された",
+        "of": "{{name}}に言及"
+      },
+      "tooltip": {
+        "relationshipType": "関係タイプ",
+        "attitude": "態度",
+        "interactionStyle": "交流スタイル",
+        "relationship": "関係",
+        "noData": "関係データなし",
+        "closeness": "親密さ",
+        "trust": "信頼度",
+        "mentionCount": "言及回数"
+      },
+      "selectedAgent": "選択済み：{{name}}",
+      "noSelection": "ノードをクリックして詳細を表示",
+      "hoverHint": "ホバーして関係を表示"
+    },
+    "globalSituation": {
+      "title": "グローバル状況認識",
+      "stats": "グループ概要",
+      "emotionDistribution": "感情分布",
+      "activityHeatmap": "活動ヒートマップ",
+      "relationshipDynamics": "関係ダイナミクス",
+      "noChanges": "最近の関係に大きな変化なし",
+      "nearBreakthrough": "ブレイクスルー間近",
+      "statsDetail": {
+        "registeredAgents": "登録済み {{count}}",
+        "totalAgents": "{{count}} 体の生命",
+        "activeAgents": "{{count}} 体がアクティブ",
+        "totalRelationships": "{{count}} 本の絆",
+        "avgScore": "平均温度 {{score}}"
+      },
+      "heatmapLegend": {
+        "active": "アクティブ",
+        "quiet": "静穏",
+        "dormant": "休眠"
+      }
+    },
+    "innerWorld": {
+      "back": "戻る",
+      "placeholder": "内なる世界 — 近日公開",
+      "loading": "読み込み中...",
+      "subView": {
+        "emotion": "感情ランドスケープ",
+        "relationship": "関係ネットワーク",
+        "memory": "記憶の庭",
+        "timeline": "ライフタイムライン",
+        "sessions": "アクティブセッション",
+        "autonomy": "自律ログ"
+      }
+    },
+    "emotionLandscape": {
+      "radarTitle": "感情レーダー",
+      "barTitle": "感情強度",
+      "baselineShift": "ベースラインシフト",
+      "behaviorTendency": "行動傾向",
+      "shiftUp": "上昇",
+      "shiftDown": "下降",
+      "shiftStable": "安定",
+      "unavailable": "感情ランドスケープ感知不可",
+      "deepMonitor": "詳細モニター →"
+    },
+    "relationshipNetwork": {
+      "title": "関係ネットワーク",
+      "distribution": "レベル分布",
+      "ranking": "関係ランキング",
+      "internalGraph": "内部関係",
+      "unavailable": "関係ネットワーク感知不可",
+      "deepMonitor": "詳細モニター →"
+    },
+    "memoryGarden": {
+      "title": "記憶の庭",
+      "focusAreas": "記憶フォーカス",
+      "innerActivity": "内なる活動",
+      "noFocusAreas": "フォーカスエリアなし",
+      "dreamComplete": "内省を完了",
+      "unavailable": "活動記録不可",
+      "deepMonitor": "詳細モニター →"
+    },
+    "lifeTimeline": {
+      "title": "ライフタイムライン",
+      "emotionShift": "感情が{{emotion}}に変化",
+      "relationshipBreakthrough": "関係のブレイクスルー",
+      "memoryMilestone": "{{type}}完了",
+      "noEvents": "最近のイベントなし",
+      "relationshipWarmUp": "{{user}}との関係が温まりつつある",
+      "currentStatus": "現在の状態"
+    },
+    "lifeDefense": {
+      "title": "生命の防衛",
+      "description": "これらのルールはキャラクターの独自性を守り、機械的な繰り返しを防ぎます"
+    },
+    "collapsedParameters": {
+      "title": "基盤パラメータ",
+      "talkValueModifier": "活動度修正",
+      "relationshipGrowthRate": "関係成長率",
+      "emotionDecayRate": "感情減衰率"
+    },
+    "activeSessions": {
+      "title": "リンクセッション",
+      "bindSession": "セッションをバインド",
+      "unbind": "バインド解除",
+      "unbindConfirm": "バインド解除しますか？",
+      "unbindConfirmDesc": "「{{name}}」とのバインドを解除します。解除後、このセッションはこのエージェントによって応答されなくなります。",
+      "unbindFailed": "バインド解除に失敗しました",
+      "bindFailed": "バインドに失敗しました",
+      "loadFailed": "読み込み失敗",
+      "retry": "再試行",
+      "boundStatus": "バインド済み",
+      "selectSession": "セッションを選択",
+      "noAvailableSessions": "利用可能なセッションなし",
+      "confirm": "確認",
+      "cancel": "キャンセル",
+      "noSessions": "リンクセッションなし",
+      "active": "アクティブ",
+      "boundInactive": "バインド済み",
+      "primary": "メイン",
+      "cohabitants": "同居エージェント",
+      "unbindSpecific": "エージェント解除",
+      "unbindAll": "全て解除",
+      "lastSpokeAt": "最終発言"
+    },
+    "vitality": {
+      "active": "アクティブ",
+      "standby": "待機",
+      "dormant": "休眠",
+      "value": "バイタリティ",
+      "lastStimulus": "最終刺激"
+    },
+    "stateAwareness": {
+      "title": "状態相互認識",
+      "summaryPreview": "サマリープレビュー",
+      "activeRules": "有効ルール",
+      "noData": "認識データなし",
+      "vitalityLevel": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      }
+    },
+    "interaction": {
+      "stream": {
+        "title": "インタラクションストリーム",
+        "empty": "インタラクション活動なし",
+        "refreshInterval": "30秒自動更新"
+      },
+      "detail": {
+        "triggerReason": "トリガー理由",
+        "emotionEffect": "感情効果",
+        "relationshipEffect": "関係効果",
+        "memoryStatus": "メモリ書き込み",
+        "echoDepth": "エコー深度"
+      },
+      "hotspot": {
+        "label": "ホットスポット",
+        "count": "24時間以内に5回以上相互作用したエージェントペア"
+      },
+      "typeLabels": {
+        "emotion_driven": "感情駆動",
+        "time_awareness": "時間認識",
+        "mention_propagation": "言及伝播",
+        "event_ripple": "イベント波紋",
+        "inner_need": "内発的需要",
+        "memory_driven": "記憶駆動",
+        "inner_monologue": "内なる独白"
+      },
+      "memoryStatus": {
+        "success": "成功",
+        "failed": "失敗",
+        "skipped": "スキップ"
+      },
+      "manualTrigger": {
+        "title": "手動トリガー",
+        "initiator": "発信者",
+        "target": "対象",
+        "type": "インタラクション種別",
+        "reason": "トリガー理由",
+        "submit": "トリガー",
+        "success": "インタラクショントリガー成功",
+        "failed": "インタラクショントリガー失敗"
+      },
+      "config": {
+        "title": "インタラクション設定",
+        "basic": {
+          "title": "基本設定",
+          "enabled": "インタラクション有効化",
+          "cooldownMinutes": "クールダウン（分）",
+          "maxPerHour": "1時間あたり最大回数",
+          "maxPerDay": "1日あたり最大回数"
+        },
+        "echo": {
+          "title": "エコー設定",
+          "enabled": "エコー伝播有効化",
+          "maxDepth": "最大エコー深度",
+          "decayRatio": "エコー減衰比"
+        },
+        "monologue": {
+          "title": "独白設定",
+          "enabled": "独白有効化",
+          "minInterval": "最小間隔（分）",
+          "idleThreshold": "アイドル閾値（分）",
+          "emotionThreshold": "感情強度閾値"
+        }
+      }
+    },
+    "monologue": {
+      "panel": {
+        "title": "内なる世界",
+        "empty": "内なる世界に波紋なし"
+      },
+      "content": {
+        "label": "独白内容"
+      },
+      "emotionSnapshot": {
+        "label": "感情スナップショット"
+      },
+      "selfEffect": {
+        "label": "自己効果"
+      }
+    },
+    "autonomy": {
+      "title": "エージェント自律性",
+      "activeAgents": "アクティブエージェント",
+      "primarySpeaker": "メイン発言者",
+      "switchSpeaker": "発言者切替",
+      "triggerInterjection": "割り込みトリガー",
+      "behaviorIntents": "行動意図",
+      "interjectionEvents": "割り込みイベント",
+      "speakerChanges": "発言権変更",
+      "noActiveAgents": "アクティブエージェントなし",
+      "noIntents": "行動意図なし",
+      "noInterjections": "割り込みイベントなし",
+      "noSpeakerChanges": "発言権変更なし",
+      "intentType": {
+        "want_to_speak": "発話希望",
+        "want_to_interject": "割り込み希望"
+      },
+      "intentSource": {
+        "inner_need_driven": "内発的欲求駆動",
+        "emotion_driven": "感情駆動",
+        "topic_relevance_driven": "話題関連駆動",
+        "relationship_driven": "関係駆動",
+        "interaction_signal_driven": "相互作用シグナル駆動",
+        "manual_trigger": "手動トリガー"
+      },
+      "changeType": {
+        "manual_switch": "手動切替",
+        "agent_exit": "エージェント退出",
+        "interjection": "割り込み",
+        "session_create": "セッション作成"
+      },
+      "strength": "強度",
+      "source": "ソース",
+      "reason": "理由",
+      "from": "から",
+      "to": "へ"
+    },
+    "autonomyLogs": {
+      "title": "自律行動ログ",
+      "allTypes": "すべての種別",
+      "thinking": "思考活動",
+      "expression": "表現意図",
+      "innerNeed": "内発的需要",
+      "behaviorIntent": "行動意図",
+      "interjection": "割り込みイベント",
+      "orchestration": "オーケストレーション",
+      "empty": "自律行動記録なし",
+      "total": "全 {{count}} 件",
+      "prev": "前へ",
+      "next": "次へ"
+    },
+    "migration": {
+      "title": "記憶移行状態",
+      "loading": "読み込み中...",
+      "advance": "進める",
+      "advanceSuccess": "{{name}} が {{phase}} に進みました",
+      "advanceFailed": "移行フェーズの進行に失敗しました"
+    }
+  },
+  "emotion": {
+    "pageTitle": "感情モニター",
+    "agentCount": "{{count}} エージェント",
+    "backToOverview": "概要に戻る",
+    "autoRefreshOff": "自動更新をオフ",
+    "autoRefreshOn": "自動更新をオン（30秒）",
+    "dominantDistribution": "支配的感情分布",
+    "dominantIntensity": "支配的感情強度 {{value}}/100",
+    "radarTitle": "感情レーダー",
+    "intensityTitle": "感情強度",
+    "behaviorParams": "感情行動パラメータ",
+    "decayRate": "減衰率",
+    "activityModifier": "活動度修正",
+    "currentState": "現在の状態",
+    "baseline": "感情ベースライン"
+  },
+  "chatManagement": {
+    "typeAll": "すべて",
+    "typeGroup": "グループ",
+    "typePrivate": "プライベート",
+    "tabStreams": "チャットストリーム",
+    "tabGroups": "共有グループ",
+    "searchPlaceholder": "名前、プラットフォーム、ユーザー、グループID、セッションIDで検索"
+  },
+  "monitor": {
+    "title": "システム監視",
+    "live": "リアルタイム",
+    "polling": "ポーリング",
+    "tabs": {
+      "system": "システムリソース",
+      "llm": "LLM 統計",
+      "chat": "チャットストリーム"
+    },
+    "systemResources": {
+      "title": "システムリソース",
+      "live": "リアルタイム",
+      "polling": "ポーリング",
+      "error": "システムリソースの取得に失敗",
+      "loading": "読み込み中...",
+      "cpu": "CPU",
+      "memory": "メモリ",
+      "disk": "ディスク",
+      "database": "データベース"
+    },
+    "llm": {
+      "exportCSV": "CSV エクスポート",
+      "totalRequests": "総リクエスト数",
+      "totalCost": "総コスト",
+      "totalTokens": "トークン総量",
+      "avgResponse": "平均応答",
+      "modelStats": "モデル統計",
+      "agentStats": "エージェント統計",
+      "model": "モデル",
+      "agent": "エージェント",
+      "requests": "リクエスト数",
+      "cost": "コスト",
+      "tokens": "トークン",
+      "avgTime": "平均所要時間",
+      "inputTokens": "入力トークン",
+      "outputTokens": "出力トークン"
+    },
+    "chatStream": {
+      "title": "チャットストリーム状態",
+      "lastActive": "最終アクティビティ",
+      "messageCount": "メッセージ数",
+      "loading": "読み込み中...",
+      "empty": "チャットストリームなし",
+      "name": "名前",
+      "agent": "エージェント",
+      "messages": "メッセージ"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* ============================================================================
+ * Tailwind 4.3 CSS-first @theme 变量——设计 token 基座
+ * 主题管线（palette→pipeline→tokens→CSS vars）在 R1-2-4 搬移
+ * ============================================================================ */
+@theme {
+  /* --- 颜色 --- */
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0a0a0a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0a0a0a;
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f5;
+  --color-secondary-foreground: #0a0a0a;
+  --color-muted: #f5f5f5;
+  --color-muted-foreground: #737373;
+  --color-accent: #f5f5f5;
+  --color-accent-foreground: #0a0a0a;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e5e5e5;
+  --color-input: #e5e5e5;
+  --color-ring: #2563eb;
+  --color-chart-1: #2563eb;
+  --color-chart-2: #10b981;
+  --color-chart-3: #f59e0b;
+  --color-chart-4: #ef4444;
+  --color-chart-5: #8b5cf6;
+
+  /* --- 字体 --- */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+  --font-mono: "Cascadia Code", "Fira Code", monospace;
+
+  /* --- 圆角 --- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* --- 间距 --- */
+  --spacing-sidebar-width: 16rem;
+  --spacing-sidebar-collapsed-width: 4rem;
+  --spacing-header-height: 3.5rem;
+
+  /* --- 阴影 --- */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+/* --- 暗色主题覆盖 --- */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: #0a0a0a;
+    --color-foreground: #fafafa;
+    --color-card: #111111;
+    --color-card-foreground: #fafafa;
+    --color-popover: #111111;
+    --color-popover-foreground: #fafafa;
+    --color-primary: #3b82f6;
+    --color-primary-foreground: #fafafa;
+    --color-secondary: #1a1a1a;
+    --color-secondary-foreground: #fafafa;
+    --color-muted: #1a1a1a;
+    --color-muted-foreground: #a3a3a3;
+    --color-accent: #1a1a1a;
+    --color-accent-foreground: #fafafa;
+    --color-border: #262626;
+    --color-input: #262626;
+    --color-ring: #3b82f6;
+  }
+}

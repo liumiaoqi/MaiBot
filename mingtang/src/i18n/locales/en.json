@@ -1,0 +1,1645 @@
+{
+  "header": {
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "collapseTopbar": "Collapse topbar",
+    "expandTopbar": "Expand topbar",
+    "toggleConnection": "Toggle backend connection",
+    "viewAnnualSummary": "View annual summary",
+    "annualSummary": "2025 Annual Summary",
+    "searchPlaceholder": "Search...",
+    "viewDocs": "View MaiBot docs",
+    "docs": "MaiBot Docs",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode",
+    "logout": "Log out",
+    "logoutLabel": "Logout",
+    "switchLanguage": "Switch language",
+    "moreActions": "More actions",
+    "notConnected": "Not connected"
+  },
+  "sidebar": {
+    "groups": {
+      "overview": "Overview",
+      "botConfig": "Configuration",
+      "botResources": "Resources",
+      "extensionsMonitor": "Extensions",
+      "system": "System"
+    },
+    "menu": {
+      "home": "Home",
+      "focusCompanion": "Focus Companion",
+      "botMainConfig": "Bot Main Config",
+      "aiModelProvider": "AI Model Providers",
+      "modelManagement": "Model Management",
+      "promptManagement": "Prompt Management",
+      "promptGenerator": "Persona Generator (Experimental)",
+      "emojiManagement": "Emoji Management",
+      "expressionManagement": "Expression Management",
+      "slangManagement": "Slang Management",
+      "personInfo": "Person Info",
+      "knowledgeGraph": "Long-Term Memory Graph",
+      "knowledgeBase": "Long-Term Memory",
+      "pluginMarket": "Plugin Market",
+      "configTemplate": "Config Templates",
+      "pluginConfig": "Plugin Management",
+      "mcpSettings": "MCP Settings",
+      "logViewer": "Log Viewer",
+      "reasoningProcess": "Reasoning Process",
+      "maisakaMonitor": "MaiSaka Chat Monitor",
+      "systemMonitor": "System Monitor",
+      "agentManagement": "Agent Management",
+      "emotionMonitor": "Emotion Monitor",
+      "relationshipMonitor": "Relationships",
+      "subagentMonitor": "Sub-Agent Monitor",
+      "chatManagement": "Chat Management",
+      "localChat": "Local Chat",
+      "settings": "Settings",
+      "deepseekMonitor": "DeepSeek Optimizer"
+    }
+  },
+  "workspace": {
+    "switcherLabel": "Switch MaiBot workspace",
+    "settings": "Mai Settings",
+    "chat": "Mai Chat",
+    "logs": "Mai Logs"
+  },
+  "chat": {
+    "botNameFallback": "Mai",
+    "userFallback": "User",
+    "userNameFallback": "WebUI User",
+    "virtualGroupFallback": "WebUI Virtual Group",
+    "status": {
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "disconnected": "Disconnected"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "addImage": "Add image",
+      "reconnect": "Reconnect",
+      "removeImage": "Remove image",
+      "save": "Save",
+      "send": "Send message"
+    },
+    "identity": {
+      "current": "Current identity:",
+      "editName": "Edit nickname",
+      "group": "Group: {{group}}",
+      "namePlaceholder": "Enter nickname",
+      "virtual": "Virtual identity:"
+    },
+    "input": {
+      "placeholder": "Type a message...",
+      "waiting": "Waiting for connection..."
+    },
+    "message": {
+      "empty": "Start chatting with {{bot}}!",
+      "emptyHint": "Type a message below and press Enter to send",
+      "errorFallback": "An error occurred",
+      "thinking": "Loading..."
+    },
+    "composer": {
+      "hint": "Enter to send · Shift + Enter for newline"
+    },
+    "sidebar": {
+      "closeConversation": "Close {{label}}",
+      "conversations": "Chat conversations",
+      "emptyPreview": "No messages yet",
+      "identityHint": "Local chat identity",
+      "newVirtual": "New virtual identity chat",
+      "online": "Online",
+      "offline": "Offline",
+      "subtitle": "{{count}} conversations",
+      "title": "Chats",
+      "virtualBadge": "Virtual",
+      "profileTitle": "My identity",
+      "editName": "Edit nickname",
+      "saveName": "Save"
+    },
+    "dialog": {
+      "create": "Create chat",
+      "description": "Choose a user MaiBot already knows and chat as that user. MaiBot will respond using her memory and understanding of that user.",
+      "groupName": "Virtual group name (optional)",
+      "groupNameHint": "MaiBot will treat this as a group chat with this name",
+      "knownUserSuffix": " · Known",
+      "loading": "Loading...",
+      "noUsers": "No users found",
+      "personCount": "({{count}} people)",
+      "platform": "Select platform",
+      "platformPlaceholder": "Select platform",
+      "searchUser": "Search user...",
+      "title": "New virtual identity chat",
+      "user": "Select user"
+    },
+    "media": {
+      "audioUnsupported": "Your browser does not support audio playback",
+      "emoji": "Emoji",
+      "face": "[Face: {{data}}]",
+      "file": "[File: {{data}}]",
+      "forward": "[Forwarded message]",
+      "image": "Image",
+      "loadFailed": "[{{type}} failed to load]",
+      "music": "[Music share]",
+      "noCaptions": "No captions",
+      "reply": "[Reply]",
+      "unknown": "[{{type}}]",
+      "unknownMessage": "Unknown message",
+      "videoUnsupported": "Your browser does not support video playback"
+    },
+    "toast": {
+      "backendUnavailable": "Cannot connect to the backend. Make sure MaiBot is running.",
+      "backendUnavailableShort": "Cannot connect to the backend",
+      "connectionFailed": "Connection failed",
+      "currentSessionUnavailable": "The current chat session is unavailable. Please try again later.",
+      "error": "Error",
+      "incompleteConfig": "Incomplete configuration",
+      "imageLimit": "Image limit reached",
+      "imageLimitDesc": "You can send up to {{count}} images at once.",
+      "imageReadFailed": "Failed to read image",
+      "imageReadFailedDesc": "Please choose another image and try again.",
+      "imageUnsupported": "Unsupported file",
+      "imageUnsupportedDesc": "Please choose an image file.",
+      "networkError": "Network error",
+      "platformFailed": "Failed to load platforms",
+      "selectPlatformAndUser": "Please select a platform and user",
+      "sendFailed": "Send failed",
+      "serverError": "Server returned error: {{status}}",
+      "sessionUnavailable": "Cannot open the chat session. Please try again later.",
+      "virtualTabCreated": "Virtual identity tab",
+      "virtualTabCreatedDesc": "Created a chat for {{label}}"
+    }
+  },
+  "layout": {
+    "verifyingLogin": "Verifying login status...",
+    "logoTitle": "MaiBot WebUI",
+    "logoTitleShort": "M"
+  },
+  "httpWarning": {
+    "title": "Security notice: ",
+    "message": "You are accessing WebUI over HTTP.",
+    "description": "Non-local HTTP connections may expose access tokens and configuration data. Use HTTPS or a trusted private network when possible.",
+    "dismiss": "Dismiss HTTP security notice"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your application preferences",
+    "tabs": {
+      "appearance": "Appearance",
+      "security": "Security",
+      "other": "Other",
+      "about": "About"
+    },
+    "appearance": {
+      "themeMode": "Theme Mode",
+      "themeModeDesc": "Light / Dark / Follow system",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "accentColor": "Accent Color",
+      "resetDefault": "Reset Default",
+      "colorPreview": "Live Color Preview",
+      "styleTweaks": "Style Tweaks",
+      "typography": "Typography",
+      "visualEffects": "Visual Effects",
+      "layout": "Layout",
+      "animation": "Animation",
+      "background": "Background",
+      "customCss": "Custom CSS",
+      "animationEffect": "Animation Effect",
+      "importExportTheme": "Import / Export Theme",
+      "importTheme": "Import Theme",
+      "exportTheme": "Export Theme",
+      "importSuccess": "Import successful",
+      "importFailed": "Import failed",
+      "resetSuccess": "Reset successful",
+      "fontFamily": "Font Family",
+      "fontSize": "Font Size",
+      "borderRadius": "Border Radius",
+      "contentWidth": "Content Width",
+      "sidebarWidth": "Sidebar Width",
+      "animationSpeed": "Animation Speed",
+      "backgroundImage": "Background Image",
+      "backgroundBlur": "Background Blur",
+      "backgroundOpacity": "Background Opacity",
+      "lightDesc": "Always use light theme",
+      "darkDesc": "Always use dark theme",
+      "systemDesc": "Auto-switch based on system settings",
+      "accentPrimary": "Primary Color",
+      "accentHint": "Click the color ring or enter a HEX value",
+      "resetTheme": "Reset to Default",
+      "confirmResetTheme": "Confirm Reset Theme",
+      "confirmResetThemeDesc": "This will reset all theme settings to default, including colors, fonts, layout and custom CSS. This cannot be undone, are you sure?",
+      "confirmResetAction": "Confirm Reset",
+      "cssWarningTitle": "The following have been filtered for safety:",
+      "cssPlaceholder": "/* Enter custom CSS here */\n\n/* Example: */\n/* .sidebar { background: #1a1a2e; } */",
+      "cssDescription": "Write custom CSS to further personalize the interface. Dangerous CSS (like @import, url()) will be automatically filtered.",
+      "clearCss": "Clear",
+      "exportDesc": "Export theme as a JSON file for sharing or backup; all settings will be applied automatically on import.",
+      "importSuccessDesc": "Theme config imported, page will reload automatically",
+      "resetSuccessDesc": "Theme has been reset to default",
+      "enableAnimations": "Enable Animations",
+      "enableAnimationsDesc": "Disabling this will turn off all transition animations and effects, improving performance",
+      "inheritParentBg": "Inherit Parent Background",
+      "inheritParentBgDesc": "When enabled, uses the background config from the parent layer",
+      "fontFamilyLabel": "Font Family",
+      "fontFamilyPlaceholder": "Select font family",
+      "fontFamilySystem": "System Default (System)",
+      "fontFamilySans": "Sans-serif",
+      "fontFamilySerif": "Serif",
+      "fontFamilyMono": "Monospace",
+      "baseFontSize": "Base Font Size",
+      "lineHeight": "Line Height",
+      "lineHeightPlaceholder": "Select line height",
+      "lineHeightCompact": "Compact (1.2)",
+      "lineHeightNormal": "Normal (1.5)",
+      "lineHeightLoose": "Loose (1.75)",
+      "borderRadiusLabel": "Border Radius",
+      "shadowLabel": "Shadow Intensity",
+      "shadowPlaceholder": "Select shadow intensity",
+      "shadowNone": "None",
+      "shadowSm": "Small",
+      "shadowMd": "Medium",
+      "shadowLg": "Large",
+      "shadowXl": "Extra Large",
+      "blurLabel": "Blur Effect",
+      "sidebarWidthLabel": "Sidebar Width",
+      "animationSpeedLabel": "Animation Speed",
+      "animationSpeedPlaceholder": "Select animation speed",
+      "animationFast": "Fast (100ms)",
+      "animationNormal": "Normal (300ms)",
+      "animationSlow": "Slow (500ms)",
+      "animationOff": "Off (0ms)",
+      "bgPage": "Page",
+      "bgSidebar": "Sidebar",
+      "typographyGroup": "Typography",
+      "visualGroup": "Visual Effects",
+      "layoutGroup": "Layout",
+      "animationGroup": "Animation",
+      "backgroundGroup": "Background Settings"
+    },
+    "security": {
+      "currentToken": "Current Access Token",
+      "yourToken": "Your Access Token",
+      "regenerate": "Regenerate",
+      "customToken": "Custom Access Token",
+      "securityTip": "Security Tips",
+      "cannotCopy": "Cannot copy",
+      "copySuccess": "Copied",
+      "copyFailed": "Copy failed",
+      "updateSuccess": "Updated",
+      "updateFailed": "Update failed",
+      "generateSuccess": "Generated",
+      "generateFailed": "Generation failed",
+      "newToken": "New Access Token",
+      "confirmRegenerate": "Confirm Regenerate Token",
+      "confirmRegenerateDesc": "The old token will be invalidated after regeneration. You will need to log in again.",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "cannotCopyDesc": "Token is stored in a secure Cookie. Please regenerate to get a new Token.",
+      "copySuccessDesc": "Token copied to clipboard",
+      "copyFailedDesc": "Please copy the Token manually",
+      "inputError": "Input error",
+      "inputErrorDesc": "Please enter a new Token",
+      "formatError": "Format error",
+      "formatErrorDesc": "Token does not meet requirements: {{failedRules}}",
+      "updateSuccessDesc": "Access Token updated. Redirecting to login page.",
+      "updateFailedDesc": "Unable to update Token",
+      "updateFailedConn": "Failed to connect to server",
+      "generateSuccessDesc": "New Access Token generated. Please save it immediately.",
+      "generateFailedDesc": "Unable to generate new Token",
+      "generateFailedConn": "Failed to connect to server",
+      "cannotView": "Cannot view",
+      "cannotViewDesc": "Token is stored in a secure Cookie. Click \"Regenerate\" to get a new Token.",
+      "hide": "Hide",
+      "show": "Show",
+      "copyTip": "Copy to clipboard",
+      "regenerateShort": "Generate",
+      "confirmRegenerateFullDesc": "This will generate a new 64-character secure token, immediately invalidating the current Token. You will need to log in again with the new Token. This action cannot be undone. Are you sure?",
+      "confirmGenerate": "Confirm Generate",
+      "tokenStorePlaceholder": "Token is stored in a secure Cookie",
+      "safekeepTip": "Keep your Access Token safe and do not share it with others.",
+      "newTokenLabel": "New Access Token",
+      "customTokenPlaceholder": "Enter custom Token",
+      "tokenReqTitle": "Token security requirements:",
+      "tokenValid": "Token format is valid and ready to use",
+      "updateBtn": "Update Custom Token",
+      "updating": "Updating...",
+      "dialogTitle": "New Access Token",
+      "dialogDesc": "This is your new Token. Please save it immediately. You will be redirected to the login page after closing this window.",
+      "dialogTokenLabel": "Your new Token (64-char secure token)",
+      "important": "Important Notice",
+      "tip1": "This Token is only shown once and cannot be viewed after closing",
+      "tip2": "Copy and save it to a secure location immediately",
+      "tip3": "You will be automatically redirected to the login page after closing",
+      "tip4": "Use the new Token to log back in",
+      "copied": "Copied",
+      "copyToken": "Copy Token",
+      "savedClose": "Saved, close",
+      "securityTip1": "Regenerating creates a new system-generated 64-character secure token",
+      "securityTip2": "Custom Tokens must meet all security requirements",
+      "securityTip3": "After updating, the old Token will be immediately invalidated",
+      "securityTip4": "View and copy your Token only in a secure environment",
+      "securityTip5": "If you suspect a Token leak, regenerate or update it immediately",
+      "securityTip6": "System-generated Tokens are recommended for maximum security"
+    },
+    "other": {
+      "display": "Display",
+      "enableAvatarFetch": "Fetch and show user avatars",
+      "enableAvatarFetchDesc": "When disabled, chat and reasoning views stop requesting avatar images and use default avatars.",
+      "performance": "Performance & Storage",
+      "localStorage": "Local Storage Usage",
+      "logCache": "Log Cache Size",
+      "importExport": "Import / Export Settings",
+      "configWizard": "Config Wizard",
+      "devTools": "Developer Tools",
+      "clearStorage": "Clear Local Storage",
+      "clearStorageDesc": "Clear all local storage data",
+      "clearStorageConfirm": "Confirm Clear",
+      "clearLogCache": "Clear Log Cache",
+      "clearLogCacheDesc": "Clear all cached log data",
+      "clearLogCacheConfirm": "Confirm Clear",
+      "importSettings": "Import Settings",
+      "exportSettings": "Export Settings",
+      "resetAllSettings": "Reset All Settings",
+      "resetAllSettingsDesc": "Restore all settings to defaults",
+      "resetAllSettingsConfirm": "Confirm Reset",
+      "clearStorageSuccess": "Local storage cleared",
+      "clearStorageFailed": "Failed to clear",
+      "clearLogSuccess": "Log cache cleared",
+      "clearLogFailed": "Failed to clear",
+      "importSuccess": "Import successful",
+      "importFailed": "Import failed",
+      "exportSuccess": "Export successful",
+      "exportFailed": "Export failed",
+      "resetSuccess": "Reset successful",
+      "resetFailed": "Reset failed",
+      "storageItems": "{{count}} storage items",
+      "logCacheSizeDesc": "Controls the maximum number of log entries cached. Larger values use more memory.",
+      "logCacheSizeUnit": "entries",
+      "dataSyncIntervalLabel": "Home Data Refresh Interval",
+      "dataSyncIntervalUnit": "s",
+      "dataSyncIntervalDesc": "Controls the auto-refresh interval for home page statistics",
+      "wsReconnectLabel": "WebSocket Reconnect Interval",
+      "wsReconnectUnit": "s",
+      "wsReconnectDesc": "Base reconnect interval after log WebSocket disconnects",
+      "wsMaxReconnectLabel": "WebSocket Max Reconnect Attempts",
+      "wsMaxReconnectUnit": "times",
+      "wsMaxReconnectDesc": "Maximum reconnect attempts after connection failure",
+      "clearLogCacheFn": "Clear Log Cache",
+      "clearLocalCache": "Clear Local Cache",
+      "confirmClearCache": "Confirm Clear Local Cache",
+      "confirmClearCacheDesc": "This will clear all locally cached settings and data (excluding login credentials). You may need to reconfigure some preferences. Are you sure?",
+      "confirmClear": "Confirm Clear",
+      "importExportDesc": "Export current interface settings for backup, or restore from a previously exported file.",
+      "exporting": "Exporting...",
+      "importing": "Importing...",
+      "resetAllSettingsBtn": "Reset All Settings to Defaults",
+      "confirmResetAll": "Confirm Reset All Settings",
+      "confirmResetAllDesc": "This will restore all interface settings to their defaults, including theme, colors, animation, and other preferences. This will not affect your login status. Are you sure?",
+      "configWizardDesc": "Re-run the initial setup wizard to reconfigure system basics.",
+      "rerunSetup": "Re-run Initial Setup",
+      "confirmRerunSetup": "Confirm Re-run Setup",
+      "confirmRerunSetupDesc": "This will take you back to the initial setup wizard. You can reconfigure the system basics. Are you sure?",
+      "devToolsDesc": "The following features are for development and debugging only. They may cause crashes or abnormal behavior.",
+      "triggerError": "Trigger Test Error",
+      "confirmTriggerError": "Confirm Trigger Error",
+      "confirmTriggerErrorDesc": "This will manually trigger a React error to test the error boundary component. The page will display an error view; you can recover by refreshing the page or clicking Go Home.",
+      "confirmTrigger": "Confirm Trigger",
+      "logCleared": "Log cleared",
+      "logClearedDesc": "Log cache has been cleared",
+      "cacheCleared": "Cache cleared",
+      "cacheClearedDesc": "Cleared {{count}} cached items",
+      "exportSuccessDesc": "Settings exported as a JSON file",
+      "exportFailedDesc": "Unable to export settings",
+      "importSuccessDesc": "Successfully imported {{imported}} settings",
+      "importSkippedSuffix": ", skipped {{skipped}}",
+      "importRefreshHint": "Note",
+      "importRefreshHintDesc": "Some settings require a page refresh to take full effect",
+      "importNoDataDesc": "No valid settings to import",
+      "importInvalidDesc": "Invalid file format",
+      "resetDone": "Reset done",
+      "resetDoneDesc": "All settings restored to defaults. Refresh the page to apply changes."
+    },
+    "about": {
+      "openSource": "Open Source",
+      "aboutApp": "About MaiBot Dashboard",
+      "version": "Version:",
+      "author": "Author",
+      "techStack": "Tech Stack",
+      "frontendFramework": "Frontend Framework",
+      "uiComponents": "UI Components",
+      "backend": "Backend",
+      "buildTool": "Build Tool",
+      "openSourceThanks": "Open Source Libraries",
+      "openSourceLicense": "Open Source License",
+      "openSourceDesc": "This project is open source on GitHub. Give us a Star ⭐!",
+      "visitGitHub": "Visit GitHub",
+      "appDesc": "A modern Web management interface for MaiBot",
+      "maimaiCore": "MaiBot Core",
+      "uiFrameworkGroup": "UI Framework & Components",
+      "routingStateGroup": "Routing & State Management",
+      "formGroup": "Form Handling",
+      "utilsGroup": "Utility Libraries",
+      "animationGroup": "Animation",
+      "backendGroup": "Backend Framework",
+      "devToolsGroup": "Developer Tools",
+      "openSourceThanksDesc": "This project uses the following excellent open source libraries. Thank you for your contributions:",
+      "licenseDesc": "This project is licensed under the GNU General Public License v3.0. You are free to use, modify, and distribute the software, provided you keep the same open source license.",
+      "licenseDeps": "All open source libraries used by this project comply with their respective licenses (MIT, Apache-2.0, BSD, etc.). Thank you to all open source contributors for your selfless work.",
+      "lib": {
+        "react": "UI library for building user interfaces",
+        "shadcn": "Elegant React component library",
+        "radix": "Unstyled accessible component primitives",
+        "tailwind": "Utility-first CSS framework",
+        "lucide": "Beautiful icon library",
+        "iconifyReact": "Unified icon rendering component",
+        "streamlineSharp": "Sharp icon set designed by Streamline, provided via Iconify, licensed under CC BY 4.0 with attribution retained",
+        "streamlineBlock": "Block icon set designed by Streamline, provided via Iconify, licensed under CC BY 4.0 with attribution retained",
+        "tanstackRouter": "Type-safe routing library",
+        "zustand": "Lightweight state management",
+        "reactHookForm": "High-performance form library",
+        "zod": "TypeScript-first schema validation",
+        "clsx": "Conditional className builder",
+        "tailwindMerge": "Tailwind class name merger",
+        "cva": "Component variant management",
+        "dateFns": "Modern date utility library",
+        "framerMotion": "React animation library",
+        "vaul": "Drawer component animation",
+        "fastapi": "Modern Python web framework",
+        "uvicorn": "ASGI server",
+        "pydantic": "Data validation library",
+        "pythonMultipart": "File upload support",
+        "typescript": "Superset of JavaScript",
+        "vite": "Next-generation frontend build tool",
+        "eslint": "JavaScript code linter"
+      }
+    }
+  },
+  "auth": {
+    "title": "Login",
+    "description": "Enter your access token to continue",
+    "tokenLabel": "Access Token",
+    "tokenPlaceholder": "Enter Access Token",
+    "loginButton": "Login",
+    "loggingIn": "Logging in...",
+    "loginFailed": "Login failed",
+    "loginSuccess": "Login successful",
+    "checkingAuth": "Checking login status...",
+    "welcome": "Welcome to MaiBot",
+    "accessDesc": "Enter your Access Token to continue accessing the system",
+    "tokenRequired": "Please enter your Access Token",
+    "verifyingLabel": "Verifying...",
+    "verifyEnter": "Verify & Enter",
+    "helpLink": "I don't have a Token. Where can I get one?",
+    "helpTitle": "How to Get an Access Token",
+    "helpDesc": "Access Token is the only credential to access MaiBot WebUI. Get yours in one of the following ways",
+    "method1Title": "Method 1: Check Startup Log",
+    "method1Desc": "When MaiBot starts, the console will display the WebUI Access Token.",
+    "method1Example1": "🔑 WebUI Access Token: abc123...",
+    "method1Example2": "💡 Use this Token to log in to WebUI",
+    "method2Title": "Method 2: Check Config File",
+    "method2Desc": "The Token is saved in the config file at the project root:",
+    "method2FileHint": "Open this file and copy the value of the access_token field",
+    "securityTipTitle": "Security Notice",
+    "securityTip1": "Keep your Token safe and never share it with others",
+    "securityTip2": "To reset the Token, go to System Settings after logging in",
+    "verifyFailed": "Token verification failed. Please check and try again.",
+    "connFailed": "Failed to connect to the server. Please check your network connection.",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode"
+  },
+  "setupPage": {
+    "steps": {
+      "botProfile": {
+        "title": "Basics & Personality",
+        "description": "Configure nickname, personality, and reply style"
+      },
+      "botBasic": {
+        "title": "Bot Basics",
+        "description": "Configure the bot's basic information"
+      },
+      "personality": {
+        "title": "Personality",
+        "description": "Define the bot's personality and speaking style"
+      },
+      "apiProvider": {
+        "title": "API Setup",
+        "description": "Configure the API provider"
+      },
+      "modelSetup": {
+        "title": "Model Setup",
+        "description": "Configure planner and replyer models"
+      }
+    },
+    "loading": {
+      "title": "Loading...",
+      "description": "Reading existing configuration"
+    },
+    "header": {
+      "title": "Initial Setup Wizard",
+      "description": "Let's complete the initial setup for {{appName}}"
+    },
+    "progress": {
+      "stepCounter": "Step {{current}} / {{total}}"
+    },
+    "validation": {
+      "selectPlatform": "Please select a platform",
+      "enterNickname": "Please enter a nickname",
+      "enterQqAccount": "Please enter a QQ account",
+      "enterAccountId": "Please enter an account ID",
+      "enterProviderName": "Please enter an API provider name",
+      "enterBaseUrl": "Please enter the API base URL",
+      "enterApiKey": "Please enter the API key",
+      "enterPlannerModelIdentifier": "Please enter the planner model identifier",
+      "enterReplyerModelIdentifier": "Please enter the replyer model identifier"
+    },
+    "toast": {
+      "loadFailedTitle": "Failed to load configuration",
+      "loadFailedDescription": "Unable to load the existing configuration. Default values will be used.",
+      "saveSuccessTitle": "Saved successfully",
+      "saveSuccessDescription": "{{step}} configuration has been saved",
+      "saveFailedTitle": "Save failed",
+      "validationFailedTitle": "Validation failed",
+      "completeSuccessTitle": "Setup complete",
+      "completeSuccessDescription": "{{appName}} configuration has been saved and applied.",
+      "completeFailedTitle": "Setup failed",
+      "skipFailedTitle": "Failed to skip the setup wizard",
+      "unknownError": "Unknown error"
+    },
+    "actions": {
+      "previous": "Previous",
+      "next": "Next",
+      "skip": "Skip Wizard",
+      "complete": "Complete Setup",
+      "saving": "Saving...",
+      "completing": "Completing..."
+    },
+    "skipDialog": {
+      "title": "Skip the setup wizard?",
+      "description": "You can reopen the setup wizard anytime from System Settings. Are you sure you want to skip it?",
+      "confirm": "Skip Anyway"
+    },
+    "footer": "You can change these settings anytime in Settings",
+    "defaults": {
+      "personality": {
+        "personality": "She is a sophomore college student who spends time on Tieba.",
+        "replyStyle": "Keep replies plain and concise, speak Chinese, and avoid deliberately emphasizing any academic background. You can refer to the reply styles commonly seen on Tieba, Zhihu, and Weibo.",
+        "multipleReplyStyles": {
+          "plain": "Your style is plain, lightly sarcastic, very short, and colloquial. You can reference Tieba and Weibo reply styles.",
+          "shortText": "Reply with 1-2 words",
+          "shortSymbol": "Reply with 1-2 symbols",
+          "translation": "Use a slightly translated tone, but keep it short"
+        }
+      },
+      "emoji": {
+        "filtrationPrompt": "Appropriate and safe for general audiences"
+      }
+    },
+    "forms": {
+      "botBasic": {
+        "platform": {
+          "label": "Platform *",
+          "placeholder": "Select a platform",
+          "description": "Choose the platform where the bot runs",
+          "options": {
+            "custom": "Other Platform"
+          }
+        },
+        "customPlatform": {
+          "label": "Platform Name *",
+          "placeholder": "Enter a platform name, such as matrix"
+        },
+        "qqAccount": {
+          "label": "QQ Account *",
+          "placeholder": "Enter the bot's QQ account",
+          "description": "The QQ account used to log in the bot"
+        },
+        "primaryAccount": {
+          "label": "Account ID *",
+          "placeholder": "Enter the bot's account ID",
+          "description": "The bot's account identifier on this platform"
+        },
+        "nickname": {
+          "label": "Nickname *",
+          "placeholder": "Enter the bot's nickname",
+          "description": "The bot's primary display name"
+        },
+        "alias": {
+          "label": "Aliases",
+          "placeholder": "Type an alias and press Enter to add it",
+          "add": "Add",
+          "description": "Other names for the bot. You can add multiple aliases.",
+          "remove": "Remove alias {{alias}}"
+        }
+      },
+      "personality": {
+        "personality": {
+          "label": "Personality Traits *",
+          "placeholder": "Describe the bot's personality and identity traits (recommended within 120 characters)",
+          "description": "Example: a sophomore college girl who browses Tieba"
+        },
+        "replyStyle": {
+          "label": "Reply Style *",
+          "placeholder": "Describe how the bot speaks and expresses itself",
+          "description": "Example: keep replies plain and concise, speak Chinese, and refer to styles seen on Tieba, Zhihu, and Weibo"
+        },
+        "multipleReplyStyle": {
+          "label": "Alternate Reply Styles",
+          "placeholder": "Enter one alternate reply style per line",
+          "description": "When this list is not empty, MaiBot may randomly inject one of these styles as a one-time reply hint"
+        },
+        "multipleProbability": {
+          "label": "Temporary Style Injection Probability",
+          "description": "The chance of injecting a one-time alternate style hint each time a reply is built"
+        }
+      },
+      "emoji": {
+        "emojiSendNum": {
+          "label": "Emoji Candidate Count",
+          "description": "How many emojis to choose from before sending. Maximum is 64"
+        },
+        "maxRegNum": {
+          "label": "Maximum Emoji Count",
+          "description": "The maximum number of emojis the bot can store"
+        },
+        "doReplace": {
+          "label": "Replace When Full",
+          "description": "When enabled, old emojis will be removed; when disabled, new emojis will no longer be collected"
+        },
+        "checkInterval": {
+          "label": "Check Interval (Minutes)",
+          "description": "How often to check emoji registration, damage, and deletion"
+        },
+        "stealEmoji": {
+          "label": "Collect Emojis",
+          "description": "Allow the bot to keep certain emojis for itself"
+        },
+        "contentFiltration": {
+          "label": "Enable Emoji Filtering",
+          "description": "Only save emojis that meet the requirements"
+        },
+        "filtrationPrompt": {
+          "label": "Filter Requirements",
+          "placeholder": "For example: appropriate and safe for general audiences",
+          "description": "Describe what kind of emojis should be allowed"
+        }
+      },
+      "other": {
+        "allGlobal": {
+          "label": "Enable Global Slang Mode",
+          "description": "Allow the bot to learn and use group-specific slang"
+        }
+      },
+      "apiProvider": {
+        "providerName": {
+          "label": "API Provider Name *",
+          "placeholder": "For example OpenAI, DeepSeek, or self-hosted",
+          "description": "This name is written to model_config.toml and referenced by the models below"
+        },
+        "baseUrl": {
+          "label": "API Base URL *",
+          "description": "Enter an OpenAI-compatible endpoint, for example https://api.example.com/v1"
+        },
+        "apiKey": {
+          "label": "API Key *",
+          "description": "Enter the API key for this provider",
+          "show": "Show API key",
+          "hide": "Hide API key"
+        }
+      },
+      "modelSetup": {
+        "planner": {
+          "identifier": {
+            "label": "planner Model Identifier *",
+            "description": "The real model ID provided by the API service; the model name will be initialized from it"
+          },
+          "visual": {
+            "label": "Enable vision"
+          }
+        },
+        "replyer": {
+          "identifier": {
+            "label": "replyer Model Identifier *",
+            "description": "The real model ID provided by the API service; the model name will be initialized from it"
+          },
+          "visual": {
+            "label": "Enable vision"
+          }
+        },
+        "saveHint": "You can configure more detailed task assignment later."
+      }
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "search": "Search",
+    "noData": "No data",
+    "success": "Success",
+    "failed": "Failed"
+  },
+  "restart": {
+    "preparing": "Preparing to restart",
+    "preparingDesc": "Sending restart request...",
+    "preparingTip": "🔄 Preparing to restart MaiBot...",
+    "restarting": "Restarting MaiBot",
+    "restartingDesc": "Please wait, MaiBot is restarting...",
+    "restartingTip": "🔄 Config saved, restarting main process...",
+    "checking": "Checking service status",
+    "checkingDesc": "Waiting for service to recover... ({{current}}/{{max}})",
+    "checkingTip": "⏳ Waiting for service to recover, do not close this page...",
+    "success": "Restart successful",
+    "successDesc": "Redirecting to login page...",
+    "successTip": "✅ Config applied, service is running normally",
+    "failed": "Restart timed out",
+    "failedDesc": "Service failed to recover within the expected time",
+    "failedTip": "⚠️ If unresponsive for a long time, try restarting manually",
+    "refreshPage": "Refresh page",
+    "retryCheck": "Retry check",
+    "elapsed": "Elapsed:"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "The application encountered an unexpected error. You can try refreshing the page or going back home.",
+    "refreshPage": "Refresh page",
+    "goHome": "Go home",
+    "footer": "If the problem persists, copy the error info and report it to the developer",
+    "copiedToClipboard": "Copied to clipboard",
+    "copyError": "Copy error info"
+  },
+  "search": {
+    "placeholder": "Search pages...",
+    "title": "Search",
+    "noResults": "No matching pages found",
+    "startSearch": "Type a keyword to start searching",
+    "recent": "Recent",
+    "navigate": "Navigate",
+    "select": "Select",
+    "close": "Close",
+    "categories": {
+      "overview": "Overview",
+      "config": "Config",
+      "resources": "Resources",
+      "monitor": "Monitor",
+      "extensions": "Extensions",
+      "system": "System"
+    },
+    "items": {
+      "home": "Home",
+      "homeDesc": "View dashboard overview",
+      "focusCompanionDesc": "Open MaiBot immersive focus companion",
+      "botConfig": "Bot Main Config",
+      "botConfigDesc": "Configure bot core settings",
+      "model": "Model Config",
+      "modelDesc": "Configure model parameters",
+      "promptGeneratorDesc": "Generate injectable persona config blocks from text",
+      "emoji": "Emoji Management",
+      "emojiDesc": "Manage bot emoji",
+      "expression": "Expression Management",
+      "expressionDesc": "Manage bot expressions",
+      "person": "Person Info",
+      "personDesc": "Manage person info",
+      "jargon": "Slang Management",
+      "jargonDesc": "Manage bot learned slang and jargon",
+      "statistics": "Statistics",
+      "statisticsDesc": "View usage statistics",
+      "plugins": "Plugin Market",
+      "pluginsDesc": "Browse and install plugins",
+      "logs": "Log Viewer",
+      "logsDesc": "View system logs",
+      "reasoningProcessDesc": "Browse Maisaka prompt reasoning logs",
+      "settings": "Settings",
+      "settingsDesc": "Configure system settings",
+      "agentManagementDesc": "Manage sub-agents",
+      "emotionMonitorDesc": "View emotion state monitoring",
+      "relationshipMonitorDesc": "View relationship data with users",
+      "subagentMonitorDesc": "Monitor sub-agent runtime status",
+      "deepseekMonitorDesc": "View DeepSeek optimization panel",
+      "maisakaMonitorDesc": "View Maisaka chat flow monitoring",
+      "systemMonitorDesc": "View system runtime monitoring",
+      "chatManagementDesc": "Manage chat sessions and config",
+      "promptManagementDesc": "Manage prompt templates",
+      "knowledgeBaseDesc": "Manage knowledge base",
+      "pluginConfigDesc": "Configure installed plugins",
+      "mcpSettingsDesc": "Configure MCP server settings"
+    }
+  },
+  "a11y": {
+    "skipToContent": "Skip to main content",
+    "sidebarNav": "Main navigation",
+    "closeMenu": "Close menu",
+    "navigatedTo": "Navigated to {{page}}"
+  },
+  "memory": {
+    "tuning": {
+      "task": {
+        "title": "Tuning Task",
+        "description": "Retrieval parameter evaluation"
+      },
+      "form": {
+        "strategy": "Tuning Strategy",
+        "objective": "Objective",
+        "intensity": "Evaluation Depth",
+        "evalScope": "Evaluation Scope",
+        "sampleSize": "Sample Size",
+        "topKEval": "Evaluation Top-K",
+        "persist": "Also write to config file"
+      },
+      "objectives": {
+        "precision": "Prefer precision",
+        "balanced": "Balance precision and recall",
+        "recall": "Prefer recall"
+      },
+      "intensity": {
+        "quick": "Quick",
+        "standard": "Standard",
+        "deep": "Deep"
+      },
+      "actions": {
+        "createTask": "Create tuning task",
+        "applyBest": "Apply best",
+        "showToml": "View config snippet",
+        "showSummary": "Back to summary"
+      },
+      "tasks": {
+        "title": "Recent Tuning Tasks",
+        "description": "Task results",
+        "recommended": "Recommended",
+        "notRecommended": "Not recommended",
+        "empty": "No tuning tasks yet"
+      },
+      "status": {
+        "completed": "Completed",
+        "running": "Running",
+        "queued": "Queued",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "result": {
+        "noTask": "No tuning result yet. After a task completes, its evaluation result will appear here.",
+        "statusTitle": "Task Status",
+        "progressTitle": "Progress",
+        "roundsTitle": "Evaluation Rounds",
+        "recommendationTitle": "Recommendation",
+        "recommended": "Validation passed. Recommended to apply.",
+        "notRecommended": "Validation failed. Not recommended.",
+        "scoreTitle": "Overall Score",
+        "validationTitle": "Holdout Validation",
+        "validationPassed": "Passed",
+        "validationFailed": "Failed",
+        "holdoutWithCount": "{{result}}, {{count}} samples",
+        "metricsTitle": "Key Metrics",
+        "metricsDescription": "Shows the change from baseline to best result.",
+        "reason": "Reason: {{reason}}",
+        "errorReason": "Failure reason: {{reason}}",
+        "reasons": {
+          "holdoutEmpty": "Not enough holdout samples to validate the tuning result.",
+          "holdoutOnlineLikeValidationFailed": "Holdout and online-like validation did not pass.",
+          "unknown": "{{reason}}"
+        },
+        "metrics": {
+          "precisionAt1": "P@1",
+          "recallAtK": "Recall@K",
+          "emptyRate": "Empty result rate",
+          "avgElapsedMs": "Average latency"
+        }
+      },
+      "snapshot": {
+        "title": "Current Tuning Result",
+        "summaryDescription": "Shows the latest completed task result first. Parameters stay in details.",
+        "tomlDescription": "Config snippet for manual copy or troubleshooting.",
+        "runtimeTitle": "Active Runtime",
+        "runtimeDescription": "Parameters hot-applied to the current retrieval runtime.",
+        "runtimeResultApplied": "The tuning result is active in the current retrieval runtime.",
+        "runtimeResultEmpty": "No runtime result is available yet.",
+        "persistableTitle": "Persistable Config",
+        "persistableDescription": "Parameters that can be written to the config file.",
+        "persistableResultReady": "This result can be written to the config file when needed.",
+        "persistableResultEmpty": "No persistable result is available yet.",
+        "diffTitle": "Differences",
+        "diffDescription": "Fields that differ between runtime and persistable config.",
+        "diffResultClean": "Runtime and persistable config currently match.",
+        "diffResultChanged": "Runtime and persistable config differ. Expand details to inspect them.",
+        "detailsTitle": "Parameters and Config Details",
+        "detailsHint": "For troubleshooting and comparison",
+        "parameterDetailsTitle": "Parameter Details",
+        "runtimeShort": "Runtime",
+        "persistableShort": "Persistable",
+        "empty": "No data",
+        "noDiff": "The two configs currently match.",
+        "technicalCount": "{{count}} technical fields are hidden from the summary. Switch to the config snippet to inspect them.",
+        "technicalDiffCount": "{{count}} technical differences are hidden from the summary. Switch to the config snippet to inspect them."
+      },
+      "values": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "auto": "Auto",
+        "always": "Always on",
+        "off": "Off",
+        "weightedRrf": "Weighted fusion",
+        "rrf": "Rank fusion",
+        "alphaLegacy": "Legacy weighted fusion",
+        "singlePool": "Single vector pool",
+        "dualPool": "Dual vector pools"
+      },
+      "parameters": {
+        "retrieval_top_k": "Total candidate count",
+        "retrieval_top_k_paragraphs": "Paragraph candidates",
+        "retrieval_top_k_relations": "Relation candidates",
+        "retrieval_top_k_final": "Final returned results",
+        "retrieval_alpha": "Paragraph and relation weight",
+        "retrieval_enable_ppr": "Graph ranking",
+        "retrieval_ppr_alpha": "Graph jump factor",
+        "retrieval_ppr_timeout_seconds": "Graph ranking timeout",
+        "retrieval_search_smart_fallback_enabled": "Smart fallback",
+        "retrieval_sparse_enabled": "Keyword retrieval",
+        "retrieval_sparse_mode": "Keyword retrieval mode",
+        "retrieval_sparse_candidate_k": "Keyword paragraph candidates",
+        "retrieval_sparse_relation_candidate_k": "Keyword relation candidates",
+        "retrieval_fusion_method": "Result fusion method",
+        "retrieval_fusion_rrf_k": "Fusion smoothing factor",
+        "retrieval_fusion_vector_weight": "Vector retrieval weight",
+        "retrieval_fusion_bm25_weight": "Keyword retrieval weight",
+        "retrieval_vector_pools_mode": "Vector pool mode",
+        "retrieval_vector_pools_paragraph_top_k": "Paragraph vector candidates",
+        "retrieval_vector_pools_graph_top_k": "Graph vector candidates",
+        "retrieval_vector_pools_graph_expand_paragraph_k": "Graph-expanded paragraphs",
+        "retrieval_vector_pools_relation_expand_per_hit": "Relations expanded per hit",
+        "retrieval_vector_pools_entity_expand_per_hit": "Entities expanded per hit",
+        "retrieval_vector_pools_relation_evidence_weight": "Relation evidence weight",
+        "retrieval_vector_pools_entity_evidence_weight": "Entity evidence weight",
+        "threshold_percentile": "Dynamic threshold percentile",
+        "threshold_min_results": "Minimum returned results",
+        "threshold_min_threshold": "Minimum threshold",
+        "threshold_max_threshold": "Maximum threshold",
+        "threshold_enable_auto_adjust": "Auto-adjust threshold"
+      }
+    }
+  },
+  "home": {
+    "title": "Live Monitor",
+    "subtitle": "MaiBot runtime status and statistics overview",
+    "loading": "Loading...",
+    "loadingHint": "Loading...",
+    "timeRange": {
+      "24h": "24 Hours",
+      "7d": "7 Days",
+      "30d": "30 Days"
+    },
+    "autoRefresh": "Auto Refresh",
+    "cards": {
+      "add": "Add card",
+      "edit": "Edit cards",
+      "done": "Done",
+      "reset": "Restore default layout",
+      "row": {
+        "low": "Low row",
+        "high": "High row"
+      },
+      "dialog": {
+        "title": "Manage Home Cards",
+        "description": "Add plugin or built-in cards, or restore the default layout.",
+        "hiddenCards": "Available cards",
+        "noHiddenCards": "No cards available",
+        "restore": "Add",
+        "reset": "Restore default layout",
+        "cancel": "Close"
+      }
+    },
+    "systemStatus": {
+      "title": "System Status",
+      "status": "Status",
+      "uptime": "Uptime",
+      "version": "Main Version",
+      "webuiVersion": "WebUI Version"
+    },
+    "agentStatus": {
+      "title": "Agent Status",
+      "activeAgents": "Active Agents",
+      "totalAgents": "Total Agents",
+      "activeSessions": "Bound Sessions"
+    },
+    "llmOverview": {
+      "title": "LLM Overview",
+      "requests": "Requests",
+      "cost": "Total Cost",
+      "tokens": "Token Usage"
+    },
+    "chatStream": {
+      "title": "Chat Stream",
+      "activeSessions": "Active Sessions",
+      "todayCalls": "Today's Calls"
+    },
+    "botStatus": {
+      "title": "MaiBot Status",
+      "loading": "Reading",
+      "running": "Running",
+      "stopped": "Stopped",
+      "unknown": "Unknown",
+      "uptime": "Up {{time}}",
+      "visualEnabled": "Vision enabled",
+      "memoryEnabled": "Memory enabled"
+    },
+    "versionCard": {
+      "title": "MaiBot Version",
+      "mainVersion": "Core version",
+      "webuiVersion": "WebUI version",
+      "latestVersion": "Latest version",
+      "stableLatest": "Latest stable",
+      "testLatest": "Latest test",
+      "githubReleases": "GitHub Releases",
+      "unknown": "Unknown"
+    },
+    "platformGuide": {
+      "title": "Add a Platform Account",
+      "description": "No account has been configured for connecting MaiBot to a messaging platform.",
+      "detail": "Add a platform and account so MaiBot can receive and send messages through QQ or another messaging app.",
+      "action": "Add Platform Account"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "restart": "Restart MaiBot",
+      "restarting": "Restarting...",
+      "expressionReview": "Expression Review",
+      "viewLogs": "View Logs",
+      "pluginManage": "Plugins",
+      "systemSettings": "Settings",
+      "pluginConfig": "Plugin Config",
+      "appearanceSettings": "Appearance",
+      "localCache": "Local Cache",
+      "modelProviders": "Model Providers",
+      "modelList": "Model List",
+      "modelTasks": "Model Tasks",
+      "botConfig": "Core Config",
+      "emojiManagement": "Emoji Management",
+      "expressionManagement": "Expression Management",
+      "statistics": "Detailed Statistics",
+      "customize": "Customize",
+      "empty": "No quick shortcuts selected yet",
+      "add": "Add Shortcut",
+      "descriptions": {
+        "restart": "Restart the MaiBot core process",
+        "expressionReview": "Open the expression learning review dialog",
+        "viewLogs": "View WebUI logs",
+        "pluginManage": "Open the plugin marketplace and management page",
+        "systemSettings": "Open system settings",
+        "pluginConfig": "Open installed plugin configuration",
+        "appearanceSettings": "Open Settings / Appearance",
+        "localCache": "Open Settings / Local Cache",
+        "modelProviders": "Open Model Management / Providers",
+        "modelList": "Open Model Management / Models",
+        "modelTasks": "Open Model Management / Task assignments",
+        "botConfig": "Open MaiBot core configuration",
+        "emojiManagement": "Open emoji resource management",
+        "expressionManagement": "Open expression management",
+        "statistics": "Open maibot_statistics.html"
+      },
+      "categories": {
+        "system": "System",
+        "config": "Config",
+        "resource": "Resource",
+        "plugin": "Plugin",
+        "monitor": "Monitor",
+        "external": "External"
+      },
+      "dialog": {
+        "title": "Customize Quick Shortcuts",
+        "description": "Choose the shortcuts shown on the home quick actions card, including page tabs and plugin configuration pages.",
+        "searchPlaceholder": "Search shortcuts, plugins, or tabs...",
+        "loadingPluginEntries": "Loading plugin shortcuts...",
+        "noMatches": "No matching shortcuts found",
+        "restoreDefault": "Restore Defaults",
+        "done": "Done"
+      }
+    },
+    "pluginShortcuts": {
+      "baseLabel": "{{plugin}} Config",
+      "baseDescription": "Open the configuration page for {{plugin}}",
+      "tabDescription": "Open the {{tab}} tab for {{plugin}}",
+      "fallbackLabel": "Plugin config: {{plugin}}",
+      "fallbackTabLabel": "Plugin config: {{plugin}} / {{tab}}",
+      "fallbackDescription": "Open the specified plugin configuration page",
+      "fallbackTabDescription": "Open the specified plugin configuration tab"
+    },
+    "survey": {
+      "title": "Feedback Survey",
+      "description": "Help us improve the experience",
+      "webui": "WebUI Feedback",
+      "maibot": "MaiBot Feedback"
+    },
+    "stats": {
+      "overviewTitle": "Statistics Overview",
+      "totalRequests": "Total Requests",
+      "totalCost": "Total Cost",
+      "tokenUsage": "Token Usage",
+      "avgResponse": "Avg Response",
+      "avgResponseDesc": "Avg API latency",
+      "onlineTime": "Online Time",
+      "messageProcessing": "Messages",
+      "costEfficiency": "Cost Efficiency",
+      "recentPeriod": "Last {{range}}",
+      "perHour": "{{value}}/hr",
+      "noData": "No data",
+      "replied": "{{num}} replies",
+      "per100Messages": "Per 100 messages",
+      "seconds": "sec",
+      "hours": "hours",
+      "days": "days"
+    },
+    "storage": {
+      "title": "Storage Usage",
+      "reading": "Reading",
+      "summary": "Images {{image}} · Emoji {{emoji}} · Logs {{logs}} · Database {{database}}",
+      "images": "Images",
+      "emoji": "Emoji",
+      "logs": "Logs",
+      "database": "Database",
+      "files": "{{count}} files",
+      "filesAndRecords": "{{files}} files · {{records}} records",
+      "databaseDetail": "{{files}} files · {{tables}} tables",
+      "readingDescription": "Reading local storage usage...",
+      "unavailable": "Local storage usage is unavailable",
+      "manage": "Manage Storage"
+    },
+    "charts": {
+      "tabs": {
+        "trends": "Trends",
+        "models": "Models",
+        "activity": "Activity",
+        "daily": "Daily"
+      },
+      "requestTrend": "Request Trend",
+      "requestTrendDesc": "Request volume over the last {{hours}} hours",
+      "costTrend": "Cost Trend",
+      "costTrendDesc": "API call cost over time",
+      "tokenUsage": "Token Usage",
+      "tokenUsageDesc": "Token consumption over time",
+      "modelDistribution": "Model Cost Distribution",
+      "modelDistributionDesc": "Cost share per model ({{count}} models)",
+      "modelDetails": "Model Details",
+      "modelDetailsDesc": "Requests, cost and performance",
+      "recentActivity": "Recent Activity",
+      "recentActivityDesc": "Latest API call records",
+      "dailyStats": "Daily Statistics",
+      "dailyStatsDesc": "Data summary for the last 7 days",
+      "requests": "Requests",
+      "cost": "Cost (¥)",
+      "requestCount": "Requests",
+      "costLabel": "Cost",
+      "avgTime": "Avg Time",
+      "timeCost": "Duration",
+      "status": "Status"
+    },
+    "time": {
+      "hoursMinutes": "{{hours}}h {{minutes}}m"
+    },
+    "hitokotoFallback": "Life is like a box of chocolates, you never know what you're gonna get.",
+    "hitokotoFallbackFrom": "Forrest Gump",
+    "unknownSource": "Unknown",
+    "ariaLabel": {
+      "requestTrend": "Hourly request trend chart showing request count changes over recent hours",
+      "costTrend": "API cost trend chart showing API call cost changes over recent hours",
+      "tokenUsage": "Token usage trend chart showing token consumption over recent hours"
+    },
+    "agentOverview": {
+      "title": "Agent Overview",
+      "summary": "{{agents}} agents · {{active}} active · {{sessions}} sessions",
+      "loading": "Loading..."
+    }
+  },
+  "agent": {
+    "indicator": {
+      "default": "Default"
+    },
+    "selectPopover": {
+      "searchPlaceholder": "Search agents...",
+      "noMatch": "No matching agents"
+    },
+    "switcher": {
+      "title": "Switch Agent",
+      "searchPlaceholder": "Search agents...",
+      "noMatch": "No matching agents",
+      "current": "Current"
+    },
+    "binding": {
+      "defaultName": "Silver Wolf",
+      "switchFailed": "Failed to switch agent"
+    },
+    "header": {
+      "currentAgentLabel": "Current Agent: {{name}}",
+      "avatarAlt": "{{name}}'s avatar"
+    },
+    "chatManagement": {
+      "bindFailed": "Failed to bind agent",
+      "defaultName": "Silver Wolf",
+      "allAgents": "All Agents"
+    },
+    "commandCenter": {
+      "title": "Agent Command Center",
+      "subtitle": "Not the end of a story, but the prologue of life",
+      "searchPlaceholder": "Search agents...",
+      "dashboard": "Dashboard",
+      "constellation": "Constellation",
+      "global": "Global"
+    },
+    "vitalSigns": {
+      "emotionPulse": {
+        "unavailable": "Pulse unavailable"
+      },
+      "activity": {
+        "active": "Active",
+        "quiet": "Quiet",
+        "dormant": "Dormant"
+      },
+      "warmth": {
+        "warm": "Warm",
+        "moderate": "Moderate",
+        "cold": "Cold",
+        "no_data": "No interaction data yet",
+        "unavailable": "Warmth unavailable",
+        "basedOnInternal": "Based on character relations"
+      },
+      "innerActivity": {
+        "introspecting": "Introspecting",
+        "quiet": "Quiet",
+        "unavailable": "Activity unavailable"
+      },
+      "coreBadge": "Core",
+      "sessionCount": "{{count}} sessions",
+      "relationshipCount": "{{count}} relationships"
+    },
+    "constellation": {
+      "title": "Agent Constellation",
+      "noRelationships": "No internal relationship data",
+      "dataIncomplete": "Not perceivable",
+      "legend": {
+        "active": "Active",
+        "quiet": "Quiet",
+        "dormant": "Dormant"
+      },
+      "mention": {
+        "close": "Close",
+        "moderate": "Moderate",
+        "distant": "Distant",
+        "mentioned": "Mentioned",
+        "mentions": "Mentions",
+        "by": "Mentioned by {{name}}",
+        "of": "Mentions {{name}}"
+      },
+      "tooltip": {
+        "relationshipType": "Relationship Type",
+        "attitude": "Attitude",
+        "interactionStyle": "Interaction Style",
+        "relationship": "Relationship",
+        "noData": "No relationship data",
+        "closeness": "Closeness",
+        "trust": "Trust",
+        "mentionCount": "Mention count"
+      },
+      "selectedAgent": "Selected: {{name}}",
+      "noSelection": "Click a node to view details",
+      "hoverHint": "Hover to view relationships"
+    },
+    "globalSituation": {
+      "title": "Global Situation",
+      "stats": "Group Overview",
+      "emotionDistribution": "Emotion Distribution",
+      "activityHeatmap": "Activity Heatmap",
+      "relationshipDynamics": "Relationship Dynamics",
+      "noChanges": "No significant relationship changes recently",
+      "nearBreakthrough": "Near breakthrough",
+      "statsDetail": {
+        "registeredAgents": "Registered {{count}}",
+        "totalAgents": "{{count}} entities",
+        "activeAgents": "{{count}} active",
+        "totalRelationships": "{{count}} bonds",
+        "avgScore": "Avg warmth {{score}}"
+      },
+      "heatmapLegend": {
+        "active": "Active",
+        "quiet": "Quiet",
+        "dormant": "Dormant"
+      }
+    },
+    "innerWorld": {
+      "back": "Back",
+      "placeholder": "Inner World — Coming Soon",
+      "loading": "Loading...",
+      "subView": {
+        "emotion": "Emotion Landscape",
+        "relationship": "Relationship Network",
+        "memory": "Memory Garden",
+        "timeline": "Life Timeline",
+        "sessions": "Active Sessions",
+        "autonomy": "Autonomy Logs"
+      }
+    },
+    "emotionLandscape": {
+      "radarTitle": "Emotion Radar",
+      "barTitle": "Emotion Intensity",
+      "baselineShift": "Baseline Shift",
+      "behaviorTendency": "Behavior Tendency",
+      "shiftUp": "Rising",
+      "shiftDown": "Falling",
+      "shiftStable": "Stable",
+      "unavailable": "Emotion landscape unavailable",
+      "deepMonitor": "Deep Monitor →"
+    },
+    "relationshipNetwork": {
+      "title": "Relationship Network",
+      "distribution": "Level Distribution",
+      "ranking": "Relationship Ranking",
+      "internalGraph": "Internal Relationships",
+      "unavailable": "Relationship network unavailable",
+      "deepMonitor": "Deep Monitor →"
+    },
+    "memoryGarden": {
+      "title": "Memory Garden",
+      "focusAreas": "Memory Focus",
+      "innerActivity": "Inner Activity",
+      "noFocusAreas": "No specific focus areas",
+      "dreamComplete": "Completed an introspection",
+      "unavailable": "Activity records unavailable",
+      "deepMonitor": "Deep Monitor →"
+    },
+    "lifeTimeline": {
+      "title": "Life Timeline",
+      "emotionShift": "Emotion shifted to {{emotion}}",
+      "relationshipBreakthrough": "Relationship breakthrough",
+      "memoryMilestone": "{{type}} completed",
+      "noEvents": "No recent events",
+      "relationshipWarmUp": "Relationship warming up with {{user}}",
+      "currentStatus": "Current status"
+    },
+    "lifeDefense": {
+      "title": "Life Defense",
+      "description": "These rules guard the character's uniqueness, preventing responses from falling into mechanical repetition"
+    },
+    "collapsedParameters": {
+      "title": "Underlying Parameters",
+      "talkValueModifier": "Activity Modifier",
+      "relationshipGrowthRate": "Relationship Growth Rate",
+      "emotionDecayRate": "Emotion Decay Rate"
+    },
+    "activeSessions": {
+      "title": "Linked Sessions",
+      "bindSession": "Bind Session",
+      "unbind": "Unbind",
+      "unbindConfirm": "Confirm unbind?",
+      "unbindConfirmDesc": "Unbinding from \"{{name}}\". This session will no longer be responded to by this agent.",
+      "unbindFailed": "Failed to unbind",
+      "bindFailed": "Failed to bind",
+      "loadFailed": "Load failed",
+      "retry": "Retry",
+      "boundStatus": "Bound",
+      "selectSession": "Select Session",
+      "noAvailableSessions": "No available sessions",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "noSessions": "No linked sessions",
+      "active": "Active",
+      "boundInactive": "Bound",
+      "primary": "Primary",
+      "cohabitants": "Cohabitants",
+      "unbindSpecific": "Unbind Agent",
+      "unbindAll": "Unbind All",
+      "lastSpokeAt": "Last spoke"
+    },
+    "vitality": {
+      "active": "Active",
+      "standby": "Standby",
+      "dormant": "Dormant",
+      "value": "Vitality",
+      "lastStimulus": "Last stimulus"
+    },
+    "stateAwareness": {
+      "title": "State Awareness",
+      "summaryPreview": "Summary Preview",
+      "activeRules": "Active Rules",
+      "noData": "No awareness data",
+      "vitalityLevel": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      }
+    },
+    "interaction": {
+      "stream": {
+        "title": "Interaction Stream",
+        "empty": "No interaction activity",
+        "refreshInterval": "Auto refresh every 30s"
+      },
+      "detail": {
+        "triggerReason": "Trigger Reason",
+        "emotionEffect": "Emotion Effect",
+        "relationshipEffect": "Relationship Effect",
+        "memoryStatus": "Memory Write",
+        "echoDepth": "Echo Depth"
+      },
+      "hotspot": {
+        "label": "Hotspot",
+        "count": "Agent pairs with 5+ interactions in 24h"
+      },
+      "typeLabels": {
+        "emotion_driven": "Emotion Driven",
+        "time_awareness": "Time Awareness",
+        "mention_propagation": "Mention Propagation",
+        "event_ripple": "Event Ripple",
+        "inner_need": "Inner Need",
+        "memory_driven": "Memory Driven",
+        "inner_monologue": "Inner Monologue"
+      },
+      "memoryStatus": {
+        "success": "Success",
+        "failed": "Failed",
+        "skipped": "Skipped"
+      },
+      "manualTrigger": {
+        "title": "Manual Trigger Interaction",
+        "initiator": "Initiator",
+        "target": "Target",
+        "type": "Interaction Type",
+        "reason": "Trigger Reason",
+        "submit": "Trigger",
+        "success": "Interaction triggered successfully",
+        "failed": "Interaction trigger failed"
+      },
+      "config": {
+        "title": "Interaction Trigger Config",
+        "basic": {
+          "title": "Basic Config",
+          "enabled": "Enable Interaction",
+          "cooldownMinutes": "Cooldown (minutes)",
+          "maxPerHour": "Max per hour",
+          "maxPerDay": "Max per day"
+        },
+        "echo": {
+          "title": "Echo Config",
+          "enabled": "Enable Echo",
+          "maxDepth": "Max Echo Depth",
+          "decayRatio": "Echo Decay Ratio"
+        },
+        "monologue": {
+          "title": "Monologue Config",
+          "enabled": "Enable Monologue",
+          "minInterval": "Min Interval (minutes)",
+          "idleThreshold": "Idle Threshold (minutes)",
+          "emotionThreshold": "Emotion Intensity Threshold"
+        }
+      }
+    },
+    "monologue": {
+      "panel": {
+        "title": "Inner World",
+        "empty": "No ripples in the inner world"
+      },
+      "content": {
+        "label": "Monologue Content"
+      },
+      "emotionSnapshot": {
+        "label": "Emotion Snapshot"
+      },
+      "selfEffect": {
+        "label": "Self Effect"
+      }
+    },
+    "autonomy": {
+      "title": "Agent Autonomy",
+      "activeAgents": "Active Agents",
+      "primarySpeaker": "Primary Speaker",
+      "switchSpeaker": "Switch Speaker",
+      "triggerInterjection": "Trigger Interjection",
+      "behaviorIntents": "Behavior Intents",
+      "interjectionEvents": "Interjection Events",
+      "speakerChanges": "Speaker Changes",
+      "noActiveAgents": "No active agents",
+      "noIntents": "No behavior intents",
+      "noInterjections": "No interjection events",
+      "noSpeakerChanges": "No speaker changes",
+      "intentType": {
+        "want_to_speak": "Want to Speak",
+        "want_to_interject": "Want to Interject"
+      },
+      "intentSource": {
+        "inner_need_driven": "Inner Need Driven",
+        "emotion_driven": "Emotion Driven",
+        "topic_relevance_driven": "Topic Relevance Driven",
+        "relationship_driven": "Relationship Driven",
+        "interaction_signal_driven": "Interaction Signal Driven",
+        "manual_trigger": "Manual Trigger"
+      },
+      "changeType": {
+        "manual_switch": "Manual Switch",
+        "agent_exit": "Agent Exit",
+        "interjection": "Interjection",
+        "session_create": "Session Create"
+      },
+      "strength": "Strength",
+      "source": "Source",
+      "reason": "Reason",
+      "from": "From",
+      "to": "To"
+    },
+    "autonomyLogs": {
+      "title": "Autonomy Logs",
+      "allTypes": "All Types",
+      "thinking": "Thinking",
+      "expression": "Expression",
+      "innerNeed": "Inner Need",
+      "behaviorIntent": "Behavior Intent",
+      "interjection": "Interjection",
+      "orchestration": "Orchestration",
+      "empty": "No autonomy logs yet",
+      "total": "{{count}} total",
+      "prev": "Prev",
+      "next": "Next"
+    },
+    "migration": {
+      "title": "Memory Migration Status",
+      "loading": "Loading...",
+      "advance": "Advance",
+      "advanceSuccess": "{{name}} advanced to {{phase}}",
+      "advanceFailed": "Failed to advance migration phase"
+    }
+  },
+  "emotion": {
+    "pageTitle": "Emotion Monitor",
+    "agentCount": "{{count}} agents",
+    "backToOverview": "Back to Overview",
+    "autoRefreshOff": "Disable Auto Refresh",
+    "autoRefreshOn": "Enable Auto Refresh (30s)",
+    "dominantDistribution": "Dominant Emotion Distribution",
+    "dominantIntensity": "Dominant Emotion Intensity {{value}}/100",
+    "radarTitle": "Emotion Radar",
+    "intensityTitle": "Emotion Intensity",
+    "behaviorParams": "Emotion Behavior Parameters",
+    "decayRate": "Decay Rate",
+    "activityModifier": "Activity Modifier",
+    "currentState": "Current State",
+    "baseline": "Emotion Baseline"
+  },
+  "chatManagement": {
+    "typeAll": "All",
+    "typeGroup": "Group",
+    "typePrivate": "Private",
+    "tabStreams": "Chat Streams",
+    "tabGroups": "Shared Groups",
+    "searchPlaceholder": "Search by name, platform, user, group ID or session ID"
+  },
+  "monitor": {
+    "title": "System Monitor",
+    "live": "Live",
+    "polling": "Polling",
+    "tabs": {
+      "system": "System Resources",
+      "llm": "LLM Stats",
+      "chat": "Chat Streams"
+    },
+    "systemResources": {
+      "title": "System Resources",
+      "live": "Live",
+      "polling": "Polling",
+      "error": "Failed to load system resources",
+      "loading": "Loading...",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "database": "Database"
+    },
+    "llm": {
+      "exportCSV": "Export CSV",
+      "totalRequests": "Total Requests",
+      "totalCost": "Total Cost",
+      "totalTokens": "Total Tokens",
+      "avgResponse": "Avg Response",
+      "modelStats": "Model Stats",
+      "agentStats": "Agent Stats",
+      "model": "Model",
+      "agent": "Agent",
+      "requests": "Requests",
+      "cost": "Cost",
+      "tokens": "Tokens",
+      "avgTime": "Avg Time",
+      "inputTokens": "Input Tokens",
+      "outputTokens": "Output Tokens"
+    },
+    "chatStream": {
+      "title": "Chat Stream Status",
+      "lastActive": "Last Active",
+      "messageCount": "Messages",
+      "loading": "Loading...",
+      "empty": "No chat streams",
+      "name": "Name",
+      "agent": "Agent",
+      "messages": "Messages"
+    }
+  }
+}
