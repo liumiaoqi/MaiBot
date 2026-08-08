@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 interface TopbarProps {
+  onMenuClick: () => void
   onSearchOpen: () => void
 }
 
-export function Topbar({ onSearchOpen }: TopbarProps) {
+export function Topbar({ onMenuClick, onSearchOpen }: TopbarProps) {
   const { t } = useTranslation()
 
   return (
@@ -14,6 +15,17 @@ export function Topbar({ onSearchOpen }: TopbarProps) {
       data-dashboard-topbar="true"
       className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4"
     >
+      {/* 移动端侧边栏唤出按钮（lg 以上隐藏） */}
+      <button
+        onClick={onMenuClick}
+        className="mr-2 rounded-md p-2 text-foreground transition-colors hover:bg-accent/50 lg:hidden"
+        aria-label="打开菜单"
+      >
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
       {/* 搜索框入口 */}
       <button
         onClick={onSearchOpen}

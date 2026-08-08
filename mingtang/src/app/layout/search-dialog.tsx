@@ -245,7 +245,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
             }}
             onKeyDown={handleKeyDown}
             placeholder={t('search.placeholder')}
-            className="h-12 w-full pl-10 text-base outline-none placeholder:text-muted-foreground"
+            className="h-12 w-full pl-10 text-base text-foreground outline-none placeholder:text-muted-foreground"
           />
           <svg
             className="absolute left-6 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"

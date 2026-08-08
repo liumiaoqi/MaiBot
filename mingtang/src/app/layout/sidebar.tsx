@@ -16,7 +16,7 @@ function MenuIcon({ name, className }: { name: string; className?: string }) {
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -55,7 +55,10 @@ export function Sidebar() {
                   return (
                     <li key={item.path}>
                       <button
-                        onClick={() => navigate({ to: item.path! })}
+                        onClick={() => {
+                          navigate({ to: item.path! })
+                          onNavigate?.()
+                        }}
                         title={t(item.label)}
                         className={cn(
                           'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
