@@ -12,7 +12,7 @@
   --color-card-foreground: #0a0a0a;
   --color-popover: #ffffff;
   --color-popover-foreground: #0a0a0a;
-  --color-primary: #2563eb;
+  --color-primary: #55AB49;
   --color-primary-foreground: #ffffff;
   --color-secondary: #f5f5f5;
   --color-secondary-foreground: #0a0a0a;
@@ -24,8 +24,8 @@
   --color-destructive-foreground: #ffffff;
   --color-border: #e5e5e5;
   --color-input: #e5e5e5;
-  --color-ring: #2563eb;
-  --color-chart-1: #2563eb;
+  --color-ring: #55AB49;
+  --color-chart-1: #55AB49;
   --color-chart-2: #10b981;
   --color-chart-3: #f59e0b;
   --color-chart-4: #ef4444;
@@ -80,7 +80,7 @@
     --color-card-foreground: #fafafa;
     --color-popover: #111111;
     --color-popover-foreground: #fafafa;
-    --color-primary: #3b82f6;
+    --color-primary: #55AB49;
     --color-primary-foreground: #fafafa;
     --color-secondary: #1a1a1a;
     --color-secondary-foreground: #fafafa;
@@ -90,6 +90,6 @@
     --color-accent-foreground: #fafafa;
     --color-border: #262626;
     --color-input: #262626;
-    --color-ring: #3b82f6;
+    --color-ring: #55AB49;
   }
 }
