@@ -55,7 +55,8 @@
       "chatManagement": "채팅 관리",
       "localChat": "로컬 채팅",
       "settings": "설정",
-      "deepseekMonitor": "DeepSeek 최적화"
+      "deepseekMonitor": "DeepSeek 최적화",
+      "appearance": "외관 설정"
     }
   },
   "workspace": {
@@ -268,7 +269,11 @@
       "visualGroup": "시각 효과 (Visual)",
       "layoutGroup": "레이아웃 (Layout)",
       "animationGroup": "애니메이션 (Animation)",
-      "backgroundGroup": "배경 설정 (Backgrounds)"
+      "backgroundGroup": "배경 설정 (Backgrounds)",
+      "styleModern": "모던",
+      "styleModernDesc": "카드 둥근 모서리와 배경 및 사용자 정의 기능 유지",
+      "styleFutureRetro": "퓨처 레트로",
+      "styleFutureRetroDesc": "종이 입자, 단단한 획과 모따기 패널"
     },
     "security": {
       "currentToken": "현재 액세스 토큰",
@@ -821,7 +826,8 @@
       "promptManagementDesc": "프롬프트 템플릿 관리",
       "knowledgeBaseDesc": "지식 베이스 관리",
       "pluginConfigDesc": "설치된 플러그인 설정",
-      "mcpSettingsDesc": "MCP 서버 설정 구성"
+      "mcpSettingsDesc": "MCP 서버 설정 구성",
+      "appearanceDesc": "테마 모드, 색상 및 인터페이스 스타일 구성"
     }
   },
   "a11y": {
@@ -1467,5 +1473,17 @@
       "agent": "에이전트",
       "messages": "메시지"
     }
+  },
+  "modelPresets": {
+    "title": "모델 프리셋 마켓",
+    "description": "커뮤니티 공유 모델 프리셋 구성 탐색 및 다운로드",
+    "devTitle": "개발 중",
+    "devDescription": "모델 프리셋 마켓 기능은 개발 중입니다. 기대해 주세요!",
+    "upcomingTitle": "예정된 기능:",
+    "upcoming1": "커뮤니티 공유 모델 프리셋 구성 탐색",
+    "upcoming2": "원클릭 프리셋 구성 다운로드 및 적용",
+    "upcoming3": "자신의 모델 할당 방안 공유",
+    "upcoming4": "프리셋 평가 및 리뷰 시스템",
+    "upcoming5": "사용 시나리오 기반 스마트 추천 구성"
   }
 }

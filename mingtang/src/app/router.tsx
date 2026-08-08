@@ -7,6 +7,15 @@ import {
 import { Placeholder } from '../components/biz/placeholder'
 import { Layout } from './layout'
 import { routeDefinitions, type RouteDefinition } from './route-definitions'
+import { AppearancePage } from '../features/config/appearance'
+import { BotConfigPage } from '../features/config/bot'
+import { ModelConfigPage } from '../features/config/model'
+import { PromptManagementPage } from '../features/config/prompts'
+import { MCPSettingsPage } from '../features/config/mcp-settings'
+import { ModelPresetsPage } from '../features/config/model-presets'
+import { PromptGeneratorPage } from '../features/config/prompt-generator'
+import { PackMarketPage } from '../features/config/pack-market'
+import { PackDetailPage } from '../features/config/pack-detail'
 
 // 根路由
 const rootRoute = createRootRoute({
@@ -24,11 +33,27 @@ const protectedRoute = createRoute({
   ),
 })
 
-/** 根据路由定义创建占位路由 */
+/** config 域 9 页使用实际页面组件，其余域占位 */
+const actualPageComponents: Record<string, () => React.ReactElement> = {
+  '/config/bot': () => <BotConfigPage />,
+  '/config/model': () => <ModelConfigPage />,
+  '/config/prompts': () => <PromptManagementPage />,
+  '/mcp-settings': () => <MCPSettingsPage />,
+  '/model-presets': () => <ModelPresetsPage />,
+  '/config/prompt-generator': () => <PromptGeneratorPage />,
+  '/config/pack-market': () => <PackMarketPage />,
+  '/config/pack-market/$packId': () => <PackDetailPage />,
+  '/appearance': () => <AppearancePage />,
+}
+
+/** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */
 function createPlaceholderRoute(def: RouteDefinition) {
-  const component = () => (
-    <Placeholder pageName={def.pageName} domain={def.domain} />
-  )
+  const actualComponent = actualPageComponents[def.path]
+  const component = def.path in actualPageComponents
+    ? actualComponent
+    : () => (
+        <Placeholder pageName={def.pageName} domain={def.domain} />
+      )
 
   // 404 路由挂在 rootRoute 下
   if (def.path === '*') {
@@ -56,7 +81,7 @@ function createPlaceholderRoute(def: RouteDefinition) {
   })
 }
 
-// 创建 34 页路由
+// 创建 36 页路由
 const routes = routeDefinitions.map(createPlaceholderRoute)
 
 // 提取各路由引用（按定义顺序）
@@ -69,6 +94,7 @@ const [
   configPromptGeneratorRoute,
   configPackMarketRoute,
   configPackDetailRoute,
+  configAppearanceRoute,
   chatRoute,
   chatManagementRoute,
   memoryReasoningProcessRoute,
@@ -109,6 +135,7 @@ const routeTree = rootRoute.addChildren([
     configPromptGeneratorRoute,
     configPackMarketRoute,
     configPackDetailRoute,
+    configAppearanceRoute,
     chatRoute,
     chatManagementRoute,
     memoryReasoningProcessRoute,

@@ -34,7 +34,7 @@ export type FieldHookComponent = React.FC<FieldHookComponentProps>
 /**
  * Registry entry for a field hook
  */
-interface FieldHookEntry {
+export interface FieldHookEntry {
   component: FieldHookComponent
   type: FieldHookType
 }
@@ -101,6 +101,27 @@ export class FieldHookRegistry {
    */
   getAllPaths(): string[] {
     return Array.from(this.hooks.keys())
+  }
+
+  /**
+   * 批量注册 field hooks
+   * @param entries 条目数组
+   */
+  registerAll(
+    entries: Array<{ fieldPath: string; component: FieldHookComponent; type: FieldHookType }>
+  ): void {
+    entries.forEach(({ fieldPath, component, type }) => {
+      this.register(fieldPath, component, type)
+    })
+  }
+
+  /**
+   * 按 type 分组查询
+   * @param type hook 类型
+   * @returns 匹配类型的所有条目
+   */
+  getByType(type: FieldHookType): FieldHookEntry[] {
+    return Array.from(this.hooks.values()).filter((entry) => entry.type === type)
   }
 }
 

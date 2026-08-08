@@ -55,7 +55,8 @@
       "chatManagement": "聊天管理",
       "localChat": "本地聊天室",
       "settings": "系统设置",
-      "deepseekMonitor": "DeepSeek优化"
+      "deepseekMonitor": "DeepSeek优化",
+      "appearance": "外观设置"
     }
   },
   "workspace": {
@@ -276,7 +277,11 @@
       "visualGroup": "视觉效果 (Visual)",
       "layoutGroup": "布局 (Layout)",
       "animationGroup": "动画 (Animation)",
-      "backgroundGroup": "背景设置 (Backgrounds)"
+      "backgroundGroup": "背景设置 (Backgrounds)",
+      "styleModern": "现代",
+      "styleModernDesc": "保留卡片圆角背景和自定义能力",
+      "styleFutureRetro": "未来复古",
+      "styleFutureRetroDesc": "纸面颗粒、硬朗描边和切角面板"
     },
     "security": {
       "currentToken": "当前 Access Token",
@@ -829,7 +834,8 @@
       "promptManagementDesc": "管理麦麦的提示词模板",
       "knowledgeBaseDesc": "管理麦麦的知识库",
       "pluginConfigDesc": "配置已安装的插件",
-      "mcpSettingsDesc": "配置 MCP 服务器设置"
+      "mcpSettingsDesc": "配置 MCP 服务器设置",
+      "appearanceDesc": "配置主题模式、颜色和界面样式"
     }
   },
   "a11y": {
@@ -1639,5 +1645,17 @@
       "agent": "智能体",
       "messages": "消息"
     }
+  },
+  "modelPresets": {
+    "title": "模型分配预设市场",
+    "description": "浏览和下载社区共享的模型分配预设配置",
+    "devTitle": "功能开发中",
+    "devDescription": "模型分配预设市场功能正在开发中，敬请期待！",
+    "upcomingTitle": "即将推出的功能：",
+    "upcoming1": "浏览社区共享的模型分配预设配置",
+    "upcoming2": "一键下载和应用预设配置",
+    "upcoming3": "分享自己的模型分配方案",
+    "upcoming4": "预设配置评分和评论系统",
+    "upcoming5": "根据使用场景智能推荐配置"
   }
 }

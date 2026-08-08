@@ -55,7 +55,8 @@
       "chatManagement": "チャット管理",
       "localChat": "ローカルチャット",
       "settings": "設定",
-      "deepseekMonitor": "DeepSeek最適化"
+      "deepseekMonitor": "DeepSeek最適化",
+      "appearance": "外観設定"
     }
   },
   "workspace": {
@@ -276,7 +277,11 @@
       "visualGroup": "視覚効果 (Visual)",
       "layoutGroup": "レイアウト (Layout)",
       "animationGroup": "アニメーション (Animation)",
-      "backgroundGroup": "背景設定 (Backgrounds)"
+      "backgroundGroup": "背景設定 (Backgrounds)",
+      "styleModern": "モダン",
+      "styleModernDesc": "カードの角丸と背景とカスタマイズ能力を維持",
+      "styleFutureRetro": "フューチャーレトロ",
+      "styleFutureRetroDesc": "紙面の粒状、硬い描線と切角パネル"
     },
     "security": {
       "currentToken": "現在のアクセストークン",
@@ -829,7 +834,8 @@
       "promptManagementDesc": "プロンプトテンプレートを管理",
       "knowledgeBaseDesc": "ナレッジベースを管理",
       "pluginConfigDesc": "インストール済みプラグインを設定",
-      "mcpSettingsDesc": "MCPサーバー設定を構成"
+      "mcpSettingsDesc": "MCPサーバー設定を構成",
+      "appearanceDesc": "テーマモード、色、インターフェーススタイルを設定"
     }
   },
   "a11y": {
@@ -1641,5 +1647,17 @@
       "agent": "エージェント",
       "messages": "メッセージ"
     }
+  },
+  "modelPresets": {
+    "title": "モデルプリセット市場",
+    "description": "コミュニティ共有のモデルプリセット設定を閲覧・ダウンロード",
+    "devTitle": "開発中",
+    "devDescription": "モデルプリセット市場機能は開発中です。お楽しみに！",
+    "upcomingTitle": "予定されている機能：",
+    "upcoming1": "コミュニティ共有のモデルプリセット設定を閲覧",
+    "upcoming2": "ワンクリックでプリセット設定をダウンロード・適用",
+    "upcoming3": "独自のモデル割り当て方案を共有",
+    "upcoming4": "プリセット評価・レビューシステム",
+    "upcoming5": "使用シーンに基づくスマート推奨設定"
   }
 }

@@ -41,6 +41,7 @@ export const menuSections: MenuSectionData[] = [
       { icon: 'bot-config', label: 'sidebar.menu.botMainConfig', path: '/config/bot', searchDescription: 'search.items.botConfigDesc' },
       { icon: 'model', label: 'sidebar.menu.modelManagement', path: '/config/model', searchDescription: 'search.items.modelDesc', tourId: 'sidebar-model-management' },
       { icon: 'prompt', label: 'sidebar.menu.promptManagement', path: '/config/prompts', searchDescription: 'search.items.promptManagementDesc' },
+      { icon: 'palette', label: 'sidebar.menu.appearance', path: '/appearance', searchDescription: 'search.items.appearanceDesc' },
     ],
   },
   {

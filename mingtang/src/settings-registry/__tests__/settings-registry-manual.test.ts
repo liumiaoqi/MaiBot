@@ -10,8 +10,8 @@ describe('R1-3-6：手动登记 registerManualEntries', () => {
   it('页面项均登记（有 path 的菜单项）', () => {
     const entries = registerManualEntries()
     const pageEntries = entries.filter((e) => e.id.startsWith('manual:page:'))
-    // 20 个有 path 的菜单项（behavior 无 path 跳过）
-    expect(pageEntries.length).toBe(19)
+    // 20 个有 path 的菜单项（behavior 无 path 跳过；R2 新增 appearance）
+    expect(pageEntries.length).toBe(20)
   })
 
   it('7 个 provider 字段均登记', () => {

@@ -55,7 +55,8 @@
       "chatManagement": "Chat Management",
       "localChat": "Local Chat",
       "settings": "Settings",
-      "deepseekMonitor": "DeepSeek Optimizer"
+      "deepseekMonitor": "DeepSeek Optimizer",
+      "appearance": "Appearance"
     }
   },
   "workspace": {
@@ -276,7 +277,11 @@
       "visualGroup": "Visual Effects",
       "layoutGroup": "Layout",
       "animationGroup": "Animation",
-      "backgroundGroup": "Background Settings"
+      "backgroundGroup": "Background Settings",
+      "styleModern": "Modern",
+      "styleModernDesc": "Card rounded corners and customization",
+      "styleFutureRetro": "Future Retro",
+      "styleFutureRetroDesc": "Paper grain, hard strokes and chamfered panels"
     },
     "security": {
       "currentToken": "Current Access Token",
@@ -829,7 +834,8 @@
       "promptManagementDesc": "Manage prompt templates",
       "knowledgeBaseDesc": "Manage knowledge base",
       "pluginConfigDesc": "Configure installed plugins",
-      "mcpSettingsDesc": "Configure MCP server settings"
+      "mcpSettingsDesc": "Configure MCP server settings",
+      "appearanceDesc": "Configure theme mode, colors and interface style"
     }
   },
   "a11y": {
@@ -1641,5 +1647,17 @@
       "agent": "Agent",
       "messages": "Messages"
     }
+  },
+  "modelPresets": {
+    "title": "Model Preset Market",
+    "description": "Browse and download community-shared model preset configurations",
+    "devTitle": "Under Development",
+    "devDescription": "The model preset market feature is under development, stay tuned!",
+    "upcomingTitle": "Upcoming features:",
+    "upcoming1": "Browse community-shared model preset configurations",
+    "upcoming2": "One-click download and apply preset configurations",
+    "upcoming3": "Share your own model allocation schemes",
+    "upcoming4": "Preset rating and review system",
+    "upcoming5": "Smart configuration recommendations based on use cases"
   }
 }

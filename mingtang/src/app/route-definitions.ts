@@ -1,4 +1,4 @@
-/** 35 页路由定义（按蓝皮书 §一 8 域归属——路径与 dashboard 对齐 C-2） */
+/** 36 页路由定义（按蓝皮书 §一 8 域归属——路径与 dashboard 对齐 C-2；R2 新增 /appearance） */
 
 export type RouteDomain =
   | 'config'
@@ -21,9 +21,9 @@ export interface RouteDefinition {
   pageName: string
 }
 
-/** 34 页路由表——按蓝皮书 §一 8 域归属 */
+/** 36 页路由表——按蓝皮书 §一 8 域归属（R2 新增 /appearance） */
 export const routeDefinitions: RouteDefinition[] = [
-  // config（8 页）
+  // config（9 页——R2 新增 /appearance）
   { id: 'config/bot', domain: 'config', path: '/config/bot', pageName: 'BotConfig' },
   { id: 'config/model', domain: 'config', path: '/config/model', pageName: 'ModelConfig' },
   { id: 'config/prompts', domain: 'config', path: '/config/prompts', pageName: 'PromptManagement' },
@@ -32,6 +32,7 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'config/prompt-generator', domain: 'config', path: '/config/prompt-generator', pageName: 'PromptGenerator' },
   { id: 'config/pack-market', domain: 'config', path: '/config/pack-market', pageName: 'PackMarket' },
   { id: 'config/pack-detail', domain: 'config', path: '/config/pack-market/$packId', pageName: 'PackDetail' },
+  { id: 'config/appearance', domain: 'config', path: '/appearance', pageName: 'Appearance' },
 
   // chat（2 页）
   { id: 'chat/chat', domain: 'chat', path: '/chat', pageName: 'Chat' },
@@ -67,7 +68,7 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'plugin/plugin-detail', domain: 'plugin', path: '/plugins/$pluginId', pageName: 'PluginDetail' },
   { id: 'plugin/plugin-mirrors', domain: 'plugin', path: '/plugin-mirrors', pageName: 'PluginMirrors' },
 
-  // home（5 页——survey 拆为 2 页，合计 34）
+  // home（5 页——survey 拆为 2 页）
   { id: 'home/home', domain: 'home', path: '/', pageName: 'Home' },
   { id: 'home/setup', domain: 'home', path: '/setup', pageName: 'Setup' },
   { id: 'home/survey-webui-feedback', domain: 'home', path: '/survey/webui-feedback', pageName: 'SurveyWebUIFeedback' },
@@ -75,7 +76,7 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'home/404', domain: 'home', path: '*', pageName: 'NotFound' },
 ]
 
-/** 路由总数（验收：= 34） */
+/** 路由总数（验收：= 36） */
 export const ROUTE_COUNT = routeDefinitions.length
 
 /** 8 功能域列表 */

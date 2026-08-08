@@ -1,14 +1,22 @@
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface TopbarProps {
   onMenuClick: () => void
   onSearchOpen: () => void
 }
 
+const LANGUAGES = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+] as const
+
 export function Topbar({ onMenuClick, onSearchOpen }: TopbarProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   return (
     <header
@@ -47,9 +55,28 @@ export function Topbar({ onMenuClick, onSearchOpen }: TopbarProps) {
         <kbd className="ml-auto rounded border border-border px-1.5 py-0.5 text-xs">⌘K</kbd>
       </button>
 
-      {/* 右侧操作区（R2+ 扩展） */}
+      {/* 右侧操作区 */}
       <div className="flex items-center gap-2">
-        {/* 主题切换、语言切换等在 R2+ 添加 */}
+        {/* 语言切换 */}
+        <Select
+          value={i18n.language}
+          onValueChange={(lng) => i18n.changeLanguage(lng)}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label={t('header.switchLanguage')}
+            data-testid="language-switcher"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LANGUAGES.map((lang) => (
+              <SelectItem key={lang.value} value={lang.value}>
+                {lang.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </header>
   )
