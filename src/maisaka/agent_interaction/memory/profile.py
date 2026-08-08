@@ -8,6 +8,7 @@ from src.common.logger import get_logger
 
 
 
+import ast
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -113,7 +114,10 @@ class AgentProfileService:
 
             # 从metadata中提取情绪标签
             try:
-                metadata = eval(event.event_metadata) if event.event_metadata else {}
+                # 事件元数据是内部写入的字面量 dict 字符串——literal_eval 安全等价（eval 是 RCE 雷区）
+                metadata = (
+                    ast.literal_eval(event.event_metadata) if event.event_metadata else {}
+                )
                 emotion_tag = metadata.get("emotion_tag", "")
                 if emotion_tag:
                     emotion_counts[emotion_tag] = emotion_counts.get(emotion_tag, 0) + 1
