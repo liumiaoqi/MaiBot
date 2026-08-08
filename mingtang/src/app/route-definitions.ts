@@ -1,4 +1,4 @@
-/** 34 页路由定义（按蓝皮书 §一 8 域归属——路径与 dashboard 对齐 C-2） */
+/** 35 页路由定义（按蓝皮书 §一 8 域归属——路径与 dashboard 对齐 C-2） */
 
 export type RouteDomain =
   | 'config'
@@ -48,11 +48,12 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'resource/jargon', domain: 'resource', path: '/resource/jargon', pageName: 'JargonManagement' },
   { id: 'resource/knowledge-base', domain: 'resource', path: '/resource/knowledge-base', pageName: 'KnowledgeBase' },
 
-  // monitor（6 页）
+  // monitor（7 页）
   { id: 'monitor/deepseek', domain: 'monitor', path: '/deepseek-monitor', pageName: 'DeepSeekMonitor' },
   { id: 'monitor/emotion', domain: 'monitor', path: '/emotion-monitor', pageName: 'EmotionMonitor' },
   { id: 'monitor/relationship', domain: 'monitor', path: '/relationship-monitor', pageName: 'RelationshipMonitor' },
   { id: 'monitor/subagent', domain: 'monitor', path: '/subagent-monitor', pageName: 'SubAgentMonitor' },
+  { id: 'monitor/maisaka', domain: 'monitor', path: '/maisaka-monitor', pageName: 'MaiSakaMonitor' },
   { id: 'monitor/system', domain: 'monitor', path: '/system-monitor', pageName: 'SystemMonitor' },
   { id: 'monitor/logs', domain: 'monitor', path: '/logs', pageName: 'Logs' },
 
