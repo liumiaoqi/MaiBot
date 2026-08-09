@@ -281,7 +281,12 @@
       "styleModern": "Modern",
       "styleModernDesc": "Card rounded corners and customization",
       "styleFutureRetro": "Future Retro",
-      "styleFutureRetroDesc": "Paper grain, hard strokes and chamfered panels"
+      "styleFutureRetroDesc": "Paper grain, hard strokes and chamfered panels",
+      "frPaperWarmth": "Paper Warmth",
+      "frTextureStyle": "Texture Style",
+      "frTextureIntensity": "Texture Intensity",
+      "frPanelDepth": "Panel Depth",
+      "frStrokeScale": "Stroke Scale"
     },
     "security": {
       "currentToken": "Current Access Token",

@@ -281,7 +281,12 @@
       "styleModern": "モダン",
       "styleModernDesc": "カードの角丸と背景とカスタマイズ能力を維持",
       "styleFutureRetro": "フューチャーレトロ",
-      "styleFutureRetroDesc": "紙面の粒状、硬い描線と切角パネル"
+      "styleFutureRetroDesc": "紙面の粒状、硬い描線と切角パネル",
+      "frPaperWarmth": "紙の暖かさ",
+      "frTextureStyle": "テクスチャスタイル",
+      "frTextureIntensity": "テクスチャ強度",
+      "frPanelDepth": "パネルの深さ",
+      "frStrokeScale": "ストローク倍率"
     },
     "security": {
       "currentToken": "現在のアクセストークン",

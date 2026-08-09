@@ -13,7 +13,7 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
     <div className="flex min-h-[400px] items-center justify-center" data-testid="error-state">
       <div className="text-center">
         <h2 className="text-lg font-semibold text-red-600">加载失败</h2>
-        <p className="mt-2 text-sm text-gray-500">{message}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
         {onRetry && (
           <button
             type="button"

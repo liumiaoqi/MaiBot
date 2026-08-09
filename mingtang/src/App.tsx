@@ -8,7 +8,7 @@ import { ErrorBoundary } from './components/biz/error-boundary'
 function LoadingFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="text-sm text-gray-500">加载中…</div>
+      <div className="text-sm text-muted-foreground">加载中…</div>
     </div>
   )
 }

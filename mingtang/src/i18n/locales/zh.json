@@ -281,7 +281,12 @@
       "styleModern": "现代",
       "styleModernDesc": "保留卡片圆角背景和自定义能力",
       "styleFutureRetro": "未来复古",
-      "styleFutureRetroDesc": "纸面颗粒、硬朗描边和切角面板"
+      "styleFutureRetroDesc": "纸面颗粒、硬朗描边和切角面板",
+      "frPaperWarmth": "纸暖度",
+      "frTextureStyle": "纹理风格",
+      "frTextureIntensity": "纹理强度",
+      "frPanelDepth": "面板深度",
+      "frStrokeScale": "描边比例"
     },
     "security": {
       "currentToken": "当前 Access Token",

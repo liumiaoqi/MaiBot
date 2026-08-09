@@ -11,7 +11,7 @@ export function EmptyState({ message = '暂无数据', action }: EmptyStateProps
   return (
     <div className="flex min-h-[400px] items-center justify-center" data-testid="empty-state">
       <div className="text-center">
-        <p className="text-sm text-gray-500">{message}</p>
+        <p className="text-sm text-muted-foreground">{message}</p>
         {action && <div className="mt-4">{action}</div>}
       </div>
     </div>

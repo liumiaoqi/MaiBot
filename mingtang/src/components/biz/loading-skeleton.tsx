@@ -10,7 +10,7 @@ interface LoadingSkeletonProps {
 export function LoadingSkeleton({ rows = 3, message }: LoadingSkeletonProps) {
   return (
     <div className="space-y-4 p-6" data-testid="loading-skeleton">
-      {message && <p className="text-sm text-gray-500">{message}</p>}
+      {message && <p className="text-sm text-muted-foreground">{message}</p>}
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}

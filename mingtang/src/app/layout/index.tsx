@@ -40,15 +40,15 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* 移动端遮罩（侧边栏打开时） */}
+      {/* 移动端遮罩（侧边栏打开时——淡遮罩，内容让位模式下主要防误触） */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* 侧边栏——桌面静态 / 移动端抽屉 */}
+      {/* 侧边栏——桌面静态 / 移动端抽屉（fixed 浮层） */}
       <div
         className={cn(
           'fixed inset-y-0 left-0 z-50 -translate-x-full transition-transform duration-200 lg:static lg:translate-x-0',
@@ -58,8 +58,13 @@ export function Layout({ children }: LayoutProps) {
         <Sidebar onNavigate={() => setSidebarOpen(false)} />
       </div>
 
-      {/* 主区域 */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      {/* 主区域——移动端抽屉打开时内容让位（ml 推开，与原版侧边栏占位行为一致） */}
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-200',
+          sidebarOpen ? 'ml-[var(--layout-sidebar-width,240px)] lg:ml-0' : 'ml-0'
+        )}
+      >
         {/* 顶栏 */}
         <Topbar
           onMenuClick={() => setSidebarOpen((v) => !v)}

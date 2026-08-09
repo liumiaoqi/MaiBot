@@ -18,7 +18,7 @@ export function PageShell({ title, breadcrumb, children, actions }: PageShellPro
     <div className="min-h-screen bg-background" data-testid="page-shell">
       <header className="border-b border-border px-6 py-4">
         {breadcrumb && breadcrumb.length > 0 && (
-          <nav className="mb-2 text-sm text-gray-500" aria-label="面包屑">
+          <nav className="mb-2 text-sm text-muted-foreground" aria-label="面包屑">
             {breadcrumb.map((item, i) => (
               <span key={i}>
                 {i > 0 && <span className="mx-2">/</span>}
