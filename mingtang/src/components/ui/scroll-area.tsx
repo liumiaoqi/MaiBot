@@ -3,24 +3,48 @@ import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area'
 
 import { cn } from '@/lib/utils'
 
+/**
+ * ScrollArea 滚动区域组件（shadcn/ui 基础 + chat 域扩展）。
+ *
+ * R1 基础版仅支持标准 shadcn props；R3 chat 域 MessageList 需要
+ * viewportRef（scrollToMessage 跳转）/ contentClassName / viewportClassName /
+ * scrollbars 控制——扩展为可选 props，不传时行为不变（向后兼容 R1/R2/TE）。
+ */
+interface ScrollAreaProps
+  extends React.ComponentProps<typeof ScrollAreaPrimitive.Root> {
+  viewportRef?: React.RefObject<HTMLDivElement | null>
+  viewportClassName?: string
+  contentClassName?: string
+  scrollbars?: 'vertical' | 'horizontal' | 'both'
+}
+
 function ScrollArea({
   className,
   children,
+  viewportRef,
+  viewportClassName,
+  contentClassName,
+  scrollbars = 'both',
   ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+}: ScrollAreaProps) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn('relative', className)}
+      className={cn('relative overflow-hidden', className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
+        ref={viewportRef}
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+        className={cn(
+          'h-full w-full overscroll-contain rounded-[inherit] ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none [&>div]:!block [&>div]:!min-w-0 [&>div]:w-full',
+          viewportClassName
+        )}
       >
-        {children}
+        <div className={cn('!block h-full w-full !min-w-0', contentClassName)}>{children}</div>
       </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
+      {scrollbars !== 'horizontal' && <ScrollBar />}
+      {scrollbars !== 'vertical' && <ScrollBar orientation="horizontal" />}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )

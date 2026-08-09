@@ -133,3 +133,16 @@ select {
     --color-ring: #55AB49;
   }
 }
+
+/* ============================================================================
+ * chat-management 横向滚动动画（HoverScrollText 组件）
+ * ============================================================================ */
+@keyframes chat-management-text-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(var(--scroll-container-width) - 100%));
+  }
+}
+

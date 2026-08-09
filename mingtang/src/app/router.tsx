@@ -16,6 +16,8 @@ import { ModelPresetsPage } from '../features/config/model-presets'
 import { PromptGeneratorPage } from '../features/config/prompt-generator'
 import { PackMarketPage } from '../features/config/pack-market'
 import { PackDetailPage } from '../features/config/pack-detail'
+import { ChatPage } from '../features/chat'
+import { ChatManagementPage } from '../features/chat/chat-management'
 
 // 根路由
 const rootRoute = createRootRoute({
@@ -33,7 +35,7 @@ const protectedRoute = createRoute({
   ),
 })
 
-/** config 域 9 页使用实际页面组件，其余域占位 */
+/** config 域 9 页 + chat 域 1 页使用实际页面组件，其余域占位 */
 const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/config/bot': () => <BotConfigPage />,
   '/config/model': () => <ModelConfigPage />,
@@ -44,6 +46,8 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/config/pack-market': () => <PackMarketPage />,
   '/config/pack-market/$packId': () => <PackDetailPage />,
   '/appearance': () => <AppearancePage />,
+  '/chat': () => <ChatPage />,
+  '/chat-management': () => <ChatManagementPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */
