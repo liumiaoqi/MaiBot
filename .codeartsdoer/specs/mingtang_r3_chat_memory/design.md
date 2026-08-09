@@ -1101,7 +1101,7 @@ mingtang/src/
 | @tanstack/react-router | 1.170.23 | R3 路由（4 页映射） | R1 基线 |
 | @tanstack/react-query | 5.101.4 | R3 数据流 + 乐观更新（useMutation） | R1 基线 |
 | @tanstack/react-virtual | （R1 已装） | MessageList 虚拟化 | R3 消费 |
-| reactflow | （R1 已装） | GraphVisualization 画布 | R3 消费 |
+| @xyflow/react（reactflow v12 新名） | **R3-4 新增**（2026-08-09 修正——原写'R1 已装'有误，从未安装） | GraphVisualization 画布 | R3 消费 |
 | framer-motion | （R1 已装） | ChatTabBar / 重放面板动画 | R3 消费 |
 
 ## 3.6 乐观更新设计（REQ-R3-20——硬决策 #6）

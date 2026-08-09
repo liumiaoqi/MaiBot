@@ -16,7 +16,7 @@
 
 | 阶段 | 任务数 | 内容 | 工作量 |
 |------|--------|------|--------|
-| R3-1 /chat 聊天主界面 | 7 | types/utils + 虚拟化消息列表 + 12 段渲染 + 发送+乐观更新 + 标签+侧栏 + 孤儿补全 + 主组件组装 | ~3-4 人日 |
+| R3-1 /chat 聊天主界面 | 7 | types/utils + 消息列表（ScrollArea 务实方案）+ 12 段渲染 + 发送+乐观更新 + 标签+侧栏 + 孤儿补全 + 主组件组装 | ~3-4 人日 |
 | R3-2 /chat-management 会话档案管理 | 5 | 工具函数+HoverScrollText + 时间轴编辑器 + 五区块 + groups+删除流 + 主组件组装 | ~2-3 人日 |
 | R3-3 /reasoning-process 推理过程 | 6 | 工具簇四组抽 lib + 重放子系统 + 推理展示组件 + 主页面+双模式 + 匿名导出+嵌入 + 路由映射 | ~3-4 人日 |
 | R3-4 /resource/knowledge-graph 记忆图谱 | 6 | GraphVisualization 整体搬 + GraphDialogs 整体搬 + types + 主组件重组 + 删除闭环+深链 + 路由映射 | ~2-3 人日 |
@@ -45,6 +45,7 @@
 - **目录结构以蓝皮书为准**（改动位于 features/chat/ + features/memory/ + features/resource/ + features/home/ + app/router.tsx——不一致 = 打回）
 - **不提交无边界的格式化 / 导入整理**（AGENTS.md 默认原则 #1 沿用）
 - **大文件不搬**：reasoning-process 3415 行三刀切 / knowledge-graph index 1112 行重组 / chat-management 2397 行按切分抓手拆分——不整体搬大文件
+- **依赖决策（2026-08-09 确认）**：新增 @xyflow/react（R3-4 图谱画布——原版 reactflow 依赖）+ @radix-ui/react-avatar（头像——与现有 8 个 radix 包一致）；**不装 framer-motion**（原版也不用——动画走 CSS transition + 现有 --animation-* token）；**toast 统一 sonner**（已装——原版 useToast 适配为 sonner，不引入两套）
 - **ws 三件套直接消费**：lib/ws 三件套已搬移，页面直接消费不重写 ws 层
 - **TE 编码教训沿用**（11 个——spec.md §4.4 #8）：hook 改 Context 测试需包裹 Provider / Partial<T> 非深 Partial / 测试避免 Node.js 模块用 ?raw / Set<字面量联合> 用 Set<string> / spread 不验证接口属性用内联 / HSL 低饱和度色相不稳定
 
@@ -80,23 +81,23 @@
 
 ---
 
-### R3-1-2：MessageList 虚拟化 + MessageRenderer 12 段类型
+### R3-1-2：MessageList（ScrollArea + map——务实沿用）+ MessageRenderer 12 段类型
 
 - [ ] **R3-1-2**
-  - **描述**：搬移适配 MessageList（564 行——@tanstack/react-virtual 虚拟化）+ MessageRenderer（282 行——12 段类型 switch）+ ChatScrollContext（14 行——scrollToMessage 跨组件接口）
+  - **描述**：搬移适配 MessageList（原版 290 行——ScrollArea + map，**未虚拟化**——2026-08-09 决策 A 确认：SSD 盘点"564 行虚拟化"有误）+ MessageRenderer（282 行——12 段类型 switch）+ ChatScrollContext（14 行——scrollToMessage 跨组件接口）
   - **涉及文件**：
-    - 新建 `mingtang/src/features/chat/components/message-list.tsx`（虚拟化 + 分组/滚动锚点/scrollToMessage 高亮/状态指示三圆点脉冲/空态欢迎页/语音播放行常驻）
+    - 新建 `mingtang/src/features/chat/components/message-list.tsx`（ScrollArea + map 分组渲染/滚动锚点/scrollToMessage 高亮/状态指示三圆点脉冲/空态欢迎页/语音播放行常驻——对齐原版行为等价）
     - 新建 `mingtang/src/features/chat/components/message-renderer.tsx`（12 段类型 switch——text/image/emoji/voice/video/face/music/file/forward/unknown/reply/at——reply 独立块 + scrollToMessage 跳转）
     - 新建 `mingtang/src/features/chat/components/chat-scroll-context.tsx`（scrollToMessage 跨组件接口）
     - 新建 `mingtang/src/features/chat/__tests__/message-list.test.tsx`（测试先行）
     - 新建 `mingtang/src/features/chat/__tests__/message-renderer.test.tsx`（测试先行）
   - **实现内容**：
-    - MessageList：@tanstack/react-virtual estimateSize 96/overscan 8 + 分组/滚动锚点/scrollToMessage 高亮/状态指示三圆点脉冲/空态欢迎页/语音播放行常驻
+    - MessageList：ScrollArea + map 分组渲染（对齐原版——不虚拟化；聊天会话消息量场景 ScrollArea 足够，虚拟化引入滚动锚定复杂度不值——如未来消息量暴增再优化渲染层）
     - MessageRenderer：12 段类型 switch——reply 段独立块 + scrollToMessage 跳转
     - ChatScrollContext：Context 提供 scrollToMessage
     - 新写法：React 19 Context 直接当 provider
   - **配套测试**（测试先行）：
-    - MessageList 虚拟化 1000 条不卡顿 + 分组 + 滚动锚点 + scrollToMessage 高亮 + 空态欢迎页
+    - MessageList 分组 + 滚动锚点 + scrollToMessage 高亮 + 空态欢迎页 + 1000 条渲染（ScrollArea 不卡顿——jsdom 渲染断言 + 分组结构）
     - MessageRenderer 12 段类型各渲染正确 + reply 独立块 + scrollToMessage 跳转
     - ChatScrollContext scrollToMessage 跨组件接口
   - **验收条件**：`pnpm run test -- message-list` 全绿 + `pnpm run test -- message-renderer` 全绿
@@ -689,13 +690,13 @@
   - **涉及文件**：
     - 运行 `pnpm run build`（build 绿验证）
     - 运行 `pnpm run test`（test 全绿 + 数量增长验证）
-    - 运行 `pnpm run lint`（lint 豁免期——不依赖 TS API 的规则全绿）
+    - 运行 `pnpm run lint`（lint 全量绿——2026-08-09 TS 7/6 并存方案恢复，0 错 0 警）
     - 验证大文件不搬（reasoning-process 无 2000+ 行 + knowledge-graph 无 1000+ 行 + chat-management 无 2397 行）
     - 验证蓝皮书一致（目录/组件/数据流/导航/页面模板）
   - **实现内容**：
     - build 绿：`pnpm run build` 通过（沿用 R1/R2/TE 基线）
     - test 绿：`pnpm run test` 全绿，测试数量相对 TE 的 433 增长（chat 域 2 页 + memory 域 2 页 + ws 消息处理 + 重放 + 图谱交互 + 乐观更新配套测试）
-    - lint（豁免期）绿：`pnpm run lint` 不依赖 TS API 的规则全绿（TS 类型专项规则豁免——R1 决策沿用）
+    - lint 全量绿：`pnpm run lint` 0 错 0 警（2026-08-09 TS 7/6 并存方案恢复——typescript-eslint 8.66 通过 TS 6.0.3 满足 peer）
     - 大文件不搬验证：reasoning-process 无 2000+ 行（三刀切后重放子系统 ≤650 行 + 工具簇抽 lib + 主页面 ≤合理行数）；knowledge-graph index 重组后无 1000+ 行；chat-management 无 2397 行
     - 蓝皮书一致：目录/组件/数据流/导航/页面模板对照蓝皮书定稿
     - 36 页路由不回归：R1/R2/TE 已建的 36 页路由全部保持可达
@@ -704,7 +705,7 @@
   - **验收条件**：
     - `pnpm run build` 绿
     - `pnpm run test` 全绿 + 数量 > 433
-    - `pnpm run lint`（豁免期）绿
+    - `pnpm run lint` 0 错 0 警（全量绿）
     - 大文件不搬验证通过
     - 蓝皮书一致验证通过
     - 36 页路由不回归验证通过
@@ -809,7 +810,7 @@ R352 --> R353
 
 | 需求 | 验收条件 | 任务 |
 |------|---------|------|
-| REQ-R3-01 WS 消息流 | 8 类型渲染 + 虚拟化 1000 条 + 12 段类型 + 去重 + history 1000 条 + ws 直接消费 | R3-1-1 + R3-1-2 + R3-1-6 |
+| REQ-R3-01 WS 消息流 | 8 类型渲染 + 消息列表（ScrollArea 务实方案——2026-08-09 决策 A）+ 12 段类型 + 去重 + history 1000 条 + ws 直接消费 | R3-1-1 + R3-1-2 + R3-1-6 |
 | REQ-R3-02 多标签 | 打开/切换/关闭/恢复 + 首个固定 webui-default + 虚拟标签 localStorage | R3-1-4 + R3-1-6 |
 | REQ-R3-03 发送+乐观更新 | ChatComposer + Enter 发送 + 图片 8 张 + 乐观回显 ≤16ms + 失败回滚 ≤100ms | R3-1-3 |
 | REQ-R3-04 身份+运行状态 | 昵称/头像 5MB + 5 事件订阅 + resolveStatusKind + matchesMonitorTarget + 三圆点脉冲 | R3-1-5 |
