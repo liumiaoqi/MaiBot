@@ -96,7 +96,7 @@ export function PackMarketPage() {
                 data-testid={`pack-card-${pack.id}`}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold" text-foreground>{pack.name}</h3>
+                  <h3 className="font-semibold text-foreground">{pack.name}</h3>
                   <span className="text-xs text-muted-foreground">v{pack.version}</span>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-2">{pack.description}</p>

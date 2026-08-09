@@ -68,7 +68,7 @@ export function MCPSettingsPage() {
       {isLoading ? <LoadingSkeleton /> : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold" text-foreground>MCP 服务列表</h3>
+            <h3 className="font-semibold text-foreground">MCP 服务列表</h3>
             <Button size="sm" variant="outline" onClick={addServer} data-testid="mcp-add-server">
               <Plus className="h-4 w-4 mr-1" />
               添加服务

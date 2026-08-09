@@ -232,8 +232,8 @@
       "confirmResetTheme": "テーマのリセットを確認",
       "confirmResetThemeDesc": "これにより、色、フォント、レイアウト、カスタム CSS を含むすべてのテーマ設定がデフォルトにリセットされます。この操作は元に戻せません。よろしいですか？",
       "confirmResetAction": "リセットを確認",
-      "cssWarningTitle": "以下の内容はセキュリティフィルターされました：",
-      "cssPlaceholder": "/* カスタム CSS をここに入力 */\n\n/* 例： */\n/* .sidebar { background: #1a1a2e; } */",
+      "cssWarningTitle": "警告",
+      "cssPlaceholder": "カスタム CSS を入力…",
       "cssDescription": "カスタム CSS を記述して、インターフェースをさらにカスタマイズしてください。危険な CSS（@import、url() など）は自動的にフィルターされます。",
       "clearCss": "クリア",
       "exportDesc": "テーマを JSON ファイルとしてエクスポートして共有またはバックアップ。インポート時にすべての設定が自動適用されます。",
@@ -241,7 +241,7 @@
       "resetSuccessDesc": "テーマがデフォルトにリセットされました",
       "enableAnimations": "アニメーションを有効にする",
       "enableAnimationsDesc": "無効にすると、すべてのトランジションアニメーションとエフェクトが無効化されパフォーマンスが向上します",
-      "inheritParentBg": "上位背景を継承",
+      "inheritParentBg": "背景を継承",
       "inheritParentBgDesc": "有効にすると上位レイヤーの背景設定を使用します",
       "fontFamilyLabel": "フォントファミリー",
       "fontFamilyPlaceholder": "フォントファミリーを選択",
@@ -286,7 +286,10 @@
       "frTextureStyle": "テクスチャスタイル",
       "frTextureIntensity": "テクスチャ強度",
       "frPanelDepth": "パネルの深さ",
-      "frStrokeScale": "ストローク倍率"
+      "frStrokeScale": "ストローク倍率",
+      "bgHeader": "ヘッダー",
+      "bgCard": "カード",
+      "bgDialog": "ダイアログ"
     },
     "security": {
       "currentToken": "現在のアクセストークン",

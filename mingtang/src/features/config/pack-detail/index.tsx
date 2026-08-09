@@ -98,7 +98,7 @@ export function PackDetailPage() {
           {/* 应用向导 */}
           {wizardOpen && (
             <div className="rounded-md border p-4 space-y-4" data-testid="pack-wizard">
-              <h3 className="font-semibold" text-foreground>应用向导（步骤 {wizardStep}/3）</h3>
+              <h3 className="font-semibold text-foreground">应用向导（步骤 {wizardStep}/3）</h3>
 
               {wizardStep === 1 && (
                 <div className="space-y-2" data-testid="pack-wizard-step1">

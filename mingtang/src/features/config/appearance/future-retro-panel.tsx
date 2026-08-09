@@ -57,7 +57,7 @@ export function FutureRetroPanel() {
       <div className="flex justify-end">
         <button
           onClick={handleReset}
-          className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"
+          className="px-3 py-1.5 rounded-md border border-border text-sm text-foreground hover:bg-muted"
           data-testid="fr-reset-default"
         >
           {t('settings.appearance.resetDefault')}
@@ -116,7 +116,7 @@ export function FutureRetroPanel() {
                     : undefined
                 }
               >
-                <span className="text-xs">{style}</span>
+                <span className="text-xs text-foreground">{style}</span>
               </button>
             )
           })}

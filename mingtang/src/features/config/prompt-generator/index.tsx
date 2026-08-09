@@ -66,7 +66,7 @@ export function PromptGeneratorPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 左栏：生成输入 */}
         <div className="space-y-3" data-testid="pg-input-panel">
-          <h3 className="font-semibold" text-foreground>生成输入</h3>
+          <h3 className="font-semibold text-foreground">生成输入</h3>
           <div>
             <label className="text-xs text-muted-foreground">模型</label>
             <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full px-2 py-1 text-sm rounded border border-border bg-background" data-testid="pg-model" />
@@ -124,7 +124,7 @@ export function PromptGeneratorPage() {
           {/* 已保存人设 */}
           {savedPersonas.length > 0 && (
             <div className="space-y-1" data-testid="pg-saved-personas">
-              <h4 className="text-sm font-medium" text-foreground>已保存人设</h4>
+              <h4 className="text-sm font-medium text-foreground">已保存人设</h4>
               {savedPersonas.map((p, i) => (
                 <div key={i} className="text-xs text-muted-foreground">{p.name}</div>
               ))}

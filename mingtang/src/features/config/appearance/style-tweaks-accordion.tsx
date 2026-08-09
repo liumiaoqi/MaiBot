@@ -84,20 +84,20 @@ export function StyleTweaksAccordion() {
       {/* ① typography */}
       <div data-testid="accordion-group-typography" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold" text-foreground>{t('settings.appearance.typographyGroup')}</h3>
+          <h3 className="font-semibold text-foreground">{t('settings.appearance.typographyGroup')}</h3>
           <button data-testid="reset-typography" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
         </div>
         <div className="space-y-2">
-          <select data-testid="font-family-select" className="w-full rounded-md border px-3 py-2">
+          <select data-testid="font-family-select" className="w-full rounded-md border border-border px-3 py-2 text-foreground">
             <option value="system">{t('settings.appearance.fontFamilySystem')}</option>
             <option value="sans">{t('settings.appearance.fontFamilySans')}</option>
             <option value="serif">{t('settings.appearance.fontFamilySerif')}</option>
             <option value="mono">{t('settings.appearance.fontFamilyMono')}</option>
           </select>
           <input type="range" min={12} max={20} defaultValue={16} data-testid="font-size-slider" className="w-full" onChange={handleFontSizeChange} />
-          <select data-testid="line-height-select" className="w-full rounded-md border px-3 py-2">
+          <select data-testid="line-height-select" className="w-full rounded-md border border-border px-3 py-2 text-foreground">
             <option value="1.2">{t('settings.appearance.lineHeightCompact')}</option>
             <option value="1.5">{t('settings.appearance.lineHeightNormal')}</option>
             <option value="1.75">{t('settings.appearance.lineHeightLoose')}</option>
@@ -108,14 +108,14 @@ export function StyleTweaksAccordion() {
       {/* ② visual */}
       <div data-testid="accordion-group-visual" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold" text-foreground>{t('settings.appearance.visualGroup')}</h3>
+          <h3 className="font-semibold text-foreground">{t('settings.appearance.visualGroup')}</h3>
           <button data-testid="reset-visual" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
         </div>
         <div className="space-y-2">
           <input type="range" min={0} max={24} defaultValue={4} data-testid="border-radius-slider" className="w-full" onChange={handleBorderRadiusChange} />
-          <select data-testid="shadow-select" className="w-full rounded-md border px-3 py-2" onChange={handleShadowChange}>
+          <select data-testid="shadow-select" className="w-full rounded-md border border-border px-3 py-2 text-foreground" onChange={handleShadowChange}>
             <option value="none">{t('settings.appearance.shadowNone')}</option>
             <option value="sm">{t('settings.appearance.shadowSm')}</option>
             <option value="md">{t('settings.appearance.shadowMd')}</option>
@@ -132,7 +132,7 @@ export function StyleTweaksAccordion() {
       {/* ③ layout */}
       <div data-testid="accordion-group-layout" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold" text-foreground>{t('settings.appearance.layoutGroup')}</h3>
+          <h3 className="font-semibold text-foreground">{t('settings.appearance.layoutGroup')}</h3>
           <button data-testid="reset-layout" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
@@ -143,13 +143,13 @@ export function StyleTweaksAccordion() {
       {/* ④ animation */}
       <div data-testid="accordion-group-animation" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold" text-foreground>{t('settings.appearance.animationGroup')}</h3>
+          <h3 className="font-semibold text-foreground">{t('settings.appearance.animationGroup')}</h3>
           <button data-testid="reset-animation" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
         </div>
         <div className="space-y-2">
-          <select data-testid="animation-speed-select" className="w-full rounded-md border px-3 py-2">
+          <select data-testid="animation-speed-select" className="w-full rounded-md border border-border px-3 py-2 text-foreground">
             <option value="100">{t('settings.appearance.animationFast')}</option>
             <option value="300">{t('settings.appearance.animationNormal')}</option>
             <option value="500">{t('settings.appearance.animationSlow')}</option>
@@ -170,7 +170,7 @@ export function StyleTweaksAccordion() {
       {/* ⑤ backgrounds */}
       <div data-testid="accordion-group-backgrounds" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold" text-foreground>{t('settings.appearance.backgroundGroup')}</h3>
+          <h3 className="font-semibold text-foreground">{t('settings.appearance.backgroundGroup')}</h3>
           <button data-testid="reset-backgrounds" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
@@ -182,7 +182,7 @@ export function StyleTweaksAccordion() {
               onClick={() => setBgTab(tab)}
               data-testid={`bg-tab-${tab}`}
               className={cn(
-                'px-3 py-1.5 rounded-md border text-sm',
+                'px-3 py-1.5 rounded-md border text-sm text-foreground',
                 bgTab === tab ? 'border-primary bg-primary/5' : 'border-border'
               )}
             >

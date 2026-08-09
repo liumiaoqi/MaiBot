@@ -232,8 +232,8 @@
       "confirmResetTheme": "确认重置主题",
       "confirmResetThemeDesc": "这将重置所有主题设置为默认值，包括颜色、字体、布局和自定义 CSS。此操作不可撤销，确定要继续吗？",
       "confirmResetAction": "确认重置",
-      "cssWarningTitle": "以下内容已被安全过滤：",
-      "cssPlaceholder": "/* 在这里输入自定义 CSS */\n\n/* 例如: */\n/* .sidebar { background: #1a1a2e; } */",
+      "cssWarningTitle": "警告",
+      "cssPlaceholder": "在此输入自定义 CSS…",
       "cssDescription": "编写自定义 CSS 来进一步个性化界面。危险的 CSS（如 @import、url()）将被自动过滤。",
       "clearCss": "清除",
       "exportDesc": "导出主题为 JSON 文件便于分享或备份，导入时会自动应用所有配置。",
@@ -241,7 +241,7 @@
       "resetSuccessDesc": "主题已重置为默认值",
       "enableAnimations": "启用动画效果",
       "enableAnimationsDesc": "关闭后将禁用所有过渡动画和特效，提升性能",
-      "inheritParentBg": "继承上级背景",
+      "inheritParentBg": "继承界面背景",
       "inheritParentBgDesc": "开启后将使用上级层级的背景配置",
       "fontFamilyLabel": "字体族 (Font Family)",
       "fontFamilyPlaceholder": "选择字体族",
@@ -286,7 +286,10 @@
       "frTextureStyle": "纹理风格",
       "frTextureIntensity": "纹理强度",
       "frPanelDepth": "面板深度",
-      "frStrokeScale": "描边比例"
+      "frStrokeScale": "描边比例",
+      "bgHeader": "顶栏",
+      "bgCard": "卡片",
+      "bgDialog": "对话框"
     },
     "security": {
       "currentToken": "当前 Access Token",

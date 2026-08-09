@@ -46,21 +46,21 @@ export function ThemeIO() {
       <div className="flex gap-2">
         <button
           onClick={handleExport}
-          className="px-4 py-2 rounded-md border border-border hover:bg-muted"
+          className="px-4 py-2 rounded-md border border-border text-foreground hover:bg-muted"
           data-testid="theme-export-btn"
         >
           {t('settings.appearance.exportTheme')}
         </button>
         <button
           onClick={handleImport}
-          className="px-4 py-2 rounded-md border border-border hover:bg-muted"
+          className="px-4 py-2 rounded-md border border-border text-foreground hover:bg-muted"
           data-testid="theme-import-btn"
         >
           {t('settings.appearance.importTheme')}
         </button>
         <button
           onClick={() => setResetDialogOpen(true)}
-          className="px-4 py-2 rounded-md border border-destructive text-destructive hover:bg-destructive/10"
+          className="px-4 py-2 rounded-md border border-border text-muted-foreground hover:bg-muted"
           data-testid="theme-reset-btn"
         >
           {t('settings.appearance.resetTheme')}
@@ -79,7 +79,7 @@ export function ThemeIO() {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setResetDialogOpen(false)}
-                className="px-4 py-2 rounded-md border border-border hover:bg-muted"
+                className="px-4 py-2 rounded-md border border-border text-foreground hover:bg-muted"
                 data-testid="theme-reset-cancel"
               >
                 {t('settings.appearance.clearCss')}

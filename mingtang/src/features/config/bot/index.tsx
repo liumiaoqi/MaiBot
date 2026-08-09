@@ -164,7 +164,7 @@ export function BotConfigPage() {
                     className={`rounded-lg border ${section.color} p-4 space-y-2`}
                     data-testid={`bot-core-${section.key}`}
                   >
-                    <h3 className="font-semibold text-lg" text-foreground>{section.label}</h3>
+                    <h3 className="font-semibold text-lg text-foreground">{section.label}</h3>
                     <p className="text-sm text-muted-foreground">
                       {sectionData ? `${Object.keys(sectionData as object).length} 项配置` : '未配置'}
                     </p>

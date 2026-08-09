@@ -62,22 +62,20 @@ export function CustomCssEditor() {
         placeholder={t('settings.appearance.cssPlaceholder')}
         data-testid="custom-css-textarea"
       />
-      {/* 黄色警告区 */}
-      <div
-        data-testid="custom-css-warnings"
-        className="rounded-md bg-yellow-50 border border-yellow-200 p-2 text-xs text-yellow-800"
-      >
-        {warnings.length > 0 && (
-          <>
-            <p className="font-semibold">{t('settings.appearance.cssWarningTitle')}</p>
-            <ul className="list-disc list-inside">
-              {warnings.map((w, i) => (
-                <li key={i}>{w}</li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
+      {/* 黄色警告区——无警告时不渲染（避免空黄条——2026-08-09 用户反馈） */}
+      {warnings.length > 0 && (
+        <div
+          data-testid="custom-css-warnings"
+          className="rounded-md bg-yellow-50 border border-yellow-200 p-2 text-xs text-yellow-800"
+        >
+          <p className="font-semibold">{t('settings.appearance.cssWarningTitle')}</p>
+          <ul className="list-disc list-inside">
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

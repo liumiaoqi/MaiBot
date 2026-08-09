@@ -232,8 +232,8 @@
       "confirmResetTheme": "Confirm Reset Theme",
       "confirmResetThemeDesc": "This will reset all theme settings to default, including colors, fonts, layout and custom CSS. This cannot be undone, are you sure?",
       "confirmResetAction": "Confirm Reset",
-      "cssWarningTitle": "The following have been filtered for safety:",
-      "cssPlaceholder": "/* Enter custom CSS here */\n\n/* Example: */\n/* .sidebar { background: #1a1a2e; } */",
+      "cssWarningTitle": "Warnings",
+      "cssPlaceholder": "Enter custom CSS here…",
       "cssDescription": "Write custom CSS to further personalize the interface. Dangerous CSS (like @import, url()) will be automatically filtered.",
       "clearCss": "Clear",
       "exportDesc": "Export theme as a JSON file for sharing or backup; all settings will be applied automatically on import.",
@@ -241,7 +241,7 @@
       "resetSuccessDesc": "Theme has been reset to default",
       "enableAnimations": "Enable Animations",
       "enableAnimationsDesc": "Disabling this will turn off all transition animations and effects, improving performance",
-      "inheritParentBg": "Inherit Parent Background",
+      "inheritParentBg": "Inherit page background",
       "inheritParentBgDesc": "When enabled, uses the background config from the parent layer",
       "fontFamilyLabel": "Font Family",
       "fontFamilyPlaceholder": "Select font family",
@@ -286,7 +286,10 @@
       "frTextureStyle": "Texture Style",
       "frTextureIntensity": "Texture Intensity",
       "frPanelDepth": "Panel Depth",
-      "frStrokeScale": "Stroke Scale"
+      "frStrokeScale": "Stroke Scale",
+      "bgHeader": "Header",
+      "bgCard": "Card",
+      "bgDialog": "Dialog"
     },
     "security": {
       "currentToken": "Current Access Token",

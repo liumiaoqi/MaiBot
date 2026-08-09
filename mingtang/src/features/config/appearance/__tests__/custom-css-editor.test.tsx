@@ -15,11 +15,11 @@ describe('R2-1-6：CustomCssEditor 自定义 CSS 编辑器', () => {
     localStorage.clear()
   })
 
-  it('渲染 CodeEditor + 清除按钮 + 黄色警告区', () => {
+  it('渲染 CodeEditor + 清除按钮——无警告时警告区不渲染（空黄条移除）', () => {
     render(<CustomCssEditor />)
     expect(screen.getByTestId('custom-css-textarea')).toBeInTheDocument()
     expect(screen.getByTestId('custom-css-clear')).toBeInTheDocument()
-    expect(screen.getByTestId('custom-css-warnings')).toBeInTheDocument()
+    expect(screen.queryByTestId('custom-css-warnings')).not.toBeInTheDocument()
   })
 
   it('编辑 CSS → 500ms debounce 后保存原文', async () => {
@@ -48,11 +48,10 @@ describe('R2-1-6：CustomCssEditor 自定义 CSS 编辑器', () => {
     expect(textarea.value).toBe('')
   })
 
-  it('安全 CSS 无警告', () => {
+  it('安全 CSS 无警告——警告区不渲染', () => {
     render(<CustomCssEditor />)
     const textarea = screen.getByTestId('custom-css-textarea') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '.test { color: red; }' } })
-    const warnings = screen.getByTestId('custom-css-warnings')
-    expect(warnings.textContent).toBe('')
+    expect(screen.queryByTestId('custom-css-warnings')).not.toBeInTheDocument()
   })
 })

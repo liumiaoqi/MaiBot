@@ -108,6 +108,7 @@ describe('TE-1-1：AppearancePage 跨组件状态共享（dashboardStyle Context
       expect(screen.getByTestId('custom-css-textarea')).toBeInTheDocument()
     })
     expect(screen.getByTestId('custom-css-clear')).toBeInTheDocument()
-    expect(screen.getByTestId('custom-css-warnings')).toBeInTheDocument()
+    // 无警告时警告区不渲染（2026-08-09 空黄条移除）
+    expect(screen.queryByTestId('custom-css-warnings')).not.toBeInTheDocument()
   })
 })
