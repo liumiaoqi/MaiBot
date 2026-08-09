@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
+import { applyThemePipeline } from '@/lib/theme/pipeline'
 import { buildFutureRetroTexture } from '@/lib/theme/future-retro'
 import {
   DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
@@ -24,17 +25,20 @@ export function FutureRetroPanel() {
   const [fontSize, setFontSize] = useState(16)
   const isDark = document.documentElement.classList.contains('dark')
 
-  /** 即拖即生效——更新参数并写入 localStorage */
+  /** 即拖即生效——更新参数并写入 localStorage + 重跑 pipeline */
   const updateConfig = useCallback((partial: Partial<FutureRetroStyleConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...partial }
       const themeConfig = loadThemeConfig()
-      saveThemePartial({
+      const updatedConfig = {
         styleConfig: {
           ...themeConfig.styleConfig,
           futureRetro: next,
         },
-      })
+      }
+      saveThemePartial(updatedConfig)
+      const isDark = document.documentElement.classList.contains('dark')
+      applyThemePipeline(loadThemeConfig(), isDark)
       return next
     })
   }, [])

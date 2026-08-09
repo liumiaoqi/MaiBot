@@ -1,6 +1,29 @@
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
+import { applyThemePipeline } from '@/lib/theme/pipeline'
+import type { ThemeTokens, StyleTokenOverrides } from '@/lib/theme/tokens'
+
+/** 深层部分类型——允许只传子对象的部分字段 */
+type DeepPartial<T> = {
+  [K in keyof T]?: Partial<T[K]>
+}
+
+/** 保存 styleTokenOverrides 并重跑 pipeline */
+function applyStyleOverride(overrides: DeepPartial<ThemeTokens>) {
+  const config = loadThemeConfig()
+  const dashboardStyle = config.dashboardStyle ?? 'modern'
+  const currentOverrides: StyleTokenOverrides = config.styleTokenOverrides ?? {}
+  const styleSpecific = currentOverrides[dashboardStyle] ?? {}
+  const next = {
+    ...config.styleTokenOverrides,
+    [dashboardStyle]: { ...styleSpecific, ...overrides },
+  } as StyleTokenOverrides
+  saveThemePartial({ styleTokenOverrides: next })
+  const isDark = document.documentElement.classList.contains('dark')
+  applyThemePipeline(loadThemeConfig(), isDark)
+}
 
 /** 样式微调手风琴组件（modern——五组 typography/visual/layout/animation/backgrounds） */
 export function StyleTweaksAccordion() {
@@ -14,6 +37,33 @@ export function StyleTweaksAccordion() {
       document.documentElement.classList.toggle('no-animations', !next)
       return next
     })
+  }, [])
+
+  const handleFontSizeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const rem = Number(e.target.value) / 16
+    applyStyleOverride({ typography: { 'font-size-base': `${rem}rem` } })
+  }, [])
+
+  const handleBorderRadiusChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const px = `${e.target.value}px`
+    applyStyleOverride({ visual: { 'radius-sm': px, 'radius-md': px, 'radius-lg': px, 'radius-xl': px } })
+  }, [])
+
+  const handleShadowChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    const shadowMap: Record<string, string> = {
+      none: 'none',
+      sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+      md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+      lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+      xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+    }
+    const shadow = shadowMap[value] ?? 'none'
+    applyStyleOverride({ visual: { 'shadow-sm': shadow, 'shadow-md': shadow, 'shadow-lg': shadow, 'shadow-xl': shadow } })
+  }, [])
+
+  const handleSidebarWidthChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    applyStyleOverride({ layout: { 'sidebar-width': `${e.target.value}rem` } })
   }, [])
 
   const bgTabs = ['page', 'sidebar', 'header', 'card', 'dialog'] as const
@@ -35,7 +85,7 @@ export function StyleTweaksAccordion() {
             <option value="serif">{t('settings.appearance.fontFamilySerif')}</option>
             <option value="mono">{t('settings.appearance.fontFamilyMono')}</option>
           </select>
-          <input type="range" min={12} max={20} defaultValue={16} data-testid="font-size-slider" className="w-full" />
+          <input type="range" min={12} max={20} defaultValue={16} data-testid="font-size-slider" className="w-full" onChange={handleFontSizeChange} />
           <select data-testid="line-height-select" className="w-full rounded-md border px-3 py-2">
             <option value="1.2">{t('settings.appearance.lineHeightCompact')}</option>
             <option value="1.5">{t('settings.appearance.lineHeightNormal')}</option>
@@ -53,8 +103,8 @@ export function StyleTweaksAccordion() {
           </button>
         </div>
         <div className="space-y-2">
-          <input type="range" min={0} max={24} defaultValue={4} data-testid="border-radius-slider" className="w-full" />
-          <select data-testid="shadow-select" className="w-full rounded-md border px-3 py-2">
+          <input type="range" min={0} max={24} defaultValue={4} data-testid="border-radius-slider" className="w-full" onChange={handleBorderRadiusChange} />
+          <select data-testid="shadow-select" className="w-full rounded-md border px-3 py-2" onChange={handleShadowChange}>
             <option value="none">{t('settings.appearance.shadowNone')}</option>
             <option value="sm">{t('settings.appearance.shadowSm')}</option>
             <option value="md">{t('settings.appearance.shadowMd')}</option>
@@ -76,7 +126,7 @@ export function StyleTweaksAccordion() {
             {t('settings.appearance.resetDefault')}
           </button>
         </div>
-        <input type="range" min={8} max={24} step={0.5} defaultValue={13} data-testid="sidebar-width-slider" className="w-full" />
+        <input type="range" min={8} max={24} step={0.5} defaultValue={13} data-testid="sidebar-width-slider" className="w-full" onChange={handleSidebarWidthChange} />
       </div>
 
       {/* ④ animation */}

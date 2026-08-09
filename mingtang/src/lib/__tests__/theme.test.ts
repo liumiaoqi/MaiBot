@@ -3,6 +3,7 @@ import {
   parseHSL,
   formatHSL,
   hexToHSL,
+  hslToHex,
   isValidHSLString,
   isDefaultAccentColor,
   DEFAULT_ACCENT_COLOR_HSL,
@@ -37,6 +38,18 @@ describe('R1-2-4：主题搬移行为等价', () => {
       const result = hexToHSL('#ff0000')
       expect(result).toContain('0%')
       expect(result).toContain('100%')
+    })
+
+    it('hslToHex 转换 HSL 字符串（默认 accent 绿）', () => {
+      expect(hslToHex(DEFAULT_ACCENT_COLOR_HSL)).toBe('#55ab49')
+      expect(hslToHex('0 0% 0%')).toBe('#000000')
+      expect(hslToHex('0 100% 100%')).toBe('#ffffff')
+      expect(hslToHex('invalid')).toBe('#000000')
+    })
+
+    it('hslToHex 与 hexToHSL 往返一致', () => {
+      const hsl = hexToHSL('#123456')
+      expect(hslToHex(hsl)).toBe('#123456')
     })
 
     it('isValidHSLString 校验 HSL 格式', () => {

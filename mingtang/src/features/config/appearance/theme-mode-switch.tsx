@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { THEME_STORAGE_KEYS } from '@/lib/theme/storage'
+import { THEME_STORAGE_KEYS, loadThemeConfig } from '@/lib/theme/storage'
+import { applyThemePipeline } from '@/lib/theme/pipeline'
 
 /** 主题模式：浅色 / 深色 / 跟随系统 */
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -34,9 +35,10 @@ export function useThemeMode() {
     ? (systemDark ? 'dark' : 'light')
     : mode
 
-  // 应用 dark 类到 document
+  // 应用 dark 类到 document + 重跑 pipeline（注入 CSS 变量）
   useEffect(() => {
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
+    applyThemePipeline(loadThemeConfig(), resolvedTheme === 'dark')
   }, [resolvedTheme])
 
   const setMode = useCallback((newMode: ThemeMode) => {

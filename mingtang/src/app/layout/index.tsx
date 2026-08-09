@@ -26,6 +26,18 @@ export function Layout({ children }: LayoutProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // 断点回弹：窗口 ≥1024px 时自动关闭移动端抽屉状态（防止 fixed/translate 状态残留导致与内容重叠）
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        setSidebarOpen(false)
+      }
+    }
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* 移动端遮罩（侧边栏打开时） */}

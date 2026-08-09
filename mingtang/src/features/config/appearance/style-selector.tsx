@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Monitor, ScanLine } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { THEME_STORAGE_KEYS } from '@/lib/theme/storage'
+import { THEME_STORAGE_KEYS, loadThemeConfig } from '@/lib/theme/storage'
+import { applyThemePipeline } from '@/lib/theme/pipeline'
 import { DEFAULT_DASHBOARD_STYLE, type DashboardStyle } from '@/lib/theme/tokens'
 import { updateBotConfigSection, getBotConfig } from '@/lib/config-api'
 
@@ -20,9 +21,11 @@ function readStoredStyle(): DashboardStyle {
 export function useDashboardStyle() {
   const [style, setStyleState] = useState<DashboardStyle>(readStoredStyle)
 
-  // dataset 副作用（挂载 + 变化时）
+  // dataset 副作用 + 重跑 pipeline（注入 future-retro/modern token 差异）
   useEffect(() => {
     document.documentElement.dataset.dashboardStyle = style
+    const isDark = document.documentElement.classList.contains('dark')
+    applyThemePipeline(loadThemeConfig(), isDark)
   }, [style])
 
   // focus/visibilitychange 反向同步（后端 → 本地）

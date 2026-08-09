@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeCSS } from '@/lib/theme/sanitizer'
 import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
+import { applyThemePipeline } from '@/lib/theme/pipeline'
 
 /** 自定义 CSS 编辑器组件——CodeEditor + 清除按钮 + sanitize 警告 + 500ms debounce */
 export function CustomCssEditor() {
@@ -23,13 +24,15 @@ export function CustomCssEditor() {
     setWarnings(result.warnings)
   }, [css])
 
-  // 500ms debounce 持久化
+  // 500ms debounce 持久化 + 重跑 pipeline
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       saveThemePartial({
         styleCustomCSS: { modern: css },
       })
+      const isDark = document.documentElement.classList.contains('dark')
+      applyThemePipeline(loadThemeConfig(), isDark)
     }, 500)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)

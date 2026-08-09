@@ -63,6 +63,39 @@ export const isDefaultAccentColor = (hsl: string): boolean => {
   )
 }
 
+/** HSL 字符串（"112.7 40.2% 47.8%"）→ hex。非法输入回退 #000000。 */
+export const hslToHex = (hsl: string): string => {
+  const cleaned = hsl.trim().replace(/^hsl\(/i, '').replace(/\)$/i, '').replace(/,/g, ' ')
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  if (parts.length < 3) {
+    return '#000000'
+  }
+  const h = Number.parseFloat(parts[0] ?? '0')
+  const s = Number.parseFloat((parts[1] ?? '0%').replace('%', '')) / 100
+  const l = Number.parseFloat((parts[2] ?? '0%').replace('%', '')) / 100
+  if (Number.isNaN(h) || Number.isNaN(s) || Number.isNaN(l)) {
+    return '#000000'
+  }
+
+  const hue = ((h % 360) + 360) % 360
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const m = l - c / 2
+  let rgb: [number, number, number]
+  if (hue < 60) rgb = [c, x, 0]
+  else if (hue < 120) rgb = [x, c, 0]
+  else if (hue < 180) rgb = [0, c, x]
+  else if (hue < 240) rgb = [0, x, c]
+  else if (hue < 300) rgb = [x, 0, c]
+  else rgb = [c, 0, x]
+
+  const toHex = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${toHex(rgb[0])}${toHex(rgb[1])}${toHex(rgb[2])}`
+}
+
 export const hexToHSL = (hex: string): string => {
   let cleaned = hex.trim().replace('#', '')
   if (cleaned.length === 3) {
