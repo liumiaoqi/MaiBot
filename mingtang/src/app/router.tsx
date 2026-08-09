@@ -18,6 +18,8 @@ import { PackMarketPage } from '../features/config/pack-market'
 import { PackDetailPage } from '../features/config/pack-detail'
 import { ChatPage } from '../features/chat'
 import { ChatManagementPage } from '../features/chat/chat-management'
+import { ReasoningProcessPage } from '../features/memory/reasoning-process'
+import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
 
 // 根路由
 const rootRoute = createRootRoute({
@@ -48,6 +50,8 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/appearance': () => <AppearancePage />,
   '/chat': () => <ChatPage />,
   '/chat-management': () => <ChatManagementPage />,
+  '/reasoning-process': () => <ReasoningProcessPage />,
+  '/resource/knowledge-graph': () => <KnowledgeGraphPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */

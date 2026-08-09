@@ -182,4 +182,59 @@ describe('ReasoningProcessPage', () => {
       expect(mockedListStages).toHaveBeenCalledTimes(2)
     })
   })
+
+  it('嵌入模式传入toolbarContainerId时尝试portal挂载', async () => {
+    const toolbarContainer = document.createElement('div')
+    toolbarContainer.id = 'test-toolbar'
+    document.body.appendChild(toolbarContainer)
+
+    render(<ReasoningProcessPage embedded={true} toolbarContainerId="test-toolbar" />)
+
+    await waitFor(() => {
+      expect(mockedListStages).toHaveBeenCalled()
+    })
+
+    document.body.removeChild(toolbarContainer)
+  })
+
+  it('非嵌入模式显示返回按钮当URL有returnTo参数', async () => {
+    const originalSearch = window.location.search
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, search: '?returnTo=/chat' },
+      writable: true,
+    })
+
+    render(<ReasoningProcessPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTitle('返回麦麦观察')).toBeInTheDocument()
+    })
+
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, search: originalSearch },
+      writable: true,
+    })
+  })
+
+  it('嵌入模式不显示内联浏览控件当toolbarVisible为true', async () => {
+    const toolbarContainer = document.createElement('div')
+    toolbarContainer.id = 'test-toolbar-2'
+    document.body.appendChild(toolbarContainer)
+
+    render(
+      <ReasoningProcessPage
+        embedded={true}
+        toolbarVisible={true}
+        toolbarContainerId="test-toolbar-2"
+      />
+    )
+
+    expect(screen.queryByText('推理过程')).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(mockedListStages).toHaveBeenCalled()
+    })
+
+    document.body.removeChild(toolbarContainer)
+  })
 })

@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 function Dialog({
   ...props
@@ -119,8 +120,25 @@ function DialogDescription({
   )
 }
 
+function DialogBody({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof ScrollArea>) {
+  return (
+    <ScrollArea
+      data-slot="dialog-body"
+      className={cn('flex min-h-0 flex-1 flex-col', className)}
+      {...props}
+    >
+      {children}
+    </ScrollArea>
+  )
+}
+
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

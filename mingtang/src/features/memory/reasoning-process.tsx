@@ -191,13 +191,10 @@ export function ReasoningProcessPage({
   }, [toolbarContainerId])
 
   useEffect(() => {
-    const frameId = requestAnimationFrame(() => {
-      setTopbarActionsRoot(
-        topbarActionsContainerId ? document.getElementById(topbarActionsContainerId) : null
-      )
-    })
-
-    return () => cancelAnimationFrame(frameId)
+    // effect 本身在渲染后执行——DOM 查询无需 rAF（审核修复：rAF 冗余）
+    setTopbarActionsRoot(
+      topbarActionsContainerId ? document.getElementById(topbarActionsContainerId) : null
+    )
   }, [topbarActionsContainerId, toolbarVisible])
 
   useEffect(() => {

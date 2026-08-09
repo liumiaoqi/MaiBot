@@ -1,5 +1,5 @@
 import { Loader2, Play, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -45,21 +45,22 @@ export function ReasoningReplayPanel({
   const [submitting, setSubmitting] = useState(false)
   const [runningReplayIndex, setRunningReplayIndex] = useState(0)
 
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      setModelName(structuredPrompt?.metadata?.model_name || selected?.model_name || '')
-      setTemperature('')
-      setMaxTokens('')
-      setReplayCount('1')
-      setReplayResults([])
-      setRunningReplayIndex(0)
-    })
-    return () => window.cancelAnimationFrame(frameId)
-  }, [open, selected, structuredPrompt])
+  // open/选中参数变化 → 重置表单——渲染期调整模式（审核修复：rAF 规避 → React 官方模式）
+  const [prevReplayState, setPrevReplayState] = useState({ open, selected, structuredPrompt })
+  if (
+    open &&
+    (prevReplayState.open !== open ||
+      prevReplayState.selected !== selected ||
+      prevReplayState.structuredPrompt !== structuredPrompt)
+  ) {
+    setPrevReplayState({ open, selected, structuredPrompt })
+    setModelName(structuredPrompt?.metadata?.model_name || selected?.model_name || '')
+    setTemperature('')
+    setMaxTokens('')
+    setReplayCount('1')
+    setReplayResults([])
+    setRunningReplayIndex(0)
+  }
 
   const handleReplay = async () => {
     const normalizedModelName = modelName.trim()
