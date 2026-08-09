@@ -76,6 +76,16 @@ input[type="range"] {
   color-scheme: dark;
 }
 
+/* --- future-retro 纸面纹理（消费注入的 --color-background-texture——TE-1-3 注入端已通） --- */
+[data-dashboard-style="future-retro"] {
+  background-image: var(--color-background-texture, none);
+  background-size: 180px 180px;
+  background-attachment: fixed;
+}
+[data-dashboard-style="future-retro"] .dark {
+  background-image: var(--color-background-texture, none);
+}
+
 /* --- 滚动条（跟随主题 token——暗色下自动深色） --- */
 * {
   scrollbar-width: thin;
