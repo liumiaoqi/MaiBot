@@ -74,14 +74,16 @@ export function futureRetroTokenOverrides(
 	const warmS = bgHsl.s + (30 - bgHsl.s) * warmthFactor * 0.4
 	const adjustedBg = hslToHex(formatHSL(warmH, warmS, bgHsl.l))
 
-	// 面板深度：0-100，默认 100。低于 100 时加深（暗模式）或提亮（亮模式）
+	// 面板深度：0-100，默认 100。低于 100 时加深（暗模式）或加深（亮模式）
+	// 浅色原来用 +10 明度提亮——纸色 L 已 87.6%，+10 到 97.6% 逼近白色几乎不可感知
+	// （可感知区间仅 12 个百分点且高亮区人眼不敏感）——改为向深色加深形成对比层次
 	const depthFactor = (100 - config.panelDepth) / 100
 	const cardHsl = parseHSL(hexToHSL(baseColor.card))
-	const cardL = isDark ? cardHsl.l * (1 - depthFactor * 0.3) : cardHsl.l + depthFactor * 10
+	const cardL = isDark ? cardHsl.l * (1 - depthFactor * 0.3) : cardHsl.l - depthFactor * 12
 	const adjustedCard = hslToHex(formatHSL(cardHsl.h, cardHsl.s, cardL))
 
 	const popoverHsl = parseHSL(hexToHSL(baseColor.popover))
-	const popoverL = isDark ? popoverHsl.l * (1 - depthFactor * 0.3) : popoverHsl.l + depthFactor * 10
+	const popoverL = isDark ? popoverHsl.l * (1 - depthFactor * 0.3) : popoverHsl.l - depthFactor * 12
 	const adjustedPopover = hslToHex(formatHSL(popoverHsl.h, popoverHsl.s, popoverL))
 
 	// 描边比例：50-100，默认 100。低于 100 时降低对比度

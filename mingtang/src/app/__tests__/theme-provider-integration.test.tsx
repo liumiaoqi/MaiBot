@@ -269,6 +269,31 @@ describe('ThemeProvider 真实链路', () => {
     expect(radiusVar).toBe('12px')
   })
 
+  it('浅色模式下面板深度——预览卡片背景也实时变化（2026-08-09 用户反馈"没有浅色模式"）', async () => {
+    const { FutureRetroPanel } = await import('@/features/config/appearance/future-retro-panel')
+    localStorage.setItem(THEME_STORAGE_KEYS.MODE, 'light')
+    localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'future-retro')
+    render(withProvider(createElement(FutureRetroPanel)))
+    const card = screen.getByTestId('fr-preview-card') as HTMLElement
+    // 浅色模式——预览卡片应为浅色（米色纸）
+    await waitFor(() => {
+      expect(card.style.backgroundColor).toBeTruthy()
+    })
+    // 明度应高（浅色系——不是深色背景）
+    const rgba = card.style.backgroundColor.match(/rgb\((\d+), (\d+), (\d+)\)/)
+    expect(rgba).not.toBeNull()
+    const luma = (Number(rgba![1]) + Number(rgba![2]) + Number(rgba![3])) / 3
+    expect(luma).toBeGreaterThan(150)
+
+    // 拖面板深度到 0——浅色下卡片应加深（对比层次），背景必须变化
+    const before = card.style.backgroundColor
+    const depthSlider = screen.getByTestId('fr-panel-depth') as HTMLInputElement
+    fireEvent.change(depthSlider, { target: { value: '0' } })
+    await waitFor(() => {
+      expect(card.style.backgroundColor).not.toBe(before)
+    })
+  })
+
   it('future-retro 字号滑块——baseFontSize 变化注入 6 个 --text-* 变量', async () => {
     const { FutureRetroPanel } = await import('@/features/config/appearance/future-retro-panel')
     localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'future-retro')
