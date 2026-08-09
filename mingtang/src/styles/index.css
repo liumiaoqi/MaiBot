@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 手动 dark 用 class 策略（shadcn 标准——media 策略下手动切换不生效） */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================================
  * Tailwind 4.3 CSS-first @theme 变量——设计 token 基座
  * 主题管线（palette→pipeline→tokens→CSS vars）在 R1-2-4 搬移
@@ -64,6 +67,15 @@
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
 }
 
+
+/* --- 滑块（range input）深色适配 --- */
+input[type="range"] {
+  accent-color: var(--color-primary);
+}
+.dark input[type="range"] {
+  color-scheme: dark;
+}
+
 /* --- 滚动条（跟随主题 token——暗色下自动深色） --- */
 * {
   scrollbar-width: thin;
@@ -82,7 +94,7 @@
 }
 
 /* --- 暗色主题覆盖 --- */
-@media (prefers-color-scheme: dark) {
+.dark {
   @theme {
     --color-background: #0a0a0a;
     --color-foreground: #fafafa;

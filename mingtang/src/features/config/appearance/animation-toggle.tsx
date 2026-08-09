@@ -25,7 +25,7 @@ export function AnimationToggle() {
           onChange={toggle}
           data-testid="animation-toggle-switch"
         />
-        <span className="text-sm">{t('settings.appearance.enableAnimations')}</span>
+        <span className="text-sm text-foreground">{t('settings.appearance.enableAnimations')}</span>
       </label>
       <p className="text-xs text-muted-foreground">{t('settings.appearance.enableAnimationsDesc')}</p>
     </div>

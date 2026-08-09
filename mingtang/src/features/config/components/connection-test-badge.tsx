@@ -75,7 +75,7 @@ export function ConnectionTestBadge({
       }
     } else {
       badge = {
-        color: 'bg-blue-600 hover:bg-blue-700',
+        color: 'bg-primary hover:bg-primary/90',
         icon: <CheckCircle2 className={iconSize} />,
         description: `可访问：网络连接正常，但未确认 API Key 是否有效${result.latency_ms != null ? `，延迟 ${result.latency_ms}ms` : ''}`,
         testid: 'connection-test-network-only',

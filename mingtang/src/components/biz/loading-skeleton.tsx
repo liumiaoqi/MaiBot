@@ -14,7 +14,7 @@ export function LoadingSkeleton({ rows = 3, message }: LoadingSkeletonProps) {
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          className="h-4 animate-pulse rounded bg-gray-200"
+          className="h-4 animate-pulse rounded bg-muted"
           style={{ width: `${100 - i * 10}%` }}
         />
       ))}

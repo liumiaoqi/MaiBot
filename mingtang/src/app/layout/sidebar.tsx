@@ -52,7 +52,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <button
           onClick={toggleCollapsed}
           className={cn(
-            'rounded-md p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors',
+            'hidden lg:block rounded-md p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors',
             collapsed ? 'mx-auto' : 'ml-auto'
           )}
           aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}

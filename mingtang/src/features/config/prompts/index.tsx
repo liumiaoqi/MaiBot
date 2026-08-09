@@ -133,7 +133,7 @@ export function PromptManagementPage() {
             <div data-testid="prompts-editor">
               {selectedFile ? (
                 <div className="space-y-2">
-                  <h3 className="font-semibold">{selectedFile}</h3>
+                  <h3 className="font-semibold" text-foreground>{selectedFile}</h3>
                   <CodeEditor
                     value={draft}
                     onChange={setDraft}

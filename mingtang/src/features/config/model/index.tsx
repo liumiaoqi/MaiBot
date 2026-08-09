@@ -215,7 +215,7 @@ export function ModelConfigPage() {
             <div className="space-y-3" data-testid="model-tasks-tab">
               {Object.entries(model.taskConfig).map(([taskName, task]) => (
                 <div key={taskName} className="rounded-md border p-4 space-y-3" data-testid={`task-card-${taskName}`}>
-                  <h3 className="font-semibold">{taskName}</h3>
+                  <h3 className="font-semibold" text-foreground>{taskName}</h3>
                   <div className="space-y-2">
                     <div>
                       <label className="text-xs text-muted-foreground">模型</label>

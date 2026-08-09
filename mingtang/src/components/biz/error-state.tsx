@@ -18,7 +18,7 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
           <button
             type="button"
             onClick={onRetry}
-            className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            className="mt-4 rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90"
           >
             重试
           </button>

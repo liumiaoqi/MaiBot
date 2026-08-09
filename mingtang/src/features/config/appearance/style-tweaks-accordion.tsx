@@ -73,7 +73,7 @@ export function StyleTweaksAccordion() {
       {/* ① typography */}
       <div data-testid="accordion-group-typography" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">{t('settings.appearance.typographyGroup')}</h3>
+          <h3 className="font-semibold" text-foreground>{t('settings.appearance.typographyGroup')}</h3>
           <button data-testid="reset-typography" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
@@ -97,7 +97,7 @@ export function StyleTweaksAccordion() {
       {/* ② visual */}
       <div data-testid="accordion-group-visual" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">{t('settings.appearance.visualGroup')}</h3>
+          <h3 className="font-semibold" text-foreground>{t('settings.appearance.visualGroup')}</h3>
           <button data-testid="reset-visual" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
@@ -121,7 +121,7 @@ export function StyleTweaksAccordion() {
       {/* ③ layout */}
       <div data-testid="accordion-group-layout" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">{t('settings.appearance.layoutGroup')}</h3>
+          <h3 className="font-semibold" text-foreground>{t('settings.appearance.layoutGroup')}</h3>
           <button data-testid="reset-layout" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
@@ -132,7 +132,7 @@ export function StyleTweaksAccordion() {
       {/* ④ animation */}
       <div data-testid="accordion-group-animation" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">{t('settings.appearance.animationGroup')}</h3>
+          <h3 className="font-semibold" text-foreground>{t('settings.appearance.animationGroup')}</h3>
           <button data-testid="reset-animation" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
@@ -159,7 +159,7 @@ export function StyleTweaksAccordion() {
       {/* ⑤ backgrounds */}
       <div data-testid="accordion-group-backgrounds" className="space-y-3 rounded-lg border p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">{t('settings.appearance.backgroundGroup')}</h3>
+          <h3 className="font-semibold" text-foreground>{t('settings.appearance.backgroundGroup')}</h3>
           <button data-testid="reset-backgrounds" className="text-xs text-muted-foreground hover:text-foreground">
             {t('settings.appearance.resetDefault')}
           </button>
