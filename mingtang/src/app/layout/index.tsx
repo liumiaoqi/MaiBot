@@ -39,7 +39,7 @@ export function Layout({ children }: LayoutProps) {
   }, [])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background" data-dashboard-shell="true">
       {/* 移动端遮罩（侧边栏打开时——淡遮罩，内容让位模式下主要防误触） */}
       {sidebarOpen && (
         <div

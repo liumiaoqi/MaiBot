@@ -46,6 +46,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolvedTheme = resolveTheme(theme, systemDark)
 
+  // ref 同步最新主题状态（消除闭包过期——快速连点主题模式+风格时的竞态根因）
+  const themeRef = useRef(theme)
+  themeRef.current = theme
+  const systemDarkRef = useRef(systemDark)
+  systemDarkRef.current = systemDark
+
 
   // 初始 pipeline 注入 + dark 类
   const initialized = useRef(false)
@@ -68,10 +74,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = useCallback((newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEYS.MODE, newTheme)
     setThemeState(newTheme)
-    const isDark = resolveTheme(newTheme, systemDark) === 'dark'
+    const isDark = resolveTheme(newTheme, systemDarkRef.current) === 'dark'
     document.documentElement.classList.toggle('dark', isDark)
     applyThemePipeline(loadThemeConfig(), isDark)
-  }, [systemDark])
+  }, [])
 
   /** 更新主题配置——saveThemeConfig + 重跑 pipeline */
   const updateThemeConfig = useCallback((partial: Partial<UserThemeConfig>) => {
@@ -79,8 +85,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const next = { ...current, ...partial }
     saveThemeConfig(next)
     setThemeConfig(next)
-    applyThemePipeline(next, resolvedTheme === 'dark')
-  }, [resolvedTheme])
+    // 用 ref 读最新主题状态（闭包依赖 resolvedTheme 在快速连点时过期——isDark 用旧值注入错误明暗）
+    const isDark = resolveTheme(themeRef.current, systemDarkRef.current) === 'dark'
+    applyThemePipeline(next, isDark)
+  }, [])
 
   /** 重置主题——清 8 键 + 重载默认 + 重跑 pipeline */
   const resetTheme = useCallback(() => {
