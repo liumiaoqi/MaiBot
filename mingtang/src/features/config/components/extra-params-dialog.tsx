@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -26,11 +26,12 @@ export function ExtraParamsDialog({
 }: ExtraParamsDialogProps) {
   const [editingValue, setEditingValue] = useState<Record<string, unknown>>(value)
 
-  useEffect(() => {
-    if (open) {
-      setEditingValue(value)
-    }
-  }, [open, value])
+  // 打开/值变化时同步编辑内容——渲染期调整模式（React 官方——替代 effect 里 setState）
+  const [prevSyncProps, setPrevSyncProps] = useState({ open, value })
+  if (open && (prevSyncProps.open !== open || prevSyncProps.value !== value)) {
+    setPrevSyncProps({ open, value })
+    setEditingValue(value)
+  }
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {

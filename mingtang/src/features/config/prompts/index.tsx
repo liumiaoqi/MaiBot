@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PageShell } from '@/components/biz/page-shell'
@@ -39,11 +39,14 @@ export function PromptManagementPage() {
     enabled: !!selectedFile,
   })
 
-  useEffect(() => {
+  // 文件加载后填充草稿——渲染期调整模式（React 官方——替代 effect 里 setState）
+  const [prevFileContent, setPrevFileContent] = useState(fileContent)
+  if (fileContent !== prevFileContent) {
+    setPrevFileContent(fileContent)
     if (fileContent) {
       setDraft((fileContent as PromptFileContent).content ?? '')
     }
-  }, [fileContent])
+  }
 
   const saveMutation = useMutation({
     mutationFn: () => updatePromptFile(selectedLang, selectedFile!, draft),

@@ -4,7 +4,7 @@
  * 三份草稿（providers/models/tasks）+ CRUD + 搜索分页 + 批量 + 连接测试 + 级联删除 + 状态
  * 页面只留纯 UI 态（关注点分离）
  */
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getModelConfig,
@@ -129,8 +129,10 @@ export function useModelConfig(): UseModelConfigReturn {
   const [testingModels, setTestingModels] = useState<Set<string>>(new Set())
   const [modelTestResults, setModelTestResults] = useState<Map<string, ModelTestResult>>(new Map())
 
-  // 从服务端数据初始化草稿
-  useEffect(() => {
+  // 从服务端数据初始化草稿——渲染期调整模式（React 官方——替代 effect 里 setState）
+  const [prevConfigData, setPrevConfigData] = useState(configData)
+  if (configData !== prevConfigData) {
+    setPrevConfigData(configData)
     if (configData) {
       const rawProviders = (configData.api_providers ?? []) as ProviderConfig[]
       const rawModels = (configData.models ?? []) as ModelInfo[]
@@ -140,7 +142,7 @@ export function useModelConfig(): UseModelConfigReturn {
       setTaskConfig(rawTasks)
       setHasUnsavedChanges(false)
     }
-  }, [configData])
+  }
 
   // 搜索过滤
   const filteredProviders = useMemo(() => {
@@ -204,7 +206,7 @@ export function useModelConfig(): UseModelConfigReturn {
   const updateTask = useCallback((taskName: string, config: TaskConfig) => {
     setTaskConfig((prev) => ({ ...prev, [taskName]: config }))
     markDirty()
-  }, [])
+  }, [markDirty])
 
   // 批量选择
   const toggleProviderSelection = useCallback((index: number) => {

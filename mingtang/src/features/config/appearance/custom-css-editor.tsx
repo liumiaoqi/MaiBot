@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeCSS } from '@/lib/theme/sanitizer'
 import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
@@ -11,17 +11,12 @@ export function CustomCssEditor() {
     const config = loadThemeConfig()
     return config.styleCustomCSS?.modern ?? ''
   })
-  const [warnings, setWarnings] = useState<string[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // sanitize 即时警告
-  useEffect(() => {
-    if (!css.trim()) {
-      setWarnings([])
-      return
-    }
-    const result = sanitizeCSS(css)
-    setWarnings(result.warnings)
+  // sanitize 即时警告——纯派生（不存 state——effect 里 setState 级联渲染的反面教材修复）
+  const warnings = useMemo(() => {
+    if (!css.trim()) return []
+    return sanitizeCSS(css).warnings
   }, [css])
 
   // 500ms debounce 持久化 + 重跑 pipeline

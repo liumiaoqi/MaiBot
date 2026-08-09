@@ -17,6 +17,10 @@ export default tseslint.config(
         ecmaFeatures: { jsx: true },
       },
     },
+    settings: {
+      // 显式版本号（detect 模式触发 plugin 旧 API 与 eslint 10 不兼容崩溃）
+      react: { version: '19.0' },
+    },
     rules: {
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
@@ -24,6 +28,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/', 'node_modules/'],
+    ignores: ['dist/', 'node_modules/', '**/*.d.ts'],
   },
 )

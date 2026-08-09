@@ -79,12 +79,15 @@ export function BotConfigPage() {
   const [rawDraft, setRawDraft] = useState('')
   const [rawDirty, setRawDirty] = useState(false)
 
-  useEffect(() => {
+  // 服务端数据变化时同步草稿——渲染期调整模式（React 官方——替代 effect 里 setState）
+  const [prevRawConfig, setPrevRawConfig] = useState(rawConfig)
+  if (rawConfig !== prevRawConfig) {
+    setPrevRawConfig(rawConfig)
     if (rawConfig !== undefined) {
       setRawDraft(rawConfig)
       setRawDirty(false)
     }
-  }, [rawConfig])
+  }
 
   const handleRawChange = useCallback((value: string) => {
     setRawDraft(value)

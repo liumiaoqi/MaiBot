@@ -12,7 +12,9 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: qc }, children)
+  return function TestWrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client: qc }, children)
+  }
 }
 
 describe('R2-3-9：/config/pack-market 配置模板市场页', () => {

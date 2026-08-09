@@ -58,10 +58,18 @@ export function useResolvedAvatarUrl(
   )
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>()
 
+  // 头像关闭/路径变化时清空——渲染期调整模式（React 官方——替代 effect 里 setState）
+  const [prevGate, setPrevGate] = useState({ enabled: avatarFetchEnabled, path: avatarPath })
+  if (avatarFetchEnabled !== prevGate.enabled || avatarPath !== prevGate.path) {
+    setPrevGate({ enabled: avatarFetchEnabled, path: avatarPath })
+    if (!avatarFetchEnabled || !avatarPath) {
+      setAvatarUrl(undefined)
+    }
+  }
+
   useEffect(() => {
     let ignore = false
     if (!avatarFetchEnabled || !avatarPath) {
-      setAvatarUrl(undefined)
       return
     }
 

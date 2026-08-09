@@ -29,7 +29,6 @@ export function KeyValueEditor({
   value,
   onChange,
   className = '',
-  placeholder: _placeholder = '添加键值对...',
 }: KeyValueEditorProps) {
   const [mode, setMode] = useState<'list' | 'json'>('list')
   const [jsonText, setJsonText] = useState('')

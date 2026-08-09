@@ -108,7 +108,11 @@ export function PackDetailPage() {
                       <label key={p.name} className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={selectedProviders.has(p.name)} onChange={() => {
                           const next = new Set(selectedProviders)
-                          next.has(p.name) ? next.delete(p.name) : next.add(p.name)
+                          if (next.has(p.name)) {
+                            next.delete(p.name)
+                          } else {
+                            next.add(p.name)
+                          }
                           setSelectedProviders(next)
                         }} />
                         {p.name}

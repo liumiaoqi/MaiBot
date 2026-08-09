@@ -171,7 +171,7 @@ export function PromptGeneratorPage() {
             </>
           ) : (
             <div className="flex items-center justify-center h-48 text-muted-foreground" data-testid="pg-empty">
-              点击"生成"开始
+              点击「生成」开始
             </div>
           )}
         </div>

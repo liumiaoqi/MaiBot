@@ -46,13 +46,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolvedTheme = resolveTheme(theme, systemDark)
 
-  // ref 同步最新主题状态（消除闭包过期——快速连点主题模式+风格时的竞态根因）
-  const themeRef = useRef(theme)
-  themeRef.current = theme
-  const systemDarkRef = useRef(systemDark)
-  systemDarkRef.current = systemDark
-
-
   // 初始 pipeline 注入 + dark 类
   const initialized = useRef(false)
   useEffect(() => {

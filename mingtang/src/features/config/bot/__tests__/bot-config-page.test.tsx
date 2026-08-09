@@ -29,8 +29,9 @@ vi.mock('../../hooks', () => ({
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client: queryClient }, children)
+  return function TestWrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client: queryClient }, children)
+  }
 }
 
 describe('R2-3-3：/config/bot 麦麦设置页', () => {

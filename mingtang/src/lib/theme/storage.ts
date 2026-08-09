@@ -171,10 +171,10 @@ export function loadThemeConfig(): UserThemeConfig {
   const accent = localStorage.getItem(THEME_STORAGE_KEYS.ACCENT)
   const dashboardStyle = localStorage.getItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE)
 
-  let styleTokenOverrides: StyleTokenOverrides = {}
-  let styleCustomCSS: StyleCustomCSS = {}
-  let styleBackgroundConfig: StyleBackgroundConfigMap = {}
-  let styleConfig: DashboardStyleConfig = DEFAULT_THEME_CONFIG.styleConfig
+  let styleTokenOverrides: StyleTokenOverrides
+  let styleCustomCSS: StyleCustomCSS
+  let styleBackgroundConfig: StyleBackgroundConfigMap
+  let styleConfig: DashboardStyleConfig
 
   try {
     styleTokenOverrides = normalizeStyleTokenOverrides(
