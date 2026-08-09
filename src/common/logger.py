@@ -219,7 +219,10 @@ class WebSocketLogHandler(logging.Handler):
             budget_ms=5.0,
             budget_count=20,
         )
-        self._softirq.start()
+        # set_loop 可能在事件循环启动前被调用——用惰性启动兜底（无 running loop 时安全跳过，
+        # drainer 由入队路径的 _lazy_start 在 loop 运行后拉起）；直接 start() 会抛
+        # RuntimeError: no running event loop
+        self._softirq._lazy_start()
 
     async def _batch_broadcast(self, batch: list[dict]) -> None:
         """批量广播日志到 WebSocket（单条失败隔离，不中断整批）"""
