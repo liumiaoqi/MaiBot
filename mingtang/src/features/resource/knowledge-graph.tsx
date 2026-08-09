@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import type { Edge, Node } from '@xyflow/react'
 import { toast } from 'sonner'
@@ -250,7 +250,8 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
   const [deleteExecuting, setDeleteExecuting] = useState(false)
   const [deleteRestoring, setDeleteRestoring] = useState(false)
   const [deletePreview, setDeletePreview] = useState<Awaited<ReturnType<typeof previewMemoryDelete>> | null>(null)
-  const [appliedInitialParagraphHash, setAppliedInitialParagraphHash] = useState('')
+  // 已处理 hash 标记——防重复深链处理——ref 即可（无需渲染——审核修复）
+  const appliedInitialParagraphHashRef = useRef('')
 
   const allRelationDetails = useMemo(
     () => mergeUniqueRelations(nodeDetail, edgeDetail),
@@ -274,7 +275,10 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
 
   const loadGraph = useCallback(async (options?: { silent?: boolean; keepSelection?: boolean }) => {
     try {
-      setLoading(true)
+      // silent = 静默加载（深链场景）——不同步 setLoading（避免 effect 内同步 setState——lint 规则）
+      if (!options?.silent) {
+        setLoading(true)
+      }
       const payload = await getMemoryGraph(Number(nodeLimit))
       const nextGraph = toEntityGraphData(payload)
       const visibleGraph = searchFallbackMode && appliedSearchQuery
@@ -603,13 +607,13 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
 
   useEffect(() => {
     const cleanHash = initialParagraphHash.trim()
-    if (!cleanHash || cleanHash === appliedInitialParagraphHash) {
+    if (!cleanHash || cleanHash === appliedInitialParagraphHashRef.current) {
       return
     }
-    // effect 内副作用——无需 rAF（审核修复：rAF 冗余）
-    setAppliedInitialParagraphHash(cleanHash)
+    // effect 内副作用——无需 rAF；标记用 ref（审核修复：rAF 冗余 + state→ref）
+    appliedInitialParagraphHashRef.current = cleanHash
     void openParagraphDetail(cleanHash)
-  }, [appliedInitialParagraphHash, initialParagraphHash, openParagraphDetail])
+  }, [initialParagraphHash, openParagraphDetail])
 
   const executeCurrentDelete = useCallback(async () => {
     if (!deleteDraft) {
