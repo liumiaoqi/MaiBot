@@ -70,11 +70,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mediaQuery.removeEventListener('change', handler)
   }, [])
 
+  /** 从权威源实时计算 isDark（localStorage MODE + 系统偏好实时查询）——连点竞态彻底消除 */
+  const currentIsDark = useCallback((): boolean => {
+    const stored = localStorage.getItem(THEME_STORAGE_KEYS.MODE)
+    const theme = VALID_THEMES.includes(stored as Theme) ? (stored as Theme) : 'dark'
+    const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    return resolveTheme(theme, sysDark) === 'dark'
+  }, [])
+
   /** 切换主题模式——写 localStorage + dark 类 + 重跑 pipeline */
   const setTheme = useCallback((newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEYS.MODE, newTheme)
     setThemeState(newTheme)
-    const isDark = resolveTheme(newTheme, systemDarkRef.current) === 'dark'
+    const isDark = resolveTheme(newTheme, window.matchMedia('(prefers-color-scheme: dark)').matches) === 'dark'
     document.documentElement.classList.toggle('dark', isDark)
     applyThemePipeline(loadThemeConfig(), isDark)
   }, [])
@@ -85,10 +93,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const next = { ...current, ...partial }
     saveThemeConfig(next)
     setThemeConfig(next)
-    // 用 ref 读最新主题状态（闭包依赖 resolvedTheme 在快速连点时过期——isDark 用旧值注入错误明暗）
-    const isDark = resolveTheme(themeRef.current, systemDarkRef.current) === 'dark'
-    applyThemePipeline(next, isDark)
-  }, [])
+    // isDark 实时计算（localStorage 同步写入——点击顺序保证读到最新——无 state/ref 时序）
+    applyThemePipeline(next, currentIsDark())
+  }, [currentIsDark])
 
   /** 重置主题——清 8 键 + 重载默认 + 重跑 pipeline */
   const resetTheme = useCallback(() => {

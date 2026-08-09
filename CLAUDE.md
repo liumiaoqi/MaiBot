@@ -140,6 +140,12 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 30. **.codeartsdoer 目录 gitignore 需 `-f` 强制添加** — `.codeartsdoer/` 有独立 ignore 规则（specs 等不入主仓库 git），`git add .codeartsdoer/xxx` 会静默跳过——需 `git add -f`。规则：add 后 `git status` 确认实际进 index
 31. **"全量 pytest"必须真的全量**（2026-08-08 明堂-1 教训）— CA 自审声称"全量 pytest 57 passed 0 failed"，实际只跑了 `tests/webui` 局部（57 个）——真全量（tests + pytests 双目录，1956 collected）是 1860 passed / 11 failed / 32 errors——**pytests/webui 32 errors 因此被漏**（jargon/model monkeypatch 目标失效——下沉后字符串引用没同步）。规则：① 验收声明"全量"时对照 `pytest --collect-only` 的总数（1956 量级）② 局部跑只能称"局部" ③ 重构模块（下沉/拆分/改名）后必须 grep 全部 `"src.x.y"` monkeypatch 字符串引用并同步（踩坑 9 再犯——CA 修 memory 漏 jargon/model）④ 双目录并存时 `tests/` 与 `pytests/` 根目录都需 `__init__.py`——否则同名 conftest（webui.conftest）插件注册冲突，全量收集 ERROR
 32. **docker-desktop 内 /mnt/e symlink 退化 = 容器全挂**（2026-08-09 事故）— E 盘（移动硬盘）掉盘后，docker-desktop 发行版里 `/mnt/e` 的 symlink（正常指向 /mnt/host/e——真实挂载）**退化成空目录**；容器 bind mount（./bot.py 等）解析到空目录 → "not a directory" → maim-bot-core 起不来 → 前端全部 API 400/500。主发行版 /mnt/e 掉盘后能自愈，docker-desktop **不自愈**。规则：① 信号：WSL 里 /mnt/e I/O 错误 = 掉盘先兆；容器启动报 "not a directory" 先查此 ② 修复：`wsl -d docker-desktop -- sh -c "rm -rf /mnt/e && ln -s /mnt/host/e /mnt/e"` 后 `docker start maim-bot-core` ③ 预防：禁用 USB 选择性暂停/硬盘休眠（减少移动硬盘掉盘）；根治 = 换内置盘 ④ 查 daemon 侧文件用 `wsl.exe -d docker-desktop -- ls /mnt/host/e/...`（注意挂载点是 /mnt/host/e 不是 /mnt/e）
+33. **主题/视觉问题四大类根因**（2026-08-09 主题验收轮——用户反复验收才暴露）：
+   - a) **批量正则改 className 属性错位**：`<h3 className="X" text-foreground>`——类插到引号**外**成无效属性（我的批量补 h3 正则 bug——13 处——config 域全部标题黑字"修完还在"的根因）。规则：批量改 className 后 grep 验证 `className="[^"]*" (text-|bg-)` 模式零残留
+   - b) **注入变量零消费端**：`--retro-*`/`--color-background-texture` 注入了但**没有任何样式 var() 消费**——设置"没效果"的根因（TE-1-3 只修注入端）。规则：加注入变量必须同时加消费端——grep `var(--xxx)` 验证
+   - c) **React 闭包竞态**（快速连点触发）：`updateThemeConfig` 闭包捕获 `resolvedTheme`——React state 更新异步——连点时闭包过期 → isDark 旧值 → 明暗随机跳变（与模式无关——时序问题）。规则：**依赖 state 的计算用权威源实时计算**（localStorage 同步写 + matchMedia 实时查询）而非闭包/ref（ref 也在渲染时同步——同样会过期）；写**连点压力测试**（交替快速点击 10 次——断言最终明暗与权威源一致）
+   - d) **背景图被盖**：纹理背景加在 html——被 Layout 根 div 的不透明背景（bg-background）盖住。规则：背景图加在**最顶层背景元素**（shell——data-dashboard-shell）而非 html
+   - 配套检测机制：连点压力测试（已落地）/ 注入-消费配对 grep / className 错位 grep / E2E（Playwright——R5——视觉盲区 jsdom 测不了）
 
 `.shared/` 是异步上下文共享区（git 子仓库），写新文件时必须遵守：
 

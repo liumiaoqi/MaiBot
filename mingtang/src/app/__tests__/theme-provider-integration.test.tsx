@@ -192,6 +192,34 @@ describe('ThemeProvider 真实链路', () => {
     expect(luma(root.style.getPropertyValue('--color-background'))).toBeGreaterThan(0.5)
   })
 
+  it('快速连点切换（主题模式+风格交替 10 次）——明暗与最终主题一致（竞态回归检测）', async () => {
+    const { StyleSelector } = await import('@/features/config/appearance/style-selector')
+    const { ThemeModeSwitch } = await import('@/features/config/appearance/theme-mode-switch')
+    render(withProvider(createElement('div', null, createElement(ThemeModeSwitch), createElement(StyleSelector))))
+    const root = document.documentElement
+    const luma = (hex: string) => Number.parseInt(hex.replace('#', '').slice(0, 2), 16) / 255
+
+    // 交替快速点击 10 次（模拟用户连点——触发竞态窗口）
+    for (let i = 0; i < 10; i++) {
+      const modeBtn = i % 2 === 0 ? screen.getByRole('tab', { name: /dark/i }) : screen.getByRole('tab', { name: /light/i })
+      fireEvent.click(modeBtn)
+      const styleBtn = screen.getByTestId('style-selector').querySelector(i % 2 === 0 ? '[data-style="future-retro"]' : '[data-style="modern"]')
+      fireEvent.click(styleBtn!)
+    }
+
+    // 最终状态：MODE=light + modern（最后一次是 light + modern）
+    await waitFor(() => {
+      const stored = localStorage.getItem(THEME_STORAGE_KEYS.MODE)
+      expect(stored).toBe('light')
+      expect(root.dataset.dashboardStyle).toBe('modern')
+    })
+    // 明暗与最终主题一致（light → 浅色背景）
+    const bg = root.style.getPropertyValue('--color-background')
+    expect(luma(bg)).toBeGreaterThan(0.5)
+    // dark 类与最终主题一致
+    expect(root.classList.contains('dark')).toBe(false)
+  })
+
   it('style-tweaks 滑块——font-size 变化注入 CSS 变量', async () => {
     const { StyleTweaksAccordion } = await import('@/features/config/appearance/style-tweaks-accordion')
     localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'modern')
