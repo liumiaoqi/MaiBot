@@ -135,6 +135,35 @@ describe('ThemeProvider 真实链路', () => {
     expect(modernRadius).toBeTruthy()
   })
 
+  it('深色模式下切风格——明暗保持一致（不出现浅色跳变——2026-08-09 用户场景）', async () => {
+    const { StyleSelector } = await import('@/features/config/appearance/style-selector')
+    render(withProvider(createElement(StyleSelector)))
+    const root = document.documentElement
+    // 默认深色
+    expect(root.classList.contains('dark')).toBe(true)
+    const luma = (hex: string) => Number.parseInt(hex.replace('#', '').slice(0, 2), 16) / 255
+
+    // 切 future-retro——背景深色（future-retro 深棕 #221814——L≈13%）
+    const frButton = screen.getByTestId('style-selector').querySelector('[data-style="future-retro"]')
+    fireEvent.click(frButton!)
+    await waitFor(() => {
+      expect(root.dataset.dashboardStyle).toBe('future-retro')
+    })
+    const frBg = root.style.getPropertyValue('--color-background')
+    expect(luma(frBg)).toBeLessThan(0.5)
+    expect(luma(frBg)).toBeGreaterThan(0.05)
+
+    // 切回 modern——背景仍深色（modern 冷黑 #0c0e0c——L≈5%）
+    const modernButton = screen.getByTestId('style-selector').querySelector('[data-style="modern"]')
+    fireEvent.click(modernButton!)
+    await waitFor(() => {
+      expect(root.dataset.dashboardStyle).toBe('modern')
+    })
+    const modernBg = root.style.getPropertyValue('--color-background')
+    expect(luma(modernBg)).toBeLessThan(0.5)
+    // 色相允许不同（fr 暖棕 vs modern 冷黑——设计使然）——但明暗都深
+  })
+
   it('style-tweaks 滑块——font-size 变化注入 CSS 变量', async () => {
     const { StyleTweaksAccordion } = await import('@/features/config/appearance/style-tweaks-accordion')
     localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'modern')
