@@ -13,6 +13,15 @@ import {
 
 const TEXTURE_STYLES: FutureRetroTextureStyle[] = ['fine', 'coarse', 'dot-grid', 'ruled', 'none']
 
+/** 纹理风格 → i18n key 显式映射（动态生成 camelCase 会漏连字符——dot-grid → Dot-grid 而非 DotGrid） */
+const TEXTURE_KEYS: Record<FutureRetroTextureStyle, string> = {
+  fine: 'textureFine',
+  coarse: 'textureCoarse',
+  'dot-grid': 'textureDotGrid',
+  ruled: 'textureRuled',
+  none: 'textureNone',
+}
+
 /** 从 localStorage 读取 future-retro 配置，无存储时默认 */
 function readStoredConfig(): FutureRetroStyleConfig {
   const config = loadThemeConfig()
@@ -116,7 +125,7 @@ export function FutureRetroPanel() {
                     : undefined
                 }
               >
-                <span className="text-xs text-foreground">{t(`settings.appearance.texture${style.charAt(0).toUpperCase() + style.slice(1)}`)}</span>
+                <span className="text-xs text-foreground">{t(`settings.appearance.${TEXTURE_KEYS[style]}`)}</span>
               </button>
             )
           })}
