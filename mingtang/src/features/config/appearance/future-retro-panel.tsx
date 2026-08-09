@@ -116,7 +116,7 @@ export function FutureRetroPanel() {
                     : undefined
                 }
               >
-                <span className="text-xs text-foreground">{style}</span>
+                <span className="text-xs text-foreground">{t(`settings.appearance.texture${style.charAt(0).toUpperCase() + style.slice(1)}`)}</span>
               </button>
             )
           })}

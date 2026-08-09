@@ -220,6 +220,35 @@ describe('ThemeProvider 真实链路', () => {
     expect(root.classList.contains('dark')).toBe(false)
   })
 
+  it('切换纹理风格——--color-background-texture 注入变化（纹理切换链路）', async () => {
+    const { FutureRetroPanel } = await import('@/features/config/appearance/future-retro-panel')
+    localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'future-retro')
+    render(withProvider(createElement(FutureRetroPanel)))
+    const root = document.documentElement
+    await waitFor(() => {
+      const t = root.style.getPropertyValue('--color-background-texture')
+      expect(t).toBeTruthy()
+      expect(t).not.toBe('none')
+    })
+    const initial = root.style.getPropertyValue('--color-background-texture')
+
+    // 切换到 none——纹理应为 none
+    const noneCard = screen.getByTestId('fr-texture-card-none')
+    fireEvent.click(noneCard)
+    await waitFor(() => {
+      expect(root.style.getPropertyValue('--color-background-texture')).toBe('none')
+    })
+
+    // 切回 dot-grid——纹理变化（非 none 且与 initial 不同）
+    const dotCard = screen.getByTestId('fr-texture-card-dot-grid')
+    fireEvent.click(dotCard)
+    await waitFor(() => {
+      const t = root.style.getPropertyValue('--color-background-texture')
+      expect(t).toBeTruthy()
+      expect(t).not.toBe('none')
+    })
+  })
+
   it('style-tweaks 滑块——font-size 变化注入 CSS 变量', async () => {
     const { StyleTweaksAccordion } = await import('@/features/config/appearance/style-tweaks-accordion')
     localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'modern')

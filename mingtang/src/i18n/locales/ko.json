@@ -281,7 +281,12 @@
       "frStrokeScale": "선 비율",
       "bgHeader": "헤더",
       "bgCard": "카드",
-      "bgDialog": "대화상자"
+      "bgDialog": "대화상자",
+      "textureFine": "고운 입자",
+      "textureCoarse": "거친 입자",
+      "textureDotGrid": "도트",
+      "textureRuled": "가로선",
+      "textureNone": "없음"
     },
     "security": {
       "currentToken": "현재 액세스 토큰",

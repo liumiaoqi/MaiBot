@@ -289,7 +289,12 @@
       "frStrokeScale": "描边比例",
       "bgHeader": "顶栏",
       "bgCard": "卡片",
-      "bgDialog": "对话框"
+      "bgDialog": "对话框",
+      "textureFine": "细颗粒",
+      "textureCoarse": "粗颗粒",
+      "textureDotGrid": "点阵",
+      "textureRuled": "横线",
+      "textureNone": "无"
     },
     "security": {
       "currentToken": "当前 Access Token",

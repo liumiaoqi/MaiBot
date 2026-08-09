@@ -289,7 +289,12 @@
       "frStrokeScale": "Stroke Scale",
       "bgHeader": "Header",
       "bgCard": "Card",
-      "bgDialog": "Dialog"
+      "bgDialog": "Dialog",
+      "textureFine": "Fine",
+      "textureCoarse": "Coarse",
+      "textureDotGrid": "Dot Grid",
+      "textureRuled": "Ruled",
+      "textureNone": "None"
     },
     "security": {
       "currentToken": "Current Access Token",

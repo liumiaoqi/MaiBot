@@ -289,7 +289,12 @@
       "frStrokeScale": "ストローク倍率",
       "bgHeader": "ヘッダー",
       "bgCard": "カード",
-      "bgDialog": "ダイアログ"
+      "bgDialog": "ダイアログ",
+      "textureFine": "細粒",
+      "textureCoarse": "粗粒",
+      "textureDotGrid": "ドット",
+      "textureRuled": "横線",
+      "textureNone": "なし"
     },
     "security": {
       "currentToken": "現在のアクセストークン",

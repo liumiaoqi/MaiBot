@@ -75,6 +75,14 @@ input[type="range"] {
 .dark input[type="range"] {
   color-scheme: dark;
 }
+/* 原生 select 下拉候选框深色化（浏览器原生控件——color-scheme 驱动） */
+.dark select {
+  color-scheme: dark;
+}
+select {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
 
 /* --- future-retro 纸面纹理（消费注入的 --color-background-texture）
    应用在最顶层背景元素（shell）——html 上会被 Layout 的不透明背景盖住 --- */
