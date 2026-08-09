@@ -15,7 +15,7 @@
 - frozen dataclass 更新用 `copy.replace()`，替代 `dataclasses.replace()`
   -在main干活需要许可，一般在工作树干活，不要擅自合并
 
-## TypeScript 速查（写前端代码必读）
+## TypeScript 速查（写前端代码必读——开工先看"版本基线警告"节：dashboard 是 React 19/TS 5.9 运行时，代码基线却是 React 18/TS 4.x——旧知识写新代码必爆红）
 
 详细版：`.shared/decisions/typescript_new_code_cheatsheet.md`
 
@@ -139,6 +139,7 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 
 30. **.codeartsdoer 目录 gitignore 需 `-f` 强制添加** — `.codeartsdoer/` 有独立 ignore 规则（specs 等不入主仓库 git），`git add .codeartsdoer/xxx` 会静默跳过——需 `git add -f`。规则：add 后 `git status` 确认实际进 index
 31. **"全量 pytest"必须真的全量**（2026-08-08 明堂-1 教训）— CA 自审声称"全量 pytest 57 passed 0 failed"，实际只跑了 `tests/webui` 局部（57 个）——真全量（tests + pytests 双目录，1956 collected）是 1860 passed / 11 failed / 32 errors——**pytests/webui 32 errors 因此被漏**（jargon/model monkeypatch 目标失效——下沉后字符串引用没同步）。规则：① 验收声明"全量"时对照 `pytest --collect-only` 的总数（1956 量级）② 局部跑只能称"局部" ③ 重构模块（下沉/拆分/改名）后必须 grep 全部 `"src.x.y"` monkeypatch 字符串引用并同步（踩坑 9 再犯——CA 修 memory 漏 jargon/model）④ 双目录并存时 `tests/` 与 `pytests/` 根目录都需 `__init__.py`——否则同名 conftest（webui.conftest）插件注册冲突，全量收集 ERROR
+32. **docker-desktop 内 /mnt/e symlink 退化 = 容器全挂**（2026-08-09 事故）— E 盘（移动硬盘）掉盘后，docker-desktop 发行版里 `/mnt/e` 的 symlink（正常指向 /mnt/host/e——真实挂载）**退化成空目录**；容器 bind mount（./bot.py 等）解析到空目录 → "not a directory" → maim-bot-core 起不来 → 前端全部 API 400/500。主发行版 /mnt/e 掉盘后能自愈，docker-desktop **不自愈**。规则：① 信号：WSL 里 /mnt/e I/O 错误 = 掉盘先兆；容器启动报 "not a directory" 先查此 ② 修复：`wsl -d docker-desktop -- sh -c "rm -rf /mnt/e && ln -s /mnt/host/e /mnt/e"` 后 `docker start maim-bot-core` ③ 预防：禁用 USB 选择性暂停/硬盘休眠（减少移动硬盘掉盘）；根治 = 换内置盘 ④ 查 daemon 侧文件用 `wsl.exe -d docker-desktop -- ls /mnt/host/e/...`（注意挂载点是 /mnt/host/e 不是 /mnt/e）
 
 `.shared/` 是异步上下文共享区（git 子仓库），写新文件时必须遵守：
 
