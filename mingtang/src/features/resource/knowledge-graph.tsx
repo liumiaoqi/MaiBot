@@ -306,8 +306,12 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
   }, [appliedSearchQuery, nodeLimit, resetDetailSelections, searchFallbackMode])
 
   useEffect(() => {
-    // effect 本身在渲染后——副作用调用无需 rAF（审核修复：rAF 冗余）
-    void loadGraph({ silent: true, keepSelection: Boolean(initialParagraphHash.trim()) })
+    // 深链 hash → 静默加载——setTimeout 调度（渲染提交后异步执行——effect 内不直接调用
+    // 含同步 setState 的函数——lint 规则；带 cleanup 的合法 effect 异步模式）
+    const timer = setTimeout(() => {
+      void loadGraph({ silent: true, keepSelection: Boolean(initialParagraphHash.trim()) })
+    }, 0)
+    return () => clearTimeout(timer)
   }, [initialParagraphHash, loadGraph])
 
   const handleSearch = useCallback(async () => {
