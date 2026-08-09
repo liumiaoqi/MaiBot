@@ -304,7 +304,11 @@
       "frPaperWarmthHint": "Paper warmth — lower is more orange-brown",
       "frTextureIntensityHint": "How visible the texture grain is",
       "frPanelDepthHint": "How dark/light cards & dialogs are",
-      "frStrokeScaleHint": "How dark/light borders are"
+      "frStrokeScaleHint": "How dark/light borders are",
+      "fontSizeLabel": "Font Size",
+      "fontSizeHint": "Scales all page text (12-20px)",
+      "borderRadiusHint": "Roundness of cards & buttons",
+      "sidebarWidthHint": "Width when sidebar is expanded (rem)"
     },
     "security": {
       "currentToken": "Current Access Token",

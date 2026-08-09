@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
 import { applyThemePipeline } from '@/lib/theme/pipeline'
 import type { ThemeTokens, StyleTokenOverrides } from '@/lib/theme/tokens'
+import { ThemeSliderRow } from './theme-slider-row'
 
 /** 深层部分类型——允许只传子对象的部分字段 */
 type DeepPartial<T> = {
@@ -39,10 +40,10 @@ export function StyleTweaksAccordion() {
     })
   }, [])
 
-  const handleFontSizeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFontSizeChange = useCallback((px: number) => {
     // 一次写全 6 个字号 token（对齐原版 buildFontSizeTokens——base×0.75/0.875/1/1.125/1.25/1.5）
     // 只写 base 时页面大量使用 text-sm/xs 的类不变——用户看不出作用
-    const rem = Number(e.target.value) / 16
+    const rem = px / 16
     applyStyleOverride({
       text: {
         xs: `${(rem * 0.75).toFixed(4)}rem`,
@@ -55,9 +56,8 @@ export function StyleTweaksAccordion() {
     })
   }, [])
 
-  const handleBorderRadiusChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const px = `${e.target.value}px`
-    applyStyleOverride({ radius: { sm: px, md: px, lg: px, xl: px } })
+  const handleBorderRadiusChange = useCallback((px: number) => {
+    applyStyleOverride({ radius: { sm: `${px}px`, md: `${px}px`, lg: `${px}px`, xl: `${px}px` } })
   }, [])
 
   const handleShadowChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -73,8 +73,8 @@ export function StyleTweaksAccordion() {
     applyStyleOverride({ shadow: { sm: shadow, md: shadow, lg: shadow, xl: shadow } })
   }, [])
 
-  const handleSidebarWidthChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    applyStyleOverride({ layout: { 'sidebar-width': `${e.target.value}rem` } })
+  const handleSidebarWidthChange = useCallback((rem: number) => {
+    applyStyleOverride({ layout: { 'sidebar-width': `${rem}rem` } })
   }, [])
 
   const bgTabs = ['page', 'sidebar', 'header', 'card', 'dialog'] as const
@@ -96,7 +96,15 @@ export function StyleTweaksAccordion() {
             <option value="serif">{t('settings.appearance.fontFamilySerif')}</option>
             <option value="mono">{t('settings.appearance.fontFamilyMono')}</option>
           </select>
-          <input type="range" min={12} max={20} defaultValue={16} data-testid="font-size-slider" className="w-full" onChange={handleFontSizeChange} />
+          <ThemeSliderRow
+            label={t('settings.appearance.fontSizeLabel')}
+            defaultValue={16}
+            min={12}
+            max={20}
+            onChange={handleFontSizeChange}
+            hint={t('settings.appearance.fontSizeHint')}
+            dataTestId="font-size-slider"
+          />
           <select data-testid="line-height-select" className="w-full rounded-md border border-border px-3 py-2 text-foreground">
             <option value="1.2">{t('settings.appearance.lineHeightCompact')}</option>
             <option value="1.5">{t('settings.appearance.lineHeightNormal')}</option>
@@ -114,7 +122,15 @@ export function StyleTweaksAccordion() {
           </button>
         </div>
         <div className="space-y-2">
-          <input type="range" min={0} max={24} defaultValue={4} data-testid="border-radius-slider" className="w-full" onChange={handleBorderRadiusChange} />
+          <ThemeSliderRow
+            label={t('settings.appearance.borderRadiusLabel')}
+            defaultValue={4}
+            min={0}
+            max={24}
+            onChange={handleBorderRadiusChange}
+            hint={t('settings.appearance.borderRadiusHint')}
+            dataTestId="border-radius-slider"
+          />
           <select data-testid="shadow-select" className="w-full rounded-md border border-border px-3 py-2 text-foreground" onChange={handleShadowChange}>
             <option value="none">{t('settings.appearance.shadowNone')}</option>
             <option value="sm">{t('settings.appearance.shadowSm')}</option>
@@ -137,7 +153,16 @@ export function StyleTweaksAccordion() {
             {t('settings.appearance.resetDefault')}
           </button>
         </div>
-        <input type="range" min={8} max={24} step={0.5} defaultValue={13} data-testid="sidebar-width-slider" className="w-full" onChange={handleSidebarWidthChange} />
+        <ThemeSliderRow
+          label={t('settings.appearance.sidebarWidthLabel')}
+          defaultValue={13}
+          min={8}
+          max={24}
+          step={0.5}
+          onChange={handleSidebarWidthChange}
+          hint={t('settings.appearance.sidebarWidthHint')}
+          dataTestId="sidebar-width-slider"
+        />
       </div>
 
       {/* ④ animation */}

@@ -296,7 +296,11 @@
       "frPaperWarmthHint": "종이 색온도, 낮을수록 주황빛",
       "frTextureIntensityHint": "텍스처 입자의 선명도",
       "frPanelDepthHint": "카드/다이얼로그의 밝고 어두움",
-      "frStrokeScaleHint": "테두리의 밝고 어두움"
+      "frStrokeScaleHint": "테두리의 밝고 어두움",
+      "fontSizeLabel": "글자 크기 (Font Size)",
+      "fontSizeHint": "페이지 전체 글자 크기（12-20px）",
+      "borderRadiusHint": "카드/버튼의 모서리 곡률",
+      "sidebarWidthHint": "사이드바 펼침 시 너비（rem）"
     },
     "security": {
       "currentToken": "현재 액세스 토큰",

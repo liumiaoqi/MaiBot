@@ -304,7 +304,11 @@
       "frPaperWarmthHint": "纸面冷暖，越低越偏橙棕",
       "frTextureIntensityHint": "纹理颗粒的明显程度",
       "frPanelDepthHint": "卡片/弹层的深浅",
-      "frStrokeScaleHint": "边框的深浅"
+      "frStrokeScaleHint": "边框的深浅",
+      "fontSizeLabel": "字体大小 (Font Size)",
+      "fontSizeHint": "页面所有文字大小（12-20px）",
+      "borderRadiusHint": "卡片/按钮的圆角弧度",
+      "sidebarWidthHint": "侧边栏展开时的宽度（rem）"
     },
     "security": {
       "currentToken": "当前 Access Token",

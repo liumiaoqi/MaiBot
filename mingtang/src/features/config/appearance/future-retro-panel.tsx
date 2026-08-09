@@ -12,6 +12,7 @@ import {
   type FutureRetroStyleConfig,
   type FutureRetroTextureStyle,
 } from '@/lib/theme/tokens'
+import { ThemeSliderRow } from './theme-slider-row'
 
 const TEXTURE_STYLES: FutureRetroTextureStyle[] = ['fine', 'coarse', 'dot-grid', 'ruled', 'none']
 
@@ -30,7 +31,7 @@ function readStoredConfig(): FutureRetroStyleConfig {
   return config.styleConfig.futureRetro
 }
 
-/** future-retro 六维参数面板组件 */
+/** future-retro 参数面板——手风琴结构（与 modern 样式微调同构——两套主题控件统一） */
 export function FutureRetroPanel() {
   const { t } = useTranslation()
   const { resolvedTheme } = useContext(ThemeProviderContext)
@@ -71,7 +72,7 @@ export function FutureRetroPanel() {
   const isTextureNone = config.textureStyle === 'none'
 
   return (
-    <div className="space-y-6" data-testid="future-retro-panel">
+    <div className="space-y-4" data-testid="future-retro-panel">
       {/* 右上角恢复默认 */}
       <div className="flex justify-end">
         <button
@@ -120,110 +121,97 @@ export function FutureRetroPanel() {
         </div>
       </div>
 
-      {/* ① 基础字号 12-20px */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">{t('settings.appearance.baseFontSize')}</label>
-        <input
-          type="range"
+      {/* ① 字体排版——基准字号 */}
+      <div data-testid="fr-group-typography" className="space-y-3 rounded-lg border p-4">
+        <h3 className="font-semibold text-foreground">{t('settings.appearance.typographyGroup')}</h3>
+        <ThemeSliderRow
+          label={t('settings.appearance.baseFontSize')}
+          value={baseFontSize}
           min={12}
           max={20}
-          value={baseFontSize}
-          onChange={(e) => updateConfig({ baseFontSize: Number(e.target.value) })}
-          className="w-full"
-          data-testid="fr-font-size"
+          onChange={(v) => updateConfig({ baseFontSize: v })}
+          hint={t('settings.appearance.baseFontSizeHint')}
+          dataTestId="fr-font-size"
         />
-        <span className="text-xs text-muted-foreground">{t('settings.appearance.baseFontSizeHint')}</span>
       </div>
 
-      {/* ② 纸暖度 0-100% */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frPaperWarmth')}</label>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={config.paperWarmth}
-          onChange={(e) => updateConfig({ paperWarmth: Number(e.target.value) })}
-          className="w-full"
-          data-testid="fr-paper-warmth"
-        />
-        <span className="text-xs text-muted-foreground">{config.paperWarmth}% — {t('settings.appearance.frPaperWarmthHint')}</span>
-      </div>
-
-      {/* ③ 纹理风格 5 张缩略卡片 */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frTextureStyle')}</label>
-        <div className="grid grid-cols-5 gap-2" data-testid="fr-texture-style">
-          {TEXTURE_STYLES.map((style) => {
-            const texture = buildFutureRetroTexture(style, 55, isDark)
-            return (
-              <button
-                key={style}
-                onClick={() => updateConfig({ textureStyle: style })}
-                data-testid={`fr-texture-card-${style}`}
-                className={cn(
-                  'h-16 rounded-md border-2 transition-colors',
-                  config.textureStyle === style
-                    ? 'border-primary'
-                    : 'border-border hover:border-muted-foreground/30'
-                )}
-                style={
-                  texture !== 'none'
-                    ? { backgroundImage: texture, backgroundSize: 'auto' }
-                    : undefined
-                }
-              >
-                <span className="text-xs text-foreground">{t(`settings.appearance.${TEXTURE_KEYS[style]}`)}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ④ 纹理强度 10-100%（none 时 disabled） */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frTextureIntensity')}</label>
-        <input
-          type="range"
-          min={10}
-          max={100}
-          value={config.textureIntensity}
-          onChange={(e) => updateConfig({ textureIntensity: Number(e.target.value) })}
-          disabled={isTextureNone}
-          className="w-full"
-          data-testid="fr-texture-intensity"
-        />
-        <span className="text-xs text-muted-foreground">{config.textureIntensity}% — {t('settings.appearance.frTextureIntensityHint')}</span>
-      </div>
-
-      {/* ⑤ 面板深度 0-100% */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frPanelDepth')}</label>
-        <input
-          type="range"
-          min={0}
-          max={100}
+      {/* ② 视觉效果——面板深度 + 描边比例 */}
+      <div data-testid="fr-group-visual" className="space-y-3 rounded-lg border p-4">
+        <h3 className="font-semibold text-foreground">{t('settings.appearance.visualGroup')}</h3>
+        <ThemeSliderRow
+          label={t('settings.appearance.frPanelDepth')}
           value={config.panelDepth}
-          onChange={(e) => updateConfig({ panelDepth: Number(e.target.value) })}
-          className="w-full"
-          data-testid="fr-panel-depth"
+          min={0}
+          max={100}
+          onChange={(v) => updateConfig({ panelDepth: v })}
+          hint={t('settings.appearance.frPanelDepthHint')}
+          displayValue={`${config.panelDepth}%`}
+          dataTestId="fr-panel-depth"
         />
-        <span className="text-xs text-muted-foreground">{config.panelDepth}% — {t('settings.appearance.frPanelDepthHint')}</span>
-      </div>
-
-      {/* ⑥ 描边比例 50-100% */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frStrokeScale')}</label>
-        <input
-          type="range"
+        <ThemeSliderRow
+          label={t('settings.appearance.frStrokeScale')}
+          value={config.strokeScale}
           min={50}
           max={100}
-          value={config.strokeScale}
-          onChange={(e) => updateConfig({ strokeScale: Number(e.target.value) })}
-          className="w-full"
-          data-testid="fr-stroke-scale"
+          onChange={(v) => updateConfig({ strokeScale: v })}
+          hint={t('settings.appearance.frStrokeScaleHint')}
+          displayValue={`${config.strokeScale}%`}
+          dataTestId="fr-stroke-scale"
         />
-        <span className="text-xs text-muted-foreground">{config.strokeScale}% — {t('settings.appearance.frStrokeScaleHint')}</span>
+      </div>
+
+      {/* ③ 背景设置——纸暖度 + 纹理风格 + 纹理强度 */}
+      <div data-testid="fr-group-backgrounds" className="space-y-3 rounded-lg border p-4">
+        <h3 className="font-semibold text-foreground">{t('settings.appearance.backgroundGroup')}</h3>
+        <ThemeSliderRow
+          label={t('settings.appearance.frPaperWarmth')}
+          value={config.paperWarmth}
+          min={0}
+          max={100}
+          onChange={(v) => updateConfig({ paperWarmth: v })}
+          hint={t('settings.appearance.frPaperWarmthHint')}
+          displayValue={`${config.paperWarmth}%`}
+          dataTestId="fr-paper-warmth"
+        />
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-foreground">{t('settings.appearance.frTextureStyle')}</label>
+          <div className="grid grid-cols-5 gap-2" data-testid="fr-texture-style">
+            {TEXTURE_STYLES.map((style) => {
+              const texture = buildFutureRetroTexture(style, 55, isDark)
+              return (
+                <button
+                  key={style}
+                  onClick={() => updateConfig({ textureStyle: style })}
+                  data-testid={`fr-texture-card-${style}`}
+                  className={cn(
+                    'h-16 rounded-md border-2 transition-colors',
+                    config.textureStyle === style
+                      ? 'border-primary'
+                      : 'border-border hover:border-muted-foreground/30'
+                  )}
+                  style={
+                    texture !== 'none'
+                      ? { backgroundImage: texture, backgroundSize: 'auto' }
+                      : undefined
+                  }
+                >
+                  <span className="text-xs text-foreground">{t(`settings.appearance.${TEXTURE_KEYS[style]}`)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <ThemeSliderRow
+          label={t('settings.appearance.frTextureIntensity')}
+          value={config.textureIntensity}
+          min={10}
+          max={100}
+          onChange={(v) => updateConfig({ textureIntensity: v })}
+          hint={t('settings.appearance.frTextureIntensityHint')}
+          displayValue={`${config.textureIntensity}%`}
+          disabled={isTextureNone}
+          dataTestId="fr-texture-intensity"
+        />
       </div>
     </div>
   )

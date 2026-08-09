@@ -304,7 +304,11 @@
       "frPaperWarmthHint": "紙の色温度、低いほどオレンジ寄り",
       "frTextureIntensityHint": "テクスチャ粒の目立ち具合",
       "frPanelDepthHint": "カード/ダイアログの明暗",
-      "frStrokeScaleHint": "枠線の明暗"
+      "frStrokeScaleHint": "枠線の明暗",
+      "fontSizeLabel": "フォントサイズ (Font Size)",
+      "fontSizeHint": "ページ内の全文字サイズ（12-20px）",
+      "borderRadiusHint": "カード/ボタンの角丸",
+      "sidebarWidthHint": "サイドバー展開時の幅（rem）"
     },
     "security": {
       "currentToken": "現在のアクセストークン",

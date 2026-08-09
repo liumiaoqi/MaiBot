@@ -174,4 +174,30 @@ describe('R2-1-4：FutureRetroPanel 六维参数面板', () => {
     const after = card.style.backgroundColor
     expect(after).not.toBe(before)
   })
+
+  it('控件统一：手风琴三组结构与 modern 同构（typography/visual/backgrounds）', () => {
+    render(<FutureRetroPanel />)
+    expect(screen.getByTestId('fr-group-typography')).toBeInTheDocument()
+    expect(screen.getByTestId('fr-group-visual')).toBeInTheDocument()
+    expect(screen.getByTestId('fr-group-backgrounds')).toBeInTheDocument()
+    // 组标题与 modern 共用同一 i18n key（i18n 直接返回 key 字符串——断言同 key 即同文案）
+    const groupTitles = ['fr-group-typography', 'fr-group-visual', 'fr-group-backgrounds']
+      .map((id) => screen.getByTestId(id).querySelector('h3')?.textContent)
+    expect(groupTitles).toEqual([
+      'settings.appearance.typographyGroup',
+      'settings.appearance.visualGroup',
+      'settings.appearance.backgroundGroup',
+    ])
+  })
+
+  it('控件统一：字号/深度/描边/纸暖度/强度滑块均为 ThemeSliderRow（label 带 text-foreground）', () => {
+    render(<FutureRetroPanel />)
+    const ids = ['fr-font-size', 'fr-panel-depth', 'fr-stroke-scale', 'fr-paper-warmth', 'fr-texture-intensity']
+    ids.forEach((id) => {
+      const slider = screen.getByTestId(id)
+      const row = slider.closest('.space-y-1') as HTMLElement | null
+      expect(row).not.toBeNull()
+      expect(row!.querySelector('label')?.className).toContain('text-foreground')
+    })
+  })
  })
