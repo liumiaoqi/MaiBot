@@ -39,52 +39,9 @@ export type ColorTokens = {
 // Typography Tokens 类型定义
 // ============================================================================
 
-export type TypographyTokens = {
-  'font-family-base': string
-  'font-family-code': string
-  'font-size-xs': string
-  'font-size-sm': string
-  'font-size-base': string
-  'font-size-lg': string
-  'font-size-xl': string
-  'font-size-2xl': string
-  'font-weight-normal': number
-  'font-weight-medium': number
-  'font-weight-semibold': number
-  'font-weight-bold': number
-  'line-height-tight': number
-  'line-height-normal': number
-  'line-height-relaxed': number
-  'letter-spacing-tight': string
-  'letter-spacing-normal': string
-  'letter-spacing-wide': string
-}
-
-// ============================================================================
-// Visual Tokens 类型定义
-// ============================================================================
-
-export type VisualTokens = {
-  'radius-sm': string
-  'radius-md': string
-  'radius-lg': string
-  'radius-xl': string
-  'radius-full': string
-  'shadow-sm': string
-  'shadow-md': string
-  'shadow-lg': string
-  'shadow-xl': string
-  'blur-sm': string
-  'blur-md': string
-  'blur-lg': string
-  'opacity-disabled': number
-  'opacity-hover': number
-  'opacity-overlay': number
-}
-
-// ============================================================================
-// Layout Tokens 类型定义
-// ============================================================================
+export type TypographyTokens = Record<string, string>
+export type VisualTokens = Record<string, string>
+export type AnimationTokens = Record<string, string>
 
 export type LayoutTokens = {
   'space-xs': string
@@ -110,33 +67,24 @@ export type LayoutTokens = {
   'header-height': string
 }
 
-// ============================================================================
-// Animation Tokens 类型定义
-// ============================================================================
-
-export type AnimationTokens = {
-  'anim-duration-fast': string
-  'anim-duration-normal': string
-  'anim-duration-slow': string
-  'anim-easing-default': string
-  'anim-easing-in': string
-  'anim-easing-out': string
-  'anim-easing-in-out': string
-  'transition-colors': string
-  'transition-transform': string
-  'transition-opacity': string
-}
 
 // ============================================================================
-// Aggregated Theme Tokens
+// Aggregated Theme Tokens（十一类——全部直通 Tailwind 4 @theme 变量命名）
+// 类别名 = CSS 变量前缀（--color-* / --text-* / --radius-* ...）
 // ============================================================================
 
 export type ThemeTokens = {
   color: ColorTokens
-  typography: TypographyTokens
-  visual: VisualTokens
+  font: Record<string, string>
+  text: Record<string, string>
+  leading: Record<string, string>
+  tracking: Record<string, string>
+  radius: Record<string, string>
+  shadow: Record<string, string>
+  blur: Record<string, string>
+  opacity: Record<string, string>
   layout: LayoutTokens
-  animation: AnimationTokens
+  animation: Record<string, string>
 }
 
 // ============================================================================
@@ -201,69 +149,80 @@ export type UserThemeConfig = {
 
 export const defaultLightTokens: ThemeTokens = {
   color: {
-    primary: '28.9 94.8% 45.1%',
-    'primary-foreground': '210 40% 98%',
+    primary: '#e06f06',
+    'primary-foreground': '#f8fafc',
     'primary-gradient': 'none',
-    secondary: '188.5 35% 96%',
-    'secondary-foreground': '222.2 47.4% 11.2%',
-    muted: '188.5 12% 96%',
-    'muted-foreground': '188.5 20% 46.9%',
-    accent: '112.7 40.2% 47.8%',
-    'accent-foreground': '210 40% 98%',
-    destructive: '0 84.2% 60.2%',
-    'destructive-foreground': '210 40% 98%',
-    background: '0 0% 100%',
-    foreground: '222.2 84% 4.9%',
-    card: '188.5 14% 98.6%',
-    'card-foreground': '222.2 84% 4.9%',
-    popover: '188.5 16% 99.3%',
-    'popover-foreground': '222.2 84% 4.9%',
-    border: '188.5 20% 91.4%',
-    input: '188.5 20% 91.4%',
-    ring: '28.9 94.8% 45.1%',
-    'chart-1': '28.9 94.8% 45.1%',
-    'chart-2': '160 60% 45%',
-    'chart-3': '30 80% 55%',
-    'chart-4': '280 65% 60%',
-    'chart-5': '340 75% 55%',
+    secondary: '#f1f7f8',
+    'secondary-foreground': '#0f172a',
+    muted: '#f4f6f6',
+    'muted-foreground': '#608990',
+    accent: '#55ab49',
+    'accent-foreground': '#f8fafc',
+    destructive: '#ef4444',
+    'destructive-foreground': '#f8fafc',
+    background: '#ffffff',
+    foreground: '#020817',
+    card: '#fbfcfc',
+    'card-foreground': '#020817',
+    popover: '#fdfdfe',
+    'popover-foreground': '#020817',
+    border: '#e5eced',
+    input: '#e5eced',
+    ring: '#e06f06',
+    'chart-1': '#e06f06',
+    'chart-2': '#2eb88a',
+    'chart-3': '#e88c30',
+    'chart-4': '#af57db',
+    'chart-5': '#e23670',
   },
-  typography: {
-    'font-family-base':
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    'font-family-code': '"JetBrains Mono", "Monaco", "Courier New", monospace',
-    'font-size-xs': '0.75rem',
-    'font-size-sm': '0.875rem',
-    'font-size-base': '1rem',
-    'font-size-lg': '1.125rem',
-    'font-size-xl': '1.25rem',
-    'font-size-2xl': '1.5rem',
-    'font-weight-normal': 400,
-    'font-weight-medium': 500,
-    'font-weight-semibold': 600,
-    'font-weight-bold': 700,
-    'line-height-tight': 1.2,
-    'line-height-normal': 1.5,
-    'line-height-relaxed': 1.75,
-    'letter-spacing-tight': '-0.02em',
-    'letter-spacing-normal': '0em',
-    'letter-spacing-wide': '0.02em',
+  font: {
+    sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    mono: '"JetBrains Mono", "Monaco", "Courier New", monospace',
+    'weight-normal': '400',
+    'weight-medium': '500',
+    'weight-semibold': '600',
+    'weight-bold': '700',
   },
-  visual: {
-    'radius-sm': '0.25rem',
-    'radius-md': '0.375rem',
-    'radius-lg': '0.5rem',
-    'radius-xl': '0.75rem',
-    'radius-full': '9999px',
-    'shadow-sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-    'shadow-md': '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-    'shadow-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-    'shadow-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-    'blur-sm': '4px',
-    'blur-md': '12px',
-    'blur-lg': '24px',
-    'opacity-disabled': 0.5,
-    'opacity-hover': 0.8,
-    'opacity-overlay': 0.75,
+  text: {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    base: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+    '2xl': '1.5rem',
+  },
+  leading: {
+    tight: '1.2',
+    normal: '1.5',
+    relaxed: '1.75',
+  },
+  tracking: {
+    tight: '-0.02em',
+    normal: '0em',
+    wide: '0.02em',
+  },
+  radius: {
+    sm: '0.25rem',
+    md: '0.375rem',
+    lg: '0.5rem',
+    xl: '0.75rem',
+    full: '9999px',
+  },
+  shadow: {
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+  },
+  blur: {
+    sm: '4px',
+    md: '12px',
+    lg: '24px',
+  },
+  opacity: {
+    disabled: '0.5',
+    hover: '0.8',
+    overlay: '0.75',
   },
   layout: {
     'space-xs': '0.5rem',
@@ -289,13 +248,13 @@ export const defaultLightTokens: ThemeTokens = {
     'header-height': '3.5rem',
   },
   animation: {
-    'anim-duration-fast': '150ms',
-    'anim-duration-normal': '300ms',
-    'anim-duration-slow': '500ms',
-    'anim-easing-default': 'cubic-bezier(0.4, 0, 0.2, 1)',
-    'anim-easing-in': 'cubic-bezier(0.4, 0, 1, 1)',
-    'anim-easing-out': 'cubic-bezier(0, 0, 0.2, 1)',
-    'anim-easing-in-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
+    'duration-fast': '150ms',
+    'duration-normal': '300ms',
+    'duration-slow': '500ms',
+    'easing-default': 'cubic-bezier(0.4, 0, 0.2, 1)',
+    'easing-in': 'cubic-bezier(0.4, 0, 1, 1)',
+    'easing-out': 'cubic-bezier(0, 0, 0.2, 1)',
+    'easing-in-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
     'transition-colors': 'color 300ms cubic-bezier(0.4, 0, 0.2, 1)',
     'transition-transform': 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
     'transition-opacity': 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)',
@@ -308,69 +267,80 @@ export const defaultLightTokens: ThemeTokens = {
 
 export const defaultDarkTokens: ThemeTokens = {
   color: {
-    primary: '28.9 94.8% 45.1%',
-    'primary-foreground': '210 40% 98%',
+    primary: '#e06f06',
+    'primary-foreground': '#f8fafc',
     'primary-gradient': 'none',
-    secondary: '188.5 35% 17.5%',
-    'secondary-foreground': '210 40% 98%',
-    muted: '188.5 12% 17.5%',
-    'muted-foreground': '188.5 20% 65.1%',
-    accent: '112.7 40.2% 34%',
-    'accent-foreground': '210 40% 98%',
-    destructive: '0 62.8% 30.6%',
-    'destructive-foreground': '210 40% 98%',
-    background: '222.2 84% 4.9%',
-    foreground: '210 40% 98%',
-    card: '188.5 18% 8.8%',
-    'card-foreground': '210 40% 98%',
-    popover: '188.5 21% 10.5%',
-    'popover-foreground': '210 40% 98%',
-    border: '188.5 20% 17.5%',
-    input: '188.5 20% 17.5%',
-    ring: '28.9 94.8% 45.1%',
-    'chart-1': '28.9 94.8% 45.1%',
-    'chart-2': '160 60% 50%',
-    'chart-3': '30 80% 60%',
-    'chart-4': '280 65% 65%',
-    'chart-5': '340 75% 60%',
+    secondary: '#1d383c',
+    'secondary-foreground': '#f8fafc',
+    muted: '#273032',
+    'muted-foreground': '#94b3b8',
+    accent: '#3c7a34',
+    'accent-foreground': '#f8fafc',
+    destructive: '#7f1d1d',
+    'destructive-foreground': '#f8fafc',
+    background: '#020817',
+    foreground: '#f8fafc',
+    card: '#12191a',
+    'card-foreground': '#f8fafc',
+    popover: '#151f20',
+    'popover-foreground': '#f8fafc',
+    border: '#243336',
+    input: '#243336',
+    ring: '#e06f06',
+    'chart-1': '#e06f06',
+    'chart-2': '#33cc99',
+    'chart-3': '#eb9947',
+    'chart-4': '#b96ce0',
+    'chart-5': '#e64c7f',
   },
-  typography: {
-    'font-family-base':
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    'font-family-code': '"JetBrains Mono", "Monaco", "Courier New", monospace',
-    'font-size-xs': '0.75rem',
-    'font-size-sm': '0.875rem',
-    'font-size-base': '1rem',
-    'font-size-lg': '1.125rem',
-    'font-size-xl': '1.25rem',
-    'font-size-2xl': '1.5rem',
-    'font-weight-normal': 400,
-    'font-weight-medium': 500,
-    'font-weight-semibold': 600,
-    'font-weight-bold': 700,
-    'line-height-tight': 1.2,
-    'line-height-normal': 1.5,
-    'line-height-relaxed': 1.75,
-    'letter-spacing-tight': '-0.02em',
-    'letter-spacing-normal': '0em',
-    'letter-spacing-wide': '0.02em',
+  font: {
+    sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    mono: '"JetBrains Mono", "Monaco", "Courier New", monospace',
+    'weight-normal': '400',
+    'weight-medium': '500',
+    'weight-semibold': '600',
+    'weight-bold': '700',
   },
-  visual: {
-    'radius-sm': '0.25rem',
-    'radius-md': '0.375rem',
-    'radius-lg': '0.5rem',
-    'radius-xl': '0.75rem',
-    'radius-full': '9999px',
-    'shadow-sm': '0 1px 2px 0 rgba(0, 0, 0, 0.25)',
-    'shadow-md': '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
-    'shadow-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.4)',
-    'shadow-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-    'blur-sm': '4px',
-    'blur-md': '12px',
-    'blur-lg': '24px',
-    'opacity-disabled': 0.5,
-    'opacity-hover': 0.8,
-    'opacity-overlay': 0.75,
+  text: {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    base: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+    '2xl': '1.5rem',
+  },
+  leading: {
+    tight: '1.2',
+    normal: '1.5',
+    relaxed: '1.75',
+  },
+  tracking: {
+    tight: '-0.02em',
+    normal: '0em',
+    wide: '0.02em',
+  },
+  radius: {
+    sm: '0.25rem',
+    md: '0.375rem',
+    lg: '0.5rem',
+    xl: '0.75rem',
+    full: '9999px',
+  },
+  shadow: {
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.25)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.4)',
+    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+  },
+  blur: {
+    sm: '4px',
+    md: '12px',
+    lg: '24px',
+  },
+  opacity: {
+    disabled: '0.5',
+    hover: '0.8',
+    overlay: '0.75',
   },
   layout: {
     'space-xs': '0.5rem',
@@ -396,13 +366,13 @@ export const defaultDarkTokens: ThemeTokens = {
     'header-height': '3.5rem',
   },
   animation: {
-    'anim-duration-fast': '150ms',
-    'anim-duration-normal': '300ms',
-    'anim-duration-slow': '500ms',
-    'anim-easing-default': 'cubic-bezier(0.4, 0, 0.2, 1)',
-    'anim-easing-in': 'cubic-bezier(0.4, 0, 1, 1)',
-    'anim-easing-out': 'cubic-bezier(0, 0, 0.2, 1)',
-    'anim-easing-in-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
+    'duration-fast': '150ms',
+    'duration-normal': '300ms',
+    'duration-slow': '500ms',
+    'easing-default': 'cubic-bezier(0.4, 0, 0.2, 1)',
+    'easing-in': 'cubic-bezier(0.4, 0, 1, 1)',
+    'easing-out': 'cubic-bezier(0, 0, 0.2, 1)',
+    'easing-in-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
     'transition-colors': 'color 300ms cubic-bezier(0.4, 0, 0.2, 1)',
     'transition-transform': 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
     'transition-opacity': 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)',
@@ -413,28 +383,34 @@ export const defaultDarkTokens: ThemeTokens = {
 // Future Retro Tokens (MaiBotOneKey shell inspired)
 // ============================================================================
 
-const futureRetroBaseTypography = {
-  'font-family-base': '"MaiRetroText", "Microsoft YaHei UI", system-ui, sans-serif',
-  'font-family-code': '"Agency FB", "Cascadia Mono", "JetBrains Mono", Consolas, monospace',
-  'font-weight-normal': 700,
-  'font-weight-medium': 700,
-  'font-weight-semibold': 800,
-  'font-weight-bold': 800,
-  'letter-spacing-tight': '0em',
-  'letter-spacing-normal': '0em',
-  'letter-spacing-wide': '0em',
-} satisfies Partial<TypographyTokens>
+const futureRetroBaseFont = {
+  sans: '"MaiRetroText", "Microsoft YaHei UI", system-ui, sans-serif',
+  mono: '"Agency FB", "Cascadia Mono", "JetBrains Mono", Consolas, monospace',
+  'weight-normal': '700',
+  'weight-medium': '700',
+  'weight-semibold': '800',
+  'weight-bold': '800',
+} satisfies Partial<Record<string, string>>
 
-const futureRetroBaseVisual = {
-  'radius-sm': '2px',
-  'radius-md': '3px',
-  'radius-lg': '4px',
-  'radius-xl': '4px',
-  'shadow-sm': 'none',
-  'shadow-md': 'none',
-  'shadow-lg': 'none',
-  'shadow-xl': 'none',
-} satisfies Partial<VisualTokens>
+const futureRetroBaseTracking = {
+  tight: '0em',
+  normal: '0em',
+  wide: '0em',
+} satisfies Partial<Record<string, string>>
+
+const futureRetroBaseRadius = {
+  sm: '2px',
+  md: '3px',
+  lg: '4px',
+  xl: '4px',
+} satisfies Partial<Record<string, string>>
+
+const futureRetroBaseShadow = {
+  sm: 'none',
+  md: 'none',
+  lg: 'none',
+  xl: 'none',
+} satisfies Partial<Record<string, string>>
 
 const futureRetroBaseLayout = {
   'sidebar-width': '11rem',
@@ -456,82 +432,124 @@ const futureRetroBaseLayout = {
 export const futureRetroLightTokens: Partial<ThemeTokens> = {
   color: {
     ...defaultLightTokens.color,
-    primary: '15.6 68.7% 45.1%',
-    'primary-foreground': '39.5 100% 92%',
+    primary: '#c24d24',
+    'primary-foreground': '#fff1d6',
     'primary-gradient': 'none',
-    secondary: '34.1 54.8% 81.8%',
-    'secondary-foreground': '189.1 59.6% 17.5%',
-    muted: '34.9 48.3% 82.5%',
-    'muted-foreground': '39.1 11.6% 39%',
-    accent: '34.7 45.6% 75.5%',
-    'accent-foreground': '189 72% 18.2%',
-    background: '35.4 61.9% 87.6%',
-    foreground: '189 72% 18.2%',
-    card: '35.4 61.9% 87.6%',
-    'card-foreground': '189 72% 18.2%',
-    popover: '36 66% 89.6%',
-    'popover-foreground': '189 72% 18.2%',
-    border: '188.1 74% 19.6%',
-    input: '39.1 11.6% 43.5%',
-    ring: '15.6 68.7% 45.1%',
-    'chart-1': '15.6 68.7% 45.1%',
-    'chart-2': '189 72% 18.2%',
-    'chart-3': '39.7 56.3% 51.6%',
-    'chart-4': '39.1 11.6% 39%',
-    'chart-5': '34.1 54.8% 81.8%',
+    secondary: '#ead4b7',
+    'secondary-foreground': '#123f47',
+    muted: '#e8d6bd',
+    'muted-foreground': '#6f6758',
+    accent: '#ddc5a4',
+    'accent-foreground': '#0d4650',
+    background: '#f3e3cc',
+    foreground: '#0d4650',
+    card: '#f3e3cc',
+    'card-foreground': '#0d4650',
+    popover: '#f6e8d3',
+    'popover-foreground': '#0d4650',
+    border: '#0d4d57',
+    input: '#7c7362',
+    ring: '#c24d24',
+    'chart-1': '#c24d24',
+    'chart-2': '#0d4650',
+    'chart-3': '#c99a3e',
+    'chart-4': '#6f6758',
+    'chart-5': '#ead4b7',
   },
-  typography: {
-    ...defaultLightTokens.typography,
-    ...futureRetroBaseTypography,
+  font: {
+    ...defaultLightTokens.font,
+    ...futureRetroBaseFont,
   },
-  visual: {
-    ...defaultLightTokens.visual,
-    ...futureRetroBaseVisual,
+  text: {
+    ...defaultLightTokens.text,
+  },
+  leading: {
+    ...defaultLightTokens.leading,
+  },
+  tracking: {
+    ...defaultLightTokens.tracking,
+    ...futureRetroBaseTracking,
+  },
+  radius: {
+    ...defaultLightTokens.radius,
+    ...futureRetroBaseRadius,
+  },
+  shadow: {
+    ...defaultLightTokens.shadow,
+    ...futureRetroBaseShadow,
+  },
+  blur: {
+    ...defaultLightTokens.blur,
+  },
+  opacity: {
+    ...defaultLightTokens.opacity,
   },
   layout: {
     ...defaultLightTokens.layout,
     ...futureRetroBaseLayout,
+  },
+  animation: {
+    ...defaultLightTokens.animation,
   },
 }
 
 export const futureRetroDarkTokens: Partial<ThemeTokens> = {
   color: {
     ...defaultDarkTokens.color,
-    primary: '19.2 44.7% 42.5%',
-    'primary-foreground': '34 40% 86%',
+    primary: '#9d5b3c',
+    'primary-foreground': '#eaddcd',
     'primary-gradient': 'none',
-    secondary: '24 16% 18%',
-    'secondary-foreground': '34 28% 76%',
-    muted: '24 14% 17%',
-    'muted-foreground': '34 19% 58%',
-    accent: '40 24% 28%',
-    'accent-foreground': '34 30% 78%',
-    background: '17 25.9% 10.6%',
-    foreground: '34.3 31.8% 74.3%',
-    card: '20 21.3% 13.9%',
-    'card-foreground': '34.3 31.8% 74.3%',
-    popover: '24 20% 15%',
-    'popover-foreground': '34.3 31.8% 74.3%',
-    border: '31 18% 28%',
-    input: '31 16% 30%',
-    ring: '20 43% 45%',
-    'chart-1': '19.2 44.7% 42.5%',
-    'chart-2': '40.3 33.3% 46.9%',
-    'chart-3': '91 14% 42%',
-    'chart-4': '8 24% 43%',
-    'chart-5': '34.3 31.8% 74.3%',
+    secondary: '#352c27',
+    'secondary-foreground': '#d3c4b1',
+    muted: '#312a25',
+    'muted-foreground': '#a89780',
+    accent: '#594d36',
+    'accent-foreground': '#d8c9b6',
+    background: '#221814',
+    foreground: '#d2c0a9',
+    card: '#2b211c',
+    'card-foreground': '#d2c0a9',
+    popover: '#2e251f',
+    'popover-foreground': '#d2c0a9',
+    border: '#54483b',
+    input: '#594d40',
+    ring: '#a46241',
+    'chart-1': '#9d5b3c',
+    'chart-2': '#9f8550',
+    'chart-3': '#6b7a5c',
+    'chart-4': '#885a53',
+    'chart-5': '#d2c0a9',
   },
-  typography: {
-    ...defaultDarkTokens.typography,
-    ...futureRetroBaseTypography,
+  font: {
+    ...defaultDarkTokens.font,
   },
-  visual: {
-    ...defaultDarkTokens.visual,
-    ...futureRetroBaseVisual,
+  text: {
+    ...defaultDarkTokens.text,
+  },
+  leading: {
+    ...defaultDarkTokens.leading,
+  },
+  tracking: {
+    ...defaultDarkTokens.tracking,
+  },
+  radius: {
+    ...defaultDarkTokens.radius,
+  },
+  shadow: {
+    ...defaultDarkTokens.shadow,
+  },
+  blur: {
+    ...defaultDarkTokens.blur,
+  },
+  opacity: {
+    ...defaultDarkTokens.opacity,
   },
   layout: {
     ...defaultDarkTokens.layout,
     ...futureRetroBaseLayout,
+  },
+  animation: {
+    ...defaultDarkTokens.animation,
   },
 }
 

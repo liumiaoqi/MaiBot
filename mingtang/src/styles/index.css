@@ -42,8 +42,8 @@
   --text-2xl: 1.5rem;
   --leading-normal: 1.5;
   --blur-md: 12px;
-  --anim-duration-fast: 100ms;
-  --anim-duration-normal: 300ms;
+  --animation-duration-fast: 100ms;
+  --animation-duration-normal: 300ms;
 
   /* --- 圆角 --- */
   --radius-sm: 0.25rem;

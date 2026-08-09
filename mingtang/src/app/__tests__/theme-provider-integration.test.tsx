@@ -120,7 +120,7 @@ describe('ThemeProvider 真实链路', () => {
     await waitFor(() => {
       expect(root.dataset.dashboardStyle).toBe('modern')
     })
-    const modernRadius = root.style.getPropertyValue('--visual-radius-md')
+    const modernRadius = root.style.getPropertyValue('--radius-md')
 
     // 切换到 future-retro
     const futureRetroButton = screen.getByTestId('style-selector').querySelector('[data-style="future-retro"]')
@@ -128,7 +128,7 @@ describe('ThemeProvider 真实链路', () => {
     await waitFor(() => {
       expect(root.dataset.dashboardStyle).toBe('future-retro')
     })
-    const futureRetroRadius = root.style.getPropertyValue('--visual-radius-md')
+    const futureRetroRadius = root.style.getPropertyValue('--radius-md')
 
     // future-retro 圆角应更小（2-4px vs modern 6px）
     expect(futureRetroRadius).toBeTruthy()
@@ -142,7 +142,7 @@ describe('ThemeProvider 真实链路', () => {
     const slider = screen.getByTestId('font-size-slider') as HTMLInputElement
     fireEvent.change(slider, { target: { value: '18' } })
     const root = document.documentElement
-    const fontSizeVar = root.style.getPropertyValue('--typography-font-size-base')
+    const fontSizeVar = root.style.getPropertyValue('--text-base')
     expect(fontSizeVar).toBeTruthy()
   })
 
@@ -153,7 +153,7 @@ describe('ThemeProvider 真实链路', () => {
     const slider = screen.getByTestId('border-radius-slider') as HTMLInputElement
     fireEvent.change(slider, { target: { value: '12' } })
     const root = document.documentElement
-    const radiusVar = root.style.getPropertyValue('--visual-radius-md')
+    const radiusVar = root.style.getPropertyValue('--radius-md')
     expect(radiusVar).toBe('12px')
   })
 })

@@ -41,12 +41,12 @@ export function StyleTweaksAccordion() {
 
   const handleFontSizeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const rem = Number(e.target.value) / 16
-    applyStyleOverride({ typography: { 'font-size-base': `${rem}rem` } })
+    applyStyleOverride({ text: { base: `${rem}rem` } })
   }, [])
 
   const handleBorderRadiusChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const px = `${e.target.value}px`
-    applyStyleOverride({ visual: { 'radius-sm': px, 'radius-md': px, 'radius-lg': px, 'radius-xl': px } })
+    applyStyleOverride({ radius: { sm: px, md: px, lg: px, xl: px } })
   }, [])
 
   const handleShadowChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -59,7 +59,7 @@ export function StyleTweaksAccordion() {
       xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
     }
     const shadow = shadowMap[value] ?? 'none'
-    applyStyleOverride({ visual: { 'shadow-sm': shadow, 'shadow-md': shadow, 'shadow-lg': shadow, 'shadow-xl': shadow } })
+    applyStyleOverride({ shadow: { sm: shadow, md: shadow, lg: shadow, xl: shadow } })
   }, [])
 
   const handleSidebarWidthChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

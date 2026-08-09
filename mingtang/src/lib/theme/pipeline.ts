@@ -1,6 +1,6 @@
 import type { ThemeTokens, UserThemeConfig } from './tokens'
 
-import { generatePalette, getReadableForeground, isDefaultAccentColor, hslToHex } from './palette'
+import { generatePalette, getReadableForeground, isDefaultAccentColor } from './palette'
 import { getPresetById } from './presets'
 import { sanitizeCSS } from './sanitizer'
 import {
@@ -15,31 +15,20 @@ import {
 const CUSTOM_CSS_ID = 'maibot-custom-css'
 const COMPONENT_CSS_ID_PREFIX = 'maibot-bg-css-'
 const COMPONENT_IDS = ['page', 'sidebar', 'header', 'card', 'dialog'] as const
-const DEFAULT_PRIMARY_COLOR_HSL = defaultLightTokens.color.primary
+// generatePalette 输入需要 HSL 字符串（tokens 现为 hex）——独立保留默认主色 HSL
+const DEFAULT_PRIMARY_COLOR_HSL = '28.9 94.8% 45.1%'
+
+const TOKEN_CATEGORIES = ['color', 'font', 'text', 'leading', 'tracking', 'radius', 'shadow', 'blur', 'opacity', 'layout', 'animation'] as const
 
 const mergeTokens = (base: ThemeTokens, overrides: Partial<ThemeTokens>): ThemeTokens => {
-  return {
-    color: {
-      ...base.color,
-      ...(overrides.color ?? {}),
-    },
-    typography: {
-      ...base.typography,
-      ...(overrides.typography ?? {}),
-    },
-    visual: {
-      ...base.visual,
-      ...(overrides.visual ?? {}),
-    },
-    layout: {
-      ...base.layout,
-      ...(overrides.layout ?? {}),
-    },
-    animation: {
-      ...base.animation,
-      ...(overrides.animation ?? {}),
-    },
-  }
+  const merged = {} as ThemeTokens
+  TOKEN_CATEGORIES.forEach((category) => {
+    ;(merged as Record<string, unknown>)[category] = {
+      ...(base[category] as Record<string, unknown>),
+      ...((overrides[category] as Record<string, unknown> | undefined) ?? {}),
+    }
+  })
+  return merged
 }
 
 const buildTokens = (config: UserThemeConfig, isDark: boolean): ThemeTokens => {
@@ -97,58 +86,20 @@ export function getComputedTokens(config: UserThemeConfig, isDark: boolean): The
 }
 
 /**
- * 原版五类 token → Tailwind 4 @theme 变量名映射。
- * 关键：mingtang 的样式消费是 Tailwind 4（@theme 变量 + utility 类），
- * 注入的变量名必须与 @theme/类一致才能生效——color.* 直通（--color-*），
- * 其余类别映射到 Tailwind 命名空间（--text-* / --radius-* / --shadow-* / --blur-*）。
+ * 数据层已 Tailwind 4 化（十一类 = @theme 变量前缀，值为最终格式 hex/rem/ms）——
+ * 注入直通：--${category}-${key} = 原值，无映射无转换。
  */
-const TAILWIND_VAR_OVERRIDES: Record<string, string> = {
-  'typography.font-size-xs': '--text-xs',
-  'typography.font-size-sm': '--text-sm',
-  'typography.font-size-base': '--text-base',
-  'typography.font-size-lg': '--text-lg',
-  'typography.font-size-xl': '--text-xl',
-  'typography.font-size-2xl': '--text-2xl',
-  'typography.font-family-base': '--font-sans',
-  'typography.font-family-code': '--font-mono',
-  'typography.line-height-normal': '--leading-normal',
-  'visual.radius-sm': '--radius-sm',
-  'visual.radius-md': '--radius-md',
-  'visual.radius-lg': '--radius-lg',
-  'visual.radius-xl': '--radius-xl',
-  'visual.radius-full': '--radius-full',
-  'visual.shadow-sm': '--shadow-sm',
-  'visual.shadow-md': '--shadow-md',
-  'visual.shadow-lg': '--shadow-lg',
-  'visual.shadow-xl': '--shadow-xl',
-  'visual.blur-md': '--blur-md',
-  'layout.sidebar-width': '--layout-sidebar-width',
-  'animation.anim-duration-fast': '--anim-duration-fast',
-  'animation.anim-duration-normal': '--anim-duration-normal',
-}
-
 export function injectTokensAsCSS(tokens: ThemeTokens, target: HTMLElement): void {
-  // color 类：HSL → hex（Tailwind 4 消费 hex——裸 HSL 字符串是非法颜色值）
-  Object.entries(tokens.color).forEach(([key, value]) => {
-    target.style.setProperty(tokenToCSSVarName('color', key), hslToHex(value))
-  })
-
-  const injectMapped = (
-    category: 'typography' | 'visual' | 'layout' | 'animation',
-    entries: Array<[string, string | number]>
-  ) => {
-    entries.forEach(([key, value]) => {
-      const varName = TAILWIND_VAR_OVERRIDES[`${category}.${key}`]
-      if (varName) {
-        target.style.setProperty(varName, String(value))
-      }
+  const categories = ['color', 'font', 'text', 'leading', 'tracking', 'radius', 'shadow', 'blur', 'opacity', 'layout', 'animation'] as const
+  categories.forEach((category) => {
+    const entries = tokens[category] as Record<string, string> | undefined
+    if (!entries) {
+      return
+    }
+    Object.entries(entries).forEach(([key, value]) => {
+      target.style.setProperty(tokenToCSSVarName(category, key), String(value))
     })
-  }
-
-  injectMapped('typography', Object.entries(tokens.typography))
-  injectMapped('visual', Object.entries(tokens.visual))
-  injectMapped('layout', Object.entries(tokens.layout))
-  injectMapped('animation', Object.entries(tokens.animation))
+  })
 }
 
 export function injectCustomCSS(css: string): void {
