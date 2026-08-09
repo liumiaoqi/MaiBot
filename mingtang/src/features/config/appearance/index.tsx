@@ -1,7 +1,9 @@
+import { useContext } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageShell } from '@/components/biz/page-shell'
+import { ThemeProviderContext } from '@/lib/theme-context'
 import { ThemeModeSwitch } from './theme-mode-switch'
-import { StyleSelector, useDashboardStyle } from './style-selector'
+import { StyleSelector } from './style-selector'
 import { AccentPicker } from './accent-picker'
 import { FutureRetroPanel } from './future-retro-panel'
 import { StyleTweaksAccordion } from './style-tweaks-accordion'
@@ -12,9 +14,9 @@ import { ThemeIO } from './theme-io'
 /** 外观设置页——主题 UI 化完整组装（R2-1-1 ~ R2-1-9） */
 export function AppearancePage() {
   const { t } = useTranslation()
-  const { style } = useDashboardStyle()
-  const isModern = style === 'modern'
-  const isFutureRetro = style === 'future-retro'
+  const { dashboardStyle } = useContext(ThemeProviderContext)
+  const isModern = dashboardStyle === 'modern'
+  const isFutureRetro = dashboardStyle === 'future-retro'
 
   return (
     <PageShell

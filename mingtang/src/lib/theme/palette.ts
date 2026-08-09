@@ -9,6 +9,11 @@ type HSL = {
 export const DEFAULT_ACCENT_COLOR_HSL = '112.7 40.2% 47.8%'
 export const DEFAULT_ACCENT_COLOR_HEX = '#55AB49'
 
+// TE-3-1：12 层级明度步进表（Radix 模式）
+const LIGHTNESS_STEPS_LIGHT = [95, 90, 85, 80, 75, 70, 65, 58, 50, 40, 30, 20]
+const LIGHTNESS_STEPS_DARK = [20, 30, 40, 50, 58, 65, 70, 75, 80, 85, 90, 95]
+const SATURATION_RATIOS = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0, 1.0, 0.95, 0.9, 0.8]
+
 const clamp = (value: number, min: number, max: number): number => {
   if (value < min) return min
   if (value > max) return max
@@ -210,6 +215,36 @@ const deriveSurfaceColor = (
   )
 }
 
+/** TE-3-1：生成 12 层级 accent 色板（Radix 模式——HSL 调明度） */
+export function generateAccentScale(accentHSL: string, isDark: boolean): string[] {
+  const { h, s } = parseHSL(accentHSL)
+  const steps = isDark ? LIGHTNESS_STEPS_DARK : LIGHTNESS_STEPS_LIGHT
+
+  return steps.map((stepL, i) => {
+    const ratio = SATURATION_RATIOS[i]
+    const stepS = s * ratio
+    const clampedL = clamp(stepL, 5, 95)
+    return hslToHex(formatHSL(h, stepS, clampedL))
+  })
+}
+
+/** TE-3-1：生成 5 语义点 from accent-9 */
+export function generateAccentSemantics(accent9Hex: string): {
+  'accent-contrast': string
+  'accent-surface': string
+  'accent-indicator': string
+  'accent-track': string
+} {
+  const { h, s, l } = parseHSL(hexToHSL(accent9Hex))
+
+  return {
+    'accent-contrast': l > 50 ? '#000000' : '#ffffff',
+    'accent-surface': hslToHex(formatHSL(h, s * 0.7, l)),
+    'accent-indicator': hslToHex(formatHSL(h, s, clamp(l + 15, 5, 95))),
+    'accent-track': hslToHex(formatHSL(h, s, clamp(l - 20, 5, 95))),
+  }
+}
+
 export const generatePalette = (accentHSL: string, isDark: boolean): ColorTokens => {
   const accent = parseHSL(accentHSL)
   const primary = formatHSL(accent.h, accent.s, accent.l)
@@ -269,6 +304,11 @@ export const generatePalette = (accentHSL: string, isDark: boolean): ColorTokens
 
   // B 方案：数据层全 hex（Tailwind 4 消费 hex）——内部 HSL 计算保留，输出统一转 hex
   const hex = (hsl: string) => hslToHex(hsl)
+
+  // TE-3-1：12 层级 + 5 语义点
+  const accentScale = generateAccentScale(accentHSL, isDark)
+  const accentSemantics = generateAccentSemantics(accentScale[8])
+
   return {
     primary: hex(primary),
     'primary-foreground': hex(getReadableForeground(primary)),
@@ -295,5 +335,23 @@ export const generatePalette = (accentHSL: string, isDark: boolean): ColorTokens
     'chart-3': hex(charts[2]),
     'chart-4': hex(charts[3]),
     'chart-5': hex(charts[4]),
+    'background-texture': 'none',
+    // TE-3-1：12 层级 + 5 语义点
+    'accent-1': accentScale[0],
+    'accent-2': accentScale[1],
+    'accent-3': accentScale[2],
+    'accent-4': accentScale[3],
+    'accent-5': accentScale[4],
+    'accent-6': accentScale[5],
+    'accent-7': accentScale[6],
+    'accent-8': accentScale[7],
+    'accent-9': accentScale[8],
+    'accent-10': accentScale[9],
+    'accent-11': accentScale[10],
+    'accent-12': accentScale[11],
+    'accent-contrast': accentSemantics['accent-contrast'],
+    'accent-surface': accentSemantics['accent-surface'],
+    'accent-indicator': accentSemantics['accent-indicator'],
+    'accent-track': accentSemantics['accent-track'],
   }
 }

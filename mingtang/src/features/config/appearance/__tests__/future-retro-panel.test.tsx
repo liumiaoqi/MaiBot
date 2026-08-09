@@ -108,4 +108,43 @@ describe('R2-1-4：FutureRetroPanel 六维参数面板', () => {
     const intensitySlider = screen.getByTestId('fr-texture-intensity') as HTMLInputElement
     expect(Number(intensitySlider.value)).toBe(DEFAULT_FUTURE_RETRO_STYLE_CONFIG.textureIntensity)
   })
-})
+
+  it('TE-1-2：所有 label 有 text-foreground 类（6 处）', () => {
+    render(<FutureRetroPanel />)
+    const labels = document.querySelectorAll('label.text-foreground')
+    expect(labels).toHaveLength(6)
+  })
+
+  it('TE-1-2：label 不硬编码颜色（类名含 text-foreground 非 hex/rgb）', () => {
+    render(<FutureRetroPanel />)
+     const labels = document.querySelectorAll('label')
+     labels.forEach((label) => {
+       const cls = label.className
+       expect(cls).toContain('text-foreground')
+       expect(cls).not.toMatch(/#[0-9a-fA-F]{3,8}/)
+       expect(cls).not.toMatch(/rgb\(/)
+     })
+   })
+
+  it('TE-1-3：纹理卡片 backgroundSize 为 auto（非 cover）', () => {
+    render(<FutureRetroPanel />)
+    const fineCard = screen.getByTestId('fr-texture-card-fine') as HTMLElement
+    expect(fineCard.style.backgroundSize).toBe('auto')
+  })
+
+  it('TE-1-3：4 张纹理卡片有 backgroundImage（除 none）', () => {
+    render(<FutureRetroPanel />)
+    const styles = ['fine', 'coarse', 'dot-grid', 'ruled']
+    styles.forEach((style) => {
+      const card = screen.getByTestId(`fr-texture-card-${style}`) as HTMLElement
+      expect(card.style.backgroundImage).not.toBe('')
+      expect(card.style.backgroundImage).toContain('data:image/svg+xml')
+    })
+  })
+
+  it('TE-1-3：none 纹理卡片无 backgroundImage', () => {
+    render(<FutureRetroPanel />)
+    const noneCard = screen.getByTestId('fr-texture-card-none') as HTMLElement
+    expect(noneCard.style.backgroundImage).toBe('')
+  })
+ })

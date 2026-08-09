@@ -3,8 +3,10 @@ import type { ThemeTokens, UserThemeConfig } from './tokens'
 import { generatePalette, getReadableForeground, isDefaultAccentColor } from './palette'
 import { getPresetById } from './presets'
 import { sanitizeCSS } from './sanitizer'
+import { futureRetroTokenOverrides } from './future-retro'
 import {
   DEFAULT_DASHBOARD_STYLE,
+  DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
   defaultDarkTokens,
   defaultLightTokens,
   futureRetroDarkTokens,
@@ -69,6 +71,12 @@ const buildTokens = (config: UserThemeConfig, isDark: boolean): ThemeTokens => {
       mergedTokens,
       isDark ? futureRetroDarkTokens : futureRetroLightTokens
     )
+    // TE-1-3: 纹理参数注入 pipeline——消费 styleConfig.futureRetro 五维参数
+    const frOverrides = futureRetroTokenOverrides(
+      config.styleConfig?.futureRetro ?? DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
+      isDark,
+    )
+    mergedTokens = mergeTokens(mergedTokens, frOverrides)
   }
 
   const dashboardStyle = config.dashboardStyle ?? DEFAULT_DASHBOARD_STYLE

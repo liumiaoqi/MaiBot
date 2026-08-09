@@ -4,11 +4,13 @@ import { ThemeProviderContext, type ThemeProviderState } from '@/lib/theme-conte
 import { loadThemeConfig, saveThemeConfig, resetThemeToDefault } from '@/lib/theme/storage'
 import { applyThemePipeline } from '@/lib/theme/pipeline'
 import { THEME_STORAGE_KEYS } from '@/lib/theme/storage'
-import type { UserThemeConfig } from '@/lib/theme/tokens'
+import { updateBotConfigSection, getBotConfig } from '@/lib/config-api'
+import type { DashboardStyle, UserThemeConfig } from '@/lib/theme/tokens'
 
 type Theme = 'dark' | 'light' | 'system'
 
 const VALID_THEMES: Theme[] = ['dark', 'light', 'system']
+
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEYS.MODE)
@@ -90,6 +92,80 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyThemePipeline(config, true)
   }, [])
 
+  /** dashboardStyle——从 themeConfig 派生（单一数据源） */
+  const dashboardStyle = themeConfig.dashboardStyle
+
+  /** dataset 副作用——dashboardStyle 变化时更新 dataset */
+  useEffect(() => {
+    document.documentElement.dataset.dashboardStyle = dashboardStyle
+  }, [dashboardStyle])
+
+  /** 后端 → 本地反向同步（focus / visibilitychange） */
+  useEffect(() => {
+    const syncFromBackend = async () => {
+      try {
+        const config = await getBotConfig()
+        const webui = config.webui as Record<string, unknown> | undefined
+        const webuiStyle = webui?.webui_style
+        if (webuiStyle === 'modern' || webuiStyle === 'future-retro') {
+          const backendStyle = webuiStyle as DashboardStyle
+          if (backendStyle !== themeConfig.dashboardStyle) {
+            updateThemeConfig({ dashboardStyle: backendStyle })
+          }
+        }
+      } catch {
+        // 后端不可用时不报错
+      }
+    }
+
+    const handler = () => void syncFromBackend()
+    window.addEventListener('focus', handler)
+    document.addEventListener('visibilitychange', handler)
+    return () => {
+      window.removeEventListener('focus', handler)
+      document.removeEventListener('visibilitychange', handler)
+    }
+  }, [themeConfig.dashboardStyle, updateThemeConfig])
+
+  /** 跨标签页主题同步（storage 事件——TE-2-3） */
+  useEffect(() => {
+    const themeKeySet = new Set<string>(Object.values(THEME_STORAGE_KEYS))
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!e.key || !themeKeySet.has(e.key)) return
+
+      // 重新加载配置
+      const newConfig = loadThemeConfig()
+      setThemeConfig(newConfig)
+
+      // MODE 键变化时更新 theme 状态 + dark class
+      if (e.key === THEME_STORAGE_KEYS.MODE) {
+        const stored = localStorage.getItem(THEME_STORAGE_KEYS.MODE)
+        const newTheme = VALID_THEMES.includes(stored as Theme) ? (stored as Theme) : 'dark'
+        setThemeState(newTheme)
+        const isDark = resolveTheme(newTheme, systemDark) === 'dark'
+        document.documentElement.classList.toggle('dark', isDark)
+      }
+
+      // 重跑 pipeline
+      const isDark = document.documentElement.classList.contains('dark')
+      applyThemePipeline(newConfig, isDark)
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [systemDark])
+
+  /** 切换界面风格——updateThemeConfig + dataset + 后端同步 */
+  const setDashboardStyle = useCallback(async (newStyle: DashboardStyle) => {
+    updateThemeConfig({ dashboardStyle: newStyle })
+    document.documentElement.dataset.dashboardStyle = newStyle
+    try {
+      await updateBotConfigSection('webui', { webui_style: newStyle })
+    } catch (error) {
+      console.error('后端风格同步失败:', error)
+    }
+  }, [updateThemeConfig])
+
   const value: ThemeProviderState = {
     theme,
     resolvedTheme,
@@ -97,6 +173,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     themeConfig,
     updateThemeConfig,
     resetTheme,
+    dashboardStyle,
+    setDashboardStyle,
   }
 
   return (

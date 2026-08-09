@@ -4,6 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>明堂</title>
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('maibot-theme-mode');
+          var isDark;
+          if (mode === 'light') {
+            isDark = false;
+          } else if (mode === 'system') {
+            isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          } else {
+            isDark = true;
+          }
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          var style = localStorage.getItem('maibot-theme-dashboard-style');
+          document.documentElement.dataset.dashboardStyle =
+            style === 'modern' || style === 'future-retro' ? style : 'future-retro';
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.dataset.dashboardStyle = 'future-retro';
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/custom.css" />
   </head>
   <body>
     <div id="root"></div>

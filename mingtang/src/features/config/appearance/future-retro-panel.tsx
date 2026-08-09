@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
 import { applyThemePipeline } from '@/lib/theme/pipeline'
 import { buildFutureRetroTexture } from '@/lib/theme/future-retro'
+import { ThemeProviderContext } from '@/lib/theme-context'
 import {
   DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
   type FutureRetroStyleConfig,
@@ -21,9 +22,10 @@ function readStoredConfig(): FutureRetroStyleConfig {
 /** future-retro 六维参数面板组件 */
 export function FutureRetroPanel() {
   const { t } = useTranslation()
+  const { resolvedTheme } = useContext(ThemeProviderContext)
   const [config, setConfig] = useState<FutureRetroStyleConfig>(readStoredConfig)
   const [fontSize, setFontSize] = useState(16)
-  const isDark = document.documentElement.classList.contains('dark')
+  const isDark = resolvedTheme === 'dark'
 
   /** 即拖即生效——更新参数并写入 localStorage + 重跑 pipeline */
   const updateConfig = useCallback((partial: Partial<FutureRetroStyleConfig>) => {
@@ -64,7 +66,7 @@ export function FutureRetroPanel() {
 
       {/* ① 基础字号 12-20px */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">{t('settings.appearance.baseFontSize')}</label>
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.baseFontSize')}</label>
         <input
           type="range"
           min={12}
@@ -78,7 +80,7 @@ export function FutureRetroPanel() {
 
       {/* ② 纸暖度 0-100% */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">{t('settings.appearance.frPaperWarmth')}</label>
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frPaperWarmth')}</label>
         <input
           type="range"
           min={0}
@@ -93,7 +95,7 @@ export function FutureRetroPanel() {
 
       {/* ③ 纹理风格 5 张缩略卡片 */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">{t('settings.appearance.frTextureStyle')}</label>
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frTextureStyle')}</label>
         <div className="grid grid-cols-5 gap-2" data-testid="fr-texture-style">
           {TEXTURE_STYLES.map((style) => {
             const texture = buildFutureRetroTexture(style, 55, isDark)
@@ -110,7 +112,7 @@ export function FutureRetroPanel() {
                 )}
                 style={
                   texture !== 'none'
-                    ? { backgroundImage: texture, backgroundSize: 'cover' }
+                    ? { backgroundImage: texture, backgroundSize: 'auto' }
                     : undefined
                 }
               >
@@ -123,7 +125,7 @@ export function FutureRetroPanel() {
 
       {/* ④ 纹理强度 10-100%（none 时 disabled） */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">{t('settings.appearance.frTextureIntensity')}</label>
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frTextureIntensity')}</label>
         <input
           type="range"
           min={10}
@@ -139,7 +141,7 @@ export function FutureRetroPanel() {
 
       {/* ⑤ 面板深度 0-100% */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">{t('settings.appearance.frPanelDepth')}</label>
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frPanelDepth')}</label>
         <input
           type="range"
           min={0}
@@ -154,7 +156,7 @@ export function FutureRetroPanel() {
 
       {/* ⑥ 描边比例 50-100% */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">{t('settings.appearance.frStrokeScale')}</label>
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frStrokeScale')}</label>
         <input
           type="range"
           min={50}

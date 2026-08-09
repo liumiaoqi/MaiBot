@@ -33,6 +33,23 @@ export type ColorTokens = {
   'chart-3': string
   'chart-4': string
   'chart-5': string
+  'background-texture': string
+  'accent-1': string
+  'accent-2': string
+  'accent-3': string
+  'accent-4': string
+  'accent-5': string
+  'accent-6': string
+  'accent-7': string
+  'accent-8': string
+  'accent-9': string
+  'accent-10': string
+  'accent-11': string
+  'accent-12': string
+  'accent-contrast': string
+  'accent-surface': string
+  'accent-indicator': string
+  'accent-track': string
 }
 
 // ============================================================================
@@ -174,6 +191,23 @@ export const defaultLightTokens: ThemeTokens = {
     'chart-3': '#e88c30',
     'chart-4': '#af57db',
     'chart-5': '#e23670',
+    'background-texture': 'none',
+    'accent-1': '#55ab49',
+    'accent-2': '#55ab49',
+    'accent-3': '#55ab49',
+    'accent-4': '#55ab49',
+    'accent-5': '#55ab49',
+    'accent-6': '#55ab49',
+    'accent-7': '#55ab49',
+    'accent-8': '#55ab49',
+    'accent-9': '#55ab49',
+    'accent-10': '#55ab49',
+    'accent-11': '#55ab49',
+    'accent-12': '#55ab49',
+    'accent-contrast': '#ffffff',
+    'accent-surface': '#55ab49',
+    'accent-indicator': '#55ab49',
+    'accent-track': '#55ab49',
   },
   font: {
     sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -292,6 +326,23 @@ export const defaultDarkTokens: ThemeTokens = {
     'chart-3': '#eb9947',
     'chart-4': '#b96ce0',
     'chart-5': '#e64c7f',
+    'background-texture': 'none',
+    'accent-1': '#3c7a34',
+    'accent-2': '#3c7a34',
+    'accent-3': '#3c7a34',
+    'accent-4': '#3c7a34',
+    'accent-5': '#3c7a34',
+    'accent-6': '#3c7a34',
+    'accent-7': '#3c7a34',
+    'accent-8': '#3c7a34',
+    'accent-9': '#3c7a34',
+    'accent-10': '#3c7a34',
+    'accent-11': '#3c7a34',
+    'accent-12': '#3c7a34',
+    'accent-contrast': '#ffffff',
+    'accent-surface': '#3c7a34',
+    'accent-indicator': '#3c7a34',
+    'accent-track': '#3c7a34',
   },
   font: {
     sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',

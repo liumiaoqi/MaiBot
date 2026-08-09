@@ -7,7 +7,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "check:color": "bash scripts/check-no-hardcoded-color.sh"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.23",

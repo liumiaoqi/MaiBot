@@ -1,4 +1,6 @@
-import type { FutureRetroTextureStyle } from './tokens'
+import type { FutureRetroStyleConfig, FutureRetroTextureStyle, ThemeTokens } from './tokens'
+import { futureRetroLightTokens, futureRetroDarkTokens } from './tokens'
+import { hexToHSL, hslToHex, parseHSL, formatHSL } from './palette'
 
 function svgDataUrl(svg: string) {
 	return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
@@ -44,4 +46,59 @@ export function buildFutureRetroTexture(
 	return svgDataUrl(
 		`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="${frequency}" numOctaves="${octaves}" seed="11"/></filter><rect width="100%" height="100%" filter="url(#n)" opacity="${noiseOpacity}"/><g fill="${accent}" opacity="${fleckOpacity}"><circle cx="12" cy="21" r="${coarse ? 1.5 : 0.7}"/><circle cx="67" cy="43" r="${coarse ? 1.1 : 0.55}"/><circle cx="139" cy="16" r="${coarse ? 1.35 : 0.65}"/></g></svg>`
 	)
+}
+
+/**
+ * 根据 future-retro 五维配置生成 token 覆盖（TE-1-3 纹理参数注入 pipeline）。
+ * 输入 FutureRetroStyleConfig + isDark，输出 Partial<ThemeTokens>。
+ * - 纹理背景 → color['background-texture']
+ * - 纸暖度 → 调整 color.background 色温（HSL 调 H 向暖色偏移）
+ * - 面板深度 → 调整 color.card / color.popover 明度
+ * - 描边比例 → 调整 color.border 明度
+ */
+export function futureRetroTokenOverrides(
+	config: FutureRetroStyleConfig,
+	isDark: boolean,
+): Partial<ThemeTokens> {
+	const baseTokens = isDark ? futureRetroDarkTokens : futureRetroLightTokens
+	const baseColor = baseTokens.color!
+
+	// 纹理背景
+	const texture = buildFutureRetroTexture(config.textureStyle, config.textureIntensity, isDark)
+
+	// 纸暖度：0-100，默认 100。低于 100 时向暖色（H=30）偏移
+	const warmthFactor = (100 - config.paperWarmth) / 100
+	const bgHsl = parseHSL(hexToHSL(baseColor.background))
+	const warmH = bgHsl.h + (30 - bgHsl.h) * warmthFactor * 0.5
+	const adjustedBg = hslToHex(formatHSL(warmH, bgHsl.s, bgHsl.l))
+
+	// 面板深度：0-100，默认 100。低于 100 时加深（暗模式）或提亮（亮模式）
+	const depthFactor = (100 - config.panelDepth) / 100
+	const cardHsl = parseHSL(hexToHSL(baseColor.card))
+	const cardL = isDark ? cardHsl.l * (1 - depthFactor * 0.3) : cardHsl.l + depthFactor * 10
+	const adjustedCard = hslToHex(formatHSL(cardHsl.h, cardHsl.s, cardL))
+
+	const popoverHsl = parseHSL(hexToHSL(baseColor.popover))
+	const popoverL = isDark ? popoverHsl.l * (1 - depthFactor * 0.3) : popoverHsl.l + depthFactor * 10
+	const adjustedPopover = hslToHex(formatHSL(popoverHsl.h, popoverHsl.s, popoverL))
+
+	// 描边比例：50-100，默认 100。低于 100 时降低对比度
+	const strokeFactor = config.strokeScale / 100
+	const borderHsl = parseHSL(hexToHSL(baseColor.border))
+	const borderL = isDark
+		? borderHsl.l * (0.5 + strokeFactor * 0.5)
+		: borderHsl.l + (1 - strokeFactor) * 10
+	const adjustedBorder = hslToHex(formatHSL(borderHsl.h, borderHsl.s, borderL))
+
+	return {
+		color: {
+			'background-texture': texture,
+			background: adjustedBg,
+			card: adjustedCard,
+			'card-foreground': baseColor['card-foreground'],
+			popover: adjustedPopover,
+			'popover-foreground': baseColor['popover-foreground'],
+			border: adjustedBorder,
+		},
+	} as Partial<ThemeTokens>
 }

@@ -1,7 +1,7 @@
 import { createContext } from 'react'
 
 import { DEFAULT_DASHBOARD_STYLE, DEFAULT_DASHBOARD_STYLE_CONFIG } from './theme/tokens'
-import type { UserThemeConfig } from './theme/tokens'
+import type { DashboardStyle, UserThemeConfig } from './theme/tokens'
 
 type Theme = 'dark' | 'light' | 'system'
 
@@ -12,6 +12,8 @@ export type ThemeProviderState = {
   themeConfig: UserThemeConfig
   updateThemeConfig: (partial: Partial<UserThemeConfig>) => void
   resetTheme: () => void
+  dashboardStyle: DashboardStyle
+  setDashboardStyle: (style: DashboardStyle) => Promise<void>
 }
 
 const initialState: ThemeProviderState = {
@@ -29,6 +31,8 @@ const initialState: ThemeProviderState = {
   },
   updateThemeConfig: () => null,
   resetTheme: () => null,
+  dashboardStyle: DEFAULT_DASHBOARD_STYLE,
+  setDashboardStyle: () => Promise.resolve(),
 }
 
 export const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
