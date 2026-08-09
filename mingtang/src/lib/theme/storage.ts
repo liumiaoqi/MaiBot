@@ -128,6 +128,10 @@ function normalizeStyleConfig(value: unknown): DashboardStyleConfig {
 
   return {
     futureRetro: {
+      baseFontSize:
+        typeof futureRetro.baseFontSize === 'number' && Number.isFinite(futureRetro.baseFontSize)
+          ? Math.max(12, Math.min(20, futureRetro.baseFontSize))
+          : DEFAULT_FUTURE_RETRO_STYLE_CONFIG.baseFontSize,
       paperWarmth: clampPercent(
         futureRetro.paperWarmth,
         DEFAULT_FUTURE_RETRO_STYLE_CONFIG.paperWarmth

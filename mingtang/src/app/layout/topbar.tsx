@@ -21,6 +21,7 @@ export function Topbar({ onMenuClick, onSearchOpen }: TopbarProps) {
   return (
     <header
       data-dashboard-topbar="true"
+      data-dashboard-surface="true"
       className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4"
     >
       {/* 移动端侧边栏唤出按钮（lg 以上隐藏） */}

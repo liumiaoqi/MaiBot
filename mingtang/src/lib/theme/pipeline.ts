@@ -1,4 +1,4 @@
-import type { ThemeTokens, UserThemeConfig } from './tokens'
+import type { ThemeTokenOverride, ThemeTokens, UserThemeConfig } from './tokens'
 
 import { generatePalette, getReadableForeground, isDefaultAccentColor } from './palette'
 import { getPresetById } from './presets'
@@ -23,7 +23,7 @@ const DEFAULT_PRIMARY_COLOR_HSL = '112.7 40.2% 47.8%'
 
 const TOKEN_CATEGORIES = ['color', 'font', 'text', 'leading', 'tracking', 'radius', 'shadow', 'blur', 'opacity', 'layout', 'animation'] as const
 
-const mergeTokens = (base: ThemeTokens, overrides: Partial<ThemeTokens>): ThemeTokens => {
+const mergeTokens = (base: ThemeTokens, overrides: ThemeTokenOverride): ThemeTokens => {
   const merged = {} as ThemeTokens
   TOKEN_CATEGORIES.forEach((category) => {
     ;(merged as Record<string, unknown>)[category] = {

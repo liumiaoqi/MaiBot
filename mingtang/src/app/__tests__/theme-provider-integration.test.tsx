@@ -230,8 +230,6 @@ describe('ThemeProvider 真实链路', () => {
       expect(t).toBeTruthy()
       expect(t).not.toBe('none')
     })
-    const initial = root.style.getPropertyValue('--color-background-texture')
-
     // 切换到 none——纹理应为 none
     const noneCard = screen.getByTestId('fr-texture-card-none')
     fireEvent.click(noneCard)
@@ -239,7 +237,7 @@ describe('ThemeProvider 真实链路', () => {
       expect(root.style.getPropertyValue('--color-background-texture')).toBe('none')
     })
 
-    // 切回 dot-grid——纹理变化（非 none 且与 initial 不同）
+    // 切回 dot-grid——纹理恢复（非 none）
     const dotCard = screen.getByTestId('fr-texture-card-dot-grid')
     fireEvent.click(dotCard)
     await waitFor(() => {
@@ -269,5 +267,21 @@ describe('ThemeProvider 真实链路', () => {
     const root = document.documentElement
     const radiusVar = root.style.getPropertyValue('--radius-md')
     expect(radiusVar).toBe('12px')
+  })
+
+  it('future-retro 字号滑块——baseFontSize 变化注入 6 个 --text-* 变量', async () => {
+    const { FutureRetroPanel } = await import('@/features/config/appearance/future-retro-panel')
+    localStorage.setItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE, 'future-retro')
+    render(withProvider(createElement(FutureRetroPanel)))
+    const slider = screen.getByTestId('fr-font-size') as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '18' } })
+    const root = document.documentElement
+    await waitFor(() => {
+      expect(root.style.getPropertyValue('--text-base')).toBe('1.1250rem')
+    })
+    // 全量 6 个字号 token 一起写（对齐原版 buildFontSizeTokens 比例）
+    expect(root.style.getPropertyValue('--text-sm')).toBe('0.9844rem')
+    expect(root.style.getPropertyValue('--text-xs')).toBe('0.8438rem')
+    expect(root.style.getPropertyValue('--text-2xl')).toBe('1.6875rem')
   })
 })

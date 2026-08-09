@@ -156,6 +156,7 @@ describe('R1-2-4：主题搬移行为等价', () => {
       )
       const config = loadThemeConfig()
       expect(config.styleConfig.futureRetro).toEqual({
+        baseFontSize: 16,
         paperWarmth: 100,
         textureStyle: 'fine',
         textureIntensity: 0,

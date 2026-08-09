@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
@@ -44,13 +44,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const [collapsed, setCollapsed] = useState(false)
-
-  // 从 localStorage 恢复收起状态
-  useEffect(() => {
-    const stored = localStorage.getItem(COLLAPSE_KEY)
-    if (stored === 'true') setCollapsed(true)
-  }, [])
+  // 从 localStorage 恢复收起状态（惰性初始化——避免 effect 里同步 setState 级联渲染）
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === 'true')
 
   const toggleCollapsed = () => {
     const next = !collapsed
@@ -61,6 +56,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside
       data-dashboard-sidebar="true"
+      data-dashboard-surface="true"
       data-collapsed={collapsed}
       className={cn(
         'flex h-full flex-col border-r border-border bg-card transition-all duration-200',

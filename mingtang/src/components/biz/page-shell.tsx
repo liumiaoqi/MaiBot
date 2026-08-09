@@ -15,7 +15,7 @@ interface PageShellProps {
 
 export function PageShell({ title, breadcrumb, children, actions }: PageShellProps) {
   return (
-    <div className="min-h-screen bg-background" data-testid="page-shell">
+    <div className="min-h-screen bg-background" data-testid="page-shell" data-dashboard-surface="true">
       <header className="border-b border-border px-6 py-4">
         {breadcrumb && breadcrumb.length > 0 && (
           <nav className="mb-2 text-sm text-muted-foreground" aria-label="面包屑">

@@ -104,6 +104,15 @@ export type ThemeTokens = {
   animation: Record<string, string>
 }
 
+/**
+ * 部分 token 覆盖——每类别允许任意键的子集
+ * （Partial<ThemeTokens> 的 color 提供时必须完整 ColorTokens——覆盖场景（futureRetroTokenOverrides 只写 8 键）
+ * 会类型报错——用此类型表达"每类别部分覆盖"）
+ */
+export type ThemeTokenOverride = Partial<{
+  [K in keyof ThemeTokens]: ThemeTokens[K] | Record<string, string>
+}>
+
 // ============================================================================
 // Theme Preset & Config Types
 // ============================================================================
@@ -125,6 +134,7 @@ export type StyleBackgroundConfigMap = Partial<Record<DashboardStyle, Background
 export type FutureRetroTextureStyle = 'fine' | 'coarse' | 'dot-grid' | 'ruled' | 'none'
 
 export type FutureRetroStyleConfig = {
+  baseFontSize: number
   paperWarmth: number
   textureStyle: FutureRetroTextureStyle
   textureIntensity: number
@@ -139,6 +149,7 @@ export type DashboardStyleConfig = {
 export const DEFAULT_DASHBOARD_STYLE: DashboardStyle = 'future-retro'
 
 export const DEFAULT_FUTURE_RETRO_STYLE_CONFIG: FutureRetroStyleConfig = {
+  baseFontSize: 16,
   paperWarmth: 100,
   textureStyle: 'fine',
   textureIntensity: 55,

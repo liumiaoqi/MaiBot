@@ -1,12 +1,14 @@
-import { useState, useCallback, useContext } from 'react'
+import { useState, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { loadThemeConfig, saveThemePartial } from '@/lib/theme/storage'
 import { applyThemePipeline } from '@/lib/theme/pipeline'
-import { buildFutureRetroTexture } from '@/lib/theme/future-retro'
+import { buildFutureRetroTexture, futureRetroTokenOverrides } from '@/lib/theme/future-retro'
 import { ThemeProviderContext } from '@/lib/theme-context'
 import {
   DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
+  futureRetroDarkTokens,
+  futureRetroLightTokens,
   type FutureRetroStyleConfig,
   type FutureRetroTextureStyle,
 } from '@/lib/theme/tokens'
@@ -33,8 +35,16 @@ export function FutureRetroPanel() {
   const { t } = useTranslation()
   const { resolvedTheme } = useContext(ThemeProviderContext)
   const [config, setConfig] = useState<FutureRetroStyleConfig>(readStoredConfig)
-  const [fontSize, setFontSize] = useState(16)
   const isDark = resolvedTheme === 'dark'
+
+  // 实时预览——直接消费 futureRetroTokenOverrides 计算结果（预览 = 页面真实效果，解决"不知道看哪里"）
+  const frColors = useMemo(() => {
+    const base = isDark ? futureRetroDarkTokens : futureRetroLightTokens
+    const overrides = futureRetroTokenOverrides(config, isDark)
+    return { ...base.color!, ...(overrides.color ?? {}) }
+  }, [config, isDark])
+
+  const baseFontSize = config.baseFontSize ?? 16
 
   /** 即拖即生效——更新参数并写入 localStorage + 重跑 pipeline */
   const updateConfig = useCallback((partial: Partial<FutureRetroStyleConfig>) => {
@@ -73,6 +83,43 @@ export function FutureRetroPanel() {
         </button>
       </div>
 
+      {/* 实时预览——纸色/卡片/边框/纹理/字号全部参数实时反映（"不知道看哪里"的答案） */}
+      <div className="space-y-1" data-testid="fr-preview">
+        <label className="text-sm font-medium text-foreground">{t('settings.appearance.frPreview')}</label>
+        <div
+          className="rounded-md border border-border p-4 space-y-2"
+          style={{
+            backgroundColor: frColors.background,
+            backgroundImage:
+              frColors['background-texture'] && frColors['background-texture'] !== 'none'
+                ? frColors['background-texture']
+                : undefined,
+            backgroundSize: '180px 180px',
+          }}
+        >
+          {/* 卡片——面板深度看卡片背景，描边比例看卡片边框 */}
+          <div
+            className="rounded-sm border px-3 py-2 space-y-1"
+            style={{
+              backgroundColor: frColors.card,
+              borderColor: frColors.border,
+              color: frColors.foreground,
+              fontSize: `${baseFontSize}px`,
+            }}
+            data-testid="fr-preview-card"
+          >
+            <p className="font-semibold">{t('settings.appearance.frPreviewCard')}</p>
+            <p style={{ fontSize: `${(baseFontSize * 0.875).toFixed(1)}px`, color: frColors['muted-foreground'] }}>
+              {t('settings.appearance.frPreviewCardSub')}
+            </p>
+          </div>
+          {/* 页面文字——基础字号看这里 */}
+          <p style={{ color: frColors.foreground, fontSize: `${(baseFontSize * 0.875).toFixed(1)}px` }} data-testid="fr-preview-page">
+            {t('settings.appearance.frPreviewPage')}
+          </p>
+        </div>
+      </div>
+
       {/* ① 基础字号 12-20px */}
       <div className="space-y-1">
         <label className="text-sm font-medium text-foreground">{t('settings.appearance.baseFontSize')}</label>
@@ -80,11 +127,12 @@ export function FutureRetroPanel() {
           type="range"
           min={12}
           max={20}
-          value={fontSize}
-          onChange={(e) => setFontSize(Number(e.target.value))}
+          value={baseFontSize}
+          onChange={(e) => updateConfig({ baseFontSize: Number(e.target.value) })}
           className="w-full"
           data-testid="fr-font-size"
         />
+        <span className="text-xs text-muted-foreground">{t('settings.appearance.baseFontSizeHint')}</span>
       </div>
 
       {/* ② 纸暖度 0-100% */}
@@ -99,7 +147,7 @@ export function FutureRetroPanel() {
           className="w-full"
           data-testid="fr-paper-warmth"
         />
-        <span className="text-xs text-muted-foreground">{config.paperWarmth}%</span>
+        <span className="text-xs text-muted-foreground">{config.paperWarmth}% — {t('settings.appearance.frPaperWarmthHint')}</span>
       </div>
 
       {/* ③ 纹理风格 5 张缩略卡片 */}
@@ -145,7 +193,7 @@ export function FutureRetroPanel() {
           className="w-full"
           data-testid="fr-texture-intensity"
         />
-        <span className="text-xs text-muted-foreground">{config.textureIntensity}%</span>
+        <span className="text-xs text-muted-foreground">{config.textureIntensity}% — {t('settings.appearance.frTextureIntensityHint')}</span>
       </div>
 
       {/* ⑤ 面板深度 0-100% */}
@@ -160,7 +208,7 @@ export function FutureRetroPanel() {
           className="w-full"
           data-testid="fr-panel-depth"
         />
-        <span className="text-xs text-muted-foreground">{config.panelDepth}%</span>
+        <span className="text-xs text-muted-foreground">{config.panelDepth}% — {t('settings.appearance.frPanelDepthHint')}</span>
       </div>
 
       {/* ⑥ 描边比例 50-100% */}
@@ -175,7 +223,7 @@ export function FutureRetroPanel() {
           className="w-full"
           data-testid="fr-stroke-scale"
         />
-        <span className="text-xs text-muted-foreground">{config.strokeScale}%</span>
+        <span className="text-xs text-muted-foreground">{config.strokeScale}% — {t('settings.appearance.frStrokeScaleHint')}</span>
       </div>
     </div>
   )

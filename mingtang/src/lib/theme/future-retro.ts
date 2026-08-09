@@ -1,4 +1,4 @@
-import type { FutureRetroStyleConfig, FutureRetroTextureStyle, ThemeTokens } from './tokens'
+import type { FutureRetroStyleConfig, FutureRetroTextureStyle, ThemeTokenOverride } from './tokens'
 import { futureRetroLightTokens, futureRetroDarkTokens } from './tokens'
 import { hexToHSL, hslToHex, parseHSL, formatHSL } from './palette'
 
@@ -59,7 +59,7 @@ export function buildFutureRetroTexture(
 export function futureRetroTokenOverrides(
 	config: FutureRetroStyleConfig,
 	isDark: boolean,
-): Partial<ThemeTokens> {
+): ThemeTokenOverride {
 	const baseTokens = isDark ? futureRetroDarkTokens : futureRetroLightTokens
 	const baseColor = baseTokens.color!
 
@@ -67,10 +67,12 @@ export function futureRetroTokenOverrides(
 	const texture = buildFutureRetroTexture(config.textureStyle, config.textureIntensity, isDark)
 
 	// 纸暖度：0-100，默认 100。低于 100 时向暖色（H=30）偏移
+	// 偏移量取全量（早期 *0.5 系数最多移 5.4° 色相——人眼不可感知，用户"不知道看哪里"的根源之一）
 	const warmthFactor = (100 - config.paperWarmth) / 100
 	const bgHsl = parseHSL(hexToHSL(baseColor.background))
-	const warmH = bgHsl.h + (30 - bgHsl.h) * warmthFactor * 0.5
-	const adjustedBg = hslToHex(formatHSL(warmH, bgHsl.s, bgHsl.l))
+	const warmH = bgHsl.h + (30 - bgHsl.h) * warmthFactor
+	const warmS = bgHsl.s + (30 - bgHsl.s) * warmthFactor * 0.4
+	const adjustedBg = hslToHex(formatHSL(warmH, warmS, bgHsl.l))
 
 	// 面板深度：0-100，默认 100。低于 100 时加深（暗模式）或提亮（亮模式）
 	const depthFactor = (100 - config.panelDepth) / 100
@@ -90,6 +92,18 @@ export function futureRetroTokenOverrides(
 		: borderHsl.l + (1 - strokeFactor) * 10
 	const adjustedBorder = hslToHex(formatHSL(borderHsl.h, borderHsl.s, borderL))
 
+	// 基础字号：baseFontSize（px，12-20）→ 6 个 text token
+	// （对齐原版 buildFontSizeTokens 比例——base×0.75/0.875/1/1.125/1.25/1.5）
+	const baseRem = (config.baseFontSize ?? 16) / 16
+	const adjustedText = {
+		xs: `${(baseRem * 0.75).toFixed(4)}rem`,
+		sm: `${(baseRem * 0.875).toFixed(4)}rem`,
+		base: `${baseRem.toFixed(4)}rem`,
+		lg: `${(baseRem * 1.125).toFixed(4)}rem`,
+		xl: `${(baseRem * 1.25).toFixed(4)}rem`,
+		'2xl': `${(baseRem * 1.5).toFixed(4)}rem`,
+	}
+
 	return {
 		color: {
 			'background-texture': texture,
@@ -100,5 +114,6 @@ export function futureRetroTokenOverrides(
 			'popover-foreground': baseColor['popover-foreground'],
 			border: adjustedBorder,
 		},
-	} as Partial<ThemeTokens>
+		text: adjustedText,
+	}
 }

@@ -109,10 +109,10 @@ describe('R2-1-4：FutureRetroPanel 六维参数面板', () => {
     expect(Number(intensitySlider.value)).toBe(DEFAULT_FUTURE_RETRO_STYLE_CONFIG.textureIntensity)
   })
 
-  it('TE-1-2：所有 label 有 text-foreground 类（6 处）', () => {
+  it('TE-1-2：所有 label 有 text-foreground 类（7 处——六维参数 + 实时预览）', () => {
     render(<FutureRetroPanel />)
     const labels = document.querySelectorAll('label.text-foreground')
-    expect(labels).toHaveLength(6)
+    expect(labels).toHaveLength(7)
   })
 
   it('TE-1-2：label 不硬编码颜色（类名含 text-foreground 非 hex/rgb）', () => {
@@ -146,5 +146,32 @@ describe('R2-1-4：FutureRetroPanel 六维参数面板', () => {
     render(<FutureRetroPanel />)
     const noneCard = screen.getByTestId('fr-texture-card-none') as HTMLElement
     expect(noneCard.style.backgroundImage).toBe('')
+  })
+
+  it('字号滑块——拖动写入 storage 的 baseFontSize（不再是纯本地 state）', () => {
+    render(<FutureRetroPanel />)
+    const slider = screen.getByTestId('fr-font-size') as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '18' } })
+    const stored = localStorage.getItem(THEME_STORAGE_KEYS.STYLE_CONFIG)
+    expect(stored).not.toBeNull()
+    const config = JSON.parse(stored!)
+    expect(config.futureRetro.baseFontSize).toBe(18)
+  })
+
+  it('实时预览卡片渲染（fr-preview + fr-preview-card）', () => {
+    render(<FutureRetroPanel />)
+    expect(screen.getByTestId('fr-preview')).toBeInTheDocument()
+    const card = screen.getByTestId('fr-preview-card') as HTMLElement
+    expect(card.style.backgroundColor).toBeTruthy()
+  })
+
+  it('面板深度变化 → 预览卡片背景色实时变化', () => {
+    render(<FutureRetroPanel />)
+    const card = screen.getByTestId('fr-preview-card') as HTMLElement
+    const before = card.style.backgroundColor
+    const depthSlider = screen.getByTestId('fr-panel-depth') as HTMLInputElement
+    fireEvent.change(depthSlider, { target: { value: '0' } })
+    const after = card.style.backgroundColor
+    expect(after).not.toBe(before)
   })
  })

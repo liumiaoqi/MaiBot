@@ -295,7 +295,16 @@
       "textureCoarse": "粗粒",
       "textureDotGrid": "ドット",
       "textureRuled": "横線",
-      "textureNone": "なし"
+      "textureNone": "なし",
+      "frPreview": "ライブプレビュー——スライダーで効果を確認",
+      "frPreviewCard": "プレビューカード（パネルの深さ→カード背景）",
+      "frPreviewCardSub": "カードの副テキスト——ストローク倍率→カード枠線",
+      "frPreviewPage": "ページテキスト——基本フォントサイズの確認先",
+      "baseFontSizeHint": "全インターフェース文字を拡縮（12-20px）",
+      "frPaperWarmthHint": "紙の色温度、低いほどオレンジ寄り",
+      "frTextureIntensityHint": "テクスチャ粒の目立ち具合",
+      "frPanelDepthHint": "カード/ダイアログの明暗",
+      "frStrokeScaleHint": "枠線の明暗"
     },
     "security": {
       "currentToken": "現在のアクセストークン",

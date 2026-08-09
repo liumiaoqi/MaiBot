@@ -39,7 +39,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         styleCustomCSS: {},
         dashboardStyle: 'future-retro',
         styleBackgroundConfig: {},
-        styleConfig: { futureRetro: { paperWarmth: 100, textureStyle: 'fine', textureIntensity: 55, panelDepth: 100, strokeScale: 100 } },
+        styleConfig: { futureRetro: { baseFontSize: 16, paperWarmth: 100, textureStyle: 'fine', textureIntensity: 55, panelDepth: 100, strokeScale: 100 } },
       }
     }
   })

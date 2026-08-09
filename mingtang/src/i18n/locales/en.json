@@ -295,7 +295,16 @@
       "textureCoarse": "Coarse",
       "textureDotGrid": "Dot Grid",
       "textureRuled": "Ruled",
-      "textureNone": "None"
+      "textureNone": "None",
+      "frPreview": "Live preview — drag sliders to see the effect",
+      "frPreviewCard": "Preview card (panel depth → card background)",
+      "frPreviewCardSub": "Card sub-text — stroke scale → card border",
+      "frPreviewPage": "Page text — base font size applied here",
+      "baseFontSizeHint": "Scales all interface text (12-20px)",
+      "frPaperWarmthHint": "Paper warmth — lower is more orange-brown",
+      "frTextureIntensityHint": "How visible the texture grain is",
+      "frPanelDepthHint": "How dark/light cards & dialogs are",
+      "frStrokeScaleHint": "How dark/light borders are"
     },
     "security": {
       "currentToken": "Current Access Token",

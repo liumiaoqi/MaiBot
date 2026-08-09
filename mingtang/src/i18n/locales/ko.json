@@ -287,7 +287,16 @@
       "textureCoarse": "거친 입자",
       "textureDotGrid": "도트",
       "textureRuled": "가로선",
-      "textureNone": "없음"
+      "textureNone": "없음",
+      "frPreview": "실시간 미리보기——슬라이더로 효과 확인",
+      "frPreviewCard": "미리보기 카드（패널 깊이→카드 배경）",
+      "frPreviewCardSub": "카드 보조 텍스트——선 비율→카드 테두리",
+      "frPreviewPage": "페이지 텍스트——기본 글자 크기 확인",
+      "baseFontSizeHint": "모든 인터페이스 글자 크기 조절（12-20px）",
+      "frPaperWarmthHint": "종이 색온도, 낮을수록 주황빛",
+      "frTextureIntensityHint": "텍스처 입자의 선명도",
+      "frPanelDepthHint": "카드/다이얼로그의 밝고 어두움",
+      "frStrokeScaleHint": "테두리의 밝고 어두움"
     },
     "security": {
       "currentToken": "현재 액세스 토큰",

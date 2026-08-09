@@ -295,7 +295,16 @@
       "textureCoarse": "粗颗粒",
       "textureDotGrid": "点阵",
       "textureRuled": "横线",
-      "textureNone": "无"
+      "textureNone": "无",
+      "frPreview": "实时预览——拖拽滑块看效果",
+      "frPreviewCard": "预览卡片（面板深度看卡片背景）",
+      "frPreviewCardSub": "卡片副文字——描边比例看卡片边框",
+      "frPreviewPage": "页面文字——基础字号看这里",
+      "baseFontSizeHint": "影响界面所有文字大小（12-20px）",
+      "frPaperWarmthHint": "纸面冷暖，越低越偏橙棕",
+      "frTextureIntensityHint": "纹理颗粒的明显程度",
+      "frPanelDepthHint": "卡片/弹层的深浅",
+      "frStrokeScaleHint": "边框的深浅"
     },
     "security": {
       "currentToken": "当前 Access Token",
