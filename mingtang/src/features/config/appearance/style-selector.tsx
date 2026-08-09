@@ -53,7 +53,7 @@ export function StyleSelector() {
           )}
         >
           <div className="flex items-center gap-2">
-            <Icon className="h-5 w-5" />
+            <Icon className="h-5 w-5 text-foreground" />
             <span className="font-semibold text-foreground">{label}</span>
           </div>
           <p className="text-sm text-muted-foreground">{description}</p>
