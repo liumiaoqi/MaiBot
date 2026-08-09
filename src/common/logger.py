@@ -219,10 +219,11 @@ class WebSocketLogHandler(logging.Handler):
             budget_ms=5.0,
             budget_count=20,
         )
-        # set_loop 可能在事件循环启动前被调用——用惰性启动兜底（无 running loop 时安全跳过，
-        # drainer 由入队路径的 _lazy_start 在 loop 运行后拉起）；直接 start() 会抛
-        # RuntimeError: no running event loop
-        self._softirq._lazy_start()
+        # set_loop 可能在事件循环启动前被调用——直接 start() 会抛
+        # RuntimeError: no running event loop；_lazy_start() 对新建实例是空操作
+        # （_loop 只在 start() 内赋值，恒 None）——正确姿势：loop.call_soon 把 start
+        # 调度到事件循环线程，循环启动后执行（CX 审查 2026-08-09 P1 发现）
+        self.loop.call_soon(self._softirq.start)
 
     async def _batch_broadcast(self, batch: list[dict]) -> None:
         """批量广播日志到 WebSocket（单条失败隔离，不中断整批）"""
