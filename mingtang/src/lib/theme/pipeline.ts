@@ -18,7 +18,8 @@ const CUSTOM_CSS_ID = 'maibot-custom-css'
 const COMPONENT_CSS_ID_PREFIX = 'maibot-bg-css-'
 const COMPONENT_IDS = ['page', 'sidebar', 'header', 'card', 'dialog'] as const
 // generatePalette 输入需要 HSL 字符串（tokens 现为 hex）——独立保留默认主色 HSL
-const DEFAULT_PRIMARY_COLOR_HSL = '28.9 94.8% 45.1%'
+// 默认强调色 = accent 默认（绿 112.7 40.2% 47.8%——#55AB49）——primary 与 accent 同源
+const DEFAULT_PRIMARY_COLOR_HSL = '112.7 40.2% 47.8%'
 
 const TOKEN_CATEGORIES = ['color', 'font', 'text', 'leading', 'tracking', 'radius', 'shadow', 'blur', 'opacity', 'layout', 'animation'] as const
 

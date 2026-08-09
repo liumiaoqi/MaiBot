@@ -73,7 +73,7 @@ export function ThemeModeSwitch() {
             'flex items-center gap-2 px-4 py-2 rounded-md border transition-colors',
             mode === value
               ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border hover:bg-muted'
+              : 'border-border text-foreground hover:bg-muted'
           )}
         >
           <Icon className="h-4 w-4" />

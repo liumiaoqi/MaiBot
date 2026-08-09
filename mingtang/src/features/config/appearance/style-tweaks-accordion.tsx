@@ -40,8 +40,19 @@ export function StyleTweaksAccordion() {
   }, [])
 
   const handleFontSizeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // 一次写全 6 个字号 token（对齐原版 buildFontSizeTokens——base×0.75/0.875/1/1.125/1.25/1.5）
+    // 只写 base 时页面大量使用 text-sm/xs 的类不变——用户看不出作用
     const rem = Number(e.target.value) / 16
-    applyStyleOverride({ text: { base: `${rem}rem` } })
+    applyStyleOverride({
+      text: {
+        xs: `${(rem * 0.75).toFixed(4)}rem`,
+        sm: `${(rem * 0.875).toFixed(4)}rem`,
+        base: `${rem.toFixed(4)}rem`,
+        lg: `${(rem * 1.125).toFixed(4)}rem`,
+        xl: `${(rem * 1.25).toFixed(4)}rem`,
+        '2xl': `${(rem * 1.5).toFixed(4)}rem`,
+      },
+    })
   }, [])
 
   const handleBorderRadiusChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

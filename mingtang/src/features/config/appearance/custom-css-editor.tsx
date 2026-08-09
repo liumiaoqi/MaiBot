@@ -58,7 +58,7 @@ export function CustomCssEditor() {
       <textarea
         value={css}
         onChange={(e) => setCss(e.target.value)}
-        className="w-full h-[250px] rounded-md border border-border p-3 font-mono text-sm"
+        className="w-full h-[250px] rounded-md border border-border p-3 font-mono text-sm text-foreground placeholder:text-muted-foreground"
         placeholder={t('settings.appearance.cssPlaceholder')}
         data-testid="custom-css-textarea"
       />

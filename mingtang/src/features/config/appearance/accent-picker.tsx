@@ -116,7 +116,7 @@ export function AccentPicker() {
           value={hex}
           maxLength={7}
           onChange={(e) => handleHexChange(e.target.value)}
-          className="w-24 px-3 py-2 rounded-md border border-border font-mono text-sm"
+          className="w-24 px-3 py-2 rounded-md border border-border font-mono text-sm text-foreground placeholder:text-muted-foreground"
           data-testid="accent-hex-input"
           aria-label={t('settings.appearance.accentHint')}
         />
@@ -137,11 +137,14 @@ export function AccentPicker() {
       {/* 8 格色板预览 */}
       <div className="flex gap-2">
         {swatches.map((swatchHsl, i) => (
-          <div
+          <button
             key={i}
+            type="button"
             data-testid={`accent-swatch-${i}`}
-            className="h-8 w-8 rounded-md border border-border"
+            className="h-8 w-8 rounded-md border border-border transition-transform hover:scale-110"
             style={{ backgroundColor: `hsl(${swatchHsl})` }}
+            onClick={() => applyAccent(hslToHex(swatchHsl))}
+            aria-label={`选择强调色 ${i + 1}`}
           />
         ))}
       </div>

@@ -8,15 +8,36 @@ import { menuSections } from './menu-sections'
 
 const COLLAPSE_KEY = 'maibot-sidebar-collapsed'
 
-/** 图标名称 → SVG 渲染（简化版——R1-3-11 shadcn/ui 后可增强） */
+import { Home, Bot, Smile, Heart, Users, Activity, Monitor, Settings, Type, Sparkles, BookOpen, Package, Plug, Server, Palette, MessageSquare, Brain, Languages, Cpu, CircleDot } from 'lucide-react'
+
+/** 菜单图标名 → lucide 组件映射（menu-sections 的 icon 名） */
+const ICON_MAP: Record<string, typeof Home> = {
+  home: Home,
+  agent: Bot,
+  'bot-config': Settings,
+  'chat-management': MessageSquare,
+  deepseek: Brain,
+  emoji: Smile,
+  emotion: Heart,
+  expression: Sparkles,
+  jargon: Languages,
+  knowledge: BookOpen,
+  mcp: Plug,
+  model: Cpu,
+  monitor: Activity,
+  palette: Palette,
+  'plugin-config': Server,
+  'plugin-market': Package,
+  prompt: Type,
+  relationship: Users,
+  subagent: CircleDot,
+  system: Monitor,
+  behavior: Brain,
+}
+
 function MenuIcon({ name, className }: { name: string; className?: string }) {
-  return (
-    <span
-      className={cn('inline-block h-5 w-5 shrink-0', className)}
-      data-icon={name}
-      aria-hidden="true"
-    />
-  )
+  const Icon = ICON_MAP[name] ?? CircleDot
+  return <Icon className={cn('h-5 w-5 shrink-0', className)} data-icon={name} aria-hidden="true" />
 }
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -96,7 +117,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                           'flex w-full items-center rounded-md text-left text-sm transition-colors',
                           collapsed ? 'justify-center px-0 py-2' : 'gap-3 px-3 py-2',
                           isActive
-                            ? 'bg-accent text-accent-foreground font-medium'
+                            ? 'bg-primary text-primary-foreground font-medium'
                             : 'text-foreground hover:bg-accent/50'
                         )}
                         data-testid={`sidebar-item-${item.path}`}

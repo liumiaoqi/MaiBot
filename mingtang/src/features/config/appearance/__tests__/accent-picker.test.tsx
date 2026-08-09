@@ -99,11 +99,18 @@ describe('R2-1-3：AccentPicker 强调色选择', () => {
     expect(hexInput.value).not.toBe(DEFAULT_ACCENT_COLOR_HEX)
   })
 
-  it('8 格色板预览不可点选', () => {
+  it('8 格色板预览可点选——点击设置 accent（2026-08-09 用户需求）', () => {
     render(<AccentPicker />)
     const swatches = screen.getAllByTestId(/accent-swatch-\d/)
+    expect(swatches.length).toBe(8)
+    // 点击第一个色块 → accent 被设置（localStorage 写入）
+    const first = swatches[0] as HTMLButtonElement
+    first.click()
+    const stored = localStorage.getItem('maibot-theme-accent')
+    expect(stored).toBeTruthy()
+    // 全部为 button（可交互）
     swatches.forEach((s) => {
-      expect(s).not.toBeInstanceOf(HTMLButtonElement)
+      expect(s).toBeInstanceOf(HTMLButtonElement)
     })
   })
 })
