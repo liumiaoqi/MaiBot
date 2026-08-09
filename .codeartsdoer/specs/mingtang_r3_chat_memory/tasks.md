@@ -93,11 +93,13 @@
     - 新建 `mingtang/src/features/chat/__tests__/message-renderer.test.tsx`（测试先行）
   - **实现内容**：
     - MessageList：ScrollArea + map 分组渲染（对齐原版——不虚拟化；聊天会话消息量场景 ScrollArea 足够，虚拟化引入滚动锚定复杂度不值——如未来消息量暴增再优化渲染层）
+    - 消息行渐进增强（2026-08-09 决策）：消息行容器加 `content-visibility: auto` + `contain-intrinsic-size: auto <估算高>`（浏览器原生按需渲染视口外节点——零 JS 复杂度、无需测量高度；不支持的浏览器自动忽略；消息量级将来上来无需换虚拟化库——直接落地，非 TODO）
     - MessageRenderer：12 段类型 switch——reply 段独立块 + scrollToMessage 跳转
     - ChatScrollContext：Context 提供 scrollToMessage
     - 新写法：React 19 Context 直接当 provider
   - **配套测试**（测试先行）：
     - MessageList 分组 + 滚动锚点 + scrollToMessage 高亮 + 空态欢迎页 + 1000 条渲染（ScrollArea 不卡顿——jsdom 渲染断言 + 分组结构）
+    - 消息行 content-visibility 规则落地断言（渐进增强——jsdom 无法验证渲染行为，断言消息行容器 class 含 content-visibility 规则对应样式入口）
     - MessageRenderer 12 段类型各渲染正确 + reply 独立块 + scrollToMessage 跳转
     - ChatScrollContext scrollToMessage 跨组件接口
   - **验收条件**：`pnpm run test -- message-list` 全绿 + `pnpm run test -- message-renderer` 全绿
