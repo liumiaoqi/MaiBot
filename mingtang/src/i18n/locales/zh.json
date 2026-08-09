@@ -56,7 +56,8 @@
       "localChat": "本地聊天室",
       "settings": "系统设置",
       "deepseekMonitor": "DeepSeek优化",
-      "appearance": "外观设置"
+      "appearance": "外观设置",
+      "behavior": "行为"
     }
   },
   "workspace": {
@@ -762,7 +763,9 @@
     "search": "搜索",
     "noData": "暂无数据",
     "success": "成功",
-    "failed": "失败"
+    "failed": "失败",
+    "more": "更多",
+    "advancedSettings": "高级设置"
   },
   "restart": {
     "preparing": "准备重启",

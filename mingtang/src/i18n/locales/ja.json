@@ -56,7 +56,8 @@
       "localChat": "ローカルチャット",
       "settings": "設定",
       "deepseekMonitor": "DeepSeek最適化",
-      "appearance": "外観設定"
+      "appearance": "外観設定",
+      "behavior": "行動"
     }
   },
   "workspace": {
@@ -762,7 +763,9 @@
     "search": "検索",
     "noData": "データなし",
     "success": "成功しました",
-    "failed": "失敗"
+    "failed": "失敗",
+    "more": "もっと見る",
+    "advancedSettings": "詳細設定"
   },
   "restart": {
     "preparing": "再起動を準備中",

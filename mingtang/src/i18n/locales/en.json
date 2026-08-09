@@ -56,7 +56,8 @@
       "localChat": "Local Chat",
       "settings": "Settings",
       "deepseekMonitor": "DeepSeek Optimizer",
-      "appearance": "Appearance"
+      "appearance": "Appearance",
+      "behavior": "Behavior"
     }
   },
   "workspace": {
@@ -762,7 +763,9 @@
     "search": "Search",
     "noData": "No data",
     "success": "Success",
-    "failed": "Failed"
+    "failed": "Failed",
+    "more": "More",
+    "advancedSettings": "Advanced Settings"
   },
   "restart": {
     "preparing": "Preparing to restart",

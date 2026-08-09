@@ -56,7 +56,8 @@
       "localChat": "로컬 채팅",
       "settings": "설정",
       "deepseekMonitor": "DeepSeek 최적화",
-      "appearance": "외관 설정"
+      "appearance": "외관 설정",
+      "behavior": "행동"
     }
   },
   "workspace": {
@@ -754,7 +755,9 @@
     "search": "검색",
     "noData": "데이터 없음",
     "success": "성공",
-    "failed": "실패"
+    "failed": "실패",
+    "more": "더 보기",
+    "advancedSettings": "고급 설정"
   },
   "restart": {
     "preparing": "재시작 준비 중",
