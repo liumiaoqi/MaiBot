@@ -195,27 +195,7 @@ export function ChatWorkspaceSidebar({
         </div>
       </div>
 
-      {/* 会话列表 */}
-      <ScrollArea
-        className="min-h-0 flex-1"
-        contentClassName="!block w-full min-w-0"
-        scrollbars="vertical"
-        viewportClassName="[&>div]:!block [&>div]:!min-w-0 [&>div]:w-full"
-      >
-        <nav aria-label={t('chat.sidebar.conversations')} className="space-y-0.5 p-2">
-          {tabs.map((tab) => (
-            <ConversationItem
-              key={tab.id}
-              active={activeTabId === tab.id}
-              tab={tab}
-              onSwitch={onSwitch}
-              onClose={onClose}
-            />
-          ))}
-        </nav>
-      </ScrollArea>
-
-      {/* 底部：本地用户身份 */}
+      {/* 用户身份（顶部——打开即见——R3 验收反馈） */}
       <div className="border-t p-3">
         <div className="bg-background/70 hover:bg-background flex items-center gap-3 rounded-xl border p-2.5 transition-colors">
           <Avatar className="h-10 w-10 shrink-0 ring-1 ring-border/60">
@@ -276,6 +256,27 @@ export function ChatWorkspaceSidebar({
           </div>
         </div>
       </div>
+
+      {/* 会话列表 */}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        contentClassName="!block w-full min-w-0"
+        scrollbars="vertical"
+        viewportClassName="[&>div]:!block [&>div]:!min-w-0 [&>div]:w-full"
+      >
+        <nav aria-label={t('chat.sidebar.conversations')} className="space-y-0.5 p-2">
+          {tabs.map((tab) => (
+            <ConversationItem
+              key={tab.id}
+              active={activeTabId === tab.id}
+              tab={tab}
+              onSwitch={onSwitch}
+              onClose={onClose}
+            />
+          ))}
+        </nav>
+      </ScrollArea>
+
     </aside>
   )
 }

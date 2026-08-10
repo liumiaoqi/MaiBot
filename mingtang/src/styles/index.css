@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* 全局兜底：body 默认文字色 = foreground（R3 验收反馈——所有文字和图标默认浅色——
+   未显式着色的元素继承浏览器默认黑——逐处补漏总有遗漏——CSS 层一次兜底） */
+body {
+  color: var(--color-foreground);
+}
+
 /* 手动 dark 用 class 策略（shadcn 标准——media 策略下手动切换不生效） */
 @custom-variant dark (&:where(.dark, .dark *));
 
