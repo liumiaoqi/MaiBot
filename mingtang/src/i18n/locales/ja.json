@@ -1706,6 +1706,21 @@
       "batchDelete": "一括削除",
       "confirmDelete": "削除確認",
       "confirmBatchDelete": "一括削除確認"
+    },
+    "knowledge-base": {
+      "title": "知識ベース管理",
+      "description": "長期記憶のインポート、チューニング、削除とフィードバック管理",
+      "tabs": {
+        "import": "インポート",
+        "tuning": "チューニング",
+        "delete": "削除",
+        "feedback": "フィードバック"
+      },
+      "runtime": {
+        "title": "実行時ステータス",
+        "selfCheck": "セルフチェック",
+        "vectorRebuild": "ベクトル再構築"
+      }
     }
   }
 }

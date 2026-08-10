@@ -1704,6 +1704,21 @@
       "batchDelete": "批量删除",
       "confirmDelete": "确认删除",
       "confirmBatchDelete": "确认批量删除"
+    },
+    "knowledge-base": {
+      "title": "知识库管理",
+      "description": "长期记忆的导入、调优、删除与反馈管理",
+      "tabs": {
+        "import": "导入",
+        "tuning": "调参",
+        "delete": "删除",
+        "feedback": "反馈"
+      },
+      "runtime": {
+        "title": "运行时状态",
+        "selfCheck": "自检",
+        "vectorRebuild": "向量重建"
+      }
     }
   }
 }

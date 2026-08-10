@@ -20,6 +20,7 @@ import { ChatPage } from '../features/chat'
 import { ChatManagementPage } from '../features/chat/chat-management'
 import { ReasoningProcessPage } from '../features/memory/reasoning-process'
 import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
+import { KnowledgeBasePage } from '../features/resource/knowledge-base'
 import { EmojiCuratedPage } from '../features/resource/emoji'
 import { JargonManagementPage } from '../features/resource/jargon'
 
@@ -54,6 +55,7 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/chat-management': () => <ChatManagementPage />,
   '/reasoning-process': () => <ReasoningProcessPage />,
   '/resource/knowledge-graph': () => <KnowledgeGraphPage />,
+  '/resource/knowledge-base': () => <KnowledgeBasePage />,
   '/resource/emoji': () => <EmojiCuratedPage />,
   '/resource/jargon': () => <JargonManagementPage />,
 }

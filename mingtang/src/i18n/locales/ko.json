@@ -1532,6 +1532,21 @@
       "batchDelete": "일괄 삭제",
       "confirmDelete": "삭제 확인",
       "confirmBatchDelete": "일괄 삭제 확인"
+    },
+    "knowledge-base": {
+      "title": "지식 베이스 관리",
+      "description": "장기 기억 가져오기, 튜닝, 삭제 및 피드백 관리",
+      "tabs": {
+        "import": "가져오기",
+        "tuning": "튜닝",
+        "delete": "삭제",
+        "feedback": "피드백"
+      },
+      "runtime": {
+        "title": "런타임 상태",
+        "selfCheck": "셀프 체크",
+        "vectorRebuild": "벡터 재구축"
+      }
     }
   }
 }

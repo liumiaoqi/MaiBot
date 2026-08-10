@@ -1706,6 +1706,21 @@
       "batchDelete": "Batch Delete",
       "confirmDelete": "Confirm Delete",
       "confirmBatchDelete": "Confirm Batch Delete"
+    },
+    "knowledge-base": {
+      "title": "Knowledge Base Management",
+      "description": "Long-term memory import, tuning, deletion and feedback management",
+      "tabs": {
+        "import": "Import",
+        "tuning": "Tuning",
+        "delete": "Delete",
+        "feedback": "Feedback"
+      },
+      "runtime": {
+        "title": "Runtime Status",
+        "selfCheck": "Self Check",
+        "vectorRebuild": "Vector Rebuild"
+      }
     }
   }
 }
