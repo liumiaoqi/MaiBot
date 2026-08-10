@@ -1688,5 +1688,24 @@
     "upcoming3": "Share your own model allocation schemes",
     "upcoming4": "Preset rating and review system",
     "upcoming5": "Smart configuration recommendations based on use cases"
+  },
+  "resource": {
+    "emoji": {
+      "title": "Curated Emojis",
+      "loading": "Loading...",
+      "empty": "No curated emojis"
+    },
+    "jargon": {
+      "title": "Jargon Management",
+      "loading": "Loading...",
+      "empty": "No jargon",
+      "search": "Search jargon...",
+      "create": "Add Jargon",
+      "delete": "Delete",
+      "edit": "View/Edit",
+      "batchDelete": "Batch Delete",
+      "confirmDelete": "Confirm Delete",
+      "confirmBatchDelete": "Confirm Batch Delete"
+    }
   }
 }

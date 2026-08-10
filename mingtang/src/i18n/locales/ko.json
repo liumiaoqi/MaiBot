@@ -1514,5 +1514,24 @@
     "upcoming3": "자신의 모델 할당 방안 공유",
     "upcoming4": "프리셋 평가 및 리뷰 시스템",
     "upcoming5": "사용 시나리오 기반 스마트 추천 구성"
+  },
+  "resource": {
+    "emoji": {
+      "title": "이모티콘 선별",
+      "loading": "로딩 중...",
+      "empty": "선별된 이모티콘이 없습니다"
+    },
+    "jargon": {
+      "title": "흑화 관리",
+      "loading": "로딩 중...",
+      "empty": "흑화가 없습니다",
+      "search": "흑화 검색...",
+      "create": "흑화 추가",
+      "delete": "삭제",
+      "edit": "보기/편집",
+      "batchDelete": "일괄 삭제",
+      "confirmDelete": "삭제 확인",
+      "confirmBatchDelete": "일괄 삭제 확인"
+    }
   }
 }

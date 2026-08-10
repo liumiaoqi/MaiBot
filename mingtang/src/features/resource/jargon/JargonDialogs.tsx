@@ -1,0 +1,510 @@
+/** R4-1-2-5: 从 dashboard 行为等价搬移——适配 useToast → sonner toast */
+import { Check, Hash, HelpCircle } from 'lucide-react'
+import { useState } from 'react'
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { MultiSelect } from '@/components/ui/multi-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
+
+import { createJargon, updateJargon } from '@/lib/jargon-api'
+
+import type {
+  Jargon,
+  JargonChatInfo,
+  JargonCreateRequest,
+  JargonUpdateRequest,
+} from '@/types/jargon'
+
+// ====================
+// 信息项组件
+// ====================
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+  mono = false,
+}: {
+  icon?: typeof Hash
+  label: string
+  value: string | null | undefined
+  mono?: boolean
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-muted-foreground flex items-center gap-1 text-xs">
+        {Icon && <Icon className="h-3 w-3" />}
+        {label}
+      </Label>
+      <div className={cn('text-sm', mono && 'font-mono', !value && 'text-muted-foreground')}>
+        {value || '-'}
+      </div>
+    </div>
+  )
+}
+
+// ====================
+// 黑话详情对话框
+// ====================
+interface JargonDetailDialogProps {
+  jargon: Jargon | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  chatList: JargonChatInfo[]
+  onChanged: (jargon: Jargon) => void
+}
+
+export function JargonDetailDialog({
+  jargon,
+  open,
+  onOpenChange,
+  chatList,
+  onChanged,
+}: JargonDetailDialogProps) {
+  const [formData, setFormData] = useState<JargonUpdateRequest>({})
+  const [saving, setSaving] = useState(false)
+  const [pinning, setPinning] = useState(false)
+  const [lastJargonId, setLastJargonId] = useState<number | null>(null)
+
+  // 表单初始化：jargon 变化时同步 formData（render-time setState——规避 set-state-in-effect）
+  if (jargon && open && lastJargonId !== jargon.id) {
+    setLastJargonId(jargon.id)
+    setFormData({
+      content: jargon.content,
+      meaning: jargon.meaning || '',
+      session_id: jargon.session_id,
+      session_ids: jargon.session_ids?.length
+        ? jargon.session_ids
+        : [jargon.session_id].filter(Boolean),
+      is_global: jargon.is_global,
+      is_jargon: jargon.is_jargon,
+    })
+  }
+
+  const handleSave = async () => {
+    if (!jargon) return
+    if (formData.content !== undefined && !formData.content.trim()) {
+      toast.error('黑话内容不能为空')
+      return
+    }
+    if (formData.session_ids && formData.session_ids.length === 0) {
+      toast.error('请至少选择一个聊天')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const response = await updateJargon(jargon.id, formData)
+      if (response.data) {
+        onChanged(response.data)
+      }
+      toast.success('黑话已更新')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无法更新黑话')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handlePinMeaning = async () => {
+    if (!jargon) return
+    const meaning = (formData.meaning ?? jargon.meaning ?? '').trim()
+    if (!meaning) {
+      toast.error('当前黑话还没有含义，不能固定为手动记录')
+      return
+    }
+
+    try {
+      setPinning(true)
+      const response = await updateJargon(jargon.id, {
+        ...formData,
+        meaning,
+        created_by: 'MANUAL',
+        is_jargon: true,
+      })
+      if (response.data) {
+        onChanged(response.data)
+      }
+      toast.success('这条黑话已标记为手动记录，后续 AI 学习不会再覆盖它')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无法固定黑话含义')
+    } finally {
+      setPinning(false)
+    }
+  }
+
+  if (!jargon) return null
+
+  const canPinMeaning =
+    jargon.created_by !== 'MANUAL' && Boolean((formData.meaning ?? jargon.meaning ?? '').trim())
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="grid max-h-[80vh] max-w-2xl grid-rows-[auto_1fr_auto] overflow-hidden"
+      >
+        <DialogHeader>
+          <DialogTitle>黑话详情</DialogTitle>
+          <DialogDescription>查看并修改黑话信息</DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="h-full">
+          <div className="space-y-4 pb-2">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoItem icon={Hash} label="记录ID" value={jargon.id.toString()} mono />
+              <InfoItem label="使用次数" value={jargon.count.toString()} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="detail_content">内容</Label>
+              <Input
+                id="detail_content"
+                value={formData.content || ''}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                placeholder="输入黑话内容"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="detail_meaning">含义</Label>
+              <Textarea
+                id="detail_meaning"
+                value={formData.meaning || ''}
+                onChange={(e) => setFormData({ ...formData, meaning: e.target.value })}
+                placeholder="输入黑话含义"
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <Label>聊天</Label>
+                <MultiSelect
+                  options={chatList.map((chat) => ({
+                    label: chat.chat_name,
+                    value: chat.session_id,
+                  }))}
+                  selected={formData.session_ids || []}
+                  onChange={(values) =>
+                    setFormData({ ...formData, session_ids: values, session_id: values[0] })
+                  }
+                  placeholder="选择关联的聊天"
+                  emptyText="没有可选聊天"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs">状态</Label>
+                <div className="flex items-center gap-2">
+                  {formData.is_jargon === true && (
+                    <Badge variant="default" className="bg-green-600">
+                      是黑话
+                    </Badge>
+                  )}
+                  {formData.is_jargon !== true && <Badge variant="secondary">无黑话</Badge>}
+                  {jargon.is_legacy_empty_meaning && (
+                    <Badge variant="outline">
+                      <HelpCircle className="mr-1 h-3 w-3" />
+                      旧数据
+                    </Badge>
+                  )}
+                  {jargon.created_by === 'MANUAL' ? (
+                    <Badge variant="outline">手动</Badge>
+                  ) : (
+                    <Badge variant="secondary">AI</Badge>
+                  )}
+                  {jargon.is_global && (
+                    <Badge variant="outline" className="border-blue-500 text-blue-500">
+                      全局
+                    </Badge>
+                  )}
+                  {jargon.is_complete && (
+                    <Badge variant="outline" className="border-purple-500 text-purple-500">
+                      推断完成
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>黑话状态</Label>
+              <Select
+                value={formData.is_jargon ? 'true' : 'false'}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    is_jargon: value === 'true',
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">是黑话</SelectItem>
+                  <SelectItem value="false">无黑话</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="detail_is_global"
+                checked={formData.is_global}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_global: checked })}
+              />
+              <Label htmlFor="detail_is_global">全局黑话</Label>
+            </div>
+          </div>
+        </DialogBody>
+
+        <DialogFooter className="flex-shrink-0">
+          {jargon.created_by !== 'MANUAL' && (
+            <Button
+              variant="outline"
+              onClick={handlePinMeaning}
+              disabled={pinning || !canPinMeaning}
+              title={canPinMeaning ? '固定当前含义，后续不再由 AI 更新' : '当前黑话还没有含义'}
+            >
+              <Check className="mr-1 h-4 w-4" />
+              {pinning ? '固定中...' : '固定含义'}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            关闭
+          </Button>
+          <Button data-dialog-action="confirm" onClick={handleSave} disabled={saving || pinning}>
+            {saving ? '保存中...' : '保存'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ====================
+// 黑话创建对话框
+// ====================
+interface JargonCreateDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  chatList: JargonChatInfo[]
+  onSuccess: () => void
+}
+
+export function JargonCreateDialog({
+  open,
+  onOpenChange,
+  chatList,
+  onSuccess,
+}: JargonCreateDialogProps) {
+  const [formData, setFormData] = useState<JargonCreateRequest>({
+    content: '',
+    meaning: '',
+    session_ids: [],
+    is_global: false,
+  })
+  const [saving, setSaving] = useState(false)
+
+  const handleCreate = async () => {
+    if (!formData.content || !formData.session_ids?.length) {
+      toast.error('请填写必填字段：内容和聊天')
+      return
+    }
+
+    try {
+      setSaving(true)
+      await createJargon(formData)
+      toast.success('黑话已创建')
+      setFormData({ content: '', meaning: '', session_ids: [], is_global: false })
+      onSuccess()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无法创建黑话')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>新增黑话</DialogTitle>
+          <DialogDescription>创建新的黑话记录</DialogDescription>
+        </DialogHeader>
+
+        <DialogBody>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="content">
+                内容 <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="content"
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                placeholder="输入黑话内容"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="meaning">含义</Label>
+              <Textarea
+                id="meaning"
+                value={formData.meaning || ''}
+                onChange={(e) => setFormData({ ...formData, meaning: e.target.value })}
+                placeholder="输入黑话含义（可选）"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                聊天 <span className="text-destructive">*</span>
+              </Label>
+              <MultiSelect
+                options={chatList.map((chat) => ({
+                  label: chat.chat_name,
+                  value: chat.session_id,
+                }))}
+                selected={formData.session_ids || []}
+                onChange={(values) =>
+                  setFormData({ ...formData, session_ids: values, session_id: values[0] })
+                }
+                placeholder="选择关联的聊天"
+                emptyText="没有可选聊天"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_global"
+                checked={formData.is_global}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_global: checked })}
+              />
+              <Label htmlFor="is_global">设为全局黑话</Label>
+            </div>
+          </div>
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button data-dialog-action="confirm" onClick={handleCreate} disabled={saving}>
+            {saving ? '创建中...' : '创建'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ====================
+// 删除确认对话框
+// ====================
+interface DeleteConfirmDialogProps {
+  jargon: Jargon | null
+  open: boolean
+  onOpenChange: () => void
+  onConfirm: () => void
+}
+
+export function DeleteConfirmDialog({
+  jargon,
+  open,
+  onOpenChange,
+  onConfirm,
+}: DeleteConfirmDialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认删除</AlertDialogTitle>
+          <AlertDialogDescription>
+            确定要删除黑话 &ldquo;{jargon?.content}&rdquo; 吗？此操作不可撤销。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            删除
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// ====================
+// 批量删除确认对话框
+// ====================
+interface BatchDeleteConfirmDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  count: number
+}
+
+export function BatchDeleteConfirmDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  count,
+}: BatchDeleteConfirmDialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认批量删除</AlertDialogTitle>
+          <AlertDialogDescription>
+            您即将删除 {count} 个黑话，此操作无法撤销。确定要继续吗？
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            确认删除
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}

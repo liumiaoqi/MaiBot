@@ -1686,5 +1686,24 @@
     "upcoming3": "分享自己的模型分配方案",
     "upcoming4": "预设配置评分和评论系统",
     "upcoming5": "根据使用场景智能推荐配置"
+  },
+  "resource": {
+    "emoji": {
+      "title": "表情精选",
+      "loading": "加载中...",
+      "empty": "暂无精选表情"
+    },
+    "jargon": {
+      "title": "黑话管理",
+      "loading": "加载中...",
+      "empty": "暂无黑话",
+      "search": "搜索黑话内容...",
+      "create": "新增黑话",
+      "delete": "删除",
+      "edit": "查看/编辑",
+      "batchDelete": "批量删除",
+      "confirmDelete": "确认删除",
+      "confirmBatchDelete": "确认批量删除"
+    }
   }
 }

@@ -20,6 +20,8 @@ import { ChatPage } from '../features/chat'
 import { ChatManagementPage } from '../features/chat/chat-management'
 import { ReasoningProcessPage } from '../features/memory/reasoning-process'
 import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
+import { EmojiCuratedPage } from '../features/resource/emoji'
+import { JargonManagementPage } from '../features/resource/jargon'
 
 // 根路由
 const rootRoute = createRootRoute({
@@ -52,6 +54,8 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/chat-management': () => <ChatManagementPage />,
   '/reasoning-process': () => <ReasoningProcessPage />,
   '/resource/knowledge-graph': () => <KnowledgeGraphPage />,
+  '/resource/emoji': () => <EmojiCuratedPage />,
+  '/resource/jargon': () => <JargonManagementPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */

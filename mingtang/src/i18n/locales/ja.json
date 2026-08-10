@@ -1688,5 +1688,24 @@
     "upcoming3": "独自のモデル割り当て方案を共有",
     "upcoming4": "プリセット評価・レビューシステム",
     "upcoming5": "使用シーンに基づくスマート推奨設定"
+  },
+  "resource": {
+    "emoji": {
+      "title": "表情セレクション",
+      "loading": "読み込み中...",
+      "empty": "セレクション表情がありません"
+    },
+    "jargon": {
+      "title": "黒話管理",
+      "loading": "読み込み中...",
+      "empty": "黒話がありません",
+      "search": "黒話を検索...",
+      "create": "黒話を追加",
+      "delete": "削除",
+      "edit": "表示/編集",
+      "batchDelete": "一括削除",
+      "confirmDelete": "削除確認",
+      "confirmBatchDelete": "一括削除確認"
+    }
   }
 }
