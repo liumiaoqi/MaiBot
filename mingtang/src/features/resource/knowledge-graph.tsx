@@ -880,7 +880,7 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           {!embedded && (
             <div>
-              <h1 className="text-2xl font-bold">长期记忆图谱</h1>
+              <h1 className="text-2xl font-bold text-foreground">长期记忆图谱</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 基于 A_Memorix 的实体关系图与证据视图
               </p>

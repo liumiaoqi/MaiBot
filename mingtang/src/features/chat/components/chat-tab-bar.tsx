@@ -49,7 +49,7 @@ export function ChatTabBar({ tabs, activeTabId, onSwitch, onClose, onAddVirtual 
                 onClick={() => onSwitch(tab.id)}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span className="max-w-32 truncate font-medium">{displayName}</span>
+                <span className="max-w-32 truncate font-medium text-foreground">{displayName}</span>
                 <span
                   aria-hidden
                   className={cn(

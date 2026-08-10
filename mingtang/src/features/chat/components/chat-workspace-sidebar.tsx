@@ -172,7 +172,7 @@ export function ChatWorkspaceSidebar({
       <div className="border-b px-4 pt-5 pb-4">
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold tracking-tight">
+            <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">
               {t('chat.sidebar.title')}
             </h2>
             <p className="text-muted-foreground mt-0.5 truncate text-xs">

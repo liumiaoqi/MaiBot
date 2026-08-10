@@ -112,7 +112,7 @@ export function RenderMessageSegment({ segment }: { segment: MessageSegment }) {
 
   switch (segment.type) {
     case 'text':
-      return <span className="whitespace-pre-wrap">{String(segment.data)}</span>
+      return <span className="whitespace-pre-wrap text-foreground">{String(segment.data)}</span>
 
     case 'image':
     case 'emoji': {
@@ -226,7 +226,7 @@ export function RenderMessageContent({ message }: { message: ChatMessage }) {
   }
 
   // 普通文本消息
-  return <span className="whitespace-pre-wrap">{message.content}</span>
+  return <span className="whitespace-pre-wrap text-foreground">{message.content}</span>
 }
 
 // 回复消息块：点击可跳转到原始消息；如原消息不可见则提示错误。

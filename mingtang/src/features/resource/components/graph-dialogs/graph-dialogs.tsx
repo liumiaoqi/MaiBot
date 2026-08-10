@@ -274,7 +274,7 @@ export function EdgeDetailDialog({
                       <Badge variant="secondary">关系 {edgeDetail?.edge.relation_count ?? selectedEdgeData?.edge.relationCount ?? 0}</Badge>
                       <Badge variant="secondary">证据 {edgeDetail?.edge.evidence_count ?? selectedEdgeData?.edge.evidenceCount ?? 0}</Badge>
                     </div>
-                    <p className="mt-3 text-base font-semibold break-words">
+                    <p className="mt-3 text-base font-semibold break-words text-foreground">
                       {sourceLabel} → {targetLabel}
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
@@ -377,7 +377,7 @@ export function RelationDetailDialog({
               <Badge variant="secondary">证据段落 {relation.paragraph_count}</Badge>
               <Badge variant="secondary">置信度 {relation.confidence.toFixed(3)}</Badge>
             </div>
-            <p className="mt-3 text-base font-semibold break-words">{relation.text}</p>
+            <p className="mt-3 text-base font-semibold break-words text-foreground">{relation.text}</p>
             <code className="mt-3 block break-all text-xs text-muted-foreground">{relation.hash}</code>
           </div>
 

@@ -80,7 +80,7 @@ export function ChatHeaderBar({
 
           {/* 标题与副标题 */}
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold leading-tight sm:text-base">
+            <h1 className="truncate text-sm font-semibold leading-tight text-foreground sm:text-base">
               {botDisplayName}
             </h1>
             <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs leading-tight">
@@ -108,7 +108,7 @@ export function ChatHeaderBar({
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <UserCircle2 className="h-3 w-3" />
-                    <span className="max-w-40 truncate">{virtualConfig.userName}</span>
+                    <span className="max-w-40 truncate text-foreground">{virtualConfig.userName}</span>
                   </span>
                   <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-medium">
                     {virtualConfig.platform}
@@ -116,7 +116,7 @@ export function ChatHeaderBar({
                   {virtualConfig.groupName && (
                     <span className="hidden items-center gap-1 sm:inline-flex">
                       <Users className="h-3 w-3" />
-                      <span className="max-w-40 truncate">{virtualConfig.groupName}</span>
+                      <span className="max-w-40 truncate text-foreground">{virtualConfig.groupName}</span>
                     </span>
                   )}
                 </>

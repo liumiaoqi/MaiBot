@@ -79,7 +79,7 @@ function EmptyState({ botName }: { botName: string }) {
         <span className="bg-primary/30 absolute inset-0 -z-10 animate-pulse rounded-2xl blur-xl" />
       </div>
       <div className="space-y-1">
-        <h2 className="text-base font-semibold sm:text-lg">
+        <h2 className="text-base font-semibold text-foreground sm:text-lg">
           {t('chat.message.empty', { bot: botName })}
         </h2>
         <p className="text-muted-foreground text-xs sm:text-sm">{t('chat.message.emptyHint')}</p>
