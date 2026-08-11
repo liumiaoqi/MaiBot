@@ -24,6 +24,7 @@ import { EmotionMonitorPage } from '../features/monitor/emotion-monitor'
 import { RelationshipMonitorPage } from '../features/monitor/relationship-monitor'
 import { SubAgentMonitorPage } from '../features/monitor/subagent-monitor'
 import { SystemMonitorPage } from '../features/monitor/system-monitor'
+import { AgentManagementPage } from '../features/agent'
 import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
 import { KnowledgeBasePage } from '../features/resource/knowledge-base'
 import { EmojiCuratedPage } from '../features/resource/emoji'
@@ -68,6 +69,7 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/relationship-monitor': () => <RelationshipMonitorPage />,
   '/subagent-monitor': () => <SubAgentMonitorPage />,
   '/system-monitor': () => <SystemMonitorPage />,
+  '/agents': () => <AgentManagementPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */

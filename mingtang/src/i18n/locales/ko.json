@@ -1288,7 +1288,9 @@
         "warm": "따뜻함",
         "moderate": "보통",
         "cold": "차가움",
-        "unavailable": "온도 감지 불가"
+        "no_data": "상호작용 데이터 없음",
+        "unavailable": "온도 감지 불가",
+        "basedOnInternal": "캐릭터 관계 기반"
       },
       "innerActivity": {
         "introspecting": "내성 중",
@@ -1361,7 +1363,8 @@
         "relationship": "관계 네트워크",
         "memory": "기억 정원",
         "timeline": "생명 타임라인",
-        "sessions": "활성 세션"
+        "sessions": "활성 세션",
+        "autonomy": "자율 로그"
       }
     },
     "emotionLandscape": {
@@ -1426,7 +1429,170 @@
       "noAvailableSessions": "사용 가능한 세션 없음",
       "confirm": "확인",
       "cancel": "취소",
-      "noSessions": "연결된 세션 없음"
+      "noSessions": "연결된 세션 없음",
+      "active": "활성",
+      "boundInactive": "바인딩됨",
+      "primary": "주 발언",
+      "cohabitants": "공존 에이전트",
+      "unbindSpecific": "에이전트 해제",
+      "unbindAll": "전체 해제",
+      "lastSpokeAt": "최근 발언"
+    },
+    "vitality": {
+      "active": "활성",
+      "standby": "대기",
+      "dormant": "휴면",
+      "value": "생명력",
+      "lastStimulus": "최근 자극"
+    },
+    "stateAwareness": {
+      "title": "상태 상호 인식",
+      "summaryPreview": "요약 미리보기",
+      "activeRules": "활성 규칙",
+      "noData": "인식 데이터 없음",
+      "vitalityLevel": {
+        "high": "높음",
+        "medium": "중간",
+        "low": "낮음"
+      }
+    },
+    "interaction": {
+      "stream": {
+        "title": "상호작용 스트림",
+        "empty": "상호작용 활동 없음",
+        "refreshInterval": "30초 자동 새로고침"
+      },
+      "detail": {
+        "triggerReason": "트리거 이유",
+        "emotionEffect": "감정 영향",
+        "relationshipEffect": "관계 영향",
+        "memoryStatus": "기억 기록",
+        "echoDepth": "에코 깊이"
+      },
+      "hotspot": {
+        "label": "핫스팟",
+        "count": "24시간 내 5회 이상 상호작용한 에이전트 쌍"
+      },
+      "typeLabels": {
+        "emotion_driven": "감정 주도",
+        "time_awareness": "시간 인식",
+        "mention_propagation": "언급 전파",
+        "event_ripple": "이벤트 파급",
+        "inner_need": "내부 욕구",
+        "memory_driven": "기억 주도",
+        "inner_monologue": "내면 독백"
+      },
+      "memoryStatus": {
+        "success": "성공",
+        "failed": "실패",
+        "skipped": "건너뜀"
+      },
+      "manualTrigger": {
+        "title": "수동 상호작용 트리거",
+        "initiator": "발신자",
+        "target": "수신자",
+        "type": "상호작용 유형",
+        "reason": "트리거 이유",
+        "submit": "트리거",
+        "success": "상호작용 트리거 성공",
+        "failed": "상호작용 트리거 실패"
+      },
+      "config": {
+        "title": "상호작용 트리거 설정",
+        "basic": {
+          "title": "기본 설정",
+          "enabled": "상호작용 활성화",
+          "cooldownMinutes": "쿨다운(분)",
+          "maxPerHour": "시간당 최대 상호작용 횟수",
+          "maxPerDay": "일일 최대 상호작용 횟수"
+        },
+        "echo": {
+          "title": "에코 설정",
+          "enabled": "에코 전파 활성화",
+          "maxDepth": "최대 에코 깊이",
+          "decayRatio": "에코 감쇠 비율"
+        },
+        "monologue": {
+          "title": "내면 독백 설정",
+          "enabled": "내면 독백 활성화",
+          "minInterval": "최소 간격(분)",
+          "idleThreshold": "유휴 임계값(분)",
+          "emotionThreshold": "감정 강도 임계값"
+        }
+      }
+    },
+    "monologue": {
+      "panel": {
+        "title": "내면 세계",
+        "empty": "내면 세계에 파문 없음"
+      },
+      "content": {
+        "label": "독백 내용"
+      },
+      "emotionSnapshot": {
+        "label": "감정 스냅샷"
+      },
+      "selfEffect": {
+        "label": "자기 영향"
+      }
+    },
+    "autonomy": {
+      "title": "에이전트 자율성",
+      "activeAgents": "활성 에이전트",
+      "primarySpeaker": "주 발언",
+      "switchSpeaker": "주 발언 전환",
+      "triggerInterjection": "끼어들기 트리거",
+      "behaviorIntents": "행동 의도",
+      "interjectionEvents": "끼어들기 이벤트",
+      "speakerChanges": "발언권 변경",
+      "noActiveAgents": "활성 에이전트 없음",
+      "noIntents": "행동 의도 없음",
+      "noInterjections": "끼어들기 이벤트 없음",
+      "noSpeakerChanges": "발언권 변경 없음",
+      "intentType": {
+        "want_to_speak": "발언 원함",
+        "want_to_interject": "끼어들기 원함"
+      },
+      "intentSource": {
+        "inner_need_driven": "내부 욕구 주도",
+        "emotion_driven": "감정 주도",
+        "topic_relevance_driven": "주제 관련성 주도",
+        "relationship_driven": "관계 주도",
+        "interaction_signal_driven": "상호작용 신호 주도",
+        "manual_trigger": "수동 트리거"
+      },
+      "changeType": {
+        "manual_switch": "수동 전환",
+        "agent_exit": "에이전트 퇴장",
+        "interjection": "끼어들기",
+        "session_create": "세션 생성"
+      },
+      "strength": "강도",
+      "source": "출처",
+      "reason": "이유",
+      "from": "에서",
+      "to": "으로"
+    },
+    "autonomyLogs": {
+      "title": "자율 행동 로그",
+      "allTypes": "전체 유형",
+      "thinking": "사고 활동",
+      "expression": "표현 의도",
+      "innerNeed": "내부 욕구",
+      "behaviorIntent": "행동 의도",
+      "interjection": "끼어들기 이벤트",
+      "orchestration": "오케스트레이션",
+      "empty": "자율 행동 기록 없음",
+      "total": "총 {{count}}개",
+      "prev": "이전",
+      "next": "다음"
+    },
+    "migration": {
+      "title": "기억 이전 상태",
+      "loading": "로딩 중...",
+      "advance": "진행",
+      "advanceSuccess": "{{name}}이(가) {{phase}}(으)로 진행됨",
+      "advanceFailed": "이전 단계 진행 실패"
     }
   },
   "emotion": {

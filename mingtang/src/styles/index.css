@@ -152,3 +152,34 @@ select {
   }
 }
 
+/* ============================================================================
+ * agent 域动画（react-spring 的 CSS 替代，见 emotion-pulse 等组件）
+ * ============================================================================ */
+@keyframes agent-emotion-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(var(--agent-pulse-scale, 1.15));
+  }
+}
+
+@keyframes agent-breathe {
+  from {
+    opacity: 0.1;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
+@keyframes agent-rhythm {
+  from {
+    opacity: var(--agent-rhythm-from, 0.4);
+  }
+  to {
+    opacity: var(--agent-rhythm-to, 1);
+  }
+}
+
