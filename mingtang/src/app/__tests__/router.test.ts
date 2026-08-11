@@ -7,10 +7,10 @@ import {
   type RouteDomain,
 } from '../route-definitions'
 
-describe('R4-3-1：35 页路由表登记（R2 36 页 - 遥测页砍除）', () => {
-  it('路由总数 = 35', () => {
-    expect(ROUTE_COUNT).toBe(35)
-    expect(routeDefinitions).toHaveLength(35)
+describe('R4-4a：38 页路由表登记（R4-3 35 页 + plugin 3 embed）', () => {
+  it('路由总数 = 38', () => {
+    expect(ROUTE_COUNT).toBe(38)
+    expect(routeDefinitions).toHaveLength(38)
   })
 
   it('8 功能域全部覆盖', () => {
@@ -29,7 +29,7 @@ describe('R4-3-1：35 页路由表登记（R2 36 页 - 遥测页砍除）', () =
     expect(getRoutesByDomain('resource')).toHaveLength(4)
     expect(getRoutesByDomain('monitor')).toHaveLength(6)
     expect(getRoutesByDomain('agent')).toHaveLength(2)
-    expect(getRoutesByDomain('plugin')).toHaveLength(4)
+    expect(getRoutesByDomain('plugin')).toHaveLength(7)
     expect(getRoutesByDomain('home')).toHaveLength(5)
   })
 
@@ -80,13 +80,16 @@ describe('R4-3-1：35 页路由表登记（R2 36 页 - 遥测页砍除）', () =
       '/plugin-config',
       '/plugins/$pluginId',
       '/plugin-mirrors',
+      '/plugins/embed',
+      '/plugin-config/embed',
+      '/plugin-mirrors/embed',
       '/',
       '/setup',
       '/survey/webui-feedback',
       '/survey/maibot-feedback',
       '*',
     ]
-    expect(dashboardPaths).toHaveLength(35)
+    expect(dashboardPaths).toHaveLength(38)
 
     const routePaths = routeDefinitions.map((r) => r.path)
     dashboardPaths.forEach((p) => {
@@ -102,7 +105,7 @@ describe('R4-3-1：35 页路由表登记（R2 36 页 - 遥测页砍除）', () =
       resource: ['resource/emoji', 'resource/expression', 'resource/jargon', 'resource/knowledge-base'],
       monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/system', 'monitor/logs'],
       agent: ['agent/agent', 'agent/person'],
-      plugin: ['plugin/plugins', 'plugin/plugin-config', 'plugin/plugin-detail', 'plugin/plugin-mirrors'],
+      plugin: ['plugin/plugins', 'plugin/plugin-config', 'plugin/plugin-detail', 'plugin/plugin-mirrors', 'plugin/plugins-embed', 'plugin/plugin-config-embed', 'plugin/plugin-mirrors-embed'],
       home: ['home/home', 'home/setup', 'home/survey-webui-feedback', 'home/survey-maibot-feedback', 'home/404'],
     }
 

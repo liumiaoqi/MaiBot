@@ -10,6 +10,7 @@ const STATS_API_BASE_URL = '/api/webui/plugins/stats-proxy'
 const PLUGIN_STATS_SUMMARY_CACHE_TTL = 5 * 60 * 1000
 const PLUGIN_STATS_SUMMARY_STORAGE_KEY = 'maibot-plugin-stats-summary-cache'
 
+// 模块级缓存（手写 5min TTL——架构债：R4-4a 保留，后续可改 useQuery 统一管理）
 let pluginStatsSummaryCache: { timestamp: number; data: Record<string, PluginStatsData> } | null = null
 let pluginStatsSummaryRequest: Promise<Record<string, PluginStatsData>> | null = null
 

@@ -21,7 +21,7 @@ export interface RouteDefinition {
   pageName: string
 }
 
-/** 35 页路由表——按蓝皮书 §一 8 域归属（R2 新增 /appearance；R4-3 砍遥测页） */
+/** 38 页路由表——按蓝皮书 §一 8 域归属（R2 新增 /appearance；R4-3 砍遥测页；R4-4a 新增 plugin 3 embed） */
 export const routeDefinitions: RouteDefinition[] = [
   // config（9 页——R2 新增 /appearance）
   { id: 'config/bot', domain: 'config', path: '/config/bot', pageName: 'BotConfig' },
@@ -61,11 +61,14 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'agent/agent', domain: 'agent', path: '/agents', pageName: 'AgentManagement' },
   { id: 'agent/person', domain: 'agent', path: '/resource/person', pageName: 'PersonManagement' },
 
-  // plugin（4 页）
+  // plugin（4 页 + 3 embed——embed 路由先行注册以支持 marketplace embedded prop 导航）
   { id: 'plugin/plugins', domain: 'plugin', path: '/plugins', pageName: 'Plugins' },
   { id: 'plugin/plugin-config', domain: 'plugin', path: '/plugin-config', pageName: 'PluginConfig' },
   { id: 'plugin/plugin-detail', domain: 'plugin', path: '/plugins/$pluginId', pageName: 'PluginDetail' },
   { id: 'plugin/plugin-mirrors', domain: 'plugin', path: '/plugin-mirrors', pageName: 'PluginMirrors' },
+  { id: 'plugin/plugins-embed', domain: 'plugin', path: '/plugins/embed', pageName: 'PluginMarketplaceEmbed' },
+  { id: 'plugin/plugin-config-embed', domain: 'plugin', path: '/plugin-config/embed', pageName: 'PluginConfigEmbed' },
+  { id: 'plugin/plugin-mirrors-embed', domain: 'plugin', path: '/plugin-mirrors/embed', pageName: 'PluginMirrorsEmbed' },
 
   // home（5 页——survey 拆为 2 页）
   { id: 'home/home', domain: 'home', path: '/', pageName: 'Home' },

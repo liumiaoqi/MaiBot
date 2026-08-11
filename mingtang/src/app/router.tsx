@@ -29,6 +29,13 @@ import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
 import { KnowledgeBasePage } from '../features/resource/knowledge-base'
 import { EmojiCuratedPage } from '../features/resource/emoji'
 import { JargonManagementPage } from '../features/resource/jargon'
+import { PluginMarketplacePage } from '../features/plugin/marketplace'
+import { PluginConfigPage } from '../features/plugin/config'
+import { PluginDetailPage } from '../features/plugin/detail'
+import { PluginMirrorsPage } from '../features/plugin/mirrors'
+import { PluginMarketplaceEmbedPage } from '../features/plugin/embed/marketplace-embed'
+import { PluginConfigEmbedPage } from '../features/plugin/embed/config-embed'
+import { PluginMirrorsEmbedPage } from '../features/plugin/embed/mirrors-embed'
 
 // 根路由
 const rootRoute = createRootRoute({
@@ -70,6 +77,13 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/subagent-monitor': () => <SubAgentMonitorPage />,
   '/system-monitor': () => <SystemMonitorPage />,
   '/agents': () => <AgentManagementPage />,
+  '/plugins': () => <PluginMarketplacePage />,
+  '/plugin-config': () => <PluginConfigPage />,
+  '/plugins/$pluginId': () => <PluginDetailPage />,
+  '/plugin-mirrors': () => <PluginMirrorsPage />,
+  '/plugins/embed': () => <PluginMarketplaceEmbedPage />,
+  '/plugin-config/embed': () => <PluginConfigEmbedPage />,
+  '/plugin-mirrors/embed': () => <PluginMirrorsEmbedPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */
@@ -107,7 +121,7 @@ function createPlaceholderRoute(def: RouteDefinition) {
   })
 }
 
-// 创建 36 页路由
+// 创建 38 页路由
 const routes = routeDefinitions.map(createPlaceholderRoute)
 
 // 提取各路由引用（按定义顺序）
@@ -142,6 +156,9 @@ const [
   pluginConfigRoute,
   pluginDetailRoute,
   pluginMirrorsRoute,
+  pluginPluginsEmbedRoute,
+  pluginConfigEmbedRoute,
+  pluginMirrorsEmbedRoute,
   homeHomeRoute,
   homeSetupRoute,
   homeSurveyWebuiRoute,
@@ -183,6 +200,9 @@ const routeTree = rootRoute.addChildren([
     pluginConfigRoute,
     pluginDetailRoute,
     pluginMirrorsRoute,
+    pluginPluginsEmbedRoute,
+    pluginConfigEmbedRoute,
+    pluginMirrorsEmbedRoute,
     homeHomeRoute,
     homeSurveyWebuiRoute,
     homeSurveyMaibotRoute,
