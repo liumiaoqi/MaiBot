@@ -19,7 +19,7 @@
 
 详细版：`.shared/decisions/typescript_new_code_cheatsheet.md`
 
-**验收终点**（对齐 Python 的 ruff+pytest）：`cd dashboard && npm run lint && npm run test`（vitest）+ `npm run build`（tsc 类型检查 + vite 构建）
+**验收终点**（对齐 Python 的 ruff+pytest）：dashboard：`cd dashboard && npm run lint && npm run test`（vitest）+ `npm run build`；**mingtang（当前主战场）：Windows 侧跑三绿**（rolldown binding 平台绑定——WSL 只能跑 lint）——`npm run lint && npm run test && npm run build`（当前基线 1057 tests）
 
 **写 TS 代码时必须遵守**：
 - **类型优先**：不引入新 `any`（eslint no-explicit-any 只是 warn——规范要求新代码零 any，对齐 Python"类型注解用具体类型而非 Any"）；tsconfig `strict: true` 已开——不新增 `@ts-ignore`；`@ts-expect-error` 必须带理由注释
