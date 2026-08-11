@@ -70,15 +70,14 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'plugin/plugin-config-embed', domain: 'plugin', path: '/plugin-config/embed', pageName: 'PluginConfigEmbed' },
   { id: 'plugin/plugin-mirrors-embed', domain: 'plugin', path: '/plugin-mirrors/embed', pageName: 'PluginMirrorsEmbed' },
 
-  // home（5 页——survey 拆为 2 页）
+  // home（4 页——survey 拆为 2 页，setup 砍除）
   { id: 'home/home', domain: 'home', path: '/', pageName: 'Home' },
-  { id: 'home/setup', domain: 'home', path: '/setup', pageName: 'Setup' },
   { id: 'home/survey-webui-feedback', domain: 'home', path: '/survey/webui-feedback', pageName: 'SurveyWebUIFeedback' },
   { id: 'home/survey-maibot-feedback', domain: 'home', path: '/survey/maibot-feedback', pageName: 'SurveyMaiBotFeedback' },
   { id: 'home/404', domain: 'home', path: '*', pageName: 'NotFound' },
 ]
 
-/** 路由总数（验收：= 35） */
+/** 路由总数（验收：= 34） */
 export const ROUTE_COUNT = routeDefinitions.length
 
 /** 8 功能域列表 */

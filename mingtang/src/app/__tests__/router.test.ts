@@ -7,10 +7,10 @@ import {
   type RouteDomain,
 } from '../route-definitions'
 
-describe('R4-4a：38 页路由表登记（R4-3 35 页 + plugin 3 embed）', () => {
-  it('路由总数 = 38', () => {
-    expect(ROUTE_COUNT).toBe(38)
-    expect(routeDefinitions).toHaveLength(38)
+describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () => {
+  it('路由总数 = 37', () => {
+    expect(ROUTE_COUNT).toBe(37)
+    expect(routeDefinitions).toHaveLength(37)
   })
 
   it('8 功能域全部覆盖', () => {
@@ -30,7 +30,7 @@ describe('R4-4a：38 页路由表登记（R4-3 35 页 + plugin 3 embed）', () =
     expect(getRoutesByDomain('monitor')).toHaveLength(6)
     expect(getRoutesByDomain('agent')).toHaveLength(2)
     expect(getRoutesByDomain('plugin')).toHaveLength(7)
-    expect(getRoutesByDomain('home')).toHaveLength(5)
+    expect(getRoutesByDomain('home')).toHaveLength(4)
   })
 
   it('每个路由有唯一 id', () => {
@@ -84,12 +84,12 @@ describe('R4-4a：38 页路由表登记（R4-3 35 页 + plugin 3 embed）', () =
       '/plugin-config/embed',
       '/plugin-mirrors/embed',
       '/',
-      '/setup',
+
       '/survey/webui-feedback',
       '/survey/maibot-feedback',
       '*',
     ]
-    expect(dashboardPaths).toHaveLength(38)
+    expect(dashboardPaths).toHaveLength(37)
 
     const routePaths = routeDefinitions.map((r) => r.path)
     dashboardPaths.forEach((p) => {
@@ -97,7 +97,7 @@ describe('R4-4a：38 页路由表登记（R4-3 35 页 + plugin 3 embed）', () =
     })
   })
 
-  it('36 页按蓝皮书 §一 8 域归属 features/<domain>/', () => {
+  it('37 页按蓝皮书 §一 8 域归属 features/<domain>/', () => {
     const domainPages: Record<RouteDomain, string[]> = {
       config: ['config/bot', 'config/model', 'config/prompts', 'config/mcp-settings', 'config/model-presets', 'config/prompt-generator', 'config/pack-market', 'config/pack-detail', 'config/appearance'],
       chat: ['chat/chat', 'chat/chat-management'],
@@ -106,7 +106,7 @@ describe('R4-4a：38 页路由表登记（R4-3 35 页 + plugin 3 embed）', () =
       monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/system', 'monitor/logs'],
       agent: ['agent/agent', 'agent/person'],
       plugin: ['plugin/plugins', 'plugin/plugin-config', 'plugin/plugin-detail', 'plugin/plugin-mirrors', 'plugin/plugins-embed', 'plugin/plugin-config-embed', 'plugin/plugin-mirrors-embed'],
-      home: ['home/home', 'home/setup', 'home/survey-webui-feedback', 'home/survey-maibot-feedback', 'home/404'],
+      home: ['home/home', 'home/survey-webui-feedback', 'home/survey-maibot-feedback', 'home/404'],
     }
 
     Object.entries(domainPages).forEach(([domain, ids]) => {

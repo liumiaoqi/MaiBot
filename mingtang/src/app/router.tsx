@@ -36,6 +36,8 @@ import { PluginMirrorsPage } from '../features/plugin/mirrors'
 import { PluginMarketplaceEmbedPage } from '../features/plugin/embed/marketplace-embed'
 import { PluginConfigEmbedPage } from '../features/plugin/embed/config-embed'
 import { PluginMirrorsEmbedPage } from '../features/plugin/embed/mirrors-embed'
+import { HomePage } from '../features/home/home-page'
+import { MaiBotFeedbackSurveyPage, WebUIFeedbackSurveyPage } from '../features/survey'
 
 // 根路由
 const rootRoute = createRootRoute({
@@ -84,6 +86,9 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/plugins/embed': () => <PluginMarketplaceEmbedPage />,
   '/plugin-config/embed': () => <PluginConfigEmbedPage />,
   '/plugin-mirrors/embed': () => <PluginMirrorsEmbedPage />,
+  '/': () => <HomePage />,
+  '/survey/webui-feedback': () => <WebUIFeedbackSurveyPage />,
+  '/survey/maibot-feedback': () => <MaiBotFeedbackSurveyPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */
@@ -104,14 +109,6 @@ function createPlaceholderRoute(def: RouteDefinition) {
     })
   }
 
-  // setup 路由挂在 rootRoute 下（无 Layout——与 dashboard 对齐）
-  if (def.path === '/setup') {
-    return createRoute({
-      getParentRoute: () => rootRoute,
-      path: def.path,
-      component,
-    })
-  }
 
   // 其余路由挂在 protectedRoute 下
   return createRoute({
@@ -160,7 +157,7 @@ const [
   pluginConfigEmbedRoute,
   pluginMirrorsEmbedRoute,
   homeHomeRoute,
-  homeSetupRoute,
+
   homeSurveyWebuiRoute,
   homeSurveyMaibotRoute,
   homeNotFoundRoute,
@@ -168,7 +165,7 @@ const [
 
 // 路由树
 const routeTree = rootRoute.addChildren([
-  homeSetupRoute,
+
   protectedRoute.addChildren([
     configBotRoute,
     configModelRoute,
