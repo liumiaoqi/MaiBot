@@ -19,6 +19,11 @@ import { PackDetailPage } from '../features/config/pack-detail'
 import { ChatPage } from '../features/chat'
 import { ChatManagementPage } from '../features/chat/chat-management'
 import { ReasoningProcessPage } from '../features/memory/reasoning-process'
+import { DeepSeekMonitorPage } from '../features/monitor/deepseek-monitor'
+import { EmotionMonitorPage } from '../features/monitor/emotion-monitor'
+import { RelationshipMonitorPage } from '../features/monitor/relationship-monitor'
+import { SubAgentMonitorPage } from '../features/monitor/subagent-monitor'
+import { SystemMonitorPage } from '../features/monitor/system-monitor'
 import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
 import { KnowledgeBasePage } from '../features/resource/knowledge-base'
 import { EmojiCuratedPage } from '../features/resource/emoji'
@@ -58,6 +63,11 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/resource/knowledge-base': () => <KnowledgeBasePage />,
   '/resource/emoji': () => <EmojiCuratedPage />,
   '/resource/jargon': () => <JargonManagementPage />,
+  '/deepseek-monitor': () => <DeepSeekMonitorPage />,
+  '/emotion-monitor': () => <EmotionMonitorPage />,
+  '/relationship-monitor': () => <RelationshipMonitorPage />,
+  '/subagent-monitor': () => <SubAgentMonitorPage />,
+  '/system-monitor': () => <SystemMonitorPage />,
 }
 
 /** 根据路由定义创建路由（config 域 9 页使用实际组件，其余占位） */

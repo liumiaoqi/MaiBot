@@ -46,7 +46,6 @@
       "mcpSettings": "MCP 設定",
       "logViewer": "ログビューア",
       "reasoningProcess": "推論プロセス",
-      "maisakaMonitor": "MaiSaka チャット監視",
       "systemMonitor": "システム監視",
       "agentManagement": "エージェント管理",
       "emotionMonitor": "感情モニター",
@@ -857,7 +856,6 @@
       "relationshipMonitorDesc": "ユーザーとの関係データを表示",
       "subagentMonitorDesc": "サブエージェントの実行状態を監視",
       "deepseekMonitorDesc": "DeepSeek最適化パネルを表示",
-      "maisakaMonitorDesc": "Maisakaチャットフロー監視を表示",
       "systemMonitorDesc": "システム実行状態監視を表示",
       "chatManagementDesc": "チャットセッションと設定を管理",
       "promptManagementDesc": "プロンプトテンプレートを管理",
@@ -1675,6 +1673,28 @@
       "name": "名前",
       "agent": "エージェント",
       "messages": "メッセージ"
+    },
+    "deepseek": {
+      "title": "DeepSeek モデル統計",
+      "overview": "概要",
+      "budget": "予算",
+      "cache": "キャッシュ",
+      "cost": "コスト"
+    },
+    "emotion": {
+      "title": "感情分布",
+      "radar": "感情レーダーチャート",
+      "baseline": "ベースライン比較"
+    },
+    "relationship": {
+      "title": "関係の変化",
+      "distribution": "レベル分布",
+      "ranking": "ランキング"
+    },
+    "subagent": {
+      "title": "サブエージェント実行",
+      "records": "実行記録",
+      "stats": "統計"
     }
   },
   "modelPresets": {

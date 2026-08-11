@@ -46,7 +46,6 @@
       "mcpSettings": "MCP Settings",
       "logViewer": "Log Viewer",
       "reasoningProcess": "Reasoning Process",
-      "maisakaMonitor": "MaiSaka Chat Monitor",
       "systemMonitor": "System Monitor",
       "agentManagement": "Agent Management",
       "emotionMonitor": "Emotion Monitor",
@@ -857,7 +856,6 @@
       "relationshipMonitorDesc": "View relationship data with users",
       "subagentMonitorDesc": "Monitor sub-agent runtime status",
       "deepseekMonitorDesc": "View DeepSeek optimization panel",
-      "maisakaMonitorDesc": "View Maisaka chat flow monitoring",
       "systemMonitorDesc": "View system runtime monitoring",
       "chatManagementDesc": "Manage chat sessions and config",
       "promptManagementDesc": "Manage prompt templates",
@@ -1675,6 +1673,28 @@
       "name": "Name",
       "agent": "Agent",
       "messages": "Messages"
+    },
+    "deepseek": {
+      "title": "DeepSeek Model Statistics",
+      "overview": "Overview",
+      "budget": "Budget",
+      "cache": "Cache",
+      "cost": "Cost"
+    },
+    "emotion": {
+      "title": "Emotion Distribution",
+      "radar": "Emotion Radar Chart",
+      "baseline": "Baseline Comparison"
+    },
+    "relationship": {
+      "title": "Relationship Changes",
+      "distribution": "Level Distribution",
+      "ranking": "Ranking"
+    },
+    "subagent": {
+      "title": "Sub-Agent Executions",
+      "records": "Execution Records",
+      "stats": "Statistics"
     }
   },
   "modelPresets": {

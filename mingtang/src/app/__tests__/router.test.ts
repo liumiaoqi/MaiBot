@@ -7,10 +7,10 @@ import {
   type RouteDomain,
 } from '../route-definitions'
 
-describe('R2-1-1：36 页路由表登记（R1 的 35 + /appearance）', () => {
-  it('路由总数 = 36', () => {
-    expect(ROUTE_COUNT).toBe(36)
-    expect(routeDefinitions).toHaveLength(36)
+describe('R4-3-1：35 页路由表登记（R2 36 页 - 遥测页砍除）', () => {
+  it('路由总数 = 35', () => {
+    expect(ROUTE_COUNT).toBe(35)
+    expect(routeDefinitions).toHaveLength(35)
   })
 
   it('8 功能域全部覆盖', () => {
@@ -27,7 +27,7 @@ describe('R2-1-1：36 页路由表登记（R1 的 35 + /appearance）', () => {
     expect(getRoutesByDomain('chat')).toHaveLength(2)
     expect(getRoutesByDomain('memory')).toHaveLength(3)
     expect(getRoutesByDomain('resource')).toHaveLength(4)
-    expect(getRoutesByDomain('monitor')).toHaveLength(7)
+    expect(getRoutesByDomain('monitor')).toHaveLength(6)
     expect(getRoutesByDomain('agent')).toHaveLength(2)
     expect(getRoutesByDomain('plugin')).toHaveLength(4)
     expect(getRoutesByDomain('home')).toHaveLength(5)
@@ -71,7 +71,7 @@ describe('R2-1-1：36 页路由表登记（R1 的 35 + /appearance）', () => {
       '/emotion-monitor',
       '/relationship-monitor',
       '/subagent-monitor',
-      '/maisaka-monitor',
+
       '/system-monitor',
       '/logs',
       '/agents',
@@ -86,7 +86,7 @@ describe('R2-1-1：36 页路由表登记（R1 的 35 + /appearance）', () => {
       '/survey/maibot-feedback',
       '*',
     ]
-    expect(dashboardPaths).toHaveLength(36)
+    expect(dashboardPaths).toHaveLength(35)
 
     const routePaths = routeDefinitions.map((r) => r.path)
     dashboardPaths.forEach((p) => {
@@ -100,7 +100,7 @@ describe('R2-1-1：36 页路由表登记（R1 的 35 + /appearance）', () => {
       chat: ['chat/chat', 'chat/chat-management'],
       memory: ['memory/reasoning-process', 'memory/memory', 'memory/focus'],
       resource: ['resource/emoji', 'resource/expression', 'resource/jargon', 'resource/knowledge-base'],
-      monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/maisaka', 'monitor/system', 'monitor/logs'],
+      monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/system', 'monitor/logs'],
       agent: ['agent/agent', 'agent/person'],
       plugin: ['plugin/plugins', 'plugin/plugin-config', 'plugin/plugin-detail', 'plugin/plugin-mirrors'],
       home: ['home/home', 'home/setup', 'home/survey-webui-feedback', 'home/survey-maibot-feedback', 'home/404'],

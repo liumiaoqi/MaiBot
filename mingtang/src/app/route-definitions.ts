@@ -1,4 +1,4 @@
-/** 36 页路由定义（按蓝皮书 §一 8 域归属——路径与 dashboard 对齐 C-2；R2 新增 /appearance） */
+/** 35 页路由定义（按蓝皮书 §一 8 域归属——路径与 dashboard 对齐 C-2；R2 新增 /appearance，R4-3 砍遥测页） */
 
 export type RouteDomain =
   | 'config'
@@ -21,7 +21,7 @@ export interface RouteDefinition {
   pageName: string
 }
 
-/** 36 页路由表——按蓝皮书 §一 8 域归属（R2 新增 /appearance） */
+/** 35 页路由表——按蓝皮书 §一 8 域归属（R2 新增 /appearance；R4-3 砍遥测页） */
 export const routeDefinitions: RouteDefinition[] = [
   // config（9 页——R2 新增 /appearance）
   { id: 'config/bot', domain: 'config', path: '/config/bot', pageName: 'BotConfig' },
@@ -49,12 +49,11 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'resource/jargon', domain: 'resource', path: '/resource/jargon', pageName: 'JargonManagement' },
   { id: 'resource/knowledge-base', domain: 'resource', path: '/resource/knowledge-base', pageName: 'KnowledgeBase' },
 
-  // monitor（7 页）
+  // monitor（6 页——遥测页已砍）
   { id: 'monitor/deepseek', domain: 'monitor', path: '/deepseek-monitor', pageName: 'DeepSeekMonitor' },
   { id: 'monitor/emotion', domain: 'monitor', path: '/emotion-monitor', pageName: 'EmotionMonitor' },
   { id: 'monitor/relationship', domain: 'monitor', path: '/relationship-monitor', pageName: 'RelationshipMonitor' },
   { id: 'monitor/subagent', domain: 'monitor', path: '/subagent-monitor', pageName: 'SubAgentMonitor' },
-  { id: 'monitor/maisaka', domain: 'monitor', path: '/maisaka-monitor', pageName: 'MaiSakaMonitor' },
   { id: 'monitor/system', domain: 'monitor', path: '/system-monitor', pageName: 'SystemMonitor' },
   { id: 'monitor/logs', domain: 'monitor', path: '/logs', pageName: 'Logs' },
 
@@ -76,7 +75,7 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'home/404', domain: 'home', path: '*', pageName: 'NotFound' },
 ]
 
-/** 路由总数（验收：= 36） */
+/** 路由总数（验收：= 35） */
 export const ROUTE_COUNT = routeDefinitions.length
 
 /** 8 功能域列表 */

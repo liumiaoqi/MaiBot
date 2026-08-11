@@ -46,7 +46,6 @@
       "mcpSettings": "MCP 设置",
       "logViewer": "日志查看器",
       "reasoningProcess": "推理过程",
-      "maisakaMonitor": "麦麦观察",
       "systemMonitor": "系统监控",
       "agentManagement": "智能体管理",
       "emotionMonitor": "情绪监控",
@@ -857,7 +856,6 @@
       "relationshipMonitorDesc": "查看麦麦与用户的关系数据",
       "subagentMonitorDesc": "监控子智能体的运行状态",
       "deepseekMonitorDesc": "查看 DeepSeek 优化面板",
-      "maisakaMonitorDesc": "查看 Maisaka 聊天流监控",
       "systemMonitorDesc": "查看系统运行状态监控",
       "chatManagementDesc": "管理聊天会话和配置",
       "promptManagementDesc": "管理麦麦的提示词模板",
@@ -1673,6 +1671,28 @@
       "name": "名称",
       "agent": "智能体",
       "messages": "消息"
+    },
+    "deepseek": {
+      "title": "DeepSeek 模型统计",
+      "overview": "总览",
+      "budget": "预算",
+      "cache": "缓存",
+      "cost": "成本"
+    },
+    "emotion": {
+      "title": "情绪分布",
+      "radar": "情绪雷达图",
+      "baseline": "基线对比"
+    },
+    "relationship": {
+      "title": "关系变化",
+      "distribution": "等级分布",
+      "ranking": "排行"
+    },
+    "subagent": {
+      "title": "子智能体执行",
+      "records": "执行记录",
+      "stats": "统计"
     }
   },
   "modelPresets": {

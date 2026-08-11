@@ -46,7 +46,6 @@
       "mcpSettings": "MCP 설정",
       "logViewer": "로그 뷰어",
       "reasoningProcess": "추론 과정",
-      "maisakaMonitor": "MaiSaka 채팅 모니터",
       "systemMonitor": "시스템 모니터",
       "agentManagement": "에이전트 관리",
       "emotionMonitor": "감정 모니터",
@@ -849,7 +848,6 @@
       "relationshipMonitorDesc": "사용자와의 관계 데이터 보기",
       "subagentMonitorDesc": "서브 에이전트 실행 상태 모니터링",
       "deepseekMonitorDesc": "DeepSeek 최적화 패널 보기",
-      "maisakaMonitorDesc": "Maisaka 채팅 흐름 모니터링 보기",
       "systemMonitorDesc": "시스템 실행 상태 모니터링 보기",
       "chatManagementDesc": "채팅 세션 및 설정 관리",
       "promptManagementDesc": "프롬프트 템플릿 관리",
@@ -1501,6 +1499,28 @@
       "name": "이름",
       "agent": "에이전트",
       "messages": "메시지"
+    },
+    "deepseek": {
+      "title": "DeepSeek 모델 통계",
+      "overview": "개요",
+      "budget": "예산",
+      "cache": "캐시",
+      "cost": "비용"
+    },
+    "emotion": {
+      "title": "감정 분포",
+      "radar": "감정 레이더 차트",
+      "baseline": "기준선 비교"
+    },
+    "relationship": {
+      "title": "관계 변화",
+      "distribution": "등급 분포",
+      "ranking": "순위"
+    },
+    "subagent": {
+      "title": "서브 에이전트 실행",
+      "records": "실행 기록",
+      "stats": "통계"
     }
   },
   "modelPresets": {
