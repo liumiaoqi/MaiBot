@@ -18,7 +18,7 @@
  * - set-state-in-effect：shouldRenderMemoryTab 懒加载门控用 useRef + Set.has（R4-1 教训 #1）
  * - 保持运行时概览区（useMemoryRuntimeConfig——自检/向量重建）
  */
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import {
   Database,
@@ -308,8 +308,8 @@ function resolveVectorPoolsBadge(runtimeConfig: MemoryRuntimeConfigPayload): Vec
 }
 
 export function KnowledgeBasePage() {
-  const deepLinkRef = useRef<KnowledgeBaseDeepLinkState>(readKnowledgeBaseDeepLink())
-  const [activeTab, setActiveTab] = useState<KnowledgeBaseTab>(deepLinkRef.current.tab)
+  const [deepLink] = useState<KnowledgeBaseDeepLinkState>(readKnowledgeBaseDeepLink)
+  const [activeTab, setActiveTab] = useState<KnowledgeBaseTab>(deepLink.tab)
   const [quickStartVisible, setQuickStartVisible] = useState(() => {
     if (typeof window === 'undefined') {
       return true
@@ -320,7 +320,7 @@ export function KnowledgeBasePage() {
   // shouldRenderMemoryTab 懒加载门控：useState + 渲染期 setState（R4-1 教训 #1：避免 effect setState）
   // 切到过的 tab 保留 DOM（避免表单本地 state 丢失），未切到的不渲染
   const [visitedMemoryTabs, setVisitedMemoryTabs] = useState<Set<KnowledgeBaseTab>>(
-    () => new Set([deepLinkRef.current.tab])
+    () => new Set([deepLink.tab])
   )
   // 渲染期更新（非 effect）—— React 19 允许渲染期 setState，会被合并到当前渲染
   if (!visitedMemoryTabs.has(activeTab)) {
@@ -348,17 +348,17 @@ export function KnowledgeBasePage() {
   // 删除领域：来源/操作列表懒加载、操作详情、源选择、删除预览-执行（usePendingOperation）、恢复
   const memoryDelete = useMemoryDelete({
     active: activeTab === 'delete',
-    initialSourceSearch: deepLinkRef.current.source ?? '',
-    initialOperationSearch: deepLinkRef.current.operationId ?? deepLinkRef.current.source ?? '',
-    initialOperationId: deepLinkRef.current.operationId ?? '',
-    initialItemSearch: deepLinkRef.current.source ?? '',
+    initialSourceSearch: deepLink.source ?? '',
+    initialOperationSearch: deepLink.operationId ?? deepLink.source ?? '',
+    initialOperationId: deepLink.operationId ?? '',
+    initialItemSearch: deepLink.source ?? '',
   })
 
   // 纠错领域：纠错历史懒加载、任务详情、行为日志分页、回退；回退后刷新来源与运行时配置
   const memoryFeedback = useMemoryFeedback({
     active: activeTab === 'feedback',
-    initialSearch: deepLinkRef.current.taskId ? String(deepLinkRef.current.taskId) : '',
-    initialTaskId: deepLinkRef.current.taskId ?? 0,
+    initialSearch: deepLink.taskId ? String(deepLink.taskId) : '',
+    initialTaskId: deepLink.taskId ?? 0,
     onRuntimeChanged: () => memoryRuntime.refreshRuntimeConfig(),
     onSourcesChanged: () => memoryDelete.refreshSources(),
   })
