@@ -5,12 +5,9 @@ import { createElement, type ReactNode } from 'react'
 import { PluginMarketplacePage } from '../index'
 
 vi.mock('@/lib/plugin-api', () => ({
-  fetchPluginList: vi.fn().mockResolvedValue({
-    plugins: [
-      { name: 'test-plugin', description: '测试插件', version: '1.0.0', author: 'test', url: 'https://github.com/test/plugin', type: 'normal', tags: [], stars: 10, updated_at: '2024-01-01' },
-    ],
-    total: 1,
-  }),
+  fetchPluginList: vi.fn().mockResolvedValue([
+    { id: 'test-plugin', name: 'test-plugin', description: '测试插件', version: '1.0.0', author: 'test', url: 'https://github.com/test/plugin', type: 'normal', tags: [], stars: 10, updated_at: '2024-01-01', manifest: { id: 'test-plugin', name: 'test-plugin', version: '1.0.0', description: '测试插件' } },
+  ]),
   getCachedPluginList: vi.fn().mockReturnValue(null),
   getInstalledPlugins: vi.fn().mockResolvedValue([]),
   checkPluginInstalled: vi.fn().mockReturnValue(false),
@@ -21,7 +18,7 @@ vi.mock('@/lib/plugin-api', () => ({
   installPlugin: vi.fn().mockResolvedValue(undefined),
   uninstallPlugin: vi.fn().mockResolvedValue(undefined),
   updatePlugin: vi.fn().mockResolvedValue(undefined),
-  connectPluginProgressWebSocket: vi.fn().mockReturnValue({ close: vi.fn() }),
+  connectPluginProgressWebSocket: vi.fn().mockResolvedValue(vi.fn()),
 }))
 
 vi.mock('@/lib/plugin-stats', () => ({

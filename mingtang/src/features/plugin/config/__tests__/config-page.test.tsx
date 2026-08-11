@@ -6,7 +6,7 @@ import { PluginConfigPage } from '../index'
 
 vi.mock('@/lib/plugin-api', () => ({
   getInstalledPlugins: vi.fn().mockResolvedValue([
-    { name: 'test-plugin', version: '1.0.0', description: '测试插件', enabled: true, config: {} },
+    { id: 'test-plugin', name: 'test-plugin', version: '1.0.0', description: '测试插件', enabled: true, config: {}, manifest: { id: 'test-plugin', name: 'test-plugin', version: '1.0.0', description: '测试插件' } },
   ]),
   getPluginConfig: vi.fn().mockResolvedValue({}),
   getPluginConfigSchema: vi.fn().mockResolvedValue({ sections: [] }),
@@ -16,6 +16,11 @@ vi.mock('@/lib/plugin-api', () => ({
   checkPluginInstalled: vi.fn().mockReturnValue(true),
   getMaimaiVersion: vi.fn().mockResolvedValue('1.0.0'),
   isPluginCompatible: vi.fn().mockReturnValue(true),
+  fetchPluginList: vi.fn().mockResolvedValue([]),
+  getInstalledPluginVersion: vi.fn().mockReturnValue(null),
+  checkGitStatus: vi.fn().mockResolvedValue({ available: true }),
+  installPlugin: vi.fn().mockResolvedValue(undefined),
+  connectPluginProgressWebSocket: vi.fn().mockResolvedValue(vi.fn()),
 }))
 
 vi.mock('@/lib/plugin-stats', () => ({
@@ -47,6 +52,23 @@ vi.mock('@/components/restart-overlay', () => ({
 
 vi.mock('@/lib/theme-context', () => ({
   ThemeProviderContext: createContext({ themeConfig: { style: 'modern' } }),
+}))
+
+vi.mock('@/lib/plugin-progress-client', () => ({
+  pluginProgressClient: {
+    subscribe: vi.fn().mockResolvedValue(vi.fn()),
+    unsubscribe: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn(),
+  },
+}))
+
+vi.mock('@/lib/unified-ws', () => ({
+  unifiedWsClient: {
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    unsubscribe: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn(),
+    close: vi.fn(),
+  },
 }))
 
 function createWrapper() {
