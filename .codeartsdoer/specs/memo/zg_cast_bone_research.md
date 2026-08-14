@@ -74,6 +74,8 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-21** | 事件回调预算（ksoftirqd 化） | 2026-08-07 | SoftirqBatcher（budget_ms=2/count=200）+ EventBus 批量化 + 日志广播批量，852 passed |
 | **ZG-22** | 无锁读延迟回收（RCU 化） | 2026-08-07 | 索引热替换（IndexIDMap2 包装 + 原子替换），5 文件 68 行 |
 | **ZG-23a** | 消息发送去重 + 发言节流 | 2026-08-07 | OutboundDedupWindow + MentionChainThrottle + 幂等键 metadata 通道 + FAILED 枚举，962 passed（CX 审查 3 P0 两轮修复定稿） |
+| **ZG-10** | 启动编排演进（initcall→systemd 化） | 2026-08-04 | src/core/startup/ 7 文件（declaration/arbiter/orchestrator/propagator/types/validator——分层仲裁 + 相位分波 + 失败传播 + 配置冻结）——批 1-11 + CX 审核两轮（2026-08-14 代码核实补记——原文档 P2 表状态过时） |
+| **ZG-14** | 错误升级梯（WARN→oops→panic 化） | Phase 1-3 08-05~06 / **Phase 4 08-07 收口** | error_escalation 包 9 文件（escalator/mapper/storm/counter/coverage）；Phase 4 except 改造 119 文件 124 处——**覆盖 99.73%**（2026-08-14 代码核实补记——原文档仅记"7 文件"过时）；Phase 5 待 ZG-12 定稿（ZG-12 已 08-07 完成——解锁状态待确认） |
 
 ### 🔴 P0 — 剩余必做（2026-08-07 调研核实：**已空**——ZG-12 已完成）
 
@@ -91,14 +93,11 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 | 编号 | 方向 | 理由 | 层级 |
 |------|------|------|------|
-| **ZG-10** | 启动编排演进（initcall→systemd 化） | 📚 源码调研完成（混合模式设计定），见下方 ZG-10 子项详情 | 应用 |
 | **ZG-11** | 多核利用（SMP 化） | 见下方 ZG-11 子项详情 | 基础 |
 | **ZG-13** | 角色语音（TTS 输出） | 见下方 ZG-13 子项详情 | 应用 |
-| **ZG-14** | 错误升级梯（WARN→oops→panic 化） | ✅ 编码完成（7 文件，CX 审查 P0 修复后合并）；**Phase 5 待 ZG-12 定稿** | 基础 |
-| **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收），见下方详情 | 基础 |
-| **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸），见下方详情 | 基础 |
-| **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐），见下方详情 | 基础 |
-| **ZG-20** | v2 插件 ToolRegistry 连通（2026-08-06 立项） | v2 插件工具注册进孤立 ToolRegistry，agent 工具循环不可见=插件功能失效；本质是全局工具 vs 会话级 registry 的生命周期架构问题（详见下方详情） | P2（发布前必做） | 插件运行时 + agent 自主性 |
+| **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收——**2026-08-14 代码核实：未实现**），见下方详情 | 基础 |
+| **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸——**2026-08-14 代码核实：未实现**），见下方详情 | 基础 |
+| **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐——**2026-08-14 代码核实：未实现**），见下方详情 | 基础 |
 | **ZG-23** | 剩余项综合（低价值合并） | 📚 调研完成（zg_remaining_items_survey：fsync 分层/OOM 评分/kswapd 等 9 项合并），见下方详情 | 基础 |
 
 ### 🧭 犄角旮旯对标（2026-08-07 调研：NATS/Zulip/Home Assistant，报告 `.shared/research/2026-08/`）
