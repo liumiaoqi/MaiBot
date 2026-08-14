@@ -330,6 +330,21 @@ class ForwardNodeComponent(BaseMessageComponentModel):
         return Seg(type="forward", data=resp)  # type: ignore
 
 
+class ForwardPlaceholderComponent(BaseMessageComponentModel):
+    """合并转发占位组件——仅保留 forward_id，待 prompt 构建前异步预取节点后由同步渲染读缓存展开。"""
+
+    @property
+    def format_name(self) -> str:
+        return "forward_placeholder"
+
+    def __init__(self, forward_id: str):
+        self.forward_id: str = str(forward_id)
+        """待拉取的合并转发消息 id"""
+
+    async def to_seg(self) -> Seg:
+        return Seg(type="forward", data=[])  # type: ignore
+
+
 class DictComponent:
     def __init__(self, data: Dict[str, Any]):
         self.data = data
@@ -345,6 +360,7 @@ StandardMessageComponents = Union[
     AtComponent,
     ReplyComponent,
     ForwardNodeComponent,
+    ForwardPlaceholderComponent,
     DictComponent,
 ]
 
@@ -503,6 +519,8 @@ class MessageSequence:
                     for comp in item.forward_components
                 ],
             }
+        elif isinstance(item, ForwardPlaceholderComponent):
+            return {"type": "forward_placeholder", "data": item.forward_id}
         elif isinstance(item, DictComponent):
             return {"type": "dict", "data": item.data}
         else:
@@ -562,6 +580,8 @@ class MessageSequence:
                 )
                 forward_components.append(forward_component)
             return ForwardNodeComponent(forward_components=forward_components)
+        elif item_type == "forward_placeholder":
+            return ForwardPlaceholderComponent(forward_id=item["data"])
         else:
             logger.warning(f"Unofficial component type in dict: {item_type}, defaulting to DictComponent")
             return DictComponent(data=item.get("data") or {})

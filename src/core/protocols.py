@@ -967,6 +967,23 @@ class ImageDescriptionPort(Protocol):
 
 
 @runtime_checkable
+class ForwardFetchPort(Protocol):
+    """合并转发拉取接口 — maisaka 通过此接口请求 NapCat get_forward_msg 拉取转发节点。"""
+
+    async def fetch_forward_nodes(self, forward_id: str) -> Optional[list[dict]]:
+        """根据 forward_id 拉取合并转发节点列表。
+
+        Args:
+            forward_id: 合并转发消息 id。
+
+        Returns:
+            节点列表（每节点含 user_nickname/user_id/user_cardname/message_id/content）；
+            失败时返回 None。
+        """
+        ...
+
+
+@runtime_checkable
 class AgentConfigProvider(Protocol):
     """智能体配置查询接口 — 核心通过此接口访问智能体配置，不直接依赖 AgentConfigRegistry。"""
 

@@ -43,6 +43,7 @@ from src.maisaka.context.messages import (
     SessionBackedMessage,
     ToolResultMessage,
     build_llm_message_from_context,
+    prefetch_forward_nodes_for_messages,
 )
 from src.maisaka.context.history import normalize_tool_call_result_pairs
 from src.maisaka.memory.mid_term import is_mid_term_memory_message
@@ -1044,6 +1045,7 @@ class MaisakaChatLoopService:
             max_context_size=max_context_size,
             is_group_chat=self._is_group_chat,
         )
+        await prefetch_forward_nodes_for_messages(selected_history)
         built_messages = self._build_request_messages(
             selected_history,
             enable_visual_message=enable_visual_message,

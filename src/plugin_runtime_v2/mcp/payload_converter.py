@@ -36,7 +36,7 @@ class NapCatPayloadConverter:
         user_info = UserInfo(
             user_id=str(payload.get("qq_user_id", "") or "unknown"),
             user_nickname=str(payload.get("sender_name", "") or "unknown"),
-            user_cardname=None,
+            user_cardname=payload.get("sender_card"),
         )
 
         group_info = self._build_group_info(payload)
@@ -44,7 +44,11 @@ class NapCatPayloadConverter:
         message_info = MessageInfo(
             user_info=user_info,
             group_info=group_info,
-            additional_config={},
+            additional_config={
+                "at_user_ids": payload.get("at_user_ids", []),
+                "reply_message_id": payload.get("reply_message_id"),
+                "platform_card_payloads": payload.get("platform_card_payloads", []),
+            },
         )
 
         raw_message = self._build_raw_message(payload)
@@ -108,7 +112,7 @@ class NapCatPayloadConverter:
         """
         group_id = payload.get("qq_group_id")
         if group_id:
-            group_name = str(payload.get("group_name", ""))
+            group_name = str(payload.get("group_name") or "")
             if not group_name:
                 group_name = str(group_id)
             return GroupInfo(

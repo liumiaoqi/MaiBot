@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from io import BytesIO
-from typing import Any, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 import base64
 
 from PIL import Image as PILImage
@@ -18,7 +18,9 @@ from src.common.data_models.message_component_data_model import (
     DictComponent,
     EmojiComponent,
     FileComponent,
+    ForwardComponent,
     ForwardNodeComponent,
+    ForwardPlaceholderComponent,
     ImageComponent,
     MessageSequence,
     ReplyComponent,
@@ -96,11 +98,36 @@ def _append_image_component(
 
 
 def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) -> bool:
-    """回复关系已放入消息元信息，不再作为正文内容追加。"""
+    """将回复组件追加到 LLM 消息构建器——引用语义进 prompt 正文。
 
-    del builder
-    del component
-    return False
+    内容来源优先级：target_message_content（process 已填）→ DB 查 → "(原消息未找到)"。
+    sender 优先级：target_message_sender_cardname → nickname → id → "未知用户"。
+    返回 True 使 has_content=True → fallback 不触发 → 不与 processed_plain_text 双重输出。
+    """
+    content = component.target_message_content or ""
+    sender = (
+        component.target_message_sender_cardname
+        or component.target_message_sender_nickname
+        or component.target_message_sender_id
+    )
+    if not content or not sender:
+        try:
+            from sqlmodel import select
+
+            from src.common.database.database import get_db_session
+            from src.common.database.database_model import Messages
+
+            with get_db_session() as session:
+                statement = select(Messages).filter_by(message_id=component.target_message_id).limit(1)
+                if db_msg := session.exec(statement).first():
+                    content = content or (db_msg.processed_plain_text or "")
+                    sender = sender or db_msg.user_cardname or db_msg.user_nickname or db_msg.user_id
+        except Exception as exc:
+            logger.warning("回复组件查询原消息失败: %s", exc, exc_info=True)
+    sender = sender or "未知用户"
+    content = content or "(原消息未找到)"
+    builder.add_text_content(f"[回复了{sender}的消息: {content}]")
+    return True
 
 
 def _render_at_component_text(component: AtComponent) -> str:
@@ -121,6 +148,118 @@ def _append_at_component(builder: MessageBuilder, component: AtComponent) -> boo
     return True
 
 
+# ── ZG16-1 forward 预取与读缓存（design 2.4）────────────────────────────
+# 全局缓存：key=forward_id（转发内容静态不随会话变），值=节点列表（dict 格式）或 None（拉取失败标记）
+_forward_cache: dict[str, Optional[List[dict]]] = {}
+
+
+def get_cached_forward_nodes(forward_id: str) -> Optional[List[dict]]:
+    """同步读取 forward 预取缓存（纯内存，零网络调用）。
+
+    Args:
+        forward_id: 合并转发消息 id。
+
+    Returns:
+        节点列表（命中且拉取成功）；None（未缓存或拉取失败标记）。
+    """
+    return _forward_cache.get(forward_id)
+
+
+async def prefetch_forward_nodes(forward_ids: List[str]) -> None:
+    """async 批量预取 forward 节点写全局缓存（承担全部网络调用）。
+
+    对未命中缓存的 id 调 ForwardFetchPort.fetch_forward_nodes；
+    成功写缓存（节点列表），失败/超时写 None（拉取失败标记，避免重复拉取）；
+    port 未注册时全部写 None（降级，渲染时占位）。
+    """
+    from src.core.forward_fetch_port_registry import get_forward_fetch_port
+
+    pending_ids = [fid for fid in forward_ids if fid and fid not in _forward_cache]
+    if not pending_ids:
+        return
+    port = get_forward_fetch_port()
+    if port is None:
+        for fid in pending_ids:
+            _forward_cache[fid] = None
+        return
+    for fid in pending_ids:
+        try:
+            nodes = await port.fetch_forward_nodes(fid)
+            _forward_cache[fid] = nodes
+        except Exception as exc:
+            logger.warning("forward 预取失败 id=%s: %s", fid, exc, exc_info=True)
+            _forward_cache[fid] = None
+
+
+def _collect_forward_ids(components: Sequence[StandardMessageComponents]) -> List[str]:
+    """扫描消息组件，收集待拉取的 forward_id（ForwardPlaceholderComponent）。"""
+
+    return [
+        component.forward_id
+        for component in components
+        if isinstance(component, ForwardPlaceholderComponent)
+    ]
+
+
+async def prefetch_forward_nodes_for_messages(messages: Sequence) -> None:
+    """遍历 selected_history 所有消息，收集 ForwardPlaceholderComponent 的 forward_id 批量预取。
+
+    区分已展开 ForwardNodeComponent（无需预取）与待拉取 ForwardPlaceholderComponent（需预取）。
+    """
+    forward_ids: List[str] = []
+    for message in messages:
+        raw_message = getattr(message, "raw_message", None)
+        if raw_message is None:
+            continue
+        components = getattr(raw_message, "components", ())
+        forward_ids.extend(_collect_forward_ids(components))
+    if forward_ids:
+        await prefetch_forward_nodes(forward_ids)
+
+
+def _build_forward_node_component_from_nodes(nodes: List[dict]) -> Optional[ForwardNodeComponent]:
+    """从预取的节点列表（dict 格式）构建 ForwardNodeComponent 供同步渲染。
+
+    复用 message_utils 的节点解析逻辑；失败返回 None。
+    """
+    from src.plugin_runtime.host.message_utils import PluginMessageUtils
+
+    try:
+        forward_components = []
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            raw_content = node.get("content", [])
+            node_components: List[StandardMessageComponents] = []
+            if isinstance(raw_content, list):
+                node_components = [
+                    PluginMessageUtils._component_from_dict(content)
+                    for content in raw_content
+                    if isinstance(content, dict)
+                ]
+            if not node_components:
+                node_components = [TextComponent(text="[empty forward node]")]
+            forward_components.append(
+                ForwardComponent(
+                    user_nickname=str(node.get("user_nickname") or "未知用户"),
+                    user_id=str(node.get("user_id") or "") or None,
+                    user_cardname=str(node.get("user_cardname") or "") or None,
+                    message_id=str(node.get("message_id") or ""),
+                    content=node_components,
+                )
+            )
+        if forward_components:
+            return ForwardNodeComponent(forward_components=forward_components)
+    except Exception as exc:
+        logger.warning("构建 ForwardNodeComponent 失败: %s", exc, exc_info=True)
+    return None
+
+
+def reset_forward_cache() -> None:
+    """清空全局 forward 缓存（测试用）。"""
+    _forward_cache.clear()
+
+
 def contains_complex_message(message_sequence: MessageSequence) -> bool:
     """判断消息序列中是否包含需要通过转发浏览工具展开的组件。"""
 
@@ -136,6 +275,7 @@ async def build_full_complex_message_content(message: SessionMessage) -> str:
             enable_voice_transcription=False,
         )
 
+    await prefetch_forward_nodes_for_messages([message])
     full_content = _build_complex_message_full_text(message.raw_message)
     if full_content:
         return full_content
@@ -189,6 +329,16 @@ def _build_complex_message_full_text(message_sequence: MessageSequence) -> str:
     for component in message_sequence.components:
         if isinstance(component, ForwardNodeComponent):
             full_parts.append(_build_forward_full_text(component))
+        elif isinstance(component, ForwardPlaceholderComponent):
+            cached_nodes = get_cached_forward_nodes(component.forward_id)
+            if cached_nodes is not None:
+                forward_component = _build_forward_node_component_from_nodes(cached_nodes)
+                if forward_component is not None:
+                    full_parts.append(_build_forward_full_text(forward_component))
+                else:
+                    full_parts.append("[合并转发(拉取失败)]")
+            else:
+                full_parts.append("[合并转发(拉取失败)]")
 
     return "\n".join(part for part in full_parts if part).strip()
 
@@ -363,6 +513,18 @@ def _build_message_from_sequence(
 
         if isinstance(component, ReplyComponent):
             has_content = _append_reply_component(builder, component) or has_content
+            continue
+
+        if isinstance(component, ForwardPlaceholderComponent):
+            cached_nodes = get_cached_forward_nodes(component.forward_id)
+            if cached_nodes:
+                forward_node = _build_forward_node_component_from_nodes(cached_nodes)
+                if forward_node is not None:
+                    builder.add_text_content(_build_forward_preview_block(forward_node))
+                    has_content = True
+                    continue
+            builder.add_text_content("[合并转发(拉取失败)]")
+            has_content = True
             continue
 
     if not has_content and fallback_text.strip():

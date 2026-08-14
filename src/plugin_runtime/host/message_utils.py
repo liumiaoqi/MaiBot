@@ -14,6 +14,7 @@ from src.common.data_models.message_component_data_model import (
     FileComponent,
     ForwardComponent,
     ForwardNodeComponent,
+    ForwardPlaceholderComponent,
     ImageComponent,
     MessageSequence,
     ReplyComponent,
@@ -298,6 +299,14 @@ class PluginMessageUtils:
                 )
             return ReplyComponent(target_message_id=str(reply_data or ""))
 
+        if item_type == "face":
+            face_data = item.get("data")
+            face_id = (str(face_data) if not isinstance(face_data, dict) else str(face_data.get("id", ""))).strip()
+            return TextComponent(text=f"[表情:{face_id}]" if face_id else "[表情]")
+
+        if item_type == "video":
+            return TextComponent(text="[视频]")
+
         if item_type == "forward":
             forward_nodes: List[ForwardComponent] = []
             raw_forward_nodes = item.get("data", [])
@@ -330,6 +339,9 @@ class PluginMessageUtils:
                         )
                     )
             if not forward_nodes:
+                raw_forward_id = item.get("data", "")
+                if isinstance(raw_forward_id, str) and raw_forward_id:
+                    return ForwardPlaceholderComponent(forward_id=raw_forward_id)
                 return DictComponent(data={"type": "forward", "data": item.get("data", [])})
             return ForwardNodeComponent(forward_components=forward_nodes)
 

@@ -1334,6 +1334,21 @@ class MainSystem:
         prm = get_plugin_runtime_manager()
         set_ipc_bridge_port(IpcBridgePortAdapter(prm))
 
+    @staticmethod
+    @startup_item(
+        name="forward_fetch_port",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=2,
+        critical=False,
+        depends_on=["plugin_runtime"],
+        dependency_kind={"plugin_runtime": DependencyKind.STRONG},
+    )
+    async def _init_forward_fetch_port() -> None:
+        from src.core.adapters.forward_fetch_adapter import ForwardFetchAdapter
+        from src.core.forward_fetch_port_registry import set_forward_fetch_port
+
+        set_forward_fetch_port(ForwardFetchAdapter())
+
     # ── 阶段 4 闭包 ───────────────────────────────────────────
 
     @staticmethod
