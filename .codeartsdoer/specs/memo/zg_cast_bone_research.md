@@ -384,7 +384,9 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 > **原方向（模型能力全景——OpenClaw/LiteLLM provider 适配层学习）暂停**——用户决定转向
 > **学习 DeepSeek Harness 模式**：`decisions/dsh_ecosystem_observation_0814.md`——compaction/spill
 > 上下文压缩、Trajectory 会话日志、goal/plan/todo 自主性骨架、Cordis 插件化、无 vision 看图技巧
-> （ASCII 化表情包方案升级）——R4 收尾后评估立项（2026-08-14 已收尾——待派发）。
+> （ASCII 化表情包方案升级）。**2026-08-14 研究完成**：4 线源码深挖汇总——
+> `research/2026-08/zg16_dsh_models_survey_0814.md`（12 项立项清单 P0-P2——token 感知窗口/
+> 能力依赖声明/ASCII 看图 为 P0）——**待用户立项拍板**（专项报告：`zg16_dsh_autonomy_skeleton_survey_0814.md`）。
 
 ## ZG-16 模型能力全景 — 子项详情（2026-08-05 新立）
 
