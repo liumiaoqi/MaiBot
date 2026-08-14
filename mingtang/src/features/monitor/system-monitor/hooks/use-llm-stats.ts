@@ -7,55 +7,21 @@
  *   ——用 setTimeout(0) + cleanup 调度首次加载
  * - 数据更新通过回调 setState（ws 事件回调 / async await 后）
  * - ws 断开保留最后一次数据 + 连接状态提示（spec.md §5.3.9 异常场景 2）
+ *
+ * P2-C #2：statistics 端点改走 @/lib/statistics-api（类型与请求样板收敛到 lib）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { backendApi } from '@/lib/http'
+import {
+  exportStatistics,
+  getAgentStatistics,
+  getDashboardData,
+  type AgentStatisticsItem,
+  type DashboardSummary,
+  type ModelStatisticsItem,
+  type TimeSeriesItem,
+} from '@/lib/statistics-api'
 import { unifiedWsClient, type WsEventEnvelope } from '@/lib/unified-ws'
-
-export interface AgentStatisticsItem {
-  agent_id: string
-  request_count: number
-  total_input_tokens: number
-  total_output_tokens: number
-  total_cost: number
-  avg_response_time: number
-}
-
-export interface ModelStatisticsItem {
-  model_name: string
-  request_count: number
-  total_cost: number
-  total_tokens: number
-  avg_response_time: number
-}
-
-export interface TimeSeriesItem {
-  timestamp: string
-  requests: number
-  cost: number
-  tokens: number
-}
-
-interface DashboardSummary {
-  total_requests: number
-  total_cost: number
-  total_tokens: number
-  online_time: number
-  total_messages: number
-  total_replies: number
-  avg_response_time: number
-  cost_per_hour: number
-  tokens_per_hour: number
-}
-
-interface DashboardData {
-  summary: DashboardSummary
-  model_stats: ModelStatisticsItem[]
-  hourly_data: TimeSeriesItem[]
-  daily_data: TimeSeriesItem[]
-  recent_activity: Record<string, unknown>[]
-}
 
 const DEFAULT_HOURS = 24
 
@@ -73,8 +39,8 @@ export function useLLMStats(initialHours = DEFAULT_HOURS) {
     setIsLoading(true)
     try {
       const [dashboardData, agentsData] = await Promise.allSettled([
-        backendApi.get<DashboardData>('/api/webui/statistics/dashboard', { query: { hours: h } }),
-        backendApi.get<{ hours: number; agents: AgentStatisticsItem[] }>('/api/webui/statistics/agents', { query: { hours: h } }),
+        getDashboardData(h),
+        getAgentStatistics(h),
       ])
 
       if (mountedRef.current) {
@@ -99,10 +65,7 @@ export function useLLMStats(initialHours = DEFAULT_HOURS) {
 
   const exportCSV = useCallback(async () => {
     try {
-      const blob = await backendApi.get<Blob>(`/api/webui/statistics/export?hours=${hours}&format=csv`, {
-        parse: 'blob',
-        errorMessage: 'CSV 导出失败',
-      })
+      const blob = await exportStatistics(hours, 'csv')
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

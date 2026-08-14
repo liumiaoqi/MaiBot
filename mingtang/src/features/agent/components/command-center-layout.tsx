@@ -116,7 +116,6 @@ export function CommandCenterLayout() {
       {currentView === 'constellation' && (
         <AgentConstellation
           data={constellationData}
-          selectedAgentId={selectedAgentId}
           onNodeClick={(id) => setSelectedAgentId(id)}
           onNodeDoubleClick={(id) => setSelectedAgentId(id)}
           emotions={emotions}

@@ -6,15 +6,14 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
-  type Edge,
   type EdgeMouseHandler,
-  type Node,
 } from '@xyflow/react'
 
 import '@xyflow/react/dist/style.css'
 
 import type { InternalRelationship, AgentConfigInfo } from '@/lib/agent-api'
 import { REL_TYPE_COLORS } from '../../utils/constellation'
+import { layoutRadial } from '../../utils/graph-layout'
 
 interface InternalRelNodeData {
   agentId: string
@@ -35,32 +34,6 @@ interface InternalRelEdgeData {
 
 const NODE_SIZE = 36
 const RADIAL_RADIUS = 100
-
-// dagre 缺失（mingtang 无此依赖）→ 星型布局替代：self 居中，其余节点环绕
-function layoutWithRadial<N extends Node & { data: InternalRelNodeData }, E extends Edge>(
-  nodes: N[],
-  edges: E[],
-): { nodes: N[]; edges: E[] } {
-  const selfNode = nodes.find((n) => n.data.isSelf)
-  const others = nodes.filter((n) => n !== selfNode)
-
-  const layouted: N[] = []
-  if (selfNode) {
-    layouted.push({ ...selfNode, position: { x: 0, y: 0 } })
-  }
-  others.forEach((node, i) => {
-    const angle = (2 * Math.PI * i) / Math.max(others.length, 1) - Math.PI / 2
-    layouted.push({
-      ...node,
-      position: {
-        x: RADIAL_RADIUS * Math.cos(angle),
-        y: RADIAL_RADIUS * Math.sin(angle),
-      },
-    })
-  })
-
-  return { nodes: layouted, edges }
-}
 
 function InternalRelNode({ data }: { data: InternalRelNodeData }) {
   return (
@@ -184,7 +157,8 @@ function InternalRelationshipGraphInner({
   )
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => layoutWithRadial(initialNodes, initialEdges),
+    // centerFirst：self 节点恒为 initialNodes 首位（组件内构造顺序保证）
+    () => layoutRadial(initialNodes, initialEdges, { radius: RADIAL_RADIUS, centerFirst: true }),
     [initialNodes, initialEdges],
   )
 

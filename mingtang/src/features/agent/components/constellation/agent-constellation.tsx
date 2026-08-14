@@ -5,9 +5,7 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
-  type Edge,
   type EdgeMouseHandler,
-  type Node,
   type NodeMouseHandler,
 } from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import '@xyflow/react/dist/style.css'
 
 import type { AgentConfigInfo, BatchEmotionItem } from '@/lib/agent-api'
+import { layoutRadial } from '../../utils/graph-layout'
 import type { ConstellationData, ConstellationEdge as ConstellationEdgeData, ConstellationNode as ConstellationNodeData } from '../../utils/constellation'
 import { ConstellationEdgeComponent } from './constellation-edge'
 import { ConstellationNodeComponent } from './constellation-node'
@@ -26,22 +25,8 @@ const edgeTypes = { constellation: ConstellationEdgeComponent }
 
 const RADIAL_RADIUS = 180
 
-// dagre 缺失（mingtang 无此依赖）→ 环形布局替代：节点均匀分布
-function layoutWithRadial<N extends Node, E extends Edge>(nodes: N[], edges: E[]): { nodes: N[]; edges: E[] } {
-  const layoutedNodes = nodes.map((node, i) => {
-    const angle = (2 * Math.PI * i) / Math.max(nodes.length, 1) - Math.PI / 2
-    return {
-      ...node,
-      position: { x: RADIAL_RADIUS * Math.cos(angle), y: RADIAL_RADIUS * Math.sin(angle) },
-    }
-  })
-
-  return { nodes: layoutedNodes, edges }
-}
-
 interface AgentConstellationProps {
   data: ConstellationData
-  selectedAgentId: string | null
   onNodeClick: (agentId: string) => void
   onNodeDoubleClick: (agentId: string) => void
   emotions: Record<string, BatchEmotionItem>
@@ -51,7 +36,6 @@ interface AgentConstellationProps {
 
 export function AgentConstellation({
   data,
-
   onNodeClick,
   onNodeDoubleClick,
   emotions,
@@ -87,7 +71,7 @@ export function AgentConstellation({
   )
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => layoutWithRadial(initialNodes, initialEdges),
+    () => layoutRadial(initialNodes, initialEdges, { radius: RADIAL_RADIUS }),
     [initialNodes, initialEdges]
   )
 

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { useRouterState } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 
 export function useAgentNavigation(agentIds: string[]) {
+  const navigate = useNavigate()
   const routerState = useRouterState()
   const search = (routerState.location.search ?? {}) as Record<string, string>
   const agentParam = search['agent'] ?? null
@@ -21,14 +22,15 @@ export function useAgentNavigation(agentIds: string[]) {
 
   const navigateToAgent = useCallback((agentId: string | null) => {
     setSelectedAgentId(agentId)
-    const url = new URL(window.location.href)
-    if (agentId) {
-      url.searchParams.set('agent', agentId)
-    } else {
-      url.searchParams.delete('agent')
-    }
-    window.history.replaceState(null, '', url.toString())
-  }, [])
+    // P2-C #6：search 参数经 TanStack Router 官方 API 同步（替代 URL 直接改写旁路）——
+    // agent=undefined 时 router 从 URL 移除该参数；replace: true 保留原旁路的不进历史栈语义。
+    // 路由未声明 validateSearch，typed search 无法表达动态参数——沿用仓库既有 as never 先例（plugin/detail）。
+    navigate({
+      to: '/agents',
+      search: { agent: agentId ?? undefined },
+      replace: true,
+    } as never)
+  }, [navigate])
 
   const navigateToNext = useCallback(() => {
     if (!selectedAgentId) {

@@ -3,6 +3,8 @@ import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { manualTriggerInteraction, getAgentList } from '@/lib/agent-api'
 
 const INTERACTION_TYPES = [
@@ -59,54 +61,54 @@ export function ManualTriggerDialog({ open, onOpenChange }: ManualTriggerDialogP
 
         <div className="space-y-3">
           <Field label={t('agent.interaction.manualTrigger.initiator')}>
-            <select
-              value={initiatorId}
-              onChange={(e) => setInitiatorId(e.target.value)}
-              className="w-full bg-muted/30 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
-            >
-              <option value="">--</option>
-              {agents.map((a) => (
-                <option key={a.agent_id} value={a.agent_id}>
-                  {a.display_name || a.agent_id}
-                </option>
-              ))}
-            </select>
+            <Select value={initiatorId || undefined} onValueChange={setInitiatorId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="--" />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((a) => (
+                  <SelectItem key={a.agent_id} value={a.agent_id}>
+                    {a.display_name || a.agent_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Field label={t('agent.interaction.manualTrigger.target')}>
-            <select
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              className="w-full bg-muted/30 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
-            >
-              <option value="">--</option>
-              {agents.map((a) => (
-                <option key={a.agent_id} value={a.agent_id}>
-                  {a.display_name || a.agent_id}
-                </option>
-              ))}
-            </select>
+            <Select value={targetId || undefined} onValueChange={setTargetId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="--" />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((a) => (
+                  <SelectItem key={a.agent_id} value={a.agent_id}>
+                    {a.display_name || a.agent_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Field label={t('agent.interaction.manualTrigger.type')}>
-            <select
-              value={interactionType}
-              onChange={(e) => setInteractionType(e.target.value)}
-              className="w-full bg-muted/30 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
-            >
-              {INTERACTION_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {t(`agent.interaction.typeLabels.${type}`, type)}
-                </option>
-              ))}
-            </select>
+            <Select value={interactionType} onValueChange={setInteractionType}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERACTION_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {t(`agent.interaction.typeLabels.${type}`, type)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Field label={t('agent.interaction.manualTrigger.reason')}>
-            <input
+            <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full bg-muted/30 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground"
               placeholder={t('agent.interaction.manualTrigger.reason')}
             />
           </Field>

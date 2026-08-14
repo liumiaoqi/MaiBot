@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { useLLMStats } from './hooks/use-llm-stats'
 import { ChatStreamMonitor } from './chat-stream-monitor'
+import { StatsTable } from './stats-table'
 import { SystemResourceMonitor } from './system-resource-monitor'
 import { TimeRangeSelector } from './time-range-selector'
 
@@ -119,30 +120,17 @@ export function SystemMonitorPage() {
                 <CardTitle className="text-sm font-medium">{t('monitor.llm.modelStats')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs text-muted-foreground">
-                        <th className="pb-2 pr-3 font-medium">{t('monitor.llm.model')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.requests')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.cost')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.tokens')}</th>
-                        <th className="pb-2 font-medium text-right">{t('monitor.llm.avgTime')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {modelStats.map((m) => (
-                        <tr key={m.model_name} className="border-b last:border-0">
-                          <td className="py-2 pr-3 max-w-[200px] truncate">{m.model_name}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">{m.request_count}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">¥{m.total_cost.toFixed(4)}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">{m.total_tokens.toLocaleString()}</td>
-                          <td className="py-2 text-right tabular-nums">{m.avg_response_time.toFixed(2)}s</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <StatsTable
+                  columns={[
+                    { key: 'model', header: t('monitor.llm.model'), cellClassName: 'max-w-[200px] truncate', render: (m) => m.model_name },
+                    { key: 'requests', header: t('monitor.llm.requests'), align: 'right', render: (m) => m.request_count },
+                    { key: 'cost', header: t('monitor.llm.cost'), align: 'right', render: (m) => "¥" + m.total_cost.toFixed(4) },
+                    { key: 'tokens', header: t('monitor.llm.tokens'), align: 'right', render: (m) => m.total_tokens.toLocaleString() },
+                    { key: 'avgTime', header: t('monitor.llm.avgTime'), align: 'right', render: (m) => m.avg_response_time.toFixed(2) + "s" },
+                  ]}
+                  rows={modelStats}
+                  rowKey={(m) => m.model_name}
+                />
               </CardContent>
             </Card>
           )}
@@ -153,32 +141,18 @@ export function SystemMonitorPage() {
                 <CardTitle className="text-sm font-medium">{t('monitor.llm.agentStats')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs text-muted-foreground">
-                        <th className="pb-2 pr-3 font-medium">{t('monitor.llm.agent')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.requests')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.inputTokens')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.outputTokens')}</th>
-                        <th className="pb-2 pr-3 font-medium text-right">{t('monitor.llm.cost')}</th>
-                        <th className="pb-2 font-medium text-right">{t('monitor.llm.avgTime')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agentStats.map((a) => (
-                        <tr key={a.agent_id} className="border-b last:border-0">
-                          <td className="py-2 pr-3 max-w-[150px] truncate">{a.agent_id}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">{a.request_count}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">{a.total_input_tokens.toLocaleString()}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">{a.total_output_tokens.toLocaleString()}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">¥{a.total_cost.toFixed(4)}</td>
-                          <td className="py-2 text-right tabular-nums">{a.avg_response_time.toFixed(2)}s</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <StatsTable
+                  columns={[
+                    { key: 'agent', header: t('monitor.llm.agent'), cellClassName: 'max-w-[150px] truncate', render: (a) => a.agent_id },
+                    { key: 'requests', header: t('monitor.llm.requests'), align: 'right', render: (a) => a.request_count },
+                    { key: 'inputTokens', header: t('monitor.llm.inputTokens'), align: 'right', render: (a) => a.total_input_tokens.toLocaleString() },
+                    { key: 'outputTokens', header: t('monitor.llm.outputTokens'), align: 'right', render: (a) => a.total_output_tokens.toLocaleString() },
+                    { key: 'cost', header: t('monitor.llm.cost'), align: 'right', render: (a) => "¥" + a.total_cost.toFixed(4) },
+                    { key: 'avgTime', header: t('monitor.llm.avgTime'), align: 'right', render: (a) => a.avg_response_time.toFixed(2) + "s" },
+                  ]}
+                  rows={agentStats}
+                  rowKey={(a) => a.agent_id}
+                />
               </CardContent>
             </Card>
           )}

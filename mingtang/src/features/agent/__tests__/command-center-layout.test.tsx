@@ -19,6 +19,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@tanstack/react-router', () => ({
   useRouterState: (arg?: { select?: (s: { location: { search: Record<string, unknown> } }) => unknown }) =>
     arg?.select ? arg.select({ location: { search: {} } }) : { location: { search: {} } },
+  useNavigate: () => mockNavigate,
 }))
 
 vi.mock('@xyflow/react', () => ({
@@ -40,6 +41,7 @@ const {
   mockGetInteractionHotspots,
   mockGetInteractionConfig,
   mockManualTriggerInteraction,
+  mockNavigate,
 } = vi.hoisted(() => ({
   mockGetAgentList: vi.fn(),
   mockGetBatchEmotions: vi.fn(),
@@ -50,6 +52,7 @@ const {
   mockGetInteractionHotspots: vi.fn(),
   mockGetInteractionConfig: vi.fn(),
   mockManualTriggerInteraction: vi.fn(),
+  mockNavigate: vi.fn(),
 }))
 
 vi.mock('@/lib/agent-api', () => ({

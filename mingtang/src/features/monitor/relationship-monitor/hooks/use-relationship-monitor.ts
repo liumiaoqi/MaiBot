@@ -104,7 +104,7 @@ export function useRelationshipMonitor(
     selectedRelationships,
     totalRelationships,
     isInitialLoading: agentsQuery.isLoading || allRelationshipsQuery.isLoading,
-    isRefreshing: agentsQuery.isFetching || agentsQuery.isFetching,
+    isRefreshing: agentsQuery.isFetching || allRelationshipsQuery.isFetching,
     setSelectedAgentId,
     refresh,
   }
