@@ -74,7 +74,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | **ZG-21** | 事件回调预算（ksoftirqd 化） | 2026-08-07 | SoftirqBatcher（budget_ms=2/count=200）+ EventBus 批量化 + 日志广播批量，852 passed |
 | **ZG-22** | 无锁读延迟回收（RCU 化） | 2026-08-07 | 索引热替换（IndexIDMap2 包装 + 原子替换），5 文件 68 行 |
 | **ZG-23a** | 消息发送去重 + 发言节流 | 2026-08-07 | OutboundDedupWindow + MentionChainThrottle + 幂等键 metadata 通道 + FAILED 枚举，962 passed（CX 审查 3 P0 两轮修复定稿） |
-| **ZG-10** | 启动编排演进（initcall→systemd 化） | 2026-08-04 | src/core/startup/ 7 文件（declaration/arbiter/orchestrator/propagator/types/validator——分层仲裁 + 相位分波 + 失败传播 + 配置冻结）——批 1-11 + CX 审核两轮（2026-08-14 代码核实补记——原文档 P2 表状态过时） |
+| **ZG-10** | 启动编排演进（initcall→systemd 化） | 2026-08-04（基础设施） | src/core/startup/ 7 文件（declaration/arbiter/orchestrator/propagator/types/validator——分层仲裁 + 相位分波 + 失败传播 + 配置冻结 + CLI 观测 debug_startup/skip_startup_items + StartupCompleteEvent）——批 1-11 + CX 审核两轮。**未完全 linux 化（2026-08-14 代码核实）**：① `__init` 回收未实现（启动后释放一次性元数据/仲裁结构）② watchdog/service_manager 移入启动编排未做（遗留 1——"WatchdogPort 未注册"降级日志仍在）③ UDS 防御未做（遗留 2——探测活监听再报错） |
 | **ZG-14** | 错误升级梯（WARN→oops→panic 化） | Phase 1-3 08-05~06 / **Phase 4 08-07 收口** | error_escalation 包 9 文件（escalator/mapper/storm/counter/coverage）；Phase 4 except 改造 119 文件 124 处——**覆盖 99.73%**（2026-08-14 代码核实补记——原文档仅记"7 文件"过时）；Phase 5 待 ZG-12 定稿（ZG-12 已 08-07 完成——解锁状态待确认） |
 
 ### 🔴 P0 — 剩余必做（2026-08-07 调研核实：**已空**——ZG-12 已完成）
