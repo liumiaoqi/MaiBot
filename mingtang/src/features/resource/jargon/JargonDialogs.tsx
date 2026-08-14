@@ -1,4 +1,10 @@
 /** R4-1-2-5: 从 dashboard 行为等价搬移——适配 useToast → sonner toast */
+/**
+ * P2-B 评估（2026-08）：保持单文件不拆分。
+ * 理由：4 个对话框全部属 jargon 域（详情/创建/删除/批量删除），职责内聚；
+ * 共享 InfoItem 辅助组件与同一组 UI/API import；除 JargonDetailDialog（约 227 行）
+ * 外其余均在 150 行以内，拆开后文件间依赖反而更碎。维持现状 + 按上方分节注释导航。
+ */
 import { Check, Hash, HelpCircle } from 'lucide-react'
 import { useState } from 'react'
 
