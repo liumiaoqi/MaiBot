@@ -217,7 +217,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._chat_loop_adapter: Optional[object] = None
         self._agent_orchestrator: Optional[object] = None
         self._notice_classifier: NoticeClassifier = self._get_default_notice_classifier()
-        self._tool_registry = ToolRegistry()
+        # ZG-20：会话 registry 挂全局共享层（v2 插件工具跨会话可见——本层工具优先）
+        from src.core.tooling import get_global_tool_registry
+
+        self._tool_registry = ToolRegistry(shared=get_global_tool_registry())
         self._init_agent_autonomy()
         self._monitor_visual_refresh_keys: set[tuple[str, str]] = set()
         self._reply_effect_tracker = ReplyEffectTracker(

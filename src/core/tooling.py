@@ -256,10 +256,16 @@ class ToolProvider(Protocol):
 class ToolRegistry:
     """统一工具注册表。"""
 
-    def __init__(self) -> None:
-        """初始化统一工具注册表。"""
+    def __init__(self, shared: "ToolRegistry | None" = None) -> None:
+        """初始化统一工具注册表。
+
+        Args:
+            shared: 共享层注册表（ZG-20——跨会话全局工具——如 v2 插件工具）。
+                本层工具优先（去重时保留先注册的本层工具）；close 只关本层。
+        """
 
         self._providers: list[ToolProvider] = []
+        self._shared = shared
 
     def register_provider(self, provider: ToolProvider) -> None:
         """注册一个工具提供者。
@@ -286,6 +292,9 @@ class ToolRegistry:
     ) -> list[ToolSpec]:
         """按 Provider 顺序列出全部去重后的工具。
 
+        本层工具优先（重复名保留本层）；shared 共享层（v2 插件工具）随后合并。
+        ZG-20：跨会话全局工具通过 shared 层对所有会话可见。
+
         Returns:
             list[ToolSpec]: 去重后的工具列表。
         """
@@ -305,6 +314,17 @@ class ToolRegistry:
                     continue
                 seen_names.add(spec.name)
                 collected_specs.append(spec)
+
+        if self._shared is not None:
+            for spec in await self._shared.list_tools(context):
+                if not spec.enabled:
+                    continue
+                if spec.name in seen_names:
+                    # 本层同名工具优先——共享层（v2）重名工具静默跳过（不刷警告——跨层重名是预期场景）
+                    continue
+                seen_names.add(spec.name)
+                collected_specs.append(spec)
+
         return collected_specs
 
     async def get_tool_spec(
@@ -407,6 +427,10 @@ class ToolRegistry:
                         error_message=error_message,
                     )
 
+        # 本层未找到——回退共享层（ZG-20：v2 插件工具在 shared 全局注册表）
+        if self._shared is not None:
+            return await self._shared.invoke(invocation, context)
+
         return ToolExecutionResult(
             tool_name=invocation.tool_name,
             success=False,
@@ -414,7 +438,21 @@ class ToolRegistry:
         )
 
     async def close(self) -> None:
-        """关闭全部 Provider。"""
+        """关闭本层 Provider（shared 共享层归全局管理——不在此关闭）。"""
 
         for provider in self._providers:
             await provider.close()
+
+
+# ── 全局共享工具注册表（ZG-20——v2 插件工具跨会话可见）──
+# v2 插件 host 注册的 MCPToolProvider 挂到这里——所有会话的 ToolRegistry
+# 以 shared 引用看到它——解决 bootstrap 曾回退"孤立实例"导致工具不可见的问题。
+_global_tool_registry: "ToolRegistry | None" = None
+
+
+def get_global_tool_registry() -> ToolRegistry:
+    """获取全局共享 ToolRegistry（惰性单例）。"""
+    global _global_tool_registry
+    if _global_tool_registry is None:
+        _global_tool_registry = ToolRegistry()
+    return _global_tool_registry

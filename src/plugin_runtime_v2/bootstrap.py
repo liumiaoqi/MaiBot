@@ -123,15 +123,16 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
 
 
 def _get_tool_registry():
-    """从核心层获取 ToolRegistry 实例。"""
-    try:
-        from src.maisaka.agent_autonomy.tool_registry import get_tool_registry
+    """获取全局共享 ToolRegistry（ZG-20）。
 
-        return get_tool_registry()
-    except ImportError:
-        from src.core.tooling import ToolRegistry
+    曾尝试 import src.maisaka.agent_autonomy.tool_registry（该模块不存在）→
+    回退孤立 ToolRegistry()——v2 插件工具注册进孤立实例——会话的 registry
+    永远看不到（插件功能失效）。现在统一挂核心层全局单例——所有会话以
+    shared 引用可见 v2 工具。
+    """
+    from src.core.tooling import get_global_tool_registry
 
-        return ToolRegistry()
+    return get_global_tool_registry()
 
 
 def _get_person_info_port():
