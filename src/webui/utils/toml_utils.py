@@ -101,5 +101,33 @@ def save_toml_with_format(
     formatted = _format_toml_value(data, multiline_threshold) if multiline_threshold >= 0 else data
     output = tomlkit.dumps(formatted)
     output = re.sub(r"\n{3,}", "\n\n", output)
-    with open(file_path, "w", encoding="utf-8") as f:
+
+    # ── 写盘前校验（2026-08-14 事故加固——configfs L5 提交式语义）──
+    # 08-09 事故：bot_config.toml 被写坏（inner_voices 42 条拍平）→ 容器启动崩溃。
+    # 三层防护：① 产物必须是合法 TOML（防调用方漏验证/格式化 bug）② 写前备份旧文件
+    #（写坏可恢复）③ 原子写（tmp + replace——防写一半崩溃留下半文件）。
+    try:
+        tomlkit.loads(output)
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(f"配置写入被拒绝：生成内容不是合法 TOML——{e}")
+        raise ValueError(f"配置写入被拒绝：生成内容不是合法 TOML——{e}") from e
+
+    import os
+
+    if os.path.exists(file_path):
+        try:
+            # 备份旧配置（最多保留一份——每次覆盖——恢复用 .bak）
+            import shutil
+
+            shutil.copy2(file_path, file_path + ".bak")
+        except OSError as backup_error:
+            import logging
+
+            logging.getLogger(__name__).warning(f"配置备份失败（继续写入）：{backup_error}")
+
+    tmp_path = file_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         f.write(output)
+    os.replace(tmp_path, file_path)  # 原子替换（Windows/Linux 均支持）
