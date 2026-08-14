@@ -6,6 +6,7 @@
 """
 
 from src.core.error_escalation.adapter import ErrorEscalationAdapter
+from src.core.error_escalation.code_mapper import classify_exception, classify_http_status
 from src.core.error_escalation.config import DEFAULT_LEVEL_ACTIONS, ErrorEscalationConfig, build_config
 from src.core.error_escalation.counter import ErrorCounter
 from src.core.error_escalation.escalator import (
@@ -19,6 +20,8 @@ from src.core.error_escalation.storm import StormDecision, StormTracker
 from src.core.error_escalation.types import ErrorAction, ErrorLevel
 
 __all__ = [
+    "classify_exception",
+    "classify_http_status",
     "DEFAULT_LEVEL_ACTIONS",
     "EnumLevelMapper",
     "ErrorAction",

@@ -72,6 +72,21 @@ DATA_URI_RETRY_MARGIN_BYTES = 128 * 1024
 MIN_COMPRESSED_IMAGE_TARGET_SIZE_BYTES = 512 * 1024
 
 
+def _report_http_error_to_escalation(status_code: int, message: str, exc: Exception) -> None:
+    """按 ZG-12 错误码定稿上报 HTTP 错误（ZG-14 Phase 5 接入）。
+
+    错误码 → ErrorLevel 映射：永久性错误码（400/401/402/403/404/405/410/413/422）
+    → ERROR；暂时性错误码（408/429/499/500/502/503/504/521/522/523/524/529）→ WARN。
+    未注册 port 时静默跳过（registry 兜底，spec §5.7.3 异常场景 2）。
+    """
+    from src.core.error_escalation.code_mapper import classify_http_status
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(classify_http_status(status_code), message, exception=exc)
+
+
 class RequestType(Enum):
     """请求类型枚举"""
 
@@ -880,6 +895,11 @@ class LLMOrchestrator:
                 if e.status_code == 429 or e.status_code >= 500:
                     retry_remain -= 1
                     if retry_remain <= 0:
+                        _report_http_error_to_escalation(
+                            e.status_code,
+                            f"任务 '{task_display}' 的模型 '{model_info.name}' HTTP {e.status_code} 错误重试耗尽",
+                            e,
+                        )
                         logger.error(
                             f"任务 '{task_display}' 的模型 '{model_info.name}' 在遇到 {e.status_code} 错误并用尽重试次数后仍然失败。{original_error_info}"
                         )
@@ -916,6 +936,11 @@ class LLMOrchestrator:
                     continue
 
                 # 不可重试的HTTP错误
+                _report_http_error_to_escalation(
+                    e.status_code,
+                    f"任务 '{task_display}' 的模型 '{model_info.name}' 遇到不可重试的HTTP错误（{e.status_code}）",
+                    e,
+                )
                 logger.warning(
                     f"任务 '{task_display}' 的模型 '{model_info.name}' 遇到不可重试的HTTP错误: {str(e)}{original_error_info}"
                 )
