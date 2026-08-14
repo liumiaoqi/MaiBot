@@ -1,16 +1,13 @@
 import { useState } from 'react'
 
 import type {
-  GitStatus,
-  MaimaiVersion,
   MarketplaceSortKey,
   PluginInfo,
-  PluginLoadProgress,
   PluginStatsData,
 } from '@/features/plugin/shared/types'
-import { getPluginType } from '@/features/plugin/shared/types'
 
-import { PluginCard } from './plugin-card'
+import { PluginCard, type PluginCardProps } from './plugin-card'
+import { filterPlugins } from './use-plugin-filter'
 
 const SURPRISE_PLUGIN_COUNT = 4
 const SURPRISE_CANDIDATE_LIMIT = 20
@@ -29,27 +26,31 @@ interface MarketplaceScoreBasis {
   maxMarketplaceOrder: number
 }
 
-interface MarketplaceTabProps {
+// MarketplaceTabProps：卡片相关回调/数据从 PluginCardProps 经 ts Pick 派生单一来源
+// （R4 债清理 P2——避免 16-prop 接口多处重复声明）
+interface MarketplaceTabProps extends Pick<
+  PluginCardProps,
+  | 'gitStatus'
+  | 'maimaiVersion'
+  | 'pluginStats'
+  | 'loadProgress'
+  | 'likingPluginIds'
+  | 'onInstall'
+  | 'onLike'
+  | 'onUpdate'
+  | 'onUninstall'
+  | 'onDetail'
+  | 'checkPluginCompatibility'
+  | 'needsUpdate'
+  | 'getStatusBadge'
+  | 'getIncompatibleReason'
+> {
   plugins: PluginInfo[]
   searchQuery: string
   pluginTypeFilter: string
   showCompatibleOnly: boolean
   hideInstalledPlugins: boolean
   sortBy: MarketplaceSortKey
-  gitStatus: GitStatus | null
-  maimaiVersion: MaimaiVersion | null
-  pluginStats: Record<string, PluginStatsData>
-  loadProgress: PluginLoadProgress | null
-  likingPluginIds: Set<string>
-  onInstall: (plugin: PluginInfo) => void
-  onLike: (plugin: PluginInfo) => void
-  onUpdate: (plugin: PluginInfo) => void
-  onUninstall: (plugin: PluginInfo) => void
-  onDetail: (plugin: PluginInfo) => void
-  checkPluginCompatibility: (plugin: PluginInfo) => boolean
-  needsUpdate: (plugin: PluginInfo) => boolean
-  getStatusBadge: (plugin: PluginInfo) => React.JSX.Element | null
-  getIncompatibleReason: (plugin: PluginInfo) => string | null
 }
 
 function getPluginIdentity(plugin: PluginInfo): string {
@@ -245,38 +246,14 @@ export function MarketplaceTab({
     return 0
   }
 
-  const matchedPlugins = plugins.filter((plugin) => {
-    // 跳过没有 manifest 的插件
-    if (!plugin.manifest) {
-      console.warn('[过滤] 跳过无 manifest 的插件:', plugin.id)
-      return false
-    }
-
-    // 全部插件只展示 plugin-repo 中存在的市场插件，本地独有插件只在“已安装”显示。
-    if (plugin.source === 'local') {
-      return false
-    }
-
-    if (hideInstalledPlugins && plugin.installed) {
-      return false
-    }
-
-    // 搜索过滤
-    const matchesSearch =
-      searchQuery === '' ||
-      plugin.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (plugin.manifest.keywords &&
-        plugin.manifest.keywords.some((k) => k.toLowerCase().includes(searchQuery.toLowerCase())))
-
-    // 类型过滤
-    const matchesType = pluginTypeFilter === 'all' || getPluginType(plugin) === pluginTypeFilter
-
-    // 兼容性过滤
-    const matchesCompatibility =
-      !showCompatibleOnly || !maimaiVersion || checkPluginCompatibility(plugin)
-
-    return matchesSearch && matchesType && matchesCompatibility
+  // 搜索/类型/兼容性过滤——统一走 use-plugin-filter 纯函数（R4 债清理 P2）
+  const matchedPlugins = filterPlugins(plugins, {
+    searchQuery,
+    pluginTypeFilter,
+    showCompatibleOnly,
+    hideInstalledPlugins,
+    maimaiVersion,
+    checkPluginCompatibility,
   })
   const scoreBasis = matchedPlugins.reduce<MarketplaceScoreBasis>(
     (basis, plugin) => {

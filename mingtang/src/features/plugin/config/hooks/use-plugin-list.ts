@@ -21,6 +21,7 @@ import {
 } from '@/lib/plugin-api'
 import type { InstalledPlugin } from '@/lib/plugin-api'
 import type { PluginInfo } from '@/types/plugin'
+import { compareVersions } from '@/features/plugin/shared/compare-versions'
 import { toast } from 'sonner'
 
 type PluginStatusIcon = 'loading' | 'warning' | 'circuit'
@@ -43,21 +44,6 @@ function getInitialPluginConfigTarget(): { pluginId: string | null; tabId: strin
     pluginId: params.get('plugin'),
     tabId: params.get('tab'),
   }
-}
-
-function comparePluginVersions(currentVersion: string, latestVersion: string): number {
-  const currentParts = currentVersion.trim().split('.').map(part => Number.parseInt(part, 10) || 0)
-  const latestParts = latestVersion.trim().split('.').map(part => Number.parseInt(part, 10) || 0)
-  const maxLength = Math.max(currentParts.length, latestParts.length)
-
-  for (let index = 0; index < maxLength; index++) {
-    const currentPart = currentParts[index] || 0
-    const latestPart = latestParts[index] || 0
-    if (latestPart > currentPart) return 1
-    if (latestPart < currentPart) return -1
-  }
-
-  return 0
 }
 
 export function usePluginList() {
@@ -310,7 +296,8 @@ export function usePluginList() {
 
     const currentVersion = plugin.manifest.version
     const latestVersion = marketPlugin.manifest.version
-    if (comparePluginVersions(currentVersion, latestVersion) <= 0) {
+    // 市场版本不高于本地版本即视为已最新（compareVersions(latest, current) <= 0）
+    if (compareVersions(latestVersion, currentVersion) <= 0) {
       return { canUpdate: false, hasUpdate: false, title: '当前已是最新版本' }
     }
 

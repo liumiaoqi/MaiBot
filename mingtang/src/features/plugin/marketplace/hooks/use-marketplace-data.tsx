@@ -43,6 +43,7 @@ import type {
   PluginInfo,
   PluginLoadProgress,
 } from '@/features/plugin/shared/types'
+import { compareVersions } from '@/features/plugin/shared/compare-versions'
 
 // ---- 纯数据函数（从旧 index.tsx 原样搬入） ----
 
@@ -520,21 +521,8 @@ export function useMarketplaceData() {
     const installedVer = plugin.installed_version.trim()
     const marketVer = plugin.manifest.version.trim()
 
-    if (installedVer === marketVer) return false
-
-    const installedParts = installedVer.split('.').map(Number)
-    const marketParts = marketVer.split('.').map(Number)
-
-    // 比较主版本号、次版本号、修订号
-    for (let i = 0; i < 3; i++) {
-      if ((marketParts[i] || 0) > (installedParts[i] || 0)) {
-        return true  // 市场版本更新
-      } else if ((marketParts[i] || 0) < (installedParts[i] || 0)) {
-        return false  // 本地版本更新
-      }
-    }
-
-    return false
+    // 市场版本比已安装版本新 → 需要更新（compareVersions 统一版本比较）
+    return compareVersions(marketVer, installedVer) > 0
   }
 
   // 获取插件状态徽章
@@ -550,32 +538,23 @@ export function useMarketplaceData() {
     }
 
     if (plugin.installed) {
-      // 版本比较：去除两边空格并进行比较
       const installedVer = plugin.installed_version?.trim()
       const marketVer = plugin.manifest.version?.trim()
 
-      if (installedVer !== marketVer) {
-        // 简单的版本比较：只有当市场版本比已安装版本新时才显示"可更新"
-        // 如果本地版本更新（比如手动更新或市场数据过期），则显示"已安装"
-        const installedParts = installedVer?.split('.').map(Number) || [0, 0, 0]
-        const marketParts = marketVer?.split('.').map(Number) || [0, 0, 0]
-
-        // 比较主版本号、次版本号、修订号
-        for (let i = 0; i < 3; i++) {
-          if ((marketParts[i] || 0) > (installedParts[i] || 0)) {
-            // 市场版本更新
-            return (
-              // orange 语义色板（可更新状态——色板豁免）
-              <Badge variant="outline" className="gap-1 text-orange-600 border-orange-600">
-                <AlertCircle className="h-3 w-3" />
-                可更新
-              </Badge>
-            )
-          } else if ((marketParts[i] || 0) < (installedParts[i] || 0)) {
-            // 本地版本更新
-            break
-          }
-        }
+      // 市场版本比已安装版本新 → 可更新（compareVersions 统一版本比较）；
+      // 本地版本更新（手动更新或市场数据过期）时保持"已安装"
+      if (
+        installedVer !== undefined
+        && marketVer !== undefined
+        && compareVersions(marketVer, installedVer) > 0
+      ) {
+        return (
+          // orange 语义色板（可更新状态——色板豁免）
+          <Badge variant="outline" className="gap-1 text-orange-600 border-orange-600">
+            <AlertCircle className="h-3 w-3" />
+            可更新
+          </Badge>
+        )
       }
 
       return (

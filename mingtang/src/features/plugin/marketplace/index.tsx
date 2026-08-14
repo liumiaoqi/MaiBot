@@ -24,13 +24,14 @@ import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { RestartProvider } from '@/lib/restart-context'
 import { PluginDetailPage } from '@/features/plugin/detail'
 import type { MarketplaceSortKey, PluginInfo } from '@/features/plugin/shared/types'
-import { getPluginType, PLUGIN_TYPE_OPTIONS } from '@/features/plugin/shared/types'
+import { PLUGIN_TYPE_OPTIONS } from '@/features/plugin/shared/types'
 
+import { PLUGIN_MARKET_COMPATIBLE_ONLY_KEY } from './constants'
 import { InstallDialog } from './install-dialog'
 import { MarketplaceTab } from './marketplace-tab'
+import { countFilteredPlugins } from './use-plugin-filter'
 import { useMarketplaceData } from './hooks/use-marketplace-data'
 
-const PLUGIN_MARKET_COMPATIBLE_ONLY_KEY = 'plugins-market-compatible-only'
 const PLUGIN_MARKET_VIEW_STATE_KEY = 'plugins-market-view-state'
 const PLUGIN_MARKET_SCROLL_TOP_KEY = 'plugins-market-scroll-top'
 const MARKETPLACE_SORT_KEYS: MarketplaceSortKey[] = ['default', 'latest', 'downloads', 'likes', 'rating']
@@ -297,24 +298,15 @@ function PluginMarketplacePageContent({ embedded }: Required<PluginMarketplacePa
     likeMutation.mutate({ plugin })
   }
 
-  // 过滤插件用于标签页统计
-  const getFilteredPluginCount = () => {
-    return plugins.filter(p => {
-      if (!p.manifest) return false
-      if (p.source === 'local') return false
-      if (!showInstalledPlugins && p.installed) return false
-      const matchesSearch = searchQuery === '' ||
-        p.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.manifest.keywords && p.manifest.keywords.some(k => k.toLowerCase().includes(searchQuery.toLowerCase())))
-      const matchesType = pluginTypeFilter === 'all' || getPluginType(p) === pluginTypeFilter
-      const matchesCompatibility = !showCompatibleOnly ||
-        !maimaiVersion ||
-        checkPluginCompatibility(p)
-
-      return matchesSearch && matchesType && matchesCompatibility
-    }).length
-  }
+  // 过滤插件用于标签页统计——统一走 use-plugin-filter 纯函数（R4 债清理 P2）
+  const getFilteredPluginCount = () => countFilteredPlugins(plugins, {
+    searchQuery,
+    pluginTypeFilter,
+    showCompatibleOnly,
+    hideInstalledPlugins: !showInstalledPlugins,
+    maimaiVersion,
+    checkPluginCompatibility,
+  })
 
   return (
     <ScrollArea className="h-full" viewportRef={scrollViewportRef}>

@@ -1,14 +1,15 @@
-import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw, ThumbsUp, Trash2 } from 'lucide-react'
+import { Download, Loader2, RefreshCw, ThumbsUp, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
+import { PluginProgressBox } from '@/features/plugin/components/plugin-progress-box'
 import { PluginIcon } from '@/features/plugin/shared/plugin-icon'
 import type { GitStatus, MaimaiVersion, PluginInfo, PluginLoadProgress, PluginStatsData } from '@/features/plugin/shared/types'
-import { getPluginProgressDetail, getPluginTypeLabel } from '@/features/plugin/shared/types'
+import { getPluginTypeLabel } from '@/features/plugin/shared/types'
 
-interface PluginCardProps {
+// PluginCardProps —— 卡片接口单一来源（R4 债清理 P2：MarketplaceTabProps 经 ts Pick 派生，避免 16-prop 重复声明）
+export interface PluginCardProps {
   plugin: PluginInfo
   gitStatus: GitStatus | null
   maimaiVersion: MaimaiVersion | null
@@ -53,7 +54,6 @@ export function PluginCard({
     && loadProgress.stage === 'loading'
     && loadProgress?.plugin_id === plugin.id
   const isAnyPluginInstalling = loadProgress?.operation === 'install' && loadProgress.stage === 'loading'
-  const progressDetail = loadProgress ? getPluginProgressDetail(loadProgress) : null
 
   return (
     <Card
@@ -214,84 +214,21 @@ export function PluginCard({
           )}
         </div>
       </CardFooter>
-      {/* 安装/卸载/更新进度显示 - 在卡片下方 */}
+      {/* 安装/卸载/更新进度显示 - 在卡片下方（PluginProgressBox 公共组件） */}
       {loadProgress && 
         (loadProgress.stage === 'loading' || loadProgress.stage === 'success' || loadProgress.stage === 'error') && 
         loadProgress.operation !== 'fetch' && 
         loadProgress.plugin_id === plugin.id && (
         <div className="-mt-1 px-4 pb-4">
-          {/* green/red 语义色板（安装/卸载/更新进度状态——色板豁免） */}
-          <div className={`space-y-2 rounded-lg border p-2.5 ${
-            loadProgress.stage === 'success' 
-              ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900' 
-              : loadProgress.stage === 'error'
-                ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
-                : 'bg-muted/50'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {loadProgress.stage === 'loading' ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : loadProgress.stage === 'success' ? (
-                  <CheckCircle2 className="h-3 w-3 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-3 w-3 text-red-600" />
-                )}
-                <span className={`text-xs font-medium ${
-                  loadProgress.stage === 'success' 
-                    ? 'text-green-700 dark:text-green-300' 
-                    : loadProgress.stage === 'error'
-                      ? 'text-red-700 dark:text-red-300'
-                      : ''
-                }`}>
-                  {loadProgress.stage === 'loading' ? (
-                    <>
-                      {loadProgress.operation === 'install' && '正在安装'}
-                      {loadProgress.operation === 'uninstall' && '正在卸载'}
-                      {loadProgress.operation === 'update' && '正在更新'}
-                    </>
-                  ) : loadProgress.stage === 'success' ? (
-                    <>
-                      {loadProgress.operation === 'install' && '安装完成'}
-                      {loadProgress.operation === 'uninstall' && '卸载完成'}
-                      {loadProgress.operation === 'update' && '更新完成'}
-                    </>
-                  ) : (
-                    <>
-                      {loadProgress.operation === 'install' && '安装失败'}
-                      {loadProgress.operation === 'uninstall' && '卸载失败'}
-                      {loadProgress.operation === 'update' && '更新失败'}
-                    </>
-                  )}
-                </span>
-              </div>
-              {loadProgress.stage !== 'error' && (
-                <span className={`text-xs font-medium ${
-                  loadProgress.stage === 'success' ? 'text-green-700 dark:text-green-300' : ''
-                }`}>{loadProgress.progress}%</span>
-              )}
-            </div>
-            {loadProgress.stage !== 'error' && (
-              <Progress 
-                value={loadProgress.progress} 
-                className={`h-1.5 ${loadProgress.stage === 'success' ? '[&>div]:bg-green-500' : ''}`} 
-              />
-            )}
-            <div className={`text-xs ${
-              loadProgress.stage === 'success' 
-                ? 'text-green-600 dark:text-green-400 truncate' 
-                : loadProgress.stage === 'error'
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-muted-foreground truncate'
-            }`}>
-              {loadProgress.stage === 'error' ? (loadProgress.error || loadProgress.message || '操作失败') : loadProgress.message}
-            </div>
-            {progressDetail && (
-              <div className="truncate text-xs text-muted-foreground">
-                {progressDetail}
-              </div>
-            )}
-          </div>
+          <PluginProgressBox
+            progress={loadProgress}
+            actionLabel={loadProgress.operation === 'install'
+              ? '安装'
+              : loadProgress.operation === 'uninstall'
+                ? '卸载'
+                : '更新'}
+            compact
+          />
         </div>
       )}
     </Card>

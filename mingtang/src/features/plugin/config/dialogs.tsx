@@ -2,9 +2,9 @@
  * dialogs —— 插件配置页的对话框与浮动面板。
  *
  * 包含：
- * - ProgressDialog：更新/删除 Dialog 中重复的进度展示部分（公共组件）；
  * - UpdatePluginDialog / DeletePluginDialog：确认 + 进度 + 关闭，模式 3 派生状态
- *   （open/disabled 联动）；
+ *   （open/disabled 联动）——进度展示统一用 PluginProgressBox（R4 债清理 P2 抽取，
+ *   见 features/plugin/components/plugin-progress-box.tsx）；
  * - LoadFailureDetailDialog：加载失败详情查看；
  * - PluginDocumentFloatingPanel：可拖拽的 README/更新日志浮动面板（Portal + pointer 事件）。
  */
@@ -12,8 +12,8 @@ import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { PluginProgressBox } from '@/features/plugin/components/plugin-progress-box'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -30,7 +30,6 @@ import {
   BookOpen,
   FileText,
   GripHorizontal,
-  Info,
   Loader2,
   Trash2,
   X,
@@ -38,86 +37,8 @@ import {
 import { getLocalPluginChangelog, getLocalPluginReadme } from '@/lib/plugin-api'
 import type { InstalledPlugin, PluginLoadProgress } from '@/lib/plugin-api'
 
-// ---- ProgressDialog（公共组件） ----
-
-interface ProgressDialogProps {
-  progress: PluginLoadProgress
-  /** 操作动词标签：「更新」/「删除」 */
-  actionLabel: string
-}
-
-function ProgressDialog({ progress, actionLabel }: ProgressDialogProps) {
-  const isSuccess = progress.stage === 'success'
-  const isError = progress.stage === 'error'
-  const isLoading = progress.stage === 'loading'
-
-  return (
-    <div
-      className={`space-y-3 border p-3 ${
-        isSuccess
-          ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20' // green 色板（成功——色板豁免）
-          : isError
-            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20' // red 色板（错误——色板豁免）
-            : 'bg-muted/50'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          ) : isSuccess ? (
-            <Info className="h-4 w-4 shrink-0 text-green-600" /> // green 色板（成功——色板豁免）
-          ) : (
-            <Info className="h-4 w-4 shrink-0 text-red-600" /> // red 色板（错误——色板豁免）
-          )}
-          <span
-            className={`text-sm font-medium ${
-              isSuccess
-                ? 'text-green-700 dark:text-green-300' // green 色板（成功——色板豁免）
-                : isError
-                  ? 'text-red-700 dark:text-red-300' // red 色板（错误——色板豁免）
-                  : ''
-            }`}
-          >
-            {isLoading && `正在${actionLabel}`}
-            {isSuccess && `${actionLabel}完成`}
-            {isError && `${actionLabel}失败`}
-          </span>
-        </div>
-        {!isError && (
-          <span
-            className={`shrink-0 text-sm font-medium ${
-              isSuccess ? 'text-green-700 dark:text-green-300' : '' // green 色板（成功——色板豁免）
-            }`}
-          >
-            {progress.progress}%
-          </span>
-        )}
-      </div>
-      {!isError && (
-        <Progress
-          value={progress.progress}
-          className={`h-2 ${isSuccess ? '[&>div]:bg-green-500' : ''}`} // green 色板（成功——色板豁免）
-        />
-      )}
-      <p
-        className={`text-sm break-words ${
-          isSuccess
-            ? 'text-green-600 dark:text-green-400' // green 色板（成功——色板豁免）
-            : isError
-              ? 'text-red-600 dark:text-red-400' // red 色板（错误——色板豁免）
-              : 'text-muted-foreground'
-        }`}
-      >
-        {isError
-          ? progress.error || progress.message || `${actionLabel}失败`
-          : progress.message}
-      </p>
-    </div>
-  )
-}
-
 // ---- UpdatePluginDialog ----
+// 进度展示统一用 PluginProgressBox（公共组件——见 features/plugin/components/plugin-progress-box.tsx）
 
 interface UpdatePluginDialogProps {
   open: boolean
@@ -160,7 +81,7 @@ export function UpdatePluginDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {updateProgress && <ProgressDialog progress={updateProgress} actionLabel="更新" />}
+        {updateProgress && <PluginProgressBox progress={updateProgress} actionLabel="更新" />}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
@@ -225,7 +146,7 @@ export function DeletePluginDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {deleteProgress && <ProgressDialog progress={deleteProgress} actionLabel="删除" />}
+        {deleteProgress && <PluginProgressBox progress={deleteProgress} actionLabel="删除" />}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isLoading}>

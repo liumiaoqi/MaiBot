@@ -5,18 +5,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
@@ -29,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { backendApi } from '@/lib/http'
+import { PLUGIN_MARKET_COMPATIBLE_ONLY_KEY } from '@/features/plugin/marketplace/constants'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -39,6 +41,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
+
+import { MirrorFormDialog, type MirrorFormData } from './mirror-form-dialog'
 
 interface MirrorConfig {
   id: string
@@ -61,8 +65,6 @@ const DEFAULT_MIRROR_IDS: ReadonlySet<string> = new Set([
   'cdn-gh-proxy-com',
 ])
 
-const PLUGIN_MARKET_COMPATIBLE_ONLY_KEY = 'plugins-market-compatible-only'
-
 interface PluginMirrorsPageProps {
   embedded?: boolean
 }
@@ -74,12 +76,13 @@ export function PluginMirrorsPage({ embedded = false }: PluginMirrorsPageProps) 
   const [editingMirror, setEditingMirror] = useState<MirrorConfig | null>(null)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [mirrorToDelete, setMirrorToDelete] = useState<MirrorConfig | null>(null)
   const [showCompatibleOnly, setShowCompatibleOnly] = useState(
     () => localStorage.getItem(PLUGIN_MARKET_COMPATIBLE_ONLY_KEY) !== 'false'
   )
 
-  // 表单状态
-  const [formData, setFormData] = useState({
+  // 表单状态（add/edit 共用——MirrorFormDialog 只做展示与透传）
+  const [formData, setFormData] = useState<MirrorFormData>({
     id: '',
     name: '',
     raw_prefix: '',
@@ -109,7 +112,7 @@ export function PluginMirrorsPage({ embedded = false }: PluginMirrorsPageProps) 
 
   // 添加镜像源（失败由全局 mutation 错误 toast 呈现）
   const addMutation = useMutation({
-    mutationFn: (body: typeof formData) =>
+    mutationFn: (body: MirrorFormData) =>
       backendApi.post('/api/webui/plugins/mirrors', {
         body,
         errorMessage: '添加镜像源失败',
@@ -190,9 +193,14 @@ export function PluginMirrorsPage({ embedded = false }: PluginMirrorsPageProps) 
   const handleDeleteMirror = (mirror: MirrorConfig) => {
     // 默认源不可删——按钮已禁用，此处兜底防御
     if (DEFAULT_MIRROR_IDS.has(mirror.id)) return
-    if (!confirm('确定要删除这个镜像源吗？')) return
+    // 原生 confirm() 已替换为 Radix AlertDialog 二次确认（R4 债清理 P2）
+    setMirrorToDelete(mirror)
+  }
 
-    deleteMutation.mutate(mirror.id)
+  const confirmDeleteMirror = () => {
+    if (!mirrorToDelete) return
+    deleteMutation.mutate(mirrorToDelete.id)
+    setMirrorToDelete(null)
   }
 
   // 切换启用状态
@@ -474,110 +482,44 @@ export function PluginMirrorsPage({ embedded = false }: PluginMirrorsPageProps) 
           </Card>
         )}
 
-        {/* 添加镜像源对话框 */}
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>添加镜像源</DialogTitle>
-              <DialogDescription>
-                添加新的 Git 镜像源配置
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="add-id">镜像源 ID *</Label>
-                <Input id="add-id" placeholder="例如: my-mirror" value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-name">名称 *</Label>
-                <Input id="add-name" placeholder="例如: 我的镜像源" value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-raw">Raw 文件前缀 *</Label>
-                <Input id="add-raw" placeholder="https://example.com/raw" value={formData.raw_prefix}
-                  onChange={(e) => setFormData({ ...formData, raw_prefix: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-clone">克隆前缀 *</Label>
-                <Input id="add-clone" placeholder="https://example.com/clone" value={formData.clone_prefix}
-                  onChange={(e) => setFormData({ ...formData, clone_prefix: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-priority">优先级</Label>
-                <Input id="add-priority" type="number" min="1" value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })} />
-                <p className="text-xs text-muted-foreground">数字越小优先级越高</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="add-enabled" checked={formData.enabled}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })} />
-                <Label htmlFor="add-enabled">启用此镜像源</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                取消
-              </Button>
-              <Button onClick={handleAddMirror}>
-                添加
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* 添加/编辑镜像源对话框——MirrorFormDialog 公共组件（R4 债清理 P2） */}
+        <MirrorFormDialog
+          mode="add"
+          open={isAddDialogOpen}
+          onOpenChange={setIsAddDialogOpen}
+          formData={formData}
+          onFormDataChange={setFormData}
+          onSubmit={handleAddMirror}
+        />
+        <MirrorFormDialog
+          mode="edit"
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          formData={formData}
+          onFormDataChange={setFormData}
+          onSubmit={handleUpdateMirror}
+        />
 
-        {/* 编辑镜像源对话框 */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>编辑镜像源</DialogTitle>
-              <DialogDescription>
-                修改镜像源配置
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>镜像源 ID</Label>
-                <Input value={formData.id} disabled />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">名称 *</Label>
-                <Input id="edit-name" value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-raw">Raw 文件前缀 *</Label>
-                <Input id="edit-raw" value={formData.raw_prefix}
-                  onChange={(e) => setFormData({ ...formData, raw_prefix: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-clone">克隆前缀 *</Label>
-                <Input id="edit-clone" value={formData.clone_prefix}
-                  onChange={(e) => setFormData({ ...formData, clone_prefix: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-priority">优先级</Label>
-                <Input id="edit-priority" type="number" min="1" value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })} />
-                <p className="text-xs text-muted-foreground">数字越小优先级越高</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="edit-enabled" checked={formData.enabled}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })} />
-                <Label htmlFor="edit-enabled">启用此镜像源</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                取消
-              </Button>
-              <Button onClick={handleUpdateMirror}>
-                保存
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* 删除镜像源二次确认——Radix AlertDialog（原生 confirm() 已移除） */}
+        <AlertDialog
+          open={mirrorToDelete !== null}
+          onOpenChange={(open) => { if (!open) setMirrorToDelete(null) }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除镜像源</AlertDialogTitle>
+              <AlertDialogDescription>
+                确定要删除镜像源「{mirrorToDelete?.name}」吗？删除后不可恢复。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={confirmDeleteMirror}>
+                删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </ScrollArea>
   )

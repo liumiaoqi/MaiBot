@@ -37,6 +37,7 @@ import {
 import { recordPluginDownload } from '@/lib/plugin-stats'
 import type { PluginInfo } from '@/types/plugin'
 import { PluginIcon } from '@/features/plugin/shared/plugin-icon'
+import { compareVersions } from '@/features/plugin/shared/compare-versions'
 import { getPluginTypeLabel } from '@/features/plugin/shared/types'
 import {
   AlertCircle,
@@ -423,10 +424,11 @@ export function PluginDetailPage({
   const invalidateInstalledPlugins = () =>
     queryClient.invalidateQueries({ queryKey: ['plugin-installed-list'] })
 
-  // 检查是否需要更新
+  // 检查是否需要更新（版本不一致即视为可更新——含本地比市场新的场景，
+  // 与市场页 needsUpdate 的"仅市场更新"语义不同，原行为保留）
   const needsUpdate = () => {
     if (!plugin || !isInstalled || !installedVersion) return false
-    return installedVersion !== plugin.manifest.version
+    return compareVersions(installedVersion, plugin.manifest.version) !== 0
   }
 
   // 检查兼容性

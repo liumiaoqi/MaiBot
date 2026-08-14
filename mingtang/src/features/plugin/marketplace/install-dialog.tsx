@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Download, Loader2 } from 'lucide-react'
-
+import { Download, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PluginProgressBox } from '@/features/plugin/components/plugin-progress-box'
 import type { PluginInfo, PluginLoadProgress } from '@/features/plugin/shared/types'
-import { getPluginProgressDetail } from '@/features/plugin/shared/types'
 
 interface InstallDialogProps {
   open: boolean
@@ -31,7 +29,6 @@ export function InstallDialog({ open, plugin, loadProgress, onOpenChange, onInst
   const displayedProgress = installProgress ?? lastInstallProgress
   const isInstalling = displayedProgress?.stage === 'loading'
   const installFinished = displayedProgress?.stage === 'success' || displayedProgress?.stage === 'error'
-  const progressDetail = displayedProgress ? getPluginProgressDetail(displayedProgress) : null
 
   useEffect(() => {
     if (!installProgress) {
@@ -166,70 +163,16 @@ export function InstallDialog({ open, plugin, loadProgress, onOpenChange, onInst
           )}
 
           {displayedProgress && (
-            // green/red 语义色板（安装进度状态——色板豁免）
-            <div className={`space-y-3 rounded-lg border p-3 ${
-              displayedProgress.stage === 'success'
-                ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20'
-                : displayedProgress.stage === 'error'
-                  ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
-                  : 'bg-muted/50'
-            }`}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  {displayedProgress.stage === 'loading' ? (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                  ) : displayedProgress.stage === 'success' ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-                  )}
-                  <span className={`text-sm font-medium ${
-                    displayedProgress.stage === 'success'
-                      ? 'text-green-700 dark:text-green-300'
-                      : displayedProgress.stage === 'error'
-                        ? 'text-red-700 dark:text-red-300'
-                        : ''
-                  }`}>
-                    {displayedProgress.stage === 'loading' && '正在安装'}
-                    {displayedProgress.stage === 'success' && '安装完成'}
-                    {displayedProgress.stage === 'error' && '安装失败'}
-                  </span>
-                </div>
-                {displayedProgress.stage !== 'error' && (
-                  <span className={`shrink-0 text-sm font-medium ${
-                    displayedProgress.stage === 'success' ? 'text-green-700 dark:text-green-300' : ''
-                  }`}>
-                    {displayedProgress.progress}%
-                  </span>
-                )}
-              </div>
-              {displayedProgress.stage !== 'error' && (
-                <Progress
-                  value={displayedProgress.progress}
-                  className={`h-2 ${displayedProgress.stage === 'success' ? '[&>div]:bg-green-500' : ''}`}
-                />
-              )}
-              <p className={`break-words text-sm ${
-                displayedProgress.stage === 'success'
-                  ? 'text-green-600 dark:text-green-400'
-                  : displayedProgress.stage === 'error'
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-muted-foreground'
-              }`}>
-                {displayedProgress.stage === 'error'
-                  ? (displayedProgress.error || displayedProgress.message || '操作失败')
-                  : displayedProgress.message}
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <div>插件 ID：{displayedProgress.plugin_id || plugin?.id}</div>
-                <div>分支：{branchInputMode === 'custom' ? customBranch : selectedBranch}</div>
-              </div>
-              {progressDetail && (
-                <div className="break-words text-xs text-muted-foreground">
-                  {progressDetail}
+            <PluginProgressBox
+              progress={displayedProgress}
+              actionLabel="安装"
+              footer={(
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <div>插件 ID：{displayedProgress.plugin_id || plugin?.id}</div>
+                  <div>分支：{branchInputMode === 'custom' ? customBranch : selectedBranch}</div>
                 </div>
               )}
-            </div>
+            />
           )}
         </div>
 

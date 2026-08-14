@@ -97,7 +97,7 @@ export function usePluginConfigEditor(options: UsePluginConfigEditorOptions) {
   // 源代码草稿变更（编辑后清除上次 TOML 错误标记）
   const handleSourceCodeChange = useCallback((value: string) => {
     setSourceCode(value)
-    setHasTomlError(prev => (prev ? false : prev))
+    setHasTomlError(false)
   }, [])
 
   // 保存配置
