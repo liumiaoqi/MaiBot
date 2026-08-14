@@ -387,6 +387,13 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 > （ASCII 化表情包方案升级）。**2026-08-14 研究完成**：4 线源码深挖汇总——
 > `research/2026-08/zg16_dsh_models_survey_0814.md`（12 项立项清单 P0-P2——token 感知窗口/
 > 能力依赖声明/ASCII 看图 为 P0）——**待用户立项拍板**（专项报告：`zg16_dsh_autonomy_skeleton_survey_0814.md`）。
+>
+> **2026-08-14 用户拍板：Cordis 化与 Linux 化不冲突、甚至统一**——Linux 内核本身就是插件化的
+> 鼻祖（模块=插件/try_module_get=可逆效应/modprobe 依赖=inject/bus-driver-device=三角色/
+> systemd unit=依赖声明）——Cordis 是同一哲学在 agent 应用层的实现。**MaiBot 的 ZG 系列已在
+> 系统层做了依赖仲裁（ZG-10 @startup_item + StartupArbiter）和生命周期管理（ZG-15 活体引用）——
+> Cordis 化 = 把同一套机制铺到插件层——plugin_runtime_v2 的插件依赖激活应复用/对齐 ZG-10 模式，
+> 不另起炉灶。**（ZG16-1 上下文供给链调研已派发 CA——dsh2ca_zg16_1_context_supply_0814.md）**
 
 ## ZG-16 模型能力全景 — 子项详情（2026-08-05 新立）
 
