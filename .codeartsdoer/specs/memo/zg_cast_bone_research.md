@@ -380,6 +380,13 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 - 子项 4（启动自检）：`kernel_initializer` +1 检查函数，~15 行
 - 子项 3/5/6/7/8：各 ~50-100 行，可渐进
 
+## ZG-16 方向修订（2026-08-14 用户拍板）
+
+> **原方向（模型能力全景——OpenClaw/LiteLLM provider 适配层学习）暂停**——用户决定转向
+> **学习 DeepSeek Harness 模式**：`decisions/dsh_ecosystem_observation_0814.md`——compaction/spill
+> 上下文压缩、Trajectory 会话日志、goal/plan/todo 自主性骨架、Cordis 插件化、无 vision 看图技巧
+> （ASCII 化表情包方案升级）——R4 收尾后评估立项（2026-08-14 已收尾——待派发）。
+
 ## ZG-16 模型能力全景 — 子项详情（2026-08-05 新立）
 
 > 来源：ZG-12 设计讨论中用户提出"不同厂商不同模型的参数要求都不同，如何充分利用"（2026-08-05）。
@@ -431,6 +438,12 @@ reply 工具 schema（`builtin_tool/reply.py:43`）只有 `msg_id`/`set_quote`/`
 | **ZG-19** | 两级 dirty 阈值写者节流（`zg19_dirty_threshold_survey_0805.md`） | 落盘背压：DB 写入量超阈值时写者节流 + 批量提交时间对齐（round_jiffies_up） | P2 | 数据库写入管线（A_memorix/统计） |
 
 ## ZG-20 v2 插件 ToolRegistry 连通 — 子项详情（2026-08-06 正式立项）
+
+> **2026-08-14 核心连通完成（dsh）**：ToolRegistry 加 shared 共享层 + 核心层全局单例
+> `get_global_tool_registry()`——v2 bootstrap 挂全局（不再孤立实例）——会话 registry
+> `shared=` 引用全局（本层工具优先）——invoke 回退 shared——close 只关本层。
+> 7 新测试（pytests/core_test/test_tool_registry.py）+ core/plugin_runtime_v2 156 回归全绿。
+> 方案 = 原候选 a+b 混合（全局共享层 + 会话转发）。
 
 > 来源：ZG-15 补充调研发现（bootstrap.py:120-129 `_get_tool_registry` import 目标
 > `src.maisaka.agent_autonomy.tool_registry` 全仓不存在 → ImportError 回退孤立实例）。
