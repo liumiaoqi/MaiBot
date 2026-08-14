@@ -1,13 +1,15 @@
 /**
- * useImportForm —— 长期记忆「导入表单」领域 hook（页面逻辑下沉的样板切片）。
+ * useImportForm —— 长期记忆「导入表单」领域 hook（schema 化重构版）。
  *
- * 收编导入任务创建相关的表单状态与提交逻辑：
- * - 表单参数（通用参数 15 项 + 7 种导入模式各自字段）以本地 state 维护；
- * - 导入设置（settings）/路径别名（path_aliases）/聊天流（chat-targets）走 useQuery，仅在面板激活时拉取；
- * - 服务端默认值在 settings 首次到达时 seed 一次进表单（渲染期版本标记模式，避免 effect 内 setState 级联）；
- * - 别名到达后，各模式 alias 字段为空时自动选第一个可用别名；
- * - submitImportByMode 按当前模式分派到 7 个 submit 函数，创建成功后回调 onCreated 刷新队列；
- * - 写失败弹全局 toast（与原页面一致）；路径解析读失败仅写入输出框。
+ * 旧实现（881 行）的问题：65 个平铺 useState + 7 个逐字重复的 submit 骨架。
+ * 本次重构（目标 ~300 行，接口完全不变——121 字段与旧版逐字一致）：
+ * - useImportFormFields(schema)：按 import-mode-schemas 声明一次生成全部表单 state，
+ *   替代平铺 useState（含 7 模式 + 路径预检 54 个字段）；
+ * - runCreateImport：统一 try → create → error 检查 → onCreated → toast → catch → finally 骨架，
+ *   7 个 submit 收敛为 SUBMIT_CONFIGS 配置表（precheck/execute/afterSuccess），
+ *   payload 构建器全部外置到 import-payloads.ts（纯函数）；
+ * - 保留：settings 服务端默认值 seed（渲染期版本标记模式）、别名联动、resolveImportPath、
+ *   dispatcher 语义——行为与旧版等价（golden 测试锁定）。
  *
  * 与 useImportQueue 共享 settings 查询（同 queryKey 由 React Query 去重）。
  */
@@ -28,6 +30,7 @@ import {
   getMemoryImportPathAliases,
   getMemoryImportSettings,
   resolveMemoryImportPath,
+  type MemoryImportActionPayload,
   type MemoryImportChatTargetPayload,
   type MemoryImportInputMode,
   type MemoryImportSettings,
@@ -35,59 +38,21 @@ import {
 } from '@/lib/memory-api'
 
 import {
-  parseCommaSeparatedList,
-  parseOptionalNonNegativeInt,
-  parseOptionalPositiveInt,
-} from '../utils'
-
-const DATE_TIME_LOCAL_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/
-const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/
-
-function parseMaibotPositiveInt(input: string, fieldName: string): number | undefined {
-  const value = input.trim()
-  if (!value) {
-    return undefined
-  }
-  if (!POSITIVE_INTEGER_PATTERN.test(value)) {
-    throw new Error(`${fieldName} 必须填写正整数`)
-  }
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`${fieldName} 超过可支持的整数范围`)
-  }
-  return parsed
-}
-
-function getMaibotDateTimeLocalTimestamp(input: string, fieldName: string): number | undefined {
-  const value = input.trim()
-  if (!value) {
-    return undefined
-  }
-  if (!DATE_TIME_LOCAL_PATTERN.test(value)) {
-    throw new Error(`${fieldName}格式无效，请使用时间选择器填写`)
-  }
-  const timestamp = new Date(value).getTime()
-  if (!Number.isFinite(timestamp)) {
-    throw new Error(`${fieldName}不是有效时间`)
-  }
-  return timestamp
-}
-
-function formatMaibotDateTimeLocalForApi(input: string, fieldName: string): string | undefined {
-  const value = input.trim()
-  if (!value) {
-    return undefined
-  }
-  if (!DATE_TIME_LOCAL_PATTERN.test(value)) {
-    throw new Error(`${fieldName}格式无效，请使用时间选择器填写`)
-  }
-  const date = new Date(value)
-  const timestamp = date.getTime()
-  if (!Number.isFinite(timestamp)) {
-    throw new Error(`${fieldName}不是有效时间`)
-  }
-  return date.toISOString()
-}
+  buildBackfillPayload,
+  buildCommonPayload,
+  buildConvertPayload,
+  buildMaibotMigrationPayload,
+  buildOpeniePayload,
+  buildPastePayload,
+  buildRawScanPayload,
+  buildUploadPayload,
+} from '../import-payloads'
+import {
+  ALL_IMPORT_FORM_FIELDS,
+  ALIAS_LINK_FIELDS,
+  type ImportFieldValue,
+  type ModeFieldSchema,
+} from '../import-mode-schemas'
 
 export interface UseImportFormOptions {
   /** 导入面板是否激活；非激活时不拉取设置/别名/聊天流 */
@@ -231,76 +196,141 @@ export interface UseImportFormResult {
   pathResolveOutput: string
 }
 
+export interface UseImportFormFieldsResult {
+  values: Record<string, ImportFieldValue>
+  setValue: (key: string, value: ImportFieldValue) => void
+  setValues: (updates: Record<string, ImportFieldValue>) => void
+}
+
+/**
+ * useImportFormFields(schema) —— 按字段 schema 生成表单 state。
+ * 替代旧版平铺的 65 个 useState：单一 values 对象 + setValue/setValues，
+ * 默认值来自 schema.defaultValue（同名值写入返回原引用，避免无谓重渲染）。
+ */
+export function useImportFormFields(schema: readonly ModeFieldSchema[]): UseImportFormFieldsResult {
+  const initialValues = useMemo(() => {
+    const map: Record<string, ImportFieldValue> = {}
+    for (const field of schema) {
+      map[field.key] = field.defaultValue
+    }
+    return map
+  }, [schema])
+
+  const [values, setValuesState] = useState<Record<string, ImportFieldValue>>(initialValues)
+
+  const setValue = useCallback((key: string, value: ImportFieldValue) => {
+    setValuesState((current) => (current[key] === value ? current : { ...current, [key]: value }))
+  }, [])
+
+  const setValues = useCallback((updates: Record<string, ImportFieldValue>) => {
+    setValuesState((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const key of Object.keys(updates)) {
+        if (next[key] !== updates[key]) {
+          next[key] = updates[key]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [])
+
+  return { values, setValue, setValues }
+}
+
+interface SubmitImportConfig {
+  /** API 报错时的兜底文案 */
+  failText: string
+  /** 提交前检查：返回错误文案则中止（不进入 creating 流程，与旧 upload/paste 前置检查一致） */
+  precheck?: (values: Record<string, ImportFieldValue>, files: File[]) => string | null
+  execute: (values: Record<string, ImportFieldValue>, files: File[]) => Promise<MemoryImportActionPayload>
+  /** 创建成功后、刷新队列前的本地清理（upload 清文件、paste 清内容） */
+  afterSuccess?: (
+    values: Record<string, ImportFieldValue>,
+    setValue: (key: string, value: ImportFieldValue) => void,
+    files: File[],
+    setFiles: React.Dispatch<React.SetStateAction<File[]>>,
+  ) => void
+}
+
+const SUBMIT_CONFIGS: Record<MemoryImportTaskKind, SubmitImportConfig> = {
+  upload: {
+    failText: '创建上传导入任务失败',
+    precheck: (_values, files) => (files.length <= 0 ? '至少选择一个 txt/md/json 文件后再提交' : null),
+    execute: (values, files) => createMemoryUploadImport(files, buildUploadPayload(values)),
+    afterSuccess: (_values, _setValue, _files, setFiles) => setFiles([]),
+  },
+  paste: {
+    failText: '创建粘贴导入任务失败',
+    precheck: (values) => (String(values.pasteContent ?? '').trim() ? null : '请填写导入内容后再提交'),
+    execute: (values) => createMemoryPasteImport(buildPastePayload(values)),
+    afterSuccess: (_values, setValue) => {
+      setValue('pasteContent', '')
+      setValue('pasteName', '')
+    },
+  },
+  raw_scan: {
+    failText: '创建本地扫描任务失败',
+    execute: (values) => createMemoryRawScanImport(buildRawScanPayload(values)),
+  },
+  lpmm_openie: {
+    failText: '创建 LPMM OpenIE 任务失败',
+    execute: (values) => createMemoryLpmmOpenieImport(buildOpeniePayload(values)),
+  },
+  lpmm_convert: {
+    failText: '创建 LPMM 转换任务失败',
+    execute: (values) => createMemoryLpmmConvertImport(buildConvertPayload(values)),
+  },
+  temporal_backfill: {
+    failText: '创建时序回填任务失败',
+    execute: (values) => createMemoryTemporalBackfillImport(buildBackfillPayload(values)),
+  },
+  maibot_migration: {
+    failText: '创建 MaiBot 迁移任务失败',
+    // 校验在 buildMaibotMigrationPayload 内抛 Error，由统一骨架 catch 后 toast 呈现
+    execute: (values) => createMemoryMaibotMigrationImport(buildMaibotMigrationPayload(values)),
+  },
+}
+
+/** settings 服务端默认值 seed 规则（渲染期版本标记模式，等价旧实现） */
+const SETTINGS_SEED_RULES: Array<{
+  key: string
+  settingsKey: keyof MemoryImportSettings
+  mode: 'equals-default' | 'empty'
+}> = [
+  { key: 'importCommonFileConcurrency', settingsKey: 'default_file_concurrency', mode: 'equals-default' },
+  { key: 'importCommonChunkConcurrency', settingsKey: 'default_chunk_concurrency', mode: 'equals-default' },
+  { key: 'importCommonNarrativeWindowSize', settingsKey: 'default_narrative_window_size', mode: 'equals-default' },
+  { key: 'importCommonNarrativeOverlap', settingsKey: 'default_narrative_overlap', mode: 'equals-default' },
+  { key: 'importCommonFactualTargetSize', settingsKey: 'default_factual_target_size', mode: 'equals-default' },
+  { key: 'maibotSourceDb', settingsKey: 'maibot_source_db_default', mode: 'empty' },
+]
+
+const SCHEMA_DEFAULT_BY_KEY = new Map(ALL_IMPORT_FORM_FIELDS.map((field) => [field.key, String(field.defaultValue)]))
+
+/** 按 schema 键生成 { key: value, setKey: setter } 字段对，暴露为 UseImportFormResult 的命名成员 */
+function buildFieldProps(
+  values: Record<string, ImportFieldValue>,
+  setValue: (key: string, value: ImportFieldValue) => void,
+): Record<string, unknown> {
+  const props: Record<string, unknown> = {}
+  for (const key of Object.keys(values)) {
+    props[key] = values[key]
+    props[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = (value: ImportFieldValue) => setValue(key, value)
+  }
+  return props
+}
+
 export function useImportForm({ active, onCreated }: UseImportFormOptions): UseImportFormResult {
   const [importCreateMode, setImportCreateMode] = useState<MemoryImportTaskKind>('upload')
   const [creatingImport, setCreatingImport] = useState(false)
-
-  // 通用导入参数
-  const [importCommonFileConcurrency, setImportCommonFileConcurrency] = useState('2')
-  const [importCommonChunkConcurrency, setImportCommonChunkConcurrency] = useState('4')
-  const [importCommonNarrativeWindowSize, setImportCommonNarrativeWindowSize] = useState('1600')
-  const [importCommonNarrativeOverlap, setImportCommonNarrativeOverlap] = useState('400')
-  const [importCommonFactualTargetSize, setImportCommonFactualTargetSize] = useState('1200')
-  const [importCommonLlmEnabled, setImportCommonLlmEnabled] = useState(true)
-  const [importCommonStrategyOverride, setImportCommonStrategyOverride] = useState('auto')
-  const [importCommonDedupePolicy, setImportCommonDedupePolicy] = useState('content_hash')
-  const [importCommonChatLog, setImportCommonChatLog] = useState(false)
-  const [importCommonChatId, setImportCommonChatId] = useState('')
-  const [importCommonChatReferenceTime, setImportCommonChatReferenceTime] = useState('')
-  const [importCommonForce, setImportCommonForce] = useState(false)
-  const [importCommonClearManifest, setImportCommonClearManifest] = useState(false)
-
-  const [uploadInputMode, setUploadInputMode] = useState<MemoryImportInputMode>('text')
+  // uploadFiles 是 File[] 特殊输入，不进 schema（见 import-mode-schemas 设计边界）
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
-
-  const [pasteName, setPasteName] = useState('')
-  const [pasteMode, setPasteMode] = useState<MemoryImportInputMode>('text')
-  const [pasteContent, setPasteContent] = useState('')
-
-  const [rawAlias, setRawAlias] = useState('raw')
-  const [rawRelativePath, setRawRelativePath] = useState('')
-  const [rawGlob, setRawGlob] = useState('*')
-  const [rawInputMode, setRawInputMode] = useState<MemoryImportInputMode>('text')
-  const [rawRecursive, setRawRecursive] = useState(true)
-
-  const [openieAlias, setOpenieAlias] = useState('lpmm')
-  const [openieRelativePath, setOpenieRelativePath] = useState('')
-  const [openieIncludeAllJson, setOpenieIncludeAllJson] = useState(false)
-
-  const [convertAlias, setConvertAlias] = useState('lpmm')
-  const [convertRelativePath, setConvertRelativePath] = useState('')
-  const [convertTargetAlias, setConvertTargetAlias] = useState('plugin_data')
-  const [convertTargetRelativePath, setConvertTargetRelativePath] = useState('')
-  const [convertDimension, setConvertDimension] = useState('')
-  const [convertBatchSize, setConvertBatchSize] = useState('1024')
-
-  const [backfillAlias, setBackfillAlias] = useState('plugin_data')
-  const [backfillRelativePath, setBackfillRelativePath] = useState('')
-  const [backfillLimit, setBackfillLimit] = useState('100000')
-  const [backfillDryRun, setBackfillDryRun] = useState(false)
-  const [backfillNoCreatedFallback, setBackfillNoCreatedFallback] = useState(false)
-
-  const [maibotSourceDb, setMaibotSourceDb] = useState('')
-  const [maibotTimeFrom, setMaibotTimeFrom] = useState('')
-  const [maibotTimeTo, setMaibotTimeTo] = useState('')
-  const [maibotStartId, setMaibotStartId] = useState('')
-  const [maibotEndId, setMaibotEndId] = useState('')
-  const [maibotStreamIds, setMaibotStreamIds] = useState('')
-  const [maibotGroupIds, setMaibotGroupIds] = useState('')
-  const [maibotUserIds, setMaibotUserIds] = useState('')
-  const [maibotReadBatchSize, setMaibotReadBatchSize] = useState('2000')
-  const [maibotCommitWindowRows, setMaibotCommitWindowRows] = useState('20000')
-  const [maibotEmbedWorkers, setMaibotEmbedWorkers] = useState('')
-  const [maibotNoResume, setMaibotNoResume] = useState(false)
-  const [maibotResetState, setMaibotResetState] = useState(false)
-  const [maibotDryRun, setMaibotDryRun] = useState(false)
-  const [maibotVerifyOnly, setMaibotVerifyOnly] = useState(false)
-
-  const [pathResolveAlias, setPathResolveAlias] = useState('raw')
-  const [pathResolveRelativePath, setPathResolveRelativePath] = useState('')
-  const [pathResolveMustExist, setPathResolveMustExist] = useState(true)
   const [pathResolveOutput, setPathResolveOutput] = useState('')
   const [resolvingPath, setResolvingPath] = useState(false)
+
+  const { values, setValue, setValues } = useImportFormFields(ALL_IMPORT_FORM_FIELDS)
 
   // 导入设置 / 路径别名 / 聊天流：仅在面板激活时拉取；settings 与 useImportQueue 共享查询缓存
   const settingsQuery = useQuery({
@@ -328,7 +358,6 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
     () => chatTargetsQuery.data?.data ?? [],
     [chatTargetsQuery.data?.data],
   )
-
   const importAliasKeys = useMemo(
     () => Object.keys(importPathAliases).sort((left, right) => left.localeCompare(right)),
     [importPathAliases],
@@ -340,31 +369,21 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
   const [seededSettingsVersion, setSeededSettingsVersion] = useState<string | null>(null)
   if (settingsVersion !== null && settingsVersion !== seededSettingsVersion) {
     setSeededSettingsVersion(settingsVersion)
-
-    const defaultFileConcurrency = String(importSettings.default_file_concurrency ?? '').trim()
-    const defaultChunkConcurrency = String(importSettings.default_chunk_concurrency ?? '').trim()
-    const defaultNarrativeWindowSize = String(importSettings.default_narrative_window_size ?? '').trim()
-    const defaultNarrativeOverlap = String(importSettings.default_narrative_overlap ?? '').trim()
-    const defaultFactualTargetSize = String(importSettings.default_factual_target_size ?? '').trim()
-    const defaultSourceDb = String(importSettings.maibot_source_db_default ?? '').trim()
-
-    if (defaultFileConcurrency) {
-      setImportCommonFileConcurrency((current) => (current === '2' ? defaultFileConcurrency : current))
+    const updates: Record<string, ImportFieldValue> = {}
+    for (const rule of SETTINGS_SEED_RULES) {
+      const raw = importSettings[rule.settingsKey]
+      const seedValue = raw === undefined || raw === null ? '' : String(raw).trim()
+      if (!seedValue) {
+        continue
+      }
+      const current = String(values[rule.key] ?? '')
+      const shouldSeed = rule.mode === 'empty' ? !current.trim() : current === SCHEMA_DEFAULT_BY_KEY.get(rule.key)
+      if (shouldSeed) {
+        updates[rule.key] = seedValue
+      }
     }
-    if (defaultChunkConcurrency) {
-      setImportCommonChunkConcurrency((current) => (current === '4' ? defaultChunkConcurrency : current))
-    }
-    if (defaultNarrativeWindowSize) {
-      setImportCommonNarrativeWindowSize((current) => (current === '1600' ? defaultNarrativeWindowSize : current))
-    }
-    if (defaultNarrativeOverlap) {
-      setImportCommonNarrativeOverlap((current) => (current === '400' ? defaultNarrativeOverlap : current))
-    }
-    if (defaultFactualTargetSize) {
-      setImportCommonFactualTargetSize((current) => (current === '1200' ? defaultFactualTargetSize : current))
-    }
-    if (defaultSourceDb) {
-      setMaibotSourceDb((current) => (current.trim() ? current : defaultSourceDb))
+    if (Object.keys(updates).length > 0) {
+      setValues(updates)
     }
   }
 
@@ -383,358 +402,70 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
       }
       return importAliasKeys[0]
     }
-    setRawAlias((current) => pickAlias(current, 'raw'))
-    setOpenieAlias((current) => pickAlias(current, 'lpmm'))
-    setConvertAlias((current) => pickAlias(current, 'lpmm'))
-    setConvertTargetAlias((current) => pickAlias(current, 'plugin_data'))
-    setBackfillAlias((current) => pickAlias(current, 'plugin_data'))
-    setPathResolveAlias((current) => pickAlias(current, 'raw'))
+    const updates: Record<string, ImportFieldValue> = {}
+    for (const field of ALIAS_LINK_FIELDS) {
+      const current = String(values[field.key] ?? '')
+      const next = pickAlias(current, String(field.defaultValue))
+      if (next !== current) {
+        updates[field.key] = next
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      setValues(updates)
+    }
   }
 
-  const buildCommonImportPayload = useCallback((): Record<string, unknown> => {
-    const chatId = importCommonChatId.trim()
-    const payload: Record<string, unknown> = {
-      llm_enabled: importCommonLlmEnabled,
-      strategy_override: importCommonStrategyOverride,
-      dedupe_policy: importCommonDedupePolicy,
-      chat_log: importCommonChatLog,
-      force: importCommonForce,
-      clear_manifest: importCommonClearManifest,
-    }
+  const buildCommonImportPayload = useCallback(
+    () => buildCommonPayload(values),
+    [values],
+  )
 
-    const fileConcurrency = parseOptionalPositiveInt(importCommonFileConcurrency)
-    const chunkConcurrency = parseOptionalPositiveInt(importCommonChunkConcurrency)
-    const narrativeWindowSize = parseOptionalPositiveInt(importCommonNarrativeWindowSize)
-    const narrativeOverlap = parseOptionalNonNegativeInt(importCommonNarrativeOverlap)
-    const factualTargetSize = parseOptionalPositiveInt(importCommonFactualTargetSize)
-    if (fileConcurrency !== undefined) {
-      payload.file_concurrency = fileConcurrency
-    }
-    if (chunkConcurrency !== undefined) {
-      payload.chunk_concurrency = chunkConcurrency
-    }
-    if (narrativeWindowSize !== undefined) {
-      payload.narrative_window_size = narrativeWindowSize
-    }
-    if (narrativeOverlap !== undefined) {
-      payload.narrative_overlap = narrativeOverlap
-    }
-    if (factualTargetSize !== undefined) {
-      payload.factual_target_size = factualTargetSize
-    }
-    if (importCommonChatReferenceTime.trim()) {
-      payload.chat_reference_time = importCommonChatReferenceTime.trim()
-    }
-    if (chatId) {
-      payload.chat_id = chatId
-    }
-    return payload
-  }, [
-    importCommonChatId,
-    importCommonChatLog,
-    importCommonChatReferenceTime,
-    importCommonChunkConcurrency,
-    importCommonClearManifest,
-    importCommonDedupePolicy,
-    importCommonFactualTargetSize,
-    importCommonFileConcurrency,
-    importCommonForce,
-    importCommonLlmEnabled,
-    importCommonNarrativeOverlap,
-    importCommonNarrativeWindowSize,
-    importCommonStrategyOverride,
-  ])
-
-  const submitUploadImport = useCallback(async () => {
-    if (uploadFiles.length <= 0) {
-      toast.error('至少选择一个 txt/md/json 文件后再提交')
-      return
-    }
-    try {
-      setCreatingImport(true)
-      const payload = {
-        ...buildCommonImportPayload(),
-        input_mode: uploadInputMode,
+  // 统一提交骨架：try → create → error 检查 → 清理 → onCreated → toast.success → catch → finally
+  const runCreateImport = useCallback(
+    async (config: SubmitImportConfig): Promise<void> => {
+      try {
+        setCreatingImport(true)
+        const result = await config.execute(values, uploadFiles)
+        if (result.error) {
+          throw new Error(result.error || config.failText)
+        }
+        const taskId = String(result.task?.task_id ?? '')
+        config.afterSuccess?.(values, setValue, uploadFiles, setUploadFiles)
+        await onCreated(taskId)
+        toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : config.failText
+        toast.error(message)
+      } finally {
+        setCreatingImport(false)
       }
-      const result = await createMemoryUploadImport(uploadFiles, payload)
-      if (result.error) {
-        throw new Error(result.error || '创建上传导入任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      setUploadFiles([])
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建上传导入任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [buildCommonImportPayload, onCreated, uploadFiles, uploadInputMode])
-
-  const submitPasteImport = useCallback(async () => {
-    if (!pasteContent.trim()) {
-      toast.error('请填写导入内容后再提交')
-      return
-    }
-    try {
-      setCreatingImport(true)
-      const result = await createMemoryPasteImport({
-        ...buildCommonImportPayload(),
-        name: pasteName || undefined,
-        content: pasteContent,
-        input_mode: pasteMode,
-      })
-      if (result.error) {
-        throw new Error(result.error || '创建粘贴导入任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      setPasteContent('')
-      setPasteName('')
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建粘贴导入任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [buildCommonImportPayload, onCreated, pasteContent, pasteMode, pasteName])
-
-  const submitRawScanImport = useCallback(async () => {
-    try {
-      setCreatingImport(true)
-      const result = await createMemoryRawScanImport({
-        ...buildCommonImportPayload(),
-        alias: rawAlias,
-        relative_path: rawRelativePath,
-        glob: rawGlob,
-        recursive: rawRecursive,
-        input_mode: rawInputMode,
-      })
-      if (result.error) {
-        throw new Error(result.error || '创建本地扫描任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建本地扫描任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [buildCommonImportPayload, onCreated, rawAlias, rawGlob, rawInputMode, rawRecursive, rawRelativePath])
-
-  const submitOpenieImport = useCallback(async () => {
-    try {
-      setCreatingImport(true)
-      const result = await createMemoryLpmmOpenieImport({
-        ...buildCommonImportPayload(),
-        alias: openieAlias,
-        relative_path: openieRelativePath,
-        include_all_json: openieIncludeAllJson,
-      })
-      if (result.error) {
-        throw new Error(result.error || '创建 LPMM OpenIE 任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建 LPMM OpenIE 任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [buildCommonImportPayload, onCreated, openieAlias, openieIncludeAllJson, openieRelativePath])
-
-  const submitConvertImport = useCallback(async () => {
-    try {
-      setCreatingImport(true)
-      const result = await createMemoryLpmmConvertImport({
-        alias: convertAlias,
-        relative_path: convertRelativePath,
-        target_alias: convertTargetAlias,
-        target_relative_path: convertTargetRelativePath,
-        dimension: parseOptionalPositiveInt(convertDimension),
-        batch_size: parseOptionalPositiveInt(convertBatchSize),
-      })
-      if (result.error) {
-        throw new Error(result.error || '创建 LPMM 转换任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建 LPMM 转换任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [
-    convertAlias,
-    convertBatchSize,
-    convertDimension,
-    convertRelativePath,
-    convertTargetAlias,
-    convertTargetRelativePath,
-    onCreated,
-  ])
-
-  const submitBackfillImport = useCallback(async () => {
-    try {
-      setCreatingImport(true)
-      const result = await createMemoryTemporalBackfillImport({
-        alias: backfillAlias,
-        relative_path: backfillRelativePath,
-        limit: parseOptionalPositiveInt(backfillLimit),
-        dry_run: backfillDryRun,
-        no_created_fallback: backfillNoCreatedFallback,
-      })
-      if (result.error) {
-        throw new Error(result.error || '创建时序回填任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建时序回填任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [
-    backfillAlias,
-    backfillDryRun,
-    backfillLimit,
-    backfillNoCreatedFallback,
-    backfillRelativePath,
-    onCreated,
-
-  ])
-
-  const submitMaibotMigrationImport = useCallback(async () => {
-    try {
-      setCreatingImport(true)
-      const sourceDb = maibotSourceDb.trim()
-      if (!sourceDb) {
-        throw new Error('请填写源数据库路径')
-      }
-      const timeFromTimestamp = getMaibotDateTimeLocalTimestamp(maibotTimeFrom, '起始时间')
-      const timeToTimestamp = getMaibotDateTimeLocalTimestamp(maibotTimeTo, '结束时间')
-      if (
-        timeFromTimestamp !== undefined &&
-        timeToTimestamp !== undefined &&
-        timeFromTimestamp > timeToTimestamp
-      ) {
-        throw new Error('起始时间不能晚于结束时间')
-      }
-      const startId = parseMaibotPositiveInt(maibotStartId, '起始 ID')
-      const endId = parseMaibotPositiveInt(maibotEndId, '结束 ID')
-      if (startId !== undefined && endId !== undefined && startId > endId) {
-        throw new Error('起始 ID 不能大于结束 ID')
-      }
-      const result = await createMemoryMaibotMigrationImport({
-        source_db: sourceDb,
-        time_from: formatMaibotDateTimeLocalForApi(maibotTimeFrom, '起始时间'),
-        time_to: formatMaibotDateTimeLocalForApi(maibotTimeTo, '结束时间'),
-        start_id: startId,
-        end_id: endId,
-        stream_ids: parseCommaSeparatedList(maibotStreamIds),
-        group_ids: parseCommaSeparatedList(maibotGroupIds),
-        user_ids: parseCommaSeparatedList(maibotUserIds),
-        read_batch_size: parseMaibotPositiveInt(maibotReadBatchSize, '读取批大小'),
-        commit_window_rows: parseMaibotPositiveInt(maibotCommitWindowRows, '提交窗口行数'),
-        embed_workers: parseMaibotPositiveInt(maibotEmbedWorkers, '向量线程数'),
-        no_resume: maibotNoResume,
-        reset_state: maibotResetState,
-        dry_run: maibotDryRun,
-        verify_only: maibotVerifyOnly,
-      })
-      if (result.error) {
-        throw new Error(result.error || '创建 MaiBot 迁移任务失败')
-      }
-      const taskId = String(result.task?.task_id ?? '')
-      await onCreated(taskId)
-      toast.success(taskId ? `任务 ${taskId.slice(0, 12)} 已加入导入队列` : '导入任务已加入队列')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '创建 MaiBot 迁移任务失败'
-      toast.error(message)
-    } finally {
-      setCreatingImport(false)
-    }
-  }, [
-    maibotCommitWindowRows,
-    maibotDryRun,
-    maibotEmbedWorkers,
-    maibotEndId,
-    maibotGroupIds,
-    maibotNoResume,
-    maibotReadBatchSize,
-    maibotResetState,
-    maibotSourceDb,
-    maibotStartId,
-    maibotStreamIds,
-    maibotTimeFrom,
-    maibotTimeTo,
-    maibotUserIds,
-    maibotVerifyOnly,
-    onCreated,
-
-  ])
+    },
+    [onCreated, setValue, uploadFiles, values],
+  )
 
   const submitImportByMode = useCallback(async () => {
     if (creatingImport) {
       return
     }
-    switch (importCreateMode) {
-      case 'upload':
-        await submitUploadImport()
-        break
-      case 'paste':
-        await submitPasteImport()
-        break
-      case 'raw_scan':
-        await submitRawScanImport()
-        break
-      case 'lpmm_openie':
-        await submitOpenieImport()
-        break
-      case 'lpmm_convert':
-        await submitConvertImport()
-        break
-      case 'temporal_backfill':
-        await submitBackfillImport()
-        break
-      case 'maibot_migration':
-        await submitMaibotMigrationImport()
-        break
-      default:
-        break
+    const config = SUBMIT_CONFIGS[importCreateMode]
+    const precheckError = config.precheck?.(values, uploadFiles) ?? null
+    if (precheckError) {
+      toast.error(precheckError)
+      return
     }
-  }, [
-    creatingImport,
-    importCreateMode,
-    submitBackfillImport,
-    submitConvertImport,
-    submitMaibotMigrationImport,
-    submitOpenieImport,
-    submitPasteImport,
-    submitRawScanImport,
-    submitUploadImport,
-  ])
+    await runCreateImport(config)
+  }, [creatingImport, importCreateMode, runCreateImport, uploadFiles, values])
 
   const resolveImportPath = useCallback(async () => {
-    if (!pathResolveAlias.trim()) {
+    if (!String(values.pathResolveAlias ?? '').trim()) {
       return
     }
     try {
       setResolvingPath(true)
       const payload = await resolveMemoryImportPath({
-        alias: pathResolveAlias,
-        relative_path: pathResolveRelativePath,
-        must_exist: pathResolveMustExist,
+        alias: String(values.pathResolveAlias ?? ''),
+        relative_path: String(values.pathResolveRelativePath ?? ''),
+        must_exist: Boolean(values.pathResolveMustExist),
       })
       const lines = [
         `路径别名: ${payload.alias}`,
@@ -751,131 +482,22 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
     } finally {
       setResolvingPath(false)
     }
-  }, [pathResolveAlias, pathResolveMustExist, pathResolveRelativePath])
-
-  // importErrorText 由各 submit 在写失败时写入；保留引用以便后续扩展（当前由 toast 主要呈现）
+  }, [values.pathResolveAlias, values.pathResolveMustExist, values.pathResolveRelativePath])
 
   return {
     importCreateMode,
     setImportCreateMode,
     importSettings,
     importChatTargets,
-    importCommonFileConcurrency,
-    setImportCommonFileConcurrency,
-    importCommonChunkConcurrency,
-    setImportCommonChunkConcurrency,
-    importCommonNarrativeWindowSize,
-    setImportCommonNarrativeWindowSize,
-    importCommonNarrativeOverlap,
-    setImportCommonNarrativeOverlap,
-    importCommonFactualTargetSize,
-    setImportCommonFactualTargetSize,
-    importCommonLlmEnabled,
-    setImportCommonLlmEnabled,
-    importCommonStrategyOverride,
-    setImportCommonStrategyOverride,
-    importCommonDedupePolicy,
-    setImportCommonDedupePolicy,
-    importCommonChatLog,
-    setImportCommonChatLog,
-    importCommonChatId,
-    setImportCommonChatId,
-    importCommonChatReferenceTime,
-    setImportCommonChatReferenceTime,
-    importCommonForce,
-    setImportCommonForce,
-    importCommonClearManifest,
-    setImportCommonClearManifest,
-    uploadInputMode,
-    setUploadInputMode,
     uploadFiles,
     setUploadFiles,
-    pasteName,
-    setPasteName,
-    pasteMode,
-    setPasteMode,
-    pasteContent,
-    setPasteContent,
-    rawAlias,
-    setRawAlias,
-    rawInputMode,
-    setRawInputMode,
-    rawRelativePath,
-    setRawRelativePath,
-    rawGlob,
-    setRawGlob,
-    rawRecursive,
-    setRawRecursive,
-    openieAlias,
-    setOpenieAlias,
-    openieRelativePath,
-    setOpenieRelativePath,
-    openieIncludeAllJson,
-    setOpenieIncludeAllJson,
-    convertAlias,
-    setConvertAlias,
-    convertTargetAlias,
-    setConvertTargetAlias,
-    convertRelativePath,
-    setConvertRelativePath,
-    convertTargetRelativePath,
-    setConvertTargetRelativePath,
-    convertDimension,
-    setConvertDimension,
-    convertBatchSize,
-    setConvertBatchSize,
-    backfillAlias,
-    setBackfillAlias,
-    backfillLimit,
-    setBackfillLimit,
-    backfillRelativePath,
-    setBackfillRelativePath,
-    backfillDryRun,
-    setBackfillDryRun,
-    backfillNoCreatedFallback,
-    setBackfillNoCreatedFallback,
-    maibotSourceDb,
-    setMaibotSourceDb,
-    maibotTimeFrom,
-    setMaibotTimeFrom,
-    maibotTimeTo,
-    setMaibotTimeTo,
-    maibotStartId,
-    setMaibotStartId,
-    maibotEndId,
-    setMaibotEndId,
-    maibotStreamIds,
-    setMaibotStreamIds,
-    maibotGroupIds,
-    setMaibotGroupIds,
-    maibotUserIds,
-    setMaibotUserIds,
-    maibotReadBatchSize,
-    setMaibotReadBatchSize,
-    maibotCommitWindowRows,
-    setMaibotCommitWindowRows,
-    maibotEmbedWorkers,
-    setMaibotEmbedWorkers,
-    maibotNoResume,
-    setMaibotNoResume,
-    maibotResetState,
-    setMaibotResetState,
-    maibotDryRun,
-    setMaibotDryRun,
-    maibotVerifyOnly,
-    setMaibotVerifyOnly,
     submitImportByMode,
     creatingImport,
     buildCommonImportPayload,
-    pathResolveAlias,
-    setPathResolveAlias,
     importAliasKeys,
-    pathResolveRelativePath,
-    setPathResolveRelativePath,
-    pathResolveMustExist,
-    setPathResolveMustExist,
     resolveImportPath,
     resolvingPath,
     pathResolveOutput,
-  }
+    ...buildFieldProps(values, setValue),
+  } as UseImportFormResult
 }

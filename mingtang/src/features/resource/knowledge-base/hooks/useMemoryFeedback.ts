@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { toast } from 'sonner'
+import { useClientSideList } from '@/hooks/useClientSideList'
 import {
   getMemoryFeedbackCorrection,
   getMemoryFeedbackCorrections,
@@ -31,6 +32,80 @@ import {
   getFeedbackCorrectionPreview,
   summarizeFeedbackActionPayload,
 } from '../utils'
+
+/** 纠错历史列表的客户端筛选状态（useClientSideList 的 filters 形状；引用变化即筛选变化） */
+interface FeedbackCorrectionFilters {
+  search: string
+  status: string
+  rollback: string
+}
+
+/** 纠错历史过滤：搜索 + 任务状态/回退状态筛选（与旧实现逐字一致） */
+function filterFeedbackCorrections(
+  corrections: MemoryFeedbackCorrectionSummaryPayload[],
+  filters: FeedbackCorrectionFilters,
+): MemoryFeedbackCorrectionSummaryPayload[] {
+  const keyword = filters.search.trim().toLowerCase()
+  return corrections.filter((item) => {
+    const taskStatus = String(item.task_status ?? '').trim().toLowerCase()
+    const rollbackStatus = String(item.rollback_status ?? '').trim().toLowerCase()
+    if (filters.status !== 'all' && taskStatus !== filters.status) {
+      return false
+    }
+    if (filters.rollback !== 'all' && rollbackStatus !== filters.rollback) {
+      return false
+    }
+    if (!keyword) {
+      return true
+    }
+    return [
+      item.query_tool_id,
+      item.session_id,
+      item.query_text,
+      item.decision,
+      item.task_status,
+      item.rollback_status,
+    ]
+      .map((value) => String(value ?? '').toLowerCase())
+      .some((value) => value.includes(keyword))
+  })
+}
+
+function getFeedbackCorrectionId(correction: MemoryFeedbackCorrectionSummaryPayload): number {
+  return correction.task_id
+}
+
+/** 行为日志的客户端筛选状态（selectionId 只用于触发页码重置，不参与过滤） */
+interface FeedbackActionLogFilters {
+  selectionId: number | null
+  search: string
+}
+
+/** 行为日志过滤：action_type / target_hash / reason / 前后载荷摘要关键词（与旧实现逐字一致） */
+function filterFeedbackActionLogs(
+  logs: MemoryFeedbackActionLogPayload[],
+  filters: FeedbackActionLogFilters,
+): MemoryFeedbackActionLogPayload[] {
+  const keyword = filters.search.trim().toLowerCase()
+  if (!keyword) {
+    return logs
+  }
+  return logs.filter((item) =>
+    [
+      item.action_type,
+      item.target_hash,
+      item.reason,
+      summarizeFeedbackActionPayload(item.before_payload),
+      summarizeFeedbackActionPayload(item.after_payload),
+    ]
+      .map((value) => String(value ?? '').toLowerCase())
+      .some((value) => value.includes(keyword)),
+  )
+}
+
+function getFeedbackActionLogId(log: MemoryFeedbackActionLogPayload): string {
+  return `${log.action_type}:${log.target_hash}`
+}
 
 export interface UseMemoryFeedbackOptions {
   /** 纠错面板是否激活；非激活时不拉取列表、不加载任务详情 */
@@ -59,7 +134,7 @@ export interface UseMemoryFeedbackResult {
   setFeedbackPage: React.Dispatch<React.SetStateAction<number>>
   feedbackPageCount: number
   selectedFeedbackCorrection: MemoryFeedbackCorrectionSummaryPayload | null
-  setSelectedFeedbackTaskId: React.Dispatch<React.SetStateAction<number>>
+  setSelectedFeedbackTaskId: React.Dispatch<React.SetStateAction<number | null>>
   selectedFeedbackResolved: MemoryFeedbackCorrectionDetailTaskPayload | null
   selectedFeedbackPreview: ReturnType<typeof getFeedbackCorrectionPreview>
   selectedFeedbackImpactSummary: string[]
@@ -112,120 +187,56 @@ export function useMemoryFeedback({
   const [feedbackSearch, setFeedbackSearch] = useState(initialSearch)
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all')
   const [feedbackRollbackFilter, setFeedbackRollbackFilter] = useState('all')
-  const [feedbackPage, setFeedbackPage] = useState(1)
-  const [selectedFeedbackTaskId, setSelectedFeedbackTaskId] = useState(initialTaskId)
   const [selectedFeedbackTaskDetail, setSelectedFeedbackTaskDetail] = useState<MemoryFeedbackCorrectionDetailTaskPayload | null>(null)
   const [selectedFeedbackTaskLoading, setSelectedFeedbackTaskLoading] = useState(false)
   const [selectedFeedbackTaskError, setSelectedFeedbackTaskError] = useState('')
   const [feedbackActionLogSearch, setFeedbackActionLogSearch] = useState('')
-  const [feedbackActionLogPage, setFeedbackActionLogPage] = useState(1)
   const [feedbackRollbackDialogOpen, setFeedbackRollbackDialogOpen] = useState(false)
   const [feedbackRollbackReason, setFeedbackRollbackReason] = useState('')
   const [feedbackRollingBack, setFeedbackRollingBack] = useState(false)
 
-  const filteredFeedbackCorrections = useMemo(() => {
-    const keyword = feedbackSearch.trim().toLowerCase()
-    return feedbackCorrections.filter((item) => {
-      const taskStatus = String(item.task_status ?? '').trim().toLowerCase()
-      const rollbackStatus = String(item.rollback_status ?? '').trim().toLowerCase()
-      if (feedbackStatusFilter !== 'all' && taskStatus !== feedbackStatusFilter) {
-        return false
-      }
-      if (feedbackRollbackFilter !== 'all' && rollbackStatus !== feedbackRollbackFilter) {
-        return false
-      }
-      if (!keyword) {
-        return true
-      }
-      return [
-        item.query_tool_id,
-        item.session_id,
-        item.query_text,
-        item.decision,
-        item.task_status,
-        item.rollback_status,
-      ]
-        .map((value) => String(value ?? '').toLowerCase())
-        .some((value) => value.includes(keyword))
-    })
-  }, [feedbackCorrections, feedbackRollbackFilter, feedbackSearch, feedbackStatusFilter])
-
-  const feedbackPageCount = Math.max(1, Math.ceil(filteredFeedbackCorrections.length / FEEDBACK_CORRECTION_PAGE_SIZE))
-  const pagedFeedbackCorrections = useMemo(() => {
-    const start = (feedbackPage - 1) * FEEDBACK_CORRECTION_PAGE_SIZE
-    return filteredFeedbackCorrections.slice(start, start + FEEDBACK_CORRECTION_PAGE_SIZE)
-  }, [feedbackPage, filteredFeedbackCorrections])
-
-  const selectedFeedbackCorrection = useMemo(
-    () => {
-      const matchedCorrection = filteredFeedbackCorrections.find((item) => item.task_id === selectedFeedbackTaskId)
-      if (matchedCorrection) {
-        return matchedCorrection
-      }
-      if (selectedFeedbackTaskId > 0) {
-        return {
-          task_id: selectedFeedbackTaskId,
-          query_tool_id: '',
-          session_id: '',
-          query_text: '',
-          task_status: '',
-          decision: '',
-          decision_confidence: 0,
-          feedback_message_count: 0,
-          rollback_status: '',
-          affected_counts: {},
-        } satisfies MemoryFeedbackCorrectionSummaryPayload
-      }
-      return pagedFeedbackCorrections[0] ?? null
-    },
-    [filteredFeedbackCorrections, pagedFeedbackCorrections, selectedFeedbackTaskId],
+  const feedbackFilters = useMemo(
+    () => ({ search: feedbackSearch, status: feedbackStatusFilter, rollback: feedbackRollbackFilter }),
+    [feedbackRollbackFilter, feedbackSearch, feedbackStatusFilter],
   )
-
-  // 筛选变化 → 重置页码（渲染期比较上一次筛选值）
-  const [prevFeedbackFilters, setPrevFeedbackFilters] = useState({
-    feedbackSearch,
-    feedbackStatusFilter,
-    feedbackRollbackFilter,
+  const correctionList = useClientSideList({
+    items: feedbackCorrections,
+    filters: feedbackFilters,
+    pageSize: FEEDBACK_CORRECTION_PAGE_SIZE,
+    filter: filterFeedbackCorrections,
+    getId: getFeedbackCorrectionId,
+    initialSelectedId: initialTaskId > 0 ? initialTaskId : null,
   })
-  if (
-    prevFeedbackFilters.feedbackSearch !== feedbackSearch ||
-    prevFeedbackFilters.feedbackStatusFilter !== feedbackStatusFilter ||
-    prevFeedbackFilters.feedbackRollbackFilter !== feedbackRollbackFilter
-  ) {
-    setPrevFeedbackFilters({ feedbackSearch, feedbackStatusFilter, feedbackRollbackFilter })
-    setFeedbackPage(1)
-  }
 
-  // 页码超界 → 回拉到末页（渲染期 setState）
-  if (feedbackPage > feedbackPageCount) {
-    setFeedbackPage(feedbackPageCount)
-  }
+  const filteredFeedbackCorrections = correctionList.filtered
+  const feedbackPageCount = correctionList.totalPages
+  const pagedFeedbackCorrections = correctionList.paged
+  const feedbackPage = correctionList.page
+  const setFeedbackPage = correctionList.setPage
+  const selectedFeedbackTaskId = correctionList.selectedId
+  const setSelectedFeedbackTaskId = correctionList.setSelectedId
 
-  // 选中纠错与列表对齐（选中项落空时回退/清空；渲染期 setState）
-  if (!selectedFeedbackCorrection) {
-    if (selectedFeedbackTaskId) {
-      setSelectedFeedbackTaskId(0)
+  // 选中纠错展示：过滤结果按 task_id 命中 → 深链接 stub（task_id 尚不在列表时先占位，详情异步加载）→ 当前页首项
+  const selectedFeedbackCorrection = useMemo<MemoryFeedbackCorrectionSummaryPayload | null>(() => {
+    if (correctionList.selectedItem) {
+      return correctionList.selectedItem
     }
-    if (selectedFeedbackTaskDetail !== null) {
-      setSelectedFeedbackTaskDetail(null)
+    if (correctionList.selectedId !== null) {
+      return {
+        task_id: correctionList.selectedId,
+        query_tool_id: '',
+        session_id: '',
+        query_text: '',
+        task_status: '',
+        decision: '',
+        decision_confidence: 0,
+        feedback_message_count: 0,
+        rollback_status: '',
+        affected_counts: {},
+      } satisfies MemoryFeedbackCorrectionSummaryPayload
     }
-    if (selectedFeedbackTaskError !== '') {
-      setSelectedFeedbackTaskError('')
-    }
-  } else if (selectedFeedbackCorrection.task_id !== selectedFeedbackTaskId) {
-    setSelectedFeedbackTaskId(selectedFeedbackCorrection.task_id)
-  }
-
-  // 选中纠错任务详情加载（面板激活时）
-  // 渲染期 setState：任务 ID 为空时清空详情
-  if (active && !selectedFeedbackCorrection?.task_id) {
-    if (selectedFeedbackTaskDetail !== null) {
-      setSelectedFeedbackTaskDetail(null)
-    }
-    if (selectedFeedbackTaskError !== '') {
-      setSelectedFeedbackTaskError('')
-    }
-  }
+    return correctionList.paged[0] ?? null
+  }, [correctionList.paged, correctionList.selectedId, correctionList.selectedItem])
 
   useEffect(() => {
     if (!active) {
@@ -294,49 +305,22 @@ export function useMemoryFeedback({
     () => (Array.isArray(selectedFeedbackResolved?.action_logs) ? selectedFeedbackResolved.action_logs : []),
     [selectedFeedbackResolved],
   )
-  const filteredFeedbackActionLogs = useMemo(() => {
-    const keyword = feedbackActionLogSearch.trim().toLowerCase()
-    if (!keyword) {
-      return selectedFeedbackActionLogs
-    }
-    return selectedFeedbackActionLogs.filter((item) =>
-      [
-        item.action_type,
-        item.target_hash,
-        item.reason,
-        summarizeFeedbackActionPayload(item.before_payload),
-        summarizeFeedbackActionPayload(item.after_payload),
-      ]
-        .map((value) => String(value ?? '').toLowerCase())
-        .some((value) => value.includes(keyword)),
-    )
-  }, [feedbackActionLogSearch, selectedFeedbackActionLogs])
-  const feedbackActionLogPageCount = Math.max(
-    1,
-    Math.ceil(filteredFeedbackActionLogs.length / FEEDBACK_ACTION_LOG_PAGE_SIZE),
+  const actionLogFilters = useMemo(
+    () => ({ selectionId: selectedFeedbackTaskId, search: feedbackActionLogSearch }),
+    [feedbackActionLogSearch, selectedFeedbackTaskId],
   )
-  const pagedFeedbackActionLogs = useMemo(() => {
-    const start = (feedbackActionLogPage - 1) * FEEDBACK_ACTION_LOG_PAGE_SIZE
-    return filteredFeedbackActionLogs.slice(start, start + FEEDBACK_ACTION_LOG_PAGE_SIZE)
-  }, [feedbackActionLogPage, filteredFeedbackActionLogs])
-
-  // 行为日志分页：筛选变化 → 重置页码（渲染期比较上一次筛选值）
-  const [prevFeedbackActionLogFilters, setPrevFeedbackActionLogFilters] = useState({
-    selectedFeedbackTaskId,
-    feedbackActionLogSearch,
+  const actionLogList = useClientSideList({
+    items: selectedFeedbackActionLogs,
+    filters: actionLogFilters,
+    pageSize: FEEDBACK_ACTION_LOG_PAGE_SIZE,
+    filter: filterFeedbackActionLogs,
+    getId: getFeedbackActionLogId,
   })
-  if (
-    prevFeedbackActionLogFilters.selectedFeedbackTaskId !== selectedFeedbackTaskId ||
-    prevFeedbackActionLogFilters.feedbackActionLogSearch !== feedbackActionLogSearch
-  ) {
-    setPrevFeedbackActionLogFilters({ selectedFeedbackTaskId, feedbackActionLogSearch })
-    setFeedbackActionLogPage(1)
-  }
 
-  // 页码超界 → 回拉到末页（渲染期 setState）
-  if (feedbackActionLogPage > feedbackActionLogPageCount) {
-    setFeedbackActionLogPage(feedbackActionLogPageCount)
-  }
+  const feedbackActionLogPageCount = actionLogList.totalPages
+  const pagedFeedbackActionLogs = actionLogList.paged
+  const feedbackActionLogPage = actionLogList.page
+  const setFeedbackActionLogPage = actionLogList.setPage
 
   const openFeedbackRollbackDialog = useCallback(() => {
     setFeedbackRollbackReason('')

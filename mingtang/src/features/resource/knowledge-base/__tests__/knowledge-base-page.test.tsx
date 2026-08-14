@@ -292,7 +292,7 @@ vi.mock('../hooks/useMemoryTuning', () => ({
 }))
 
 // mock tab 组件 —— 简化为可识别的占位
-vi.mock('../tabs/ImportTab', () => ({
+vi.mock('../tabs/import/ImportTab', () => ({
   ImportTab: () => <div data-testid="import-tab">ImportTab</div>,
 }))
 vi.mock('../tabs/TuningTab', () => ({

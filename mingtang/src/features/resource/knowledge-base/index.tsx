@@ -65,7 +65,7 @@ import { useMemoryRuntimeConfig } from './hooks/useMemoryRuntimeConfig'
 import { useMemoryTuning } from './hooks/useMemoryTuning'
 import { DeleteTab } from './tabs/DeleteTab'
 import { FeedbackTab } from './tabs/FeedbackTab'
-import { ImportTab } from './tabs/ImportTab'
+import { ImportTab } from './tabs/import/ImportTab'
 import { TuningTab } from './tabs/TuningTab'
 import {
   KNOWLEDGE_BASE_TABS,

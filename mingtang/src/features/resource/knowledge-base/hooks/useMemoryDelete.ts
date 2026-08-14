@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { toast } from 'sonner'
+import { useClientSideList } from '@/hooks/useClientSideList'
 import { usePendingOperation } from '@/hooks/usePendingOperation'
 import {
   executeMemoryDelete,
@@ -33,6 +34,85 @@ import {
 
 import { DELETE_OPERATION_FETCH_LIMIT, DELETE_OPERATION_ITEM_PAGE_SIZE, DELETE_OPERATION_PAGE_SIZE } from '../constants'
 import type { DeleteOperationItem } from '../utils'
+
+/** 删除操作列表的客户端筛选状态（useClientSideList 的 filters 形状；引用变化即筛选变化） */
+interface DeleteOperationFilters {
+  search: string
+  mode: string
+  status: string
+}
+
+/** 删除操作列表过滤：搜索 + 模式/状态筛选（与旧实现逐字一致） */
+function filterDeleteOperations(
+  operations: MemoryDeleteOperationPayload[],
+  filters: DeleteOperationFilters,
+): MemoryDeleteOperationPayload[] {
+  const keyword = filters.search.trim().toLowerCase()
+  return operations.filter((operation) => {
+    const mode = String(operation.mode ?? '').trim()
+    const status = String(operation.status ?? '').trim()
+    const summary = operation.summary ?? {}
+    const sources = Array.isArray(summary.sources) ? summary.sources : []
+
+    if (filters.mode !== 'all' && mode !== filters.mode) {
+      return false
+    }
+    if (filters.status !== 'all' && status !== filters.status) {
+      return false
+    }
+    if (!keyword) {
+      return true
+    }
+
+    return [
+      operation.operation_id,
+      operation.reason,
+      operation.requested_by,
+      mode,
+      status,
+      ...sources.map((item) => String(item)),
+    ]
+      .map((item) => String(item ?? '').toLowerCase())
+      .some((item) => item.includes(keyword))
+  })
+}
+
+function getDeleteOperationId(operation: MemoryDeleteOperationPayload): string {
+  return operation.operation_id
+}
+
+/** 选中操作影响对象列表的客户端筛选状态（selectionId 只用于触发页码重置，不参与过滤） */
+interface DeleteOperationItemFilters {
+  selectionId: string
+  search: string
+}
+
+/** 选中操作影响对象过滤：item_type / hash / item_key / 载荷 source 关键词（与旧实现逐字一致） */
+function filterDeleteOperationItems(
+  items: DeleteOperationItem[],
+  filters: DeleteOperationItemFilters,
+): DeleteOperationItem[] {
+  const keyword = filters.search.trim().toLowerCase()
+  if (!keyword) {
+    return items
+  }
+  return items.filter((item) => {
+    const payload = item.payload ?? {}
+    const source = String(payload.source ?? '').trim()
+    return [
+      item.item_type,
+      item.item_hash,
+      item.item_key,
+      source,
+    ]
+      .map((value) => String(value ?? '').toLowerCase())
+      .some((value) => value.includes(keyword))
+  })
+}
+
+function getDeleteOperationItemId(item: DeleteOperationItem): string {
+  return `${item.item_type}:${item.item_hash}:${item.item_key ?? ''}`
+}
 
 export interface UseMemoryDeleteOptions {
   /** 删除面板是否激活；非激活时不拉取来源/操作列表，不加载操作详情 */
@@ -71,7 +151,7 @@ export interface UseMemoryDeleteResult {
   deleteOperationPageCount: number
   pagedDeleteOperations: MemoryDeleteOperationPayload[]
   selectedDeleteOperation: MemoryDeleteOperationPayload | null
-  setSelectedOperationId: React.Dispatch<React.SetStateAction<string>>
+  setSelectedOperationId: React.Dispatch<React.SetStateAction<string | null>>
   restoreDeleteOperation: (operationId: string) => Promise<void>
   deleteRestoring: boolean
   selectedOperationCounts: Record<string, number>
@@ -145,10 +225,7 @@ export function useMemoryDelete({
   const [operationSearch, setOperationSearch] = useState(initialOperationSearch)
   const [operationModeFilter, setOperationModeFilter] = useState('all')
   const [operationStatusFilter, setOperationStatusFilter] = useState('all')
-  const [operationPage, setOperationPage] = useState(1)
-  const [selectedOperationId, setSelectedOperationId] = useState(initialOperationId)
   const [selectedOperationItemSearch, setSelectedOperationItemSearch] = useState(initialItemSearch)
-  const [selectedOperationItemPage, setSelectedOperationItemPage] = useState(1)
   const [selectedSources, setSelectedSources] = useState<string[]>([])
 
   const [selectedOperationDetail, setSelectedOperationDetail] = useState<MemoryDeleteOperationPayload | null>(null)
@@ -175,106 +252,41 @@ export function useMemoryDelete({
     return memorySources.filter((item) => String(item.source ?? '').toLowerCase().includes(keyword))
   }, [memorySources, sourceSearch])
 
-  const filteredDeleteOperations = useMemo(() => {
-    const keyword = operationSearch.trim().toLowerCase()
-    return deleteOperations.filter((operation) => {
-      const mode = String(operation.mode ?? '').trim()
-      const status = String(operation.status ?? '').trim()
-      const summary = operation.summary ?? {}
-      const sources = Array.isArray(summary.sources) ? summary.sources : []
-
-      if (operationModeFilter !== 'all' && mode !== operationModeFilter) {
-        return false
-      }
-      if (operationStatusFilter !== 'all' && status !== operationStatusFilter) {
-        return false
-      }
-      if (!keyword) {
-        return true
-      }
-
-      return [
-        operation.operation_id,
-        operation.reason,
-        operation.requested_by,
-        mode,
-        status,
-        ...sources.map((item) => String(item)),
-      ]
-        .map((item) => String(item ?? '').toLowerCase())
-        .some((item) => item.includes(keyword))
-    })
-  }, [deleteOperations, operationModeFilter, operationSearch, operationStatusFilter])
-
-  const deleteOperationPageCount = Math.max(1, Math.ceil(filteredDeleteOperations.length / DELETE_OPERATION_PAGE_SIZE))
-  const pagedDeleteOperations = useMemo(() => {
-    const start = (operationPage - 1) * DELETE_OPERATION_PAGE_SIZE
-    return filteredDeleteOperations.slice(start, start + DELETE_OPERATION_PAGE_SIZE)
-  }, [filteredDeleteOperations, operationPage])
-
-  const selectedDeleteOperation = useMemo(
-    () => {
-      const matchedOperation = filteredDeleteOperations.find((operation) => operation.operation_id === selectedOperationId)
-      if (matchedOperation) {
-        return matchedOperation
-      }
-      if (selectedOperationId) {
-        return {
-          operation_id: selectedOperationId,
-          mode: '',
-          status: '',
-        } satisfies MemoryDeleteOperationPayload
-      }
-      return pagedDeleteOperations[0] ?? null
-    },
-    [filteredDeleteOperations, pagedDeleteOperations, selectedOperationId],
+  const operationFilters = useMemo(
+    () => ({ search: operationSearch, mode: operationModeFilter, status: operationStatusFilter }),
+    [operationModeFilter, operationSearch, operationStatusFilter],
   )
-
-  // 筛选变化 → 重置页码（渲染期比较上一次筛选值）
-  const [prevOperationFilters, setPrevOperationFilters] = useState({
-    operationSearch,
-    operationModeFilter,
-    operationStatusFilter,
+  const operationList = useClientSideList({
+    items: deleteOperations,
+    filters: operationFilters,
+    pageSize: DELETE_OPERATION_PAGE_SIZE,
+    filter: filterDeleteOperations,
+    getId: getDeleteOperationId,
+    initialSelectedId: initialOperationId || null,
   })
-  if (
-    prevOperationFilters.operationSearch !== operationSearch ||
-    prevOperationFilters.operationModeFilter !== operationModeFilter ||
-    prevOperationFilters.operationStatusFilter !== operationStatusFilter
-  ) {
-    setPrevOperationFilters({ operationSearch, operationModeFilter, operationStatusFilter })
-    setOperationPage(1)
-  }
 
-  // 页码超界 → 回拉到末页（渲染期 setState）
-  if (operationPage > deleteOperationPageCount) {
-    setOperationPage(deleteOperationPageCount)
-  }
+  const filteredDeleteOperations = operationList.filtered
+  const deleteOperationPageCount = operationList.totalPages
+  const pagedDeleteOperations = operationList.paged
+  const operationPage = operationList.page
+  const setOperationPage = operationList.setPage
+  const selectedOperationId = operationList.selectedId
+  const setSelectedOperationId = operationList.setSelectedId
 
-  // 选中操作与列表对齐（选中项落空时回退/清空；渲染期 setState）
-  if (!selectedDeleteOperation) {
-    if (selectedOperationId) {
-      setSelectedOperationId('')
+  // 选中操作展示：过滤结果按 id 命中 → 深链接 stub（id 尚不在列表时先占位，详情异步加载）→ 当前页首项
+  const selectedDeleteOperation = useMemo<MemoryDeleteOperationPayload | null>(() => {
+    if (operationList.selectedItem) {
+      return operationList.selectedItem
     }
-    if (selectedOperationDetail !== null) {
-      setSelectedOperationDetail(null)
+    if (operationList.selectedId) {
+      return {
+        operation_id: operationList.selectedId,
+        mode: '',
+        status: '',
+      } satisfies MemoryDeleteOperationPayload
     }
-    if (selectedOperationDetailError !== '') {
-      setSelectedOperationDetailError('')
-    }
-  } else if (selectedDeleteOperation.operation_id !== selectedOperationId) {
-    setSelectedOperationId(selectedDeleteOperation.operation_id)
-  }
-
-  // 选中操作详情加载（面板激活时）
-  // 渲染期 setState：操作 ID 为空时清空详情
-  if (active && !selectedDeleteOperation?.operation_id) {
-    if (selectedOperationDetail !== null) {
-      setSelectedOperationDetail(null)
-    }
-    if (selectedOperationDetailError !== '') {
-      setSelectedOperationDetailError('')
-    }
-  }
+    return operationList.paged[0] ?? null
+  }, [operationList.paged, operationList.selectedId, operationList.selectedItem])
 
   useEffect(() => {
     if (!active) {
@@ -439,50 +451,23 @@ export function useMemoryDelete({
     () => (Array.isArray(selectedOperationResolved?.items) ? selectedOperationResolved.items : []),
     [selectedOperationResolved],
   )
-  const filteredSelectedOperationItems = useMemo(() => {
-    const keyword = selectedOperationItemSearch.trim().toLowerCase()
-    if (!keyword) {
-      return selectedOperationItems
-    }
-    return selectedOperationItems.filter((item) => {
-      const payload = item.payload ?? {}
-      const source = String(payload.source ?? '').trim()
-      return [
-        item.item_type,
-        item.item_hash,
-        item.item_key,
-        source,
-      ]
-        .map((value) => String(value ?? '').toLowerCase())
-        .some((value) => value.includes(keyword))
-    })
-  }, [selectedOperationItemSearch, selectedOperationItems])
-  const selectedOperationItemPageCount = Math.max(
-    1,
-    Math.ceil(filteredSelectedOperationItems.length / DELETE_OPERATION_ITEM_PAGE_SIZE),
+  const itemFilters = useMemo(
+    () => ({ selectionId: selectedOperationId ?? '', search: selectedOperationItemSearch }),
+    [selectedOperationId, selectedOperationItemSearch],
   )
-  const pagedSelectedOperationItems = useMemo(() => {
-    const start = (selectedOperationItemPage - 1) * DELETE_OPERATION_ITEM_PAGE_SIZE
-    return filteredSelectedOperationItems.slice(start, start + DELETE_OPERATION_ITEM_PAGE_SIZE)
-  }, [filteredSelectedOperationItems, selectedOperationItemPage])
-
-  // 选中操作影响对象分页：筛选变化 → 重置页码（渲染期比较上一次筛选值）
-  const [prevOperationItemFilters, setPrevOperationItemFilters] = useState({
-    selectedOperationId,
-    selectedOperationItemSearch,
+  const itemList = useClientSideList({
+    items: selectedOperationItems,
+    filters: itemFilters,
+    pageSize: DELETE_OPERATION_ITEM_PAGE_SIZE,
+    filter: filterDeleteOperationItems,
+    getId: getDeleteOperationItemId,
   })
-  if (
-    prevOperationItemFilters.selectedOperationId !== selectedOperationId ||
-    prevOperationItemFilters.selectedOperationItemSearch !== selectedOperationItemSearch
-  ) {
-    setPrevOperationItemFilters({ selectedOperationId, selectedOperationItemSearch })
-    setSelectedOperationItemPage(1)
-  }
 
-  // 页码超界 → 回拉到末页（渲染期 setState）
-  if (selectedOperationItemPage > selectedOperationItemPageCount) {
-    setSelectedOperationItemPage(selectedOperationItemPageCount)
-  }
+  const filteredSelectedOperationItems = itemList.filtered
+  const selectedOperationItemPageCount = itemList.totalPages
+  const pagedSelectedOperationItems = itemList.paged
+  const selectedOperationItemPage = itemList.page
+  const setSelectedOperationItemPage = itemList.setPage
 
   return {
     sourceSearch,

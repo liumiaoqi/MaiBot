@@ -183,6 +183,35 @@ describe('R4-2-7 useMemoryDelete', () => {
     expect(toastSpy).toHaveBeenCalledWith('删除操作 op1 已恢复')
   })
 
+  it('搜索/筛选变化 → 自动重置页码并清空选中（useClientSideList 集成）', async () => {
+    // 7 条操作 → 每页 6 条 → 2 页
+    const manyOperations = {
+      items: Array.from({ length: 7 }, (_, index) => ({
+        operation_id: `op-${index + 1}`,
+        mode: 'source',
+        status: 'completed',
+        summary: { counts: {}, sources: [] },
+      })),
+    }
+    vi.mocked(getMemoryDeleteOperations).mockResolvedValue(manyOperations)
+    const { result } = renderHook(() => useMemoryDelete({ active: true }), { wrapper: makeWrapper() })
+    await waitFor(() => {
+      expect(result.current.filteredDeleteOperations).toHaveLength(7)
+    })
+    // 翻到第 2 页
+    act(() => {
+      result.current.setOperationPage(2)
+    })
+    expect(result.current.operationPage).toBe(2)
+    // 搜索无命中 → 页码重置为 1 + 选中清空（列表为空 → 无选中项可展示）
+    act(() => {
+      result.current.setOperationSearch('zzz-no-match')
+    })
+    expect(result.current.operationPage).toBe(1)
+    expect(result.current.filteredDeleteOperations).toHaveLength(0)
+    expect(result.current.selectedDeleteOperation).toBeNull()
+  })
+
   it('恢复失败 → toast.error', async () => {
     vi.mocked(restoreMemoryDelete).mockRejectedValue(new Error('恢复失败'))
     const toastSpy = vi.spyOn(toast, 'error').mockImplementation(() => 'id')

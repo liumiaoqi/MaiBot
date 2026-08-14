@@ -20,7 +20,7 @@ import { Tabs } from '@/components/ui/tabs'
 
 import type { UseImportFormResult } from '../hooks/useImportForm'
 import type { UseImportQueueResult } from '../hooks/useImportQueue'
-import { ImportTab } from '../tabs/ImportTab'
+import { ImportTab } from '../tabs/import/ImportTab'
 
 function makeWrapper() {
   const queryClient = new QueryClient({
