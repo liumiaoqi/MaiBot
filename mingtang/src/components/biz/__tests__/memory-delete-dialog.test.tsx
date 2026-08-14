@@ -87,6 +87,40 @@ describe('R4-2-14 MemoryDeleteDialog', () => {
     expect(screen.getByText('正在生成删除预览...')).toBeInTheDocument()
   })
 
+  it('预览项搜索/分页：搜索命中数呈现、筛选变化重置页码（useClientSideList 驱动）', () => {
+    const items = Array.from({ length: 10 }, (_, index) => ({
+      item_type: 'paragraph',
+      item_hash: `hash-${index + 1}`,
+      item_key: `key-${index + 1}`,
+      label: `label-${index + 1}`,
+      source: 'src-1',
+    }))
+    render(
+      <MemoryDeleteDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        title="确认删除"
+        preview={{ mode: 'source', item_count: 10, items, sources: ['src-1'], counts: {}, selector: {} }}
+        result={null}
+        onExecute={vi.fn()}
+      />,
+    )
+    // 每页 8 条 → 第 1 / 2 页
+    expect(screen.getByText('第 1 / 2 页')).toBeInTheDocument()
+    // 翻到第 2 页
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    expect(screen.getByText('第 2 / 2 页')).toBeInTheDocument()
+    // 搜索变化 → 自动重置到第 1 页；命中 2 条（label-2 / hash-2 / key-2）
+    fireEvent.change(screen.getByPlaceholderText('搜索类型 / hash / item_key / source'), {
+      target: { value: 'key-2' },
+    })
+    expect(screen.getByText('第 1 / 1 页')).toBeInTheDocument()
+    // 仅 item_key='key-2' 命中 → 1 条
+    expect(screen.getByText('命中 1 / 10 项')).toBeInTheDocument()
+    // 上一页在第 1 页时禁用
+    expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
+  })
+
   it('成功态：result 无 error → 操作 ID 呈现 + 恢复按钮', () => {
     const onRestore = vi.fn()
     render(
