@@ -14,7 +14,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import type { InternalRelationship, AgentConfigInfo } from '@/lib/agent-api'
-import { REL_TYPE_COLORS } from './relationship-network'
+import { REL_TYPE_COLORS } from '../../utils/constellation'
 
 interface InternalRelNodeData {
   agentId: string

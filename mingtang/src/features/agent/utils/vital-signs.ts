@@ -3,6 +3,13 @@ import { EMOTION_COLORS } from './emotion-constants'
 
 export type ActivityStatus = 'active' | 'quiet' | 'dormant'
 
+// 语义状态色板（活跃/安静/沉睡——activity-rhythm-indicator 与 activity-heatmap 共用，数据可视化色板豁免）
+export const STATUS_COLORS: Record<string, string> = {
+  active: '#22c55e',
+  quiet: '#fbbf24',
+  dormant: '#94a3b8',
+}
+
 export type WarmthLevel = 'warm' | 'moderate' | 'cold' | 'no_data' | 'unavailable'
 
 export type InnerActivityStatus = 'introspecting' | 'quiet' | 'unavailable'

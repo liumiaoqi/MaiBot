@@ -12,160 +12,18 @@ import { RefreshCw, Timer, TimerOff } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmotionBarChart, EmotionRadarChart } from '@/components/biz/charts/emotion-charts'
 import { PageShell } from '@/components/biz/page-shell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EMOTION_COLORS, EMOTION_ICONS } from '@/features/agent/utils/emotion-constants'
 import { cn } from '@/lib/utils'
 import type { AgentConfigInfo, EmotionStateInfo } from '@/lib/agent-api'
 
 import { useEmotionMonitor } from './hooks/use-emotion-monitor'
-
-const EMOTION_COLORS: Record<string, string> = {
-  happy: '#fbbf24',
-  sad: '#60a5fa',
-  anxious: '#a78bfa',
-  angry: '#ef4444',
-  calm: '#34d399',
-  excited: '#f97316',
-  lonely: '#94a3b8',
-}
-
-const EMOTION_ICONS: Record<string, string> = {
-  happy: '😊',
-  sad: '😢',
-  anxious: '😰',
-  angry: '😠',
-  calm: '😌',
-  excited: '🤩',
-  lonely: '😔',
-}
-
-function EmotionRadarChart({
-  emotions,
-  emotionLabels,
-  size = 180,
-  color = 'currentColor',
-}: {
-  emotions: Record<string, number>
-  emotionLabels: Record<string, string>
-  size?: number
-  color?: string
-}) {
-  const maxVal = Math.max(...Object.values(emotions), 1)
-  const center = size / 2
-  const radius = size / 2 - 24
-  const entries = Object.entries(emotions)
-  const n = entries.length
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {[0.25, 0.5, 0.75, 1].map((ring) => (
-        <polygon
-          key={ring}
-          points={entries
-            .map((_, i) => {
-              const angle = (2 * Math.PI * i) / n - Math.PI / 2
-              const x = center + radius * ring * Math.cos(angle)
-              const y = center + radius * ring * Math.sin(angle)
-              return `${x},${y}`
-            })
-            .join(' ')}
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity={0.12}
-          strokeWidth={1}
-        />
-      ))}
-      {entries.map(([,], i) => {
-        const angle = (2 * Math.PI * i) / n - Math.PI / 2
-        const x = center + radius * Math.cos(angle)
-        const y = center + radius * Math.sin(angle)
-        return (
-          <line
-            key={i}
-            x1={center}
-            y1={center}
-            x2={x}
-            y2={y}
-            stroke="currentColor"
-            strokeOpacity={0.08}
-            strokeWidth={1}
-          />
-        )
-      })}
-      <polygon
-        points={entries
-          .map(([, val], i) => {
-            const ratio = val / maxVal
-            const angle = (2 * Math.PI * i) / n - Math.PI / 2
-            const x = center + radius * ratio * Math.cos(angle)
-            const y = center + radius * ratio * Math.sin(angle)
-            return `${x},${y}`
-          })
-          .join(' ')}
-        fill={color}
-        fillOpacity={0.15}
-        stroke={color}
-        strokeWidth={2}
-      />
-      {entries.map(([key], i) => {
-        const angle = (2 * Math.PI * i) / n - Math.PI / 2
-        const lx = center + (radius + 18) * Math.cos(angle)
-        const ly = center + (radius + 18) * Math.sin(angle)
-        return (
-          <text
-            key={key}
-            x={lx}
-            y={ly}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="fill-muted-foreground"
-            fontSize={9}
-          >
-            {EMOTION_ICONS[key]} {emotionLabels[key] || key}
-          </text>
-        )
-      })}
-    </svg>
-  )
-}
-
-function EmotionBarChart({
-  emotions,
-  emotionLabels,
-  showValues = true,
-}: {
-  emotions: Record<string, number>
-  emotionLabels: Record<string, string>
-  showValues?: boolean
-}) {
-  return (
-    <div className="space-y-1.5">
-      {Object.entries(emotions).map(([key, val]) => (
-        <div key={key} className="flex items-center gap-2">
-          <span className="w-14 text-xs text-muted-foreground shrink-0 truncate">
-            {EMOTION_ICONS[key]} {emotionLabels[key] || key}
-          </span>
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.min(val, 100)}%`,
-                backgroundColor: EMOTION_COLORS[key] || '#9b59b6',
-              }}
-            />
-          </div>
-          {showValues && (
-            <span className="text-xs text-muted-foreground w-7 text-right">{Math.round(val)}</span>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 function AgentEmotionCard({
   agent,
@@ -204,6 +62,7 @@ function AgentEmotionCard({
             <EmotionRadarChart
               emotions={emotion.emotions}
               emotionLabels={emotion.emotion_labels}
+              icons={EMOTION_ICONS}
               size={150}
               color={dominantColor}
             />
@@ -212,6 +71,8 @@ function AgentEmotionCard({
             <EmotionBarChart
               emotions={emotion.emotions}
               emotionLabels={emotion.emotion_labels}
+              colors={EMOTION_COLORS}
+              icons={EMOTION_ICONS}
             />
           </div>
         </div>
@@ -252,6 +113,8 @@ function BaselineComparisonCard({
             <EmotionBarChart
               emotions={emotion.emotions}
               emotionLabels={emotion.emotion_labels}
+              colors={EMOTION_COLORS}
+              icons={EMOTION_ICONS}
               showValues={false}
             />
           </div>
@@ -260,6 +123,8 @@ function BaselineComparisonCard({
             <EmotionBarChart
               emotions={baseline}
               emotionLabels={emotion.emotion_labels}
+              colors={EMOTION_COLORS}
+              icons={EMOTION_ICONS}
               showValues={false}
             />
           </div>
@@ -443,6 +308,7 @@ export function EmotionMonitorPage() {
                     <EmotionRadarChart
                       emotions={selectedEmotion.emotions}
                       emotionLabels={selectedEmotion.emotion_labels}
+                      icons={EMOTION_ICONS}
                       size={220}
                       color={EMOTION_COLORS[selectedEmotion.dominant_emotion] || '#9b59b6'}
                     />
@@ -456,6 +322,8 @@ export function EmotionMonitorPage() {
                     <EmotionBarChart
                       emotions={selectedEmotion.emotions}
                       emotionLabels={selectedEmotion.emotion_labels}
+                      colors={EMOTION_COLORS}
+                      icons={EMOTION_ICONS}
                     />
                   </CardContent>
                 </Card>

@@ -1,16 +1,9 @@
 import { useTranslation } from 'react-i18next'
 
-import type { VitalSignsData } from '../../utils/vital-signs'
+import { STATUS_COLORS, type VitalSignsData } from '../../utils/vital-signs'
 
 interface ActivityHeatmapProps {
   vitalSignsList: VitalSignsData[]
-}
-
-// 语义状态色板（活跃/安静/沉睡——与 activity-rhythm-indicator 状态色一致，色板豁免）
-const STATUS_COLORS: Record<string, string> = {
-  active: '#22c55e',
-  quiet: '#fbbf24',
-  dormant: '#94a3b8',
 }
 
 export function ActivityHeatmap({ vitalSignsList }: ActivityHeatmapProps) {

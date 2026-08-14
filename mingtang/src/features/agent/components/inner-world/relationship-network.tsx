@@ -17,15 +17,6 @@ interface RelationshipNetworkProps {
   agents: AgentConfigInfo[]
 }
 
-// 关系类型色板（romantic/family/mentor/friend/rival——与 constellation.ts REL_TYPE_COLORS 一致，数据可视化色板豁免）
-export const REL_TYPE_COLORS: Record<string, string> = {
-  romantic: '#ef4444',
-  family: '#f97316',
-  mentor: '#3b82f6',
-  friend: '#22c55e',
-  rival: '#94a3b8',
-}
-
 export function RelationshipNetwork({ agentId, relationships, internalRelationships, agents }: RelationshipNetworkProps) {
   const { t } = useTranslation()
 
