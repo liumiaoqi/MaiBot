@@ -1,70 +1,44 @@
 /**
  * useDashboardData —— 仪表盘统计数据领域 hook（页面逻辑下沉）。
  *
- * useQuery 化（5min staleTime）——替代原版手写 Map 模块级缓存 + getCachedDashboardData/getStaleDashboardData。
- * 保留伪加载进度条 effect（独立 effect 与 useQuery loading 态解耦）。
- * fetchDashboardData 内部改 invalidateQueries，对外返回值结构不变。
+ * useQuery 化（5min staleTime + refetchOnWindowFocus）——替代原版手写 Map 模块级缓存
+ * + getCachedDashboardData/getStaleDashboardData。统一走 useApiQuery 包装。
+ *
+ * P2 清理：伪加载进度条（loadingProgress 8 级 setTimeout effect）已删除——
+ * 无任何 UI 消费（home-page 只解构 dashboardData），与 useQuery loading 态解耦的
+ * 视觉进度无意义；loading 直接暴露 useQuery 的 loading。
+ *
+ * force 契约简化说明（P2）：design §2.2.2.2 承诺 fetchDashboardData(force?: boolean)——
+ * invalidateQueries 对 active 查询总是重新拉取（即 force=true 语义），且当前无消费者传 force，
+ * 故保持无参形式（fetchDashboardData = refresh），对外返回值结构不变。
  */
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { backendApi } from '@/lib/http'
 
+import { useApiQuery } from './use-api-query'
 import { DEFAULT_TIME_RANGE, type DashboardData } from '../types'
 
 export function useDashboardData() {
-  const queryClient = useQueryClient()
   const [timeRange, setTimeRange] = useState(DEFAULT_TIME_RANGE)
-  const [loadingProgress, setLoadingProgress] = useState(0)
 
-  const { data: dashboardData, isLoading: loading } = useQuery<DashboardData>({
-    queryKey: ['api', 'statistics', 'dashboard', { hours: timeRange }],
-    queryFn: () => backendApi.get<DashboardData>('/api/webui/statistics/dashboard', {
-      query: { hours: timeRange },
-    }),
-    staleTime: 5 * 60_000,
-  })
-
-  const fetchDashboardData = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['api', 'statistics', 'dashboard'] })
-  }, [queryClient])
-
-  // 伪加载进度条效果（与 useQuery loading 态解耦——独立 effect 驱动视觉进度）
-  useEffect(() => {
-    if (!loading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 伪加载进度条：loading=false 时置 100%，spec §4.1 mode 7 明确要求
-      setLoadingProgress(100)
-      return
-    }
-
-    // 先归零，再逐级递增（用 0ms 定时器避免在 effect 同步体内 setState）
-    const timer0 = setTimeout(() => setLoadingProgress(0), 0)
-    const timer1 = setTimeout(() => setLoadingProgress(15), 200)
-    const timer2 = setTimeout(() => setLoadingProgress(30), 800)
-    const timer3 = setTimeout(() => setLoadingProgress(45), 2000)
-    const timer4 = setTimeout(() => setLoadingProgress(60), 4000)
-    const timer5 = setTimeout(() => setLoadingProgress(75), 6500)
-    const timer6 = setTimeout(() => setLoadingProgress(85), 9000)
-    const timer7 = setTimeout(() => setLoadingProgress(92), 11000)
-
-    return () => {
-      clearTimeout(timer0)
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-      clearTimeout(timer3)
-      clearTimeout(timer4)
-      clearTimeout(timer5)
-      clearTimeout(timer6)
-      clearTimeout(timer7)
-    }
-  }, [loading])
+  const { data, loading, refresh } = useApiQuery<DashboardData>(
+    ['api', 'statistics', 'dashboard', { hours: timeRange }],
+    () =>
+      backendApi.get<DashboardData>('/api/webui/statistics/dashboard', {
+        query: { hours: timeRange },
+      }),
+    {
+      staleTime: 5 * 60_000,
+      refetchOnWindowFocus: true,
+    },
+  )
 
   return {
-    dashboardData: dashboardData ?? null,
+    dashboardData: data ?? null,
     loading,
-    loadingProgress,
     timeRange,
     setTimeRange,
-    fetchDashboardData,
+    fetchDashboardData: refresh,
   }
 }

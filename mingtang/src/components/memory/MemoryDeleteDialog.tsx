@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+/**
+ * MemoryDeleteDialog 删除预览/执行对话框（dashboard 源组件——知识图谱删除流程用）
+ *
+ * P2 清理（rAF 收编）：原 3 个 requestAnimationFrame effect（预览变化复位搜索/页码、
+ * 搜索变化重置页码、页码超界回拉）全部由 useClientSideList 收编——
+ * 筛选变化自动重置页码、页码超界自动回拉内聚在 hook 内（React 官方「渲染期调整状态」
+ * 模式，无 effect、无 rAF）；新预览 / 开关对话框通过 key 重挂载预览面板复位搜索与页码。
+ * 与 biz/memory-delete-dialog.tsx（R4-2-14 搬移版）同款模式。
+ */
+import { useMemo, useState } from 'react'
 import { AlertTriangle, RotateCcw, Search, Trash2 } from 'lucide-react'
+
+import { useClientSideList } from '@/hooks/useClientSideList'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +33,38 @@ import type {
 } from '@/lib/memory-api'
 
 const DELETE_PREVIEW_PAGE_SIZE = 8
+
+/** 预览项列表的客户端筛选状态（useClientSideList 的 filters 形状；引用变化即筛选变化） */
+interface PreviewItemFilters {
+  search: string
+}
+
+/** 预览项过滤：item_type / hash / item_key / label / preview / source 关键词（与旧实现逐字一致） */
+function filterPreviewItems(
+  items: MemoryDeletePreviewItemPayload[],
+  filters: PreviewItemFilters,
+): MemoryDeletePreviewItemPayload[] {
+  const keyword = filters.search.trim().toLowerCase()
+  if (!keyword) {
+    return items
+  }
+  return items.filter((item) =>
+    [
+      item.item_type,
+      item.item_hash,
+      item.item_key,
+      item.label,
+      item.preview,
+      item.source,
+    ]
+      .map((value) => String(value ?? '').toLowerCase())
+      .some((value) => value.includes(keyword)),
+  )
+}
+
+function getPreviewItemId(item: MemoryDeletePreviewItemPayload): string {
+  return `${item.item_type}:${item.item_hash}:${item.item_key ?? ''}`
+}
 
 function formatMode(mode: string): string {
   switch (mode) {
@@ -66,6 +109,73 @@ function PreviewItemList({ items }: { items: MemoryDeletePreviewItemPayload[] })
   )
 }
 
+/** 预览项搜索 + 分页面板（useClientSideList 自管状态；key 变化 = 新预览/开关对话框 → 重挂载复位） */
+function PreviewItemsPane({ items }: { items: MemoryDeletePreviewItemPayload[] }) {
+  const [itemSearch, setItemSearch] = useState('')
+  const filters = useMemo(() => ({ search: itemSearch }), [itemSearch])
+  const list = useClientSideList({
+    items,
+    filters,
+    pageSize: DELETE_PREVIEW_PAGE_SIZE,
+    filter: filterPreviewItems,
+    getId: getPreviewItemId,
+  })
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-sm font-semibold">本次将删除的对象摘要</div>
+          <div className="text-xs text-muted-foreground">
+            命中 {list.filtered.length} / {items.length} 项
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 md:min-w-[300px]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={itemSearch}
+              onChange={(event) => setItemSearch(event.target.value)}
+              placeholder="搜索类型 / hash / item_key / source"
+              className="pl-8"
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>第 {list.page} / {list.totalPages} 页</span>
+            <span>每页 {DELETE_PREVIEW_PAGE_SIZE} 项</span>
+          </div>
+        </div>
+      </div>
+      <ScrollArea className="h-[320px] rounded-lg border bg-background/60">
+        <div className="p-3">
+          <PreviewItemList items={list.paged} />
+        </div>
+      </ScrollArea>
+      <div className="flex items-center justify-between gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => list.setPage((current) => Math.max(1, current - 1))}
+          disabled={list.page <= 1}
+        >
+          上一页
+        </Button>
+        <div className="text-xs text-muted-foreground">
+          支持按对象类型、hash、item_key、source 和预览内容检索
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => list.setPage((current) => Math.min(list.totalPages, current + 1))}
+          disabled={list.page >= list.totalPages}
+        >
+          下一页
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 interface MemoryDeleteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -95,63 +205,18 @@ export function MemoryDeleteDialog({
   onExecute,
   onRestore,
 }: MemoryDeleteDialogProps) {
-  const [itemSearch, setItemSearch] = useState('')
-  const [itemPage, setItemPage] = useState(1)
   const counts = preview?.counts ?? result?.counts ?? {}
   const previewSources = Array.isArray(preview?.sources) ? preview.sources : []
   const previewItems = useMemo(
     () => Array.isArray(preview?.items) ? preview.items : [],
     [preview],
   )
-  const filteredPreviewItems = useMemo(() => {
-    const keyword = itemSearch.trim().toLowerCase()
-    if (!keyword) {
-      return previewItems
-    }
-    return previewItems.filter((item) =>
-      [
-        item.item_type,
-        item.item_hash,
-        item.item_key,
-        item.label,
-        item.preview,
-        item.source,
-      ]
-        .map((value) => String(value ?? '').toLowerCase())
-        .some((value) => value.includes(keyword)),
-    )
-  }, [itemSearch, previewItems])
-  const itemPageCount = Math.max(1, Math.ceil(filteredPreviewItems.length / DELETE_PREVIEW_PAGE_SIZE))
-  const pagedPreviewItems = useMemo(() => {
-    const start = (itemPage - 1) * DELETE_PREVIEW_PAGE_SIZE
-    return filteredPreviewItems.slice(start, start + DELETE_PREVIEW_PAGE_SIZE)
-  }, [filteredPreviewItems, itemPage])
   const countBadges = [
     { key: 'entities', label: '实体', value: Number(counts.entities ?? 0) },
     { key: 'relations', label: '关系', value: Number(counts.relations ?? 0) },
     { key: 'paragraphs', label: '段落', value: Number(counts.paragraphs ?? 0) },
     { key: 'sources', label: '来源', value: Number(counts.sources ?? 0) },
   ].filter((item) => item.value > 0)
-
-  useEffect(() => {
-    const frameId = requestAnimationFrame(() => {
-      setItemSearch('')
-      setItemPage(1)
-    })
-    return () => cancelAnimationFrame(frameId)
-  }, [preview?.mode, preview?.item_count, open])
-
-  useEffect(() => {
-    const frameId = requestAnimationFrame(() => setItemPage(1))
-    return () => cancelAnimationFrame(frameId)
-  }, [itemSearch])
-
-  useEffect(() => {
-    if (itemPage > itemPageCount) {
-      const frameId = requestAnimationFrame(() => setItemPage(itemPageCount))
-      return () => cancelAnimationFrame(frameId)
-    }
-  }, [itemPage, itemPageCount])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,57 +265,11 @@ export function MemoryDeleteDialog({
                 ) : null}
               </div>
 
-              <div className="space-y-2">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="text-sm font-semibold">本次将删除的对象摘要</div>
-                    <div className="text-xs text-muted-foreground">
-                      命中 {filteredPreviewItems.length} / {previewItems.length} 项
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 md:min-w-[300px]">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={itemSearch}
-                        onChange={(event) => setItemSearch(event.target.value)}
-                        placeholder="搜索类型 / hash / item_key / source"
-                        className="pl-8"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>第 {itemPage} / {itemPageCount} 页</span>
-                      <span>每页 {DELETE_PREVIEW_PAGE_SIZE} 项</span>
-                    </div>
-                  </div>
-                </div>
-                <ScrollArea className="h-[320px] rounded-lg border bg-background/60">
-                  <div className="p-3">
-                    <PreviewItemList items={pagedPreviewItems} />
-                  </div>
-                </ScrollArea>
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setItemPage((current) => Math.max(1, current - 1))}
-                    disabled={itemPage <= 1}
-                  >
-                    上一页
-                  </Button>
-                  <div className="text-xs text-muted-foreground">
-                    支持按对象类型、hash、item_key、source 和预览内容检索
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setItemPage((current) => Math.min(itemPageCount, current + 1))}
-                    disabled={itemPage >= itemPageCount}
-                  >
-                    下一页
-                  </Button>
-                </div>
-              </div>
+              {/* 搜索/分页由 PreviewItemsPane 自管；key 变化（新预览/开关对话框）→ 重挂载复位 */}
+              <PreviewItemsPane
+                key={`${open}:${preview.mode}:${preview.item_count}`}
+                items={previewItems}
+              />
             </>
           ) : null}
 

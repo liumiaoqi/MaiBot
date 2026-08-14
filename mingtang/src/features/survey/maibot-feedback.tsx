@@ -1,49 +1,60 @@
 /**
  * 麦麦使用体验反馈问卷页面
+ *
+ * P2 清理：假 loading 三态删除——问卷配置是静态 import（maibotFeedbackSurvey），
+ * 页面立即渲染（无 spinner / 无「无法加载问卷配置」分支）；版本号改为后台预填：
+ * getMaiBotStatus 异步完成后更新 initialAnswers（失败降级为「获取失败」，不阻塞渲染）。
+ * 页面壳抽到 SurveyPageShell；标题/描述接 i18n survey.title / survey.description。
  */
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Loader2, AlertCircle, FileQuestion } from 'lucide-react'
 import { SurveyRenderer } from '@/components/survey'
 import { maibotFeedbackSurvey } from '@/config/surveys'
 import { getMaiBotStatus } from '@/lib/system-api'
-import type { SurveyConfig, QuestionAnswer } from '@/types/survey'
+import type { QuestionAnswer, SurveyConfig } from '@/types/survey'
+
+import { SurveyPageShell } from './survey-page-shell'
 
 export function MaiBotFeedbackSurveyPage() {
-  const [surveyConfig, setSurveyConfig] = useState<SurveyConfig | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [maibotVersion, setMaibotVersion] = useState<string>('未知版本')
+  const { t } = useTranslation()
+  const [maibotVersion, setMaibotVersion] = useState('未知版本')
 
-  // 初始化问卷配置，获取麦麦版本
+  // 版本后台预填：页面立即渲染，版本异步获取后填入（组件卸载后不再 setState）
   useEffect(() => {
-    const init = async () => {
+    let mounted = true
+
+    const loadVersion = async () => {
       try {
-        // 获取麦麦版本
         const status = await getMaiBotStatus()
-        setMaibotVersion(status.version || '未知版本')
+        if (mounted) {
+          setMaibotVersion(status.version || '未知版本')
+        }
       } catch (error) {
         console.error('Failed to get MaiBot version:', error)
-        setMaibotVersion('获取失败')
+        if (mounted) {
+          setMaibotVersion('获取失败')
+        }
       }
-
-      // 深拷贝配置以避免修改原始对象
-      const config = JSON.parse(JSON.stringify(maibotFeedbackSurvey)) as SurveyConfig
-      setSurveyConfig(config)
-      setIsLoading(false)
     }
 
-    init()
+    void loadVersion()
+    return () => {
+      mounted = false
+    }
   }, [])
 
-  // 预填充的答案（版本号自动填写）
-  const initialAnswers: QuestionAnswer[] = useMemo(() => [
-    {
-      questionId: 'maibot_version',
-      value: maibotVersion,
-    },
-  ], [maibotVersion])
+  // 深拷贝配置以避免修改原始对象（静态 import——挂载时派生一次）
+  const surveyConfig = useMemo(
+    () => JSON.parse(JSON.stringify(maibotFeedbackSurvey)) as SurveyConfig,
+    [],
+  )
+
+  // 预填充的答案（版本号自动填写——后台预填完成前为「未知版本」）
+  const initialAnswers: QuestionAnswer[] = useMemo(
+    () => [{ questionId: 'maibot_version', value: maibotVersion }],
+    [maibotVersion],
+  )
 
   // 提交成功回调
   const handleSubmitSuccess = useCallback(() => {}, [])
@@ -53,55 +64,17 @@ export function MaiBotFeedbackSurveyPage() {
     console.error('MaiBot Survey submission error:', error)
   }, [])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (!surveyConfig) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            无法加载问卷配置
-          </AlertDescription>
-        </Alert>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          重试
-        </Button>
-      </div>
-    )
-  }
-
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col p-4 sm:p-6">
-      {/* 页面标题 */}
-      <div className="mb-4 sm:mb-6 shrink-0">
-        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-          <FileQuestion className="h-8 w-8" strokeWidth={2} />
-          麦麦使用体验反馈问卷
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-          感谢您的反馈，帮助我们打造更好的 AI 伙伴
-        </p>
-      </div>
-
-      {/* 问卷内容 */}
-      <div className="flex-1 min-h-0">
-        <SurveyRenderer
-          config={surveyConfig}
-          initialAnswers={initialAnswers}
-          showProgress={true}
-          paginateQuestions={false}
-          onSubmitSuccess={handleSubmitSuccess}
-          onSubmitError={handleSubmitError}
-        />
-      </div>
-    </div>
+    <SurveyPageShell title={t('survey.title')} description={t('survey.description')}>
+      <SurveyRenderer
+        config={surveyConfig}
+        initialAnswers={initialAnswers}
+        showProgress={true}
+        paginateQuestions={false}
+        onSubmitSuccess={handleSubmitSuccess}
+        onSubmitError={handleSubmitError}
+      />
+    </SurveyPageShell>
   )
 }
 

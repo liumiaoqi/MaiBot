@@ -2,9 +2,9 @@
  * useDashboardData 测试（§4.1.1 测试先行）
  *
  * 核心验证：
- * - useQuery 化后缓存命中/过期/刷新（staleTime=5min）
+ * - useQuery 化后缓存命中/过期/刷新（staleTime=5min + refetchOnWindowFocus）
  * - timeRange 切换（queryKey 含 hours 维度）
- * - 伪加载进度条（8 级递增）
+ * - 伪加载进度条已删除（P2 清理——loadingProgress 无 UI 消费）
  * - fetchDashboardData(force) invalidateQueries
  */
 import { renderHook, waitFor, act } from '@testing-library/react'
@@ -72,7 +72,8 @@ describe('useDashboardData', () => {
     })
     expect(result.current.dashboardData?.summary.total_requests).toBe(100)
     expect(result.current.loading).toBe(false)
-    expect(result.current.loadingProgress).toBe(100)
+    // P2 清理：loadingProgress 已删除（伪加载进度条无 UI 消费）
+    expect('loadingProgress' in result.current).toBe(false)
   })
 
   it('timeRange 切换触发新请求（queryKey 含 hours 维度）', async () => {

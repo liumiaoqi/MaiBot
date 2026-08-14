@@ -11,14 +11,16 @@ interface ChatStreamCardProps {
   recentActivity: RecentActivity[]
 }
 
+/** 今日日期键（模块级常量——渲染期纯度：不在渲染中 new Date() 取当前时刻；跨零点需刷新页面更新） */
+const TODAY_KEY = new Date().toDateString()
+
 export function ChatStreamCard({ agentStats, recentActivity }: ChatStreamCardProps) {
   const { t } = useTranslation()
 
-  const todayActivity = recentActivity.filter((a) => {
-    const date = new Date(a.timestamp)
-    const now = new Date()
-    return date.toDateString() === now.toDateString()
-  })
+  // 渲染期只做纯数据过滤：活动时间与 TODAY_KEY 比较（无副作用、无当前时刻依赖）
+  const todayActivity = recentActivity.filter(
+    (a) => new Date(a.timestamp).toDateString() === TODAY_KEY,
+  )
 
   return (
     <Link to={"/chat-management" as never} className="block h-full">
