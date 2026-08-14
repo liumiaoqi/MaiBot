@@ -238,51 +238,14 @@ class MainSystem:
                 raise RuntimeError(f"关键组件初始化失败: {failed_names}")
             logger.warning(f"系统降级启动，失败组件: {failed_names}")
 
-        # ZG-1: 服务管理器接管运行时组件
-        from src.core.adapters.service_manager_adapter import ServiceManagerAdapter
+        # ZG-1: 服务管理器接管运行时组件（adopt——ServiceManagerAdapter 构造与
+        # ServiceManagerPort 注册已移入 CORE_SERVICES 相位 watchdog 启动项；
+        # adopt_from_startup 需 StartupResult，只能在 run() 完成后执行）
         from src.core.service_manager.descriptors import (
             get_dependency_relations,
             get_service_descriptors,
         )
-        from src.core.service_manager.lifecycle import ComponentActions
 
-        # 构建核心组件健康探针
-        probe_functions: dict = {}
-        if self._chat_manager_adapter is not None:
-            probe_functions["chat_manager_adapter"] = self._chat_manager_adapter.health_probe
-        if self._agent_registry is not None:
-            probe_functions["agent_registry"] = self._agent_registry.health_probe
-        if self._replyer_adapter is not None:
-            probe_functions["replyer_port"] = self._replyer_adapter.health_probe
-
-        # ZG-6 衔接 5：系统关闭谓词注入（恢复引擎关闭中不自动拉起组件）
-        def _system_shutting_down() -> bool:
-            try:
-                from src.core.system_state_port_registry import get_system_lifecycle_adapter
-
-                adapter = get_system_lifecycle_adapter()
-                return bool(adapter and adapter.is_shutting_down())
-            except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
-                port = get_error_escalation_port()
-                if port is not None:
-                    port.report(ErrorLevel.WARNING, "判断系统是否关闭失败", exception=exc)
-                return False
-
-        self._service_manager = ServiceManagerAdapter(
-            probe_functions=probe_functions,
-            lifecycle_state_getter=_system_shutting_down,
-            # ZG-15: plugin_runtime_v2 组件 stop 内嵌排空——
-            # HostEndpoint.stop 发 ShutdownRequest → Runner 端 mark_going +
-            # wait_drained + on_unload（引用计数驱动，非固定 sleep）
-            component_actions={
-                "plugin_runtime_v2": ComponentActions(
-                    stop_fn=self._stop_plugin_runtime_v2,
-                    start_fn=self._start_plugin_runtime_v2_stub,
-                ),
-            },
-        )
         await self._service_manager.adopt_from_startup(
             self._startup_result,
             get_service_descriptors(),
@@ -315,22 +278,10 @@ class MainSystem:
         else:
             await self._lifecycle_adapter.trigger_startup_complete_degraded()
 
-        # ZG-3: 注册 ServiceManagerPort + 启动看门狗
-        from src.core.service_manager_port_registry import set_service_manager_port
-
-        set_service_manager_port(self._service_manager)
-
-        from src.core.adapters.watchdog_adapter import WatchdogAdapter
-        from src.core.app_config_port_registry import get_app_config_port
-        from src.core.watchdog_port_registry import set_watchdog_port
-
-        watchdog_config = get_app_config_port().get_watchdog_config()
-        self._watchdog = WatchdogAdapter(config=watchdog_config)
-        set_watchdog_port(self._watchdog)
-        await self._watchdog.start(asyncio.get_running_loop())
-
-        # ZG-3: V1 Runner 批量注册到看门狗桥接（V1 在阶段 3 已启动，
-        # 早于看门狗；group_name ∈ {builtin, third_party}，v1-* 与 V2 runner-* 隔离；
+        # ZG-3: V1 Runner 批量注册到看门狗桥接（watchdog 本体已由 CORE_SERVICES
+        # 相位 watchdog 启动项注册；此处仅补 V1 supervisor 注册——依赖
+        # plugin_runtime 在 SUBSYSTEMS 相位已启动（supervisors 在 manager.start()
+        # 时才构建）；group_name ∈ {builtin, third_party}，v1-* 与 V2 runner-* 隔离；
         # 看门狗/管理器异常时降级跳过，不阻断启动链路）
         try:
             from src.plugin_runtime.integration import get_plugin_runtime_manager
@@ -348,15 +299,6 @@ class MainSystem:
             logger.warning(
                 "V1 Runner 注册到看门狗桥接失败，已降级跳过", exc_info=True
             )
-
-        async def _watchdog_touch_loop() -> None:
-            while True:
-                self._watchdog.touch()
-                await asyncio.sleep(watchdog_config.touch_interval_s)
-
-        self._watchdog_touch_task = asyncio.create_task(
-            _watchdog_touch_loop(), name="watchdog-touch"
-        )
 
         # ZG-8: 控制消息优先级接线（适配器实例化 + 订阅 + force 触发 + 状态联动）
         await self._init_control_message()
@@ -1279,6 +1221,99 @@ class MainSystem:
         from src.services.send_service import SendServiceMessagePortV2
 
         set_message_port_v2(SendServiceMessagePortV2())
+
+    @staticmethod
+    @startup_item(
+        name="watchdog",
+        phase=StartupPhase.CORE_SERVICES,
+        order=16,
+        critical=True,
+        depends_on=["app_config_port", "agent_registry", "chat_manager_adapter", "replyer_port"],
+        dependency_kind={
+            "app_config_port": DependencyKind.STRONG,
+            "agent_registry": DependencyKind.STRONG,
+            "chat_manager_adapter": DependencyKind.STRONG,
+            "replyer_port": DependencyKind.STRONG,
+        },
+    )
+    async def _init_watchdog_and_service_manager() -> None:
+        """ZG-3: ServiceManagerPort 注册 + 看门狗启动（CORE_SERVICES 相位）。
+
+        ZG-10 遗留 1：从 _init_components post-startup 段移入启动编排——
+        SUBSYSTEMS 相位组件（V2 Runner 注册看门狗等）早于 watchdog 注册，
+        每次启动刷「WatchdogPort 未注册」降级日志；提前注册后 SUBSYSTEMS 可见。
+
+        ServiceManagerAdapter 仅构造 + 注册 Port（adopt_from_startup 需
+        StartupResult，留在 run() 之后执行）；V1 Runner 批量注册依赖
+        plugin_runtime 已启动（SUBSYSTEMS 相位），留在 _init_components。
+        看门狗 touch 循环（长驻 task）在 init_fn 内创建后返回，不阻塞启动完成。
+        """
+        system = _require_main_system()
+
+        # ZG-1: 服务管理器接管运行时组件（构造 + Port 注册；adopt 延后）
+        from src.core.adapters.service_manager_adapter import ServiceManagerAdapter
+        from src.core.service_manager.lifecycle import ComponentActions
+        from src.core.service_manager_port_registry import set_service_manager_port
+
+        # 构建核心组件健康探针（依赖 chat_manager_adapter/agent_registry/replyer_port
+        # 已由 depends_on 保证先于本项执行）
+        probe_functions: dict = {}
+        if system._chat_manager_adapter is not None:
+            probe_functions["chat_manager_adapter"] = system._chat_manager_adapter.health_probe
+        if system._agent_registry is not None:
+            probe_functions["agent_registry"] = system._agent_registry.health_probe
+        if system._replyer_adapter is not None:
+            probe_functions["replyer_port"] = system._replyer_adapter.health_probe
+
+        # ZG-6 衔接 5：系统关闭谓词注入（恢复引擎关闭中不自动拉起组件）
+        def _system_shutting_down() -> bool:
+            try:
+                from src.core.system_state_port_registry import get_system_lifecycle_adapter
+
+                adapter = get_system_lifecycle_adapter()
+                return bool(adapter and adapter.is_shutting_down())
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "判断系统是否关闭失败", exception=exc)
+                return False
+
+        system._service_manager = ServiceManagerAdapter(
+            probe_functions=probe_functions,
+            lifecycle_state_getter=_system_shutting_down,
+            # ZG-15: plugin_runtime_v2 组件 stop 内嵌排空——
+            # HostEndpoint.stop 发 ShutdownRequest → Runner 端 mark_going +
+            # wait_drained + on_unload（引用计数驱动，非固定 sleep）
+            component_actions={
+                "plugin_runtime_v2": ComponentActions(
+                    stop_fn=system._stop_plugin_runtime_v2,
+                    start_fn=system._start_plugin_runtime_v2_stub,
+                ),
+            },
+        )
+        set_service_manager_port(system._service_manager)
+
+        # ZG-3: 启动看门狗（WatchdogAdapter.start 要求 ServiceManagerPort 已注册）
+        from src.core.adapters.watchdog_adapter import WatchdogAdapter
+        from src.core.app_config_port_registry import get_app_config_port
+        from src.core.watchdog_port_registry import set_watchdog_port
+
+        watchdog_config = get_app_config_port().get_watchdog_config()
+        system._watchdog = WatchdogAdapter(config=watchdog_config)
+        set_watchdog_port(system._watchdog)
+        await system._watchdog.start(asyncio.get_running_loop())
+
+        # 看门狗 touch 循环（长驻 task——init_fn 内创建后返回，不阻塞启动完成）
+        async def _watchdog_touch_loop() -> None:
+            while True:
+                system._watchdog.touch()
+                await asyncio.sleep(watchdog_config.touch_interval_s)
+
+        system._watchdog_touch_task = asyncio.create_task(
+            _watchdog_touch_loop(), name="watchdog-touch"
+        )
 
     @staticmethod
     @startup_item(

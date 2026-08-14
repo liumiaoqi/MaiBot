@@ -88,6 +88,28 @@ class StartupOrchestrator:
     def get_subsystem_status(self, name: str) -> ComponentStatus:
         return self._subsystem_status.get(name, ComponentStatus.PENDING)
 
+    def reclaim_after_startup(self) -> None:
+        """启动后回收一次性数据（对标 __init 回收）。
+
+        释放 item 声明元数据（含 init_fn 引用——闭包/绑定方法/模块引用可回收）、
+        运行时状态与相位结果、仲裁中间结构（依赖图/波次计划/屏障）。
+        保留运行期需要的数据：
+        - _core_readiness：get_core_readiness() 消费者（CoreReadinessPort）运行期在用；
+        - _start_time/_core_ready_time：纯数值，供 get_core_readiness 侧诊断；
+        - _subsystem_status：StartupResult.subsystem_status 与它共享同一 dict
+          （result 已持有引用，此处清空本对象引用不释放内存，故保留以维持
+          get_subsystem_status 可用）。
+
+        StartupResult 持有 phases/wave_info 的独立引用，清空本对象引用
+        不影响结果消费方（adopt_from_startup 等）。
+        """
+        self._items = {}
+        self._runtime_states = {}
+        self._phase_results = {}
+        self._wave_plan = None
+        self._graph = None
+        self._barrier = CoreReadinessBarrier()
+
     # ── 主流程 ───────────────────────────────────────────────────
 
     async def run(self) -> StartupResult:
@@ -187,12 +209,11 @@ class StartupOrchestrator:
         result = self._build_result(failed, degraded, skipped, failure_chains)
         await self._emit_startup_complete(result)
 
-        # 8. 释放仲裁中间结构（对标 __init 回收）
-        self._wave_plan = None
-        self._graph = None
-
-        # 9. 摘要
+        # 8. 摘要（依赖 _items/_runtime_states——必须在回收之前）
         self._emit_startup_summary(result)
+
+        # 9. 启动后回收一次性数据（对标 __init 回收：item 元数据/仲裁中间结构）
+        self.reclaim_after_startup()
         self._running = False
         _registry._running = False
         return result

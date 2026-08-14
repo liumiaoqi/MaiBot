@@ -157,6 +157,50 @@ class TestSkipAndDebug:
         )
 
 
+class TestReclaimAfterStartup:
+    """ZG-10 遗留 2：启动后回收一次性数据（item 元数据/仲裁中间结构）。"""
+
+    @pytest.mark.asyncio
+    async def test_run_reclaims_one_time_data(self) -> None:
+        """run() 尾部自动回收：_items/_runtime_states/_wave_plan/_graph 释放。"""
+        from src.core.startup.types import ComponentStatus
+
+        async def init_fn() -> None:
+            return None
+
+        orch = StartupOrchestrator()
+        orch.register(_desc(
+            "a", StartupPhase.CORE_SERVICES, init_fn=init_fn, critical=True,
+        ))
+        orch.register(_desc("b", StartupPhase.READY, depends_on=["a"]))
+        result = await orch.run()
+
+        # StartupResult 结果完整（消费方 adopt_from_startup 依赖）
+        assert result.ready is True
+        assert StartupPhase.CORE_SERVICES in result.wave_info
+        assert StartupPhase.READY in result.wave_info
+
+        # 一次性数据已回收
+        assert orch._items == {}
+        assert orch._runtime_states == {}
+        assert orch._wave_plan is None
+        assert orch._graph is None
+
+        # 运行期数据保留：核心就绪（get_core_readiness 消费者）
+        assert orch.get_core_readiness() is not None
+        # get_subsystem_status 仍可用
+        assert orch.get_subsystem_status("a") == ComponentStatus.PENDING
+
+    @pytest.mark.asyncio
+    async def test_reclaim_keeps_result_phases_intact(self) -> None:
+        """回收后 StartupResult.phases 仍完整（result 持有独立引用）。"""
+        orch = StartupOrchestrator()
+        orch.register(_desc("a", StartupPhase.CORE_SERVICES, critical=True))
+        result = await orch.run()
+        assert StartupPhase.CORE_SERVICES in result.phases
+        assert orch._phase_results == {}
+
+
 class TestConfigFreeze:
     @pytest.mark.asyncio
     async def test_freeze_blocks_reload(self) -> None:

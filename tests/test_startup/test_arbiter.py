@@ -17,8 +17,8 @@ def _desc(name: str, phase: StartupPhase, **kw) -> StartupItemDesc:
     return StartupItemDesc(name=name, phase=phase, init_fn=_noop, **kw)
 
 
-def _make_33_items() -> dict[str, StartupItemDesc]:
-    """33 组件真实清单（与摸底报告/原型实验一致）。"""
+def _make_34_items() -> dict[str, StartupItemDesc]:
+    """34 组件真实清单（33 组件 + watchdog——ZG-10 遗留 1 移入启动编排）。"""
     items: dict[str, StartupItemDesc] = {}
     for name, phase in [
         ("config_manager", StartupPhase.CONFIG_LOAD),
@@ -41,6 +41,7 @@ def _make_33_items() -> dict[str, StartupItemDesc]:
         ("event_bus_port", StartupPhase.CORE_SERVICES),
         ("prompt_manager", StartupPhase.CORE_SERVICES),
         ("message_port_v2", StartupPhase.CORE_SERVICES),
+        ("watchdog", StartupPhase.CORE_SERVICES),
         ("plugin_runtime", StartupPhase.SUBSYSTEMS),
         ("ipc_bridge_port", StartupPhase.SUBSYSTEMS),
         ("plugin_runtime_v2", StartupPhase.SUBSYSTEMS),
@@ -57,7 +58,7 @@ def _make_33_items() -> dict[str, StartupItemDesc]:
     ]:
         items[name] = _desc(name, phase)
 
-    # 19 条依赖边（11 已声明 + 8 隐含）
+    # 23 条依赖边（11 已声明 + 8 隐含 + 4 watchdog）
     edges = [
         ("replyer_port", "chat_manager_adapter"),
         ("replyer_port", "agent_registry"),
@@ -78,6 +79,11 @@ def _make_33_items() -> dict[str, StartupItemDesc]:
         ("interaction_scheduler", "a_memorix"),
         ("plugin_runtime_v2", "app_config_port"),
         ("message_handlers", "message_ingestion_port"),
+        # watchdog 依赖（CORE_SERVICES 相位——SUBSYSTEMS 组件注册看门狗前置）
+        ("watchdog", "app_config_port"),
+        ("watchdog", "agent_registry"),
+        ("watchdog", "chat_manager_adapter"),
+        ("watchdog", "replyer_port"),
     ]
     for dep, base in edges:
         items[dep].depends_on.append(base)
@@ -85,10 +91,10 @@ def _make_33_items() -> dict[str, StartupItemDesc]:
 
 
 class TestArbitrate:
-    def test_33_components_wave_plan(self) -> None:
-        """33 组件 + 19 边 → SUBSYSTEMS 2 波次，全局无环。"""
+    def test_34_components_wave_plan(self) -> None:
+        """34 组件 + 23 边 → SUBSYSTEMS 2 波次，全局无环。"""
         arbiter = StartupArbiter()
-        plan = arbiter.arbitrate(_make_33_items())
+        plan = arbiter.arbitrate(_make_34_items())
         assert plan.total_waves >= 1
         # SUBSYSTEMS 2 波次（与原型实验一致）
         subs_waves = plan.phases[StartupPhase.SUBSYSTEMS]
@@ -96,14 +102,14 @@ class TestArbitrate:
         assert set(subs_waves[0]) == {"emoji_manager", "model_config_port_inject",
                                       "plugin_runtime", "plugin_runtime_v2"}
         assert set(subs_waves[1]) == {"a_memorix", "ipc_bridge_port"}
-        # 全部 33 项出现在波次中（排除屏障虚拟节点）
+        # 全部 34 项出现在波次中（排除屏障虚拟节点）
         flat = {n for waves in plan.phases.values() for wave in waves for n in wave}
         flat.discard(CoreReadinessBarrier.VIRTUAL_NODE_ID)
-        assert len(flat) == 33
+        assert len(flat) == 34
 
     def test_barrier_after_core_services(self) -> None:
         """屏障虚拟节点在 CORE_SERVICES 之后（SESSION_RESTORE 波次中位于贡献组件后）。"""
-        plan = StartupArbiter().arbitrate(_make_33_items())
+        plan = StartupArbiter().arbitrate(_make_34_items())
         barrier_id = CoreReadinessBarrier.VIRTUAL_NODE_ID
         # READY 相位波次中包含屏障
         ready_waves = plan.phases[StartupPhase.READY]
@@ -126,7 +132,7 @@ class TestArbitrate:
     def test_skip_names_excluded(self) -> None:
         """skip_names 中的项不出现在波次中。"""
         plan = StartupArbiter().arbitrate(
-            _make_33_items(), skip_names={"webui_server", "scheduled_tasks"}
+            _make_34_items(), skip_names={"webui_server", "scheduled_tasks"}
         )
         flat = {n for waves in plan.phases.values() for wave in waves for n in wave}
         assert "webui_server" not in flat
@@ -142,7 +148,7 @@ class TestArbitrate:
     def test_arbitrate_under_50ms(self) -> None:
         """仲裁计算耗时 < 50ms（性能约束）。"""
         start = time.monotonic()
-        StartupArbiter().arbitrate(_make_33_items())
+        StartupArbiter().arbitrate(_make_34_items())
         elapsed_ms = (time.monotonic() - start) * 1000
         assert elapsed_ms < 50
 
