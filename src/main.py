@@ -342,7 +342,7 @@ class MainSystem:
                     if supervisor is None:
                         logger.warning("ZG-5 OOM 处置: v2 插件运行时未就绪，无法杀除 %s", plugin_id)
                         return False
-                    return await supervisor.kill_runner(f"runner-{plugin_id}")
+                    return await supervisor.kill_runner(plugin_id)
                 except Exception as exc:
                     from src.core.error_escalation.types import ErrorLevel
                     from src.core.error_escalation_port_registry import get_error_escalation_port

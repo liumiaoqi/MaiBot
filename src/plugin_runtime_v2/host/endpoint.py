@@ -65,6 +65,8 @@ class HostEndpoint:
         self._storage_service = storage_service
         self._cleanup_task: asyncio.Task | None = None
         self._actual_listen_address: str = ""
+        # ZG16-3：激活编排器（供 stop 逆序卸载用，bootstrap 注入）
+        self._activation_coordinator = None
 
     async def start(self) -> None:
         """启动 gRPC 服务器，开始监听 Runner 连接。
@@ -94,23 +96,37 @@ class HostEndpoint:
         )
 
     async def stop(self) -> None:
-        """优雅关停：向所有 Runner 发送 ShutdownRequest，等待排空，停止服务器。"""
+        """优雅关停：按依赖图逆序卸载，联动 refcount drain。"""
         if self._server is None:
             return
 
         drain_ms = self._cfg.default_drain_timeout_ms
         runners = list(self._registry.get_all().keys())
         if runners:
-            # 向所有已连接 Runner 发送 ShutdownRequest
-            for runner_id in runners:
-                logger.info(
-                    "向 Runner %s 发送 ShutdownRequest，drain=%dms",
-                    runner_id, drain_ms,
-                )
-                self._heartbeat_mgr.stop(runner_id)
-                self._servicer.request_shutdown(
-                    runner_id, reason="host_shutdown", drain_ms=drain_ms,
-                )
+            if self._activation_coordinator is not None:
+                # ZG16-3：按依赖图逆序卸载（依赖方先于被依赖方）
+                unload_order = self._activation_coordinator.plan_unload(set(runners))
+                for runner_id in unload_order:
+                    logger.info(
+                        "向 Runner %s 发送 ShutdownRequest（逆序卸载），drain=%dms",
+                        runner_id, drain_ms,
+                    )
+                    self._heartbeat_mgr.stop(runner_id)
+                    self._servicer.request_shutdown(
+                        runner_id, reason="host_shutdown", drain_ms=drain_ms,
+                    )
+                    self._activation_coordinator.on_plugin_unloaded(runner_id)
+            else:
+                # 无 coordinator fallback 原顺序（向后兼容）
+                for runner_id in runners:
+                    logger.info(
+                        "向 Runner %s 发送 ShutdownRequest，drain=%dms",
+                        runner_id, drain_ms,
+                    )
+                    self._heartbeat_mgr.stop(runner_id)
+                    self._servicer.request_shutdown(
+                        runner_id, reason="host_shutdown", drain_ms=drain_ms,
+                    )
 
             # 等待排空
             if drain_ms > 0:
@@ -171,6 +187,10 @@ class HostEndpoint:
         self._supervisor = supervisor
         if hasattr(self, "_servicer") and self._servicer is not None:
             self._servicer._supervisor = supervisor
+
+    def set_activation_coordinator(self, coordinator) -> None:
+        """注入 ActivationCoordinator（ZG16-3，供 stop 逆序卸载用）。"""
+        self._activation_coordinator = coordinator
 
     def get_supervisor(self):
         """返回 RunnerSupervisor（未设置时 None）。"""

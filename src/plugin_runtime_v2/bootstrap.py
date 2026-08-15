@@ -88,28 +88,41 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
         endpoint.set_supervisor(supervisor)
 
         plugins_root = Path("plugins-v2")
-        plugin_dirs = sorted(
-            d for d in plugins_root.iterdir()
-            if d.is_dir() and ((d / "manifest.json").is_file() or (d / "_manifest.json").is_file())
-        ) if plugins_root.is_dir() else []
 
-        spawned = 0
-        for plugin_dir in plugin_dirs:
-            runner_id = f"runner-{plugin_dir.name}"
-            try:
-                await supervisor.spawn_and_wait(runner_id, str(plugin_dir))
-                spawned += 1
-            except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
-                port = get_error_escalation_port()
-                if port is not None:
-                    port.report(ErrorLevel.ERROR, "启动 V2 Runner 失败", exception=exc)
-                logger.error("spawn Runner %s 失败: %s", runner_id, exc)
-            if runner_spawn_count > 0 and spawned >= runner_spawn_count:
-                break
+        # ZG16-3：依赖解析 + 拓扑波次激活（替代 sorted 字母序）
+        from src.plugin_runtime_v2.host.activation_coordinator import ActivationCoordinator
 
-        if not plugin_dirs:
+        coordinator = ActivationCoordinator(supervisor)
+        endpoint.set_activation_coordinator(coordinator)
+
+        try:
+            await coordinator.plan_startup(plugins_root, runner_spawn_count)
+            spawned = len(coordinator.activated)
+        except Exception as exc:
+            # 依赖解析异常 fallback 字母序（design 2.5.5）
+            logger.warning("依赖解析失败，降级为字母序激活: %s", exc)
+            plugin_dirs = sorted(
+                d for d in plugins_root.iterdir()
+                if d.is_dir() and ((d / "manifest.json").is_file() or (d / "_manifest.json").is_file())
+            ) if plugins_root.is_dir() else []
+
+            spawned = 0
+            for plugin_dir in plugin_dirs:
+                runner_id = f"runner-{plugin_dir.name}"
+                try:
+                    await supervisor.spawn_and_wait(runner_id, str(plugin_dir))
+                    spawned += 1
+                except Exception as spawn_exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    port = get_error_escalation_port()
+                    if port is not None:
+                        port.report(ErrorLevel.ERROR, "启动 V2 Runner 失败", exception=spawn_exc)
+                    logger.error("spawn Runner %s 失败: %s", runner_id, spawn_exc)
+                if runner_spawn_count > 0 and spawned >= runner_spawn_count:
+                    break
+
+        if not plugins_root.is_dir() or not any(plugins_root.iterdir()):
             logger.warning("plugins-v2/ 下未发现有效插件目录")
         limit_desc = str(runner_spawn_count) if runner_spawn_count > 0 else "不限"
         logger.info("RunnerSupervisor 已创建，spawn %d 个 Runner (上限=%s)", spawned, limit_desc)
