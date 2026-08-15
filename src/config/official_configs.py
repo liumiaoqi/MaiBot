@@ -801,6 +801,48 @@ class ChatConfig(ConfigBase):
     )
     """私聊回复时参考的最近消息数量。"""
 
+    enable_token_budget: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Token 预算选择",
+                "en_US": "Token budget selection",
+                "ja_JP": "トークン予算選択",
+            },
+            "x-widget": "switch",
+            "x-icon": "toggle-right",
+        },
+    )
+    """灰度开关——true 启用 token 预算选择，false 保持条数模式 + 统计日志。"""
+
+    token_threshold_ratio: float = Field(
+        default=0.8,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Token 阈值比例",
+                "en_US": "Token threshold ratio",
+                "ja_JP": "トークン閾値比率",
+            },
+            "x-widget": "input",
+            "x-icon": "percent",
+        },
+    )
+    """触发裁切阈值比例——预算上限 = context_window × ratio，留 20% 余量给输出。"""
+
+    token_retain_ratio: float = Field(
+        default=0.16,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Token 保留比例",
+                "en_US": "Token retain ratio",
+                "ja_JP": "トークン保持比率",
+            },
+            "x-widget": "input",
+            "x-icon": "percent",
+        },
+    )
+    """尾部保留比例——尾部 context_window × ratio 逐字保留，确保最近对话不丢。"""
+
     enable_context_optimization: bool = Field(
         default=True,
         json_schema_extra={

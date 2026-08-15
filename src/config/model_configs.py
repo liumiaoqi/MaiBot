@@ -340,6 +340,15 @@ class ModelInfo(ConfigBase):
     )
     """模型级别最大token数（可选），会覆盖任务配置中的max_tokens"""
 
+    context_window: int | None = Field(
+        default=None,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "maximize",
+        },
+    )
+    """模型输入窗口大小 (token 数)。null 时 fallback 全局默认 (65536=64K, DeepSeek 起步)。"""
+
     force_stream_mode: bool = Field(
         default=False,
         json_schema_extra={

@@ -1,5 +1,5 @@
 [inner]
-version = "8.28.0"
+version = "8.28.1"
 
 [bot]
 platform = "qq" # 麦麦主账号所在的平台，例如 qq。
@@ -22,6 +22,10 @@ enable_context_optimization = true # 压缩部分上下文，减少模型消耗�
 mid_term_memory = true # 打开后会主动召回最近聊天发生的事情。
 mid_term_memory_lenth = 10 # 最多保留多少条聊天回想；设为 0 表示不保留。
 self_message_special_mark = true # 加强标记麦麦自己的消息，减少把自己当成别人的情况。
+# token 预算配置（ZG16-2）
+enable_token_budget = false # 灰度开关——true 启用 token 预算选择，false 保持条数模式 + 统计日志（灰度阶段 1 观察模式）。
+token_threshold_ratio = 0.8 # 触发裁切阈值比例——预算上限 = context_window × ratio，留 20% 余量给输出。
+token_retain_ratio = 0.16 # 尾部保留比例——尾部 context_window × ratio 逐字保留，确保最近对话不丢。
 
 [chat.reply_timing] # 什么时候回复、回复频率与等待退避配置。
 talk_value = 1.0 # 群聊里麦麦主动说话的频率；越小越安静。

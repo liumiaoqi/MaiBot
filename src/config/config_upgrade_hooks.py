@@ -414,6 +414,29 @@ def _add_agent_section_config(data: dict[str, Any]) -> list[str]:
     return ["agent"] if changed else []
 
 
+def _add_token_budget_config(data: dict[str, Any]) -> list[str]:
+    """8.28.1: 添加 token 预算配置项（ZG16-2）。"""
+    changed = set_nested_config_value(
+        data,
+        ("chat", "enable_token_budget"),
+        False,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("chat", "token_threshold_ratio"),
+        0.8,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("chat", "token_retain_ratio"),
+        0.16,
+        force=False,
+    )
+    return ["chat.token_budget"] if changed else []
+
+
 BOT_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = (
     ConfigUpgradeHook(
         target_version="8.10.11",
@@ -454,6 +477,11 @@ BOT_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = (
         target_version="8.15.0",
         config_names=("bot_config.toml",),
         migrate=_add_agent_section_config,
+    ),
+    ConfigUpgradeHook(
+        target_version="8.28.1",
+        config_names=("bot_config.toml",),
+        migrate=_add_token_budget_config,
     ),
 )
 MODEL_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = ()

@@ -46,6 +46,15 @@ from src.maisaka.context.messages import (
     prefetch_forward_nodes_for_messages,
 )
 from src.maisaka.context.history import normalize_tool_call_result_pairs
+from src.maisaka.context.token_estimator import (
+    DEFAULT_CONTEXT_WINDOW,
+    estimate_messages,
+    estimate_system_prompt,
+    estimate_tools_schema,
+)
+from src.maisaka.context.token_budget import select_by_token_budget
+from src.maisaka.context.grayscale_log import format_grayscale_log
+from src.maisaka.context.usage_anchor import usage_anchor
 from src.maisaka.memory.mid_term import is_mid_term_memory_message
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.focus import focus_mode_manager
@@ -1038,12 +1047,50 @@ class MaisakaChatLoopService:
         """
 
         enable_visual_message = self._resolve_enable_visual_message(request_kind)
+
+        all_tools: List[ToolDefinitionInput]
+        if tool_definitions is not None:
+            all_tools = list(tool_definitions)
+        elif self._tool_registry is not None:
+            availability_context = ToolAvailabilityContext(
+                session_id=self._session_id,
+                stream_id=self._session_id,
+                is_group_chat=self._is_group_chat,
+            )
+            tool_specs = await self._tool_registry.list_tools(availability_context)
+            all_tools = [tool_spec.to_llm_definition() for tool_spec in tool_specs]
+        else:
+            availability_context = ToolAvailabilityContext(
+                session_id=self._session_id,
+                stream_id=self._session_id,
+                is_group_chat=self._is_group_chat,
+            )
+            all_tools = [*get_builtin_tools(availability_context), *self._extra_tools]
+
+        _usage_prompt = None
+        try:
+            from src.core.model_config_port_registry import get_model_config_port
+
+            _model_port = get_model_config_port()
+            if _model_port is not None:
+                _model_config = _model_port.get_model_config()
+                _task_name = self._resolve_model_task_name(request_kind)
+                _task_config = getattr(_model_config.model_task_config, _task_name, None)
+                if _task_config is not None and _task_config.model_list:
+                    _model_name = _task_config.model_list[0]
+                    _usage_prompt = usage_anchor.get_baseline(
+                        _model_name, system_prompt or "", all_tools
+                    )
+        except Exception:
+            pass
+
         selected_history, selection_reason = self.select_llm_context_messages(
             chat_history,
             request_kind=request_kind,
             enable_visual_message=enable_visual_message,
             max_context_size=max_context_size,
             is_group_chat=self._is_group_chat,
+            usage_prompt=_usage_prompt,
         )
         await prefetch_forward_nodes_for_messages(selected_history)
         built_messages = self._build_request_messages(
@@ -1075,25 +1122,6 @@ class MaisakaChatLoopService:
 
             del _client
             return built_messages
-
-        all_tools: List[ToolDefinitionInput]
-        if tool_definitions is not None:
-            all_tools = list(tool_definitions)
-        elif self._tool_registry is not None:
-            availability_context = ToolAvailabilityContext(
-                session_id=self._session_id,
-                stream_id=self._session_id,
-                is_group_chat=self._is_group_chat,
-            )
-            tool_specs = await self._tool_registry.list_tools(availability_context)
-            all_tools = [tool_spec.to_llm_definition() for tool_spec in tool_specs]
-        else:
-            availability_context = ToolAvailabilityContext(
-                session_id=self._session_id,
-                stream_id=self._session_id,
-                is_group_chat=self._is_group_chat,
-            )
-            all_tools = [*get_builtin_tools(availability_context), *self._extra_tools]
 
         before_request_result = await self._get_runtime_manager().invoke_hook(
             "maisaka.planner.before_request",
@@ -1151,6 +1179,27 @@ class MaisakaChatLoopService:
             prompt_cache_hit_tokens=getattr(generation_result, "prompt_cache_hit_tokens", 0) or 0,
             prompt_cache_miss_tokens=getattr(generation_result, "prompt_cache_miss_tokens", 0) or 0,
         )
+
+        try:
+            _anchor_model = (generation_result.model_name or "").strip()
+            if _anchor_model and generation_result.prompt_tokens:
+                _anchor_estimated = (
+                    estimate_messages(
+                        selected_history,
+                        enable_visual_message=enable_visual_message,
+                    )
+                    + estimate_system_prompt(system_prompt or "")
+                    + estimate_tools_schema(all_tools)
+                )
+                usage_anchor.update_baseline(
+                    _anchor_model,
+                    system_prompt or "",
+                    all_tools,
+                    prompt_tokens=generation_result.prompt_tokens,
+                    estimated=_anchor_estimated,
+                )
+        except Exception as exc:
+            logger.warning(f"usage 锚定 baseline 更新失败: {exc}")
 
         final_reasoning = generation_result.reasoning or ""
         final_response = self._resolve_planner_response_content(generation_result.response or "", final_reasoning)
@@ -1236,6 +1285,29 @@ class MaisakaChatLoopService:
         )
 
     @staticmethod
+    def _resolve_context_window(request_kind: str) -> int:
+        """解析 context_window（ZG16-2）。null/非法时 fallback 全局默认 65536。"""
+        try:
+            from src.core.model_config_port_registry import get_model_config_port
+
+            port = get_model_config_port()
+            if port is None:
+                return DEFAULT_CONTEXT_WINDOW
+            model_config = port.get_model_config()
+            task_name = MODEL_TASK_NAME_BY_REQUEST_KIND.get(request_kind, "planner")
+            task_config = getattr(model_config.model_task_config, task_name, None)
+            if task_config is not None and task_config.model_list:
+                model_info = port.get_model_info(task_config.model_list[0])
+                if model_info.context_window and model_info.context_window > 0:
+                    return model_info.context_window
+            for model in model_config.models:
+                if model.context_window and model.context_window > 0:
+                    return model.context_window
+            return DEFAULT_CONTEXT_WINDOW
+        except Exception:
+            return DEFAULT_CONTEXT_WINDOW
+
+    @staticmethod
     def select_llm_context_messages(
         chat_history: List[LLMContextMessage],
         *,
@@ -1243,6 +1315,7 @@ class MaisakaChatLoopService:
         request_kind: str = "planner",
         max_context_size: Optional[int] = None,
         is_group_chat: Optional[bool] = None,
+        usage_prompt: Optional[int] = None,
     ) -> tuple[List[LLMContextMessage], str]:
         """选择LLM上下文消息"""
 
@@ -1250,14 +1323,6 @@ class MaisakaChatLoopService:
             chat_history,
             request_kind=request_kind,
         )
-        base_context_size = max(1, int(max_context_size or get_chat_config_port().get_max_context_size()))
-        effective_context_size = max(
-            base_context_size,
-            int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
-        )
-        selected_indices: List[int] = []
-        counted_message_count = 0
-
         active_enable_visual_message = (
             enable_visual_message
             if enable_visual_message is not None
@@ -1267,6 +1332,64 @@ class MaisakaChatLoopService:
             filtered_history,
             enable_visual_message=active_enable_visual_message,
         )
+
+        try:
+            enable_token_budget = get_chat_config_port().get_enable_token_budget()
+        except Exception:
+            logger.warning("读 enable_token_budget 配置异常，fallback 条数模式")
+            enable_token_budget = False
+
+        if enable_token_budget:
+            try:
+                context_window = MaisakaChatLoopService._resolve_context_window(request_kind)
+                threshold_ratio = get_chat_config_port().get_token_threshold_ratio()
+                retain_ratio = get_chat_config_port().get_token_retain_ratio()
+
+                budget_indices, token_est = select_by_token_budget(
+                    filtered_history,
+                    context_window=context_window,
+                    threshold_ratio=threshold_ratio,
+                    retain_ratio=retain_ratio,
+                    always_selected_indices=always_selected_indices,
+                    enable_visual_message=active_enable_visual_message,
+                )
+
+                if not budget_indices:
+                    return [], "实际发送 0 条消息（tool 0 条，普通消息 0 条）"
+
+                selected_history = [filtered_history[index] for index in budget_indices]
+                selected_history, _ = normalize_tool_call_result_pairs(selected_history)
+                tool_message_count = sum(
+                    1 for message in selected_history if isinstance(message, ToolResultMessage)
+                )
+                normal_message_count = len(selected_history) - tool_message_count
+                overflow_ratio = token_est / context_window if context_window > 0 else 0.0
+                grayscale = format_grayscale_log(
+                    count_result=len(selected_history),
+                    token_est=token_est,
+                    usage_prompt=usage_prompt,
+                    overflow_ratio=overflow_ratio,
+                )
+                selection_reason = (
+                    f"实际发送 {len(selected_history)} 条消息"
+                    f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
+                    f"|token预算 context_window={context_window}"
+                    f"|{grayscale}"
+                )
+                return (
+                    selected_history,
+                    selection_reason,
+                )
+            except Exception as exc:
+                logger.warning(f"token 预算路径异常，降级回条数模式: {exc}")
+
+        base_context_size = max(1, int(max_context_size or get_chat_config_port().get_max_context_size()))
+        effective_context_size = max(
+            base_context_size,
+            int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
+        )
+        selected_indices: List[int] = []
+        counted_message_count = 0
 
         for index in range(len(filtered_history) - 1, -1, -1):
             message = filtered_history[index]
@@ -1295,11 +1418,31 @@ class MaisakaChatLoopService:
         tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
         normal_message_count = len(selected_history) - tool_message_count
         stability_text = f"|cache_window {base_context_size}->{effective_context_size}"
+
+        grayscale = ""
+        try:
+            token_est = estimate_messages(
+                selected_history,
+                enable_visual_message=active_enable_visual_message,
+            )
+            context_window = MaisakaChatLoopService._resolve_context_window(request_kind)
+            overflow_ratio = token_est / context_window if context_window > 0 else 0.0
+            grayscale = format_grayscale_log(
+                count_result=len(selected_history),
+                token_est=token_est,
+                usage_prompt=usage_prompt,
+                overflow_ratio=overflow_ratio,
+            )
+        except Exception:
+            pass
+
         selection_reason = (
             f"实际发送 {len(selected_history)} 条消息"
             f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
             f"{stability_text}"
         )
+        if grayscale:
+            selection_reason = f"{selection_reason}|{grayscale}"
         return (
             selected_history,
             selection_reason,

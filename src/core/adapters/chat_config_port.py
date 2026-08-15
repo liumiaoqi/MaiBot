@@ -31,6 +31,15 @@ class GlobalConfigChatConfigPort:
     def get_max_private_context_size(self) -> int:
         return self._get_chat().max_private_context_size
 
+    def get_enable_token_budget(self) -> bool:
+        return self._get_chat().enable_token_budget
+
+    def get_token_threshold_ratio(self) -> float:
+        return self._get_chat().token_threshold_ratio
+
+    def get_token_retain_ratio(self) -> float:
+        return self._get_chat().token_retain_ratio
+
     def get_self_message_special_mark(self) -> str:
         return self._get_chat().self_message_special_mark
 
