@@ -1,4 +1,9 @@
-"""Maisaka 启发式长期记忆自然拉起服务。"""
+"""Maisaka 启发式长期记忆自然拉起服务。
+
+⚠️ 已退役（2026-08-15 ZH 决策——zh_memory_layer_decision_0815.md）：
+核心能力已被 A_memorix IntuitionEngine 直觉召回吸收（ZH 计划书 2026-08-06）。
+保留仅作历史参考：不接线、不维护、勿扩展。
+"""
 
 
 from collections import deque
