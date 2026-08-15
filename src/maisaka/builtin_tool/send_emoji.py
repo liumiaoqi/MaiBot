@@ -334,6 +334,161 @@ def _is_missing_visual_model_error(exc: Exception) -> bool:
     return _EMOJI_VLM_NOT_CONFIGURED_MESSAGE in error_text or "未找到名为 '' 的模型" in error_text
 
 
+# ZG16-4 ASCII 降级路径（无 vision 模型时用 ASCII 灰度文本替代图片）
+_ascii_image_cache_instance: Optional[Any] = None
+
+
+def _get_ascii_image_cache() -> Any:
+    """获取或懒初始化 ASCII 预渲染缓存单例。"""
+    global _ascii_image_cache_instance
+    if _ascii_image_cache_instance is not None:
+        return _ascii_image_cache_instance
+    from src.core.app_config_port_registry import get_app_config_port
+    from src.emoji_system.ascii_image_cache import AsciiImageCache
+
+    port = get_app_config_port()
+    _ascii_image_cache_instance = AsciiImageCache(
+        max_size=port.get_ascii_cache_max_size(),
+        column_width=port.get_ascii_column_width(),
+        charset=port.get_ascii_charset(),
+        main_color_count=port.get_ascii_main_color_count(),
+    )
+    return _ascii_image_cache_instance
+
+
+def _is_ascii_fallback_enabled() -> bool:
+    """检查 ASCII 降级是否启用：ASCII 开关开启（vision 不可用由调用方判断）。"""
+    from src.core.app_config_port_registry import get_app_config_port
+
+    return bool(get_app_config_port().get_enable_ascii_image())
+
+
+def _build_emoji_text_candidate_prompt(
+    sampled_emojis: list[MaiEmoji],
+    ascii_texts: list[str],
+    reasoning: str,
+) -> str:
+    """拼接候选表情的 ASCII + 描述/情绪标签为文本 prompt（替代既有拼图）。"""
+    sections: list[str] = []
+    for index, (emoji, ascii_text) in enumerate(zip(sampled_emojis, ascii_texts, strict=False), start=1):
+        description = emoji.description.strip() if emoji.description else ""
+        emotions = emoji.emotion if emoji.emotion else []
+        sections.append(
+            f"[候选 {index}]\n"
+            f"{ascii_text}\n"
+            f"描述：{description or '无描述辅助'}\n"
+            f"情绪标签：{emotions}"
+        )
+    candidate_block = "\n\n".join(sections)
+    return (
+        "请根据上下文选择最合适的表情包。\n\n"
+        f"上下文/理由：{reasoning}\n\n"
+        f"候选表情：\n{candidate_block}\n\n"
+        '请返回 JSON：{"emoji_index": <1-based 序号>, "reason": "<选择理由>"}'
+    )
+
+
+async def _select_emoji_with_text_fallback(
+    tool_ctx: BuiltinToolRuntimeContext,
+    sampled_emojis: list[MaiEmoji],
+    reasoning: str,
+    selection_metadata: Optional[Dict[str, Any]] = None,
+) -> tuple[MaiEmoji | None, str]:
+    """文本降级选择：候选 ASCII + 描述/情绪标签 → 文本子代理选择。
+
+    Returns:
+        (选中表情, reason)
+    """
+    if not sampled_emojis:
+        return None, ""
+
+    logger.info(f"{tool_ctx.runtime.log_prefix} 无 vision 模型，启用 ASCII 降级选择表情")
+
+    # 取候选 ASCII（全未命中时实时渲染所有候选）
+    cache = _get_ascii_image_cache()
+    ascii_texts: list[str] = []
+    for emoji in sampled_emojis:
+        emoji_hash = emoji.file_hash or ""
+        if not emoji_hash:
+            ascii_texts.append("")
+            continue
+        try:
+            emoji_bytes = await _load_emoji_bytes(emoji)
+            ascii_text = await cache.get_or_render(emoji_hash, emoji_bytes)
+            ascii_texts.append(ascii_text or "")
+        except Exception as exc:
+            logger.warning(f"[send_emoji] 候选 {emoji_hash} ASCII 渲染失败: {exc}")
+            ascii_texts.append("")
+
+    # 拼文本 prompt
+    text_prompt = _build_emoji_text_candidate_prompt(sampled_emojis, ascii_texts, reasoning)
+    prompt_message = ReferenceMessage(
+        content=text_prompt,
+        timestamp=datetime.now(),
+        reference_type=ReferenceMessageType.TOOL_HINT,
+        remaining_uses_value=1,
+        display_prefix="[表情包选择任务-ASCII降级]",
+    )
+
+    # 调文本子代理（不请求 vision 能力）
+    selection_started_at = datetime.now()
+    response = await tool_ctx.runtime.run_sub_agent(
+        context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
+        system_prompt="你是表情包选择助手，请从候选中选出最合适的一个。",
+        extra_messages=[prompt_message],
+        request_kind="emotion",
+        capabilities=["text_generation"],
+    )
+    selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
+
+    selection_metrics: Dict[str, Any] = {
+        "model_name": getattr(response, "model_name", "") or "",
+        "prompt_tokens": response.prompt_tokens,
+        "completion_tokens": response.completion_tokens,
+        "total_tokens": response.total_tokens,
+        "overall_ms": selection_duration_ms,
+        "ascii_fallback": True,
+    }
+    if response.prompt_html_uri and selection_metadata is not None:
+        selection_metadata["prompt_html_uri"] = response.prompt_html_uri
+
+    # 解析结果（失败回退候选首项）
+    try:
+        selection = EmojiSelectionResult.model_validate_json(response.content or "")
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, '表情包 ASCII 降级结果解析失败，将回退到候选首项', exception=exc)
+        logger.warning(f"{tool_ctx.runtime.log_prefix} 表情包 ASCII 降级结果解析失败，将回退到候选首项: {exc}")
+        if selection_metadata is not None:
+            selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
+                request_message_count=1,
+                output_text=response.content or "",
+                metrics=selection_metrics,
+                extra_sections=[{"title": "解析异常", "content": str(exc)}],
+            )
+        fallback_emoji = sampled_emojis[0] if sampled_emojis else None
+        return fallback_emoji, ""
+
+    if selection_metadata is not None:
+        selection_metadata["reason"] = selection.reason.strip()
+        selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
+            reasoning_text=selection.reason,
+            output_text=response.content or "",
+            metrics=selection_metrics,
+        )
+
+    # 校验序号（无效序号回退首项）
+    emoji_index = int(selection.emoji_index)
+    if emoji_index < 1 or emoji_index > len(sampled_emojis):
+        logger.warning(f"{tool_ctx.runtime.log_prefix} ASCII 降级返回无效序号: {emoji_index!r}，将回退到第 1 张")
+        emoji_index = 1
+
+    return sampled_emojis[emoji_index - 1], ""
+
+
 async def _render_emoji_selection_system_prompt(
     *,
     emoji_count: int,
@@ -358,7 +513,7 @@ async def _select_emoji_with_sub_agent(
 ) -> tuple[MaiEmoji | None, str]:
     """通过临时子代理从候选表情包中选出一个结果。"""
 
-    del reasoning, context_texts, sample_size
+    del context_texts, sample_size
 
     available_emojis = list(emoji_manager.emojis)
     if not available_emojis:
@@ -407,6 +562,11 @@ async def _select_emoji_with_sub_agent(
         if port is not None:
             port.report(ErrorLevel.WARNING, '[send_emoji] 无 vision 模型，降级纯文本模式', exception=exc)
         logger.warning(f"[send_emoji] 无 vision 模型，降级纯文本模式: {exc}")
+        # ZG16-4 ASCII 降级路径（vision 不可用 + ASCII 开关开启时走文本降级）
+        if _is_ascii_fallback_enabled():
+            return await _select_emoji_with_text_fallback(
+                tool_ctx, sampled_emojis, reasoning, selection_metadata
+            )
         raise RuntimeError(_EMOJI_VLM_NOT_CONFIGURED_MESSAGE) from exc
 
     selection_started_at = datetime.now()

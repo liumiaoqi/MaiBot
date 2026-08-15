@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
+import asyncio
 import os
 import time
 import traceback
@@ -9,7 +10,9 @@ import traceback
 from maim_message import MessageBase
 
 from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiver
+from src.common.data_models.message_component_data_model import ImageComponent
 from src.common.logger import get_logger
+from src.common.utils.utils_image import ImageUtils
 from src.common.utils.utils_message import MessageUtils
 from src.common.utils.utils_session import SessionUtils
 from src.core.app_config_port_registry import get_app_config_port
@@ -32,6 +35,77 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..
 
 # 配置主程序日志格式
 logger = get_logger("chat")
+
+
+# ZG16-4 ASCII 看图（无 vision 降级 + 图片接收链路）
+
+
+def _resolve_has_vision_model() -> bool:
+    """检查当前是否配置了可用的 vision 模型。
+
+    注意：此处为全局检查（有无 vision 模型），非 design 3.1.3 声明的
+    per-request_kind 解析（MaisakaChatLoopService._resolve_enable_visual_message）。
+    单模型场景下语义等价；多模型混配场景（配置有 vision 模型但当前请求用
+    无 vision 模型）可能误判不触发 ASCII——待多模型场景落地后复用既有解析。
+    """
+    try:
+        from src.core.model_config_port_registry import get_model_config_port
+
+        port = get_model_config_port()
+        if port is None:
+            return False
+        port.resolve_by_capability(["vision"])
+        return True
+    except Exception:
+        return False
+
+
+def _should_render_ascii(enable_visual_message: bool) -> bool:
+    """判断是否触发 ASCII 渲染：无 vision + ASCII 开关开启。"""
+    return not enable_visual_message and get_app_config_port().get_enable_ascii_image()
+
+
+async def _render_ascii_for_image_components(
+    message: SessionMessage,
+    *,
+    enable_visual_message: bool,
+) -> None:
+    """对消息中的 ImageComponent 条件性渲染 ASCII。
+
+    仅当 enable_visual_message=False 且 ASCII 开关开启时触发。
+    渲染成功写入 content + 清空 binary_data；失败降级为既有占位符路径。
+    """
+    if not _should_render_ascii(enable_visual_message):
+        return
+
+    port = get_app_config_port()
+    column_width = port.get_ascii_column_width()
+    charset = port.get_ascii_charset()
+    main_color_count = port.get_ascii_main_color_count()
+
+    for component in message.raw_message.components:
+        if not isinstance(component, ImageComponent):
+            continue
+        if not component.binary_data:
+            continue
+        ascii_text = await asyncio.to_thread(
+            ImageUtils.to_ascii,
+            component.binary_data,
+            column_width=column_width,
+            charset=charset,
+            main_color_count=main_color_count,
+        )
+        if ascii_text is not None:
+            component.content = ascii_text
+            component.binary_data = b""
+        else:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+
+            esc_port = get_error_escalation_port()
+            if esc_port is not None:
+                esc_port.report(ErrorLevel.WARN, "链路 ASCII 渲染失败，降级既有路径")
+            logger.warning("消息 %s 链路 ASCII 渲染失败，降级既有路径", message.message_id)
 
 
 def register_chat_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
@@ -217,7 +291,8 @@ class ChatBot:
             Any: 插件运行时管理器单例。
         """
 
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
+        # 遗留：v1 plugin_runtime.integration 直接导入，待迁移至 port_registry/IPC 桥接（核心隔离）
+        from src.plugin_runtime.integration import get_plugin_runtime_manager  # noqa: TID251
 
         return get_plugin_runtime_manager()
 
@@ -713,6 +788,12 @@ class ChatBot:
                     f"消息 {message.message_id} 入站过大图片处理完成: "
                     f"{'；'.join(image_process_details)}"
                 )
+
+            # ZG16-4 ASCII 渲染（无 vision + 开关开启时触发，在压缩之后、process() 之前）
+            await _render_ascii_for_image_components(
+                message,
+                enable_visual_message=_resolve_has_vision_model(),
+            )
 
             # T15 ZG-8 衔接：用户消息处理路径消费 pending 控制消息
             # （消费点 = 消息处理路径，spec §5.3.1 规则 5；未启用时透明跳过）

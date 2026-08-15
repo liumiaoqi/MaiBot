@@ -906,6 +906,96 @@ class ChatConfig(ConfigBase):
     )
     """加强标记麦麦自己的消息，减少把自己当成别人的情况。"""
 
+    # ZG16-4 ASCII 看图（无 vision 降级）
+    enable_ascii_image: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "ASCII 降级看图",
+                "en_US": "ASCII image fallback",
+                "ja_JP": "ASCII 画像フォールバック",
+            },
+            "x-widget": "switch",
+            "x-icon": "image",
+            "x-row": "ascii-image-controls",
+        },
+    )
+    """无 vision 模型时用 ASCII 灰度文本替代图片（默认关闭，向后兼容）。"""
+
+    ascii_column_width: int = Field(
+        default=48,
+        ge=32,
+        le=80,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "ASCII 列宽",
+                "en_US": "ASCII column width",
+                "ja_JP": "ASCII 列幅",
+            },
+            "x-widget": "input",
+            "x-icon": "image",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "ascii-image-controls",
+        },
+    )
+    """ASCII 文本列宽（范围 32-80）。"""
+
+    ascii_main_color_count: int = Field(
+        default=2,
+        ge=0,
+        le=3,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "主色块数量",
+                "en_US": "Main color count",
+                "ja_JP": "メインカラー数",
+            },
+            "x-widget": "input",
+            "x-icon": "image",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "ascii-image-controls",
+        },
+    )
+    """主色块标注数量（0=不标注，范围 0-3）。"""
+
+    ascii_cache_max_size: int = Field(
+        default=256,
+        ge=32,
+        le=2048,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "ASCII 缓存上限",
+                "en_US": "ASCII cache max size",
+                "ja_JP": "ASCII キャッシュ上限",
+            },
+            "x-widget": "input",
+            "x-icon": "image",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "ascii-image-controls",
+        },
+    )
+    """预渲染缓存 LRU 上限（范围 32-2048）。"""
+
+    ascii_charset: str = Field(
+        default="@%#*+=-:.",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "亮度字符集",
+                "en_US": "Luminance charset",
+                "ja_JP": "輝度文字セット",
+            },
+            "x-widget": "input",
+            "x-icon": "image",
+            "x-layout": "inline-right",
+            "x-input-width": "10rem",
+            "x-row": "ascii-image-controls",
+        },
+    )
+    """亮度字符集（暗→亮，长度 8-10）。"""
+
     reply_timing: ChatReplyTimingConfig = Field(default_factory=ChatReplyTimingConfig)
     """什么时候回复、回复频率与等待退避配置。"""
 

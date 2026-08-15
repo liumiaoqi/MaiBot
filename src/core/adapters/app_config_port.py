@@ -313,6 +313,21 @@ class GlobalConfigAppConfigPort:
     def get_chat_mid_term_memory(self) -> bool:
         return bool(self._get_cfg().chat.mid_term_memory)
 
+    def get_enable_ascii_image(self) -> bool:
+        return bool(getattr(self._get_cfg().chat, "enable_ascii_image", False))
+
+    def get_ascii_column_width(self) -> int:
+        return int(getattr(self._get_cfg().chat, "ascii_column_width", 48))
+
+    def get_ascii_main_color_count(self) -> int:
+        return int(getattr(self._get_cfg().chat, "ascii_main_color_count", 2))
+
+    def get_ascii_cache_max_size(self) -> int:
+        return int(getattr(self._get_cfg().chat, "ascii_cache_max_size", 256))
+
+    def get_ascii_charset(self) -> str:
+        return str(getattr(self._get_cfg().chat, "ascii_charset", "@%#*+=-:."))
+
     def get_expression_max_expression_learner(self) -> int:
         return int(self._get_cfg().expression.max_expression_learner or 0)
 

@@ -26,6 +26,12 @@ self_message_special_mark = true # 加强标记麦麦自己的消息，减少把
 enable_token_budget = false # 灰度开关——true 启用 token 预算选择，false 保持条数模式 + 统计日志（灰度阶段 1 观察模式）。
 token_threshold_ratio = 0.8 # 触发裁切阈值比例——预算上限 = context_window × ratio，留 20% 余量给输出。
 token_retain_ratio = 0.16 # 尾部保留比例——尾部 context_window × ratio 逐字保留，确保最近对话不丢。
+# ZG16-4 ASCII 看图（无 vision 降级）
+enable_ascii_image = false              # 是否启用 ASCII 降级看图（默认关闭，向后兼容）
+ascii_column_width = 48                 # ASCII 文本列宽（范围 32-80）
+ascii_main_color_count = 2              # 主色块标注数量（0=不标注，范围 0-3）
+ascii_cache_max_size = 256              # 预渲染缓存 LRU 上限（范围 32-2048）
+ascii_charset = "@%#*+=-:."             # 亮度字符集（暗→亮，长度 8-10）
 
 [chat.reply_timing] # 什么时候回复、回复频率与等待退避配置。
 talk_value = 1.0 # 群聊里麦麦主动说话的频率；越小越安静。

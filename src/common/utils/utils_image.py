@@ -270,3 +270,122 @@ class ImageUtils:
                 port.report(ErrorLevel.ERROR, '保存图片文件失败', exception=e)
             logger.error(f"保存图片文件失败: {e}")
             return False
+
+    # ── ZG16-4 ASCII 看图（无 vision 降级） ──────────────────────
+
+    # 预定义颜色名表（HEX → 名称，spec 6.2.4）
+    _COLOR_NAME_TABLE: dict[str, str] = {
+        "#FF0000": "红", "#FFA500": "橙", "#FFFF00": "黄", "#00FF00": "绿",
+        "#00FFFF": "青", "#0000FF": "蓝", "#800080": "紫", "#FFC0CB": "粉",
+        "#FFFFFF": "白", "#808080": "灰", "#000000": "黑", "#A52A2A": "棕",
+        "#F5F5DC": "米", "#87CEEB": "天蓝", "#006400": "墨绿", "#8B0000": "暗红",
+    }
+
+    @staticmethod
+    def _luminance_to_char(luminance: int, charset: str) -> str:
+        """亮度 → 字符。0=最暗→charset[0]，255=最亮→charset[-1]。"""
+        index = min(int(luminance / 256 * len(charset)), len(charset) - 1)
+        return charset[index]
+
+    @staticmethod
+    def _resize_to_column_width(image: PILImage.Image, column_width: int) -> PILImage.Image:
+        """缩放到指定列宽，行数按字符纵横比 1:2 修正。"""
+        if image.width <= 0:
+            return image.resize((column_width, 1), PILImage.LANCZOS)
+        row_count = max(1, round(column_width * image.height / image.width * 0.5))
+        return image.resize((column_width, row_count), PILImage.LANCZOS)
+
+    @staticmethod
+    def _hex_to_color_name(hex_color: str) -> str:
+        """HEX → 预定义颜色名表最近邻匹配（RGB 欧氏距离）。"""
+        r = int(hex_color[1:3], 16)
+        g = int(hex_color[3:5], 16)
+        b = int(hex_color[5:7], 16)
+        best_name = ""
+        best_dist = float("inf")
+        for hex_key, name in ImageUtils._COLOR_NAME_TABLE.items():
+            kr = int(hex_key[1:3], 16)
+            kg = int(hex_key[3:5], 16)
+            kb = int(hex_key[5:7], 16)
+            dist = (r - kr) ** 2 + (g - kg) ** 2 + (b - kb) ** 2
+            if dist < best_dist:
+                best_dist = dist
+                best_name = name
+        return best_name
+
+    @staticmethod
+    def _extract_main_colors(image: PILImage.Image, count: int) -> list[str]:
+        """提取主色块：quantize → 调色板 → HEX → 颜色名。失败返回空列表。"""
+        if count <= 0:
+            return []
+        try:
+            rgb_image = image.convert("RGB")
+            quantized = rgb_image.quantize(colors=count, method=PILImage.MEDIANCUT)
+            palette = quantized.getpalette()
+            if palette is None:
+                return []
+            result: list[str] = []
+            for i in range(count):
+                r, g, b = palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2]
+                hex_color = f"#{r:02X}{g:02X}{b:02X}"
+                result.append(ImageUtils._hex_to_color_name(hex_color))
+            return result
+        except Exception:
+            return []
+
+    @staticmethod
+    def to_ascii(
+        image_bytes: bytes,
+        *,
+        column_width: int = 48,
+        charset: str = "@%#*+=-:.",
+        main_color_count: int = 2,
+    ) -> str | None:
+        """将图片字节转换为 ASCII 灰度文本。
+
+        Args:
+            image_bytes: 图片字节（压缩后）。
+            column_width: ASCII 文本列宽（默认 48）。
+            charset: 亮度字符集（暗→亮，默认 8 档）。
+            main_color_count: 主色块标注数量（0=不标注）。
+
+        Returns:
+            ASCII 文本（[主色：...]\n + 多行字符），渲染失败返回 None。
+        """
+        try:
+            image = PILImage.open(io.BytesIO(image_bytes))
+            image = PILImageOps.exif_transpose(image)
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARN, f"ASCII 渲染打开图片失败: {exc}")
+            logger.warning("ASCII 渲染打开图片失败: %s", exc)
+            return None
+
+        if image.width <= 0 or image.height <= 0:
+            logger.warning("ASCII 渲染：图片尺寸为 0，跳过")
+            return None
+
+        # 主色块提取（用原始 RGB 图片）
+        color_prefix = ""
+        if main_color_count > 0:
+            colors = ImageUtils._extract_main_colors(image, main_color_count)
+            if colors:
+                color_prefix = f"[主色：{'/'.join(colors)}]\n"
+
+        # 缩放 + 转灰度
+        resized = ImageUtils._resize_to_column_width(image, column_width)
+        gray = resized.convert("L")
+
+        # 逐像素亮度映射
+        lines: list[str] = []
+        for y in range(gray.height):
+            row_chars: list[str] = []
+            for x in range(gray.width):
+                pixel = gray.getpixel((x, y))
+                row_chars.append(ImageUtils._luminance_to_char(pixel, charset))
+            lines.append("".join(row_chars))
+
+        return color_prefix + "\n".join(lines)
