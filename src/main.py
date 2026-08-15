@@ -1520,6 +1520,18 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
     try:
         await system.initialize()
 
+        # ZG16-5: 初始化 Tier 1 运行时审计记录器（app_config_port 已就绪，事件循环已运行）
+        from src.core.app_config_port_registry import get_app_config_port
+        from src.plugin_runtime_v2.scope.scope_audit import init_scope_audit_recorder
+
+        _app_port = get_app_config_port()
+        init_scope_audit_recorder(
+            log_path=_app_port.get_audit_log_path(),
+            max_size_mb=_app_port.get_audit_log_max_size_mb(),
+            backup_count=_app_port.get_audit_log_backup_count(),
+            sensitive_param_names=_app_port.get_sensitive_param_names(),
+        )
+
         # ZG-6 W2: SIGTERM/SIGINT → SHUTTING_DOWN（幂等）+ 联动主循环退出。
         # 后注册覆盖 ZG-2 crash_dump / ZG-6 适配器的 signal handler，生产走优雅关闭链：
         # trigger_shutdown 通知订阅者 → gather 被打断 → finally 执行现有关闭链。
@@ -1578,6 +1590,12 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
         await async_task_manager.stop_and_wait_all_tasks()
         from src.config.config import config_manager as _cm
         await _cm.stop_file_watcher()
+
+        # ZG16-5: 关闭 Tier 1 审计记录器（flush 队列 + 关闭日志文件）
+        from src.plugin_runtime_v2.scope.scope_audit import close_scope_audit_recorder
+
+        await close_scope_audit_recorder()
+
         set_main_loop(None)
 
 

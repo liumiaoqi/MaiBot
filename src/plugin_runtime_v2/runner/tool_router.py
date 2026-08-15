@@ -13,6 +13,8 @@ import jsonschema
 
 from src.common.logger import get_logger
 from src.plugin_runtime_v2.proto import plugin_runner_pb2
+from src.plugin_runtime_v2.scope.scope_audit import get_scope_audit_recorder
+from src.plugin_runtime_v2.scope.vocabulary import ScopeVocabulary
 from src.plugin_runtime_v2.sdk.decorators import ToolDeclaration
 from src.plugin_runtime_v2.sdk.plugin import MaiBotPlugin
 
@@ -53,6 +55,39 @@ class ToolRouter:
     def has(self, tool_name: str) -> bool:
         """判断 Tool 是否已注册。"""
         return tool_name in self._handlers
+
+    async def _audit_tier1_if_needed(
+        self,
+        tool_name: str,
+        plugin: MaiBotPlugin,
+        args: dict[str, Any],
+    ) -> None:
+        """Tier 1 审计钩子：判断插件声明的 scope 是否含 Tier 1 → 是则调 ScopeAuditRecorder.record。
+
+        best-effort：审计模块未初始化/record 异常均不阻断执行（spec 5.3.1 规则 11）。
+        ToolDeclaration 无 scope 字段，基于插件级 scopes 审计（插件声明 Tier 1 scope → 该插件所有 Tool 调用审计）。
+        """
+        try:
+            # 获取插件声明的 scopes
+            plugin_scopes = getattr(plugin, "scopes", [])
+            if not plugin_scopes:
+                return
+
+            # 筛选 Tier 1 scope
+            tier1_scopes = [s for s in plugin_scopes if ScopeVocabulary.is_tier1(s)]
+            if not tier1_scopes:
+                return
+
+            recorder = get_scope_audit_recorder()
+            if recorder is None:
+                return
+
+            plugin_id = getattr(plugin, "plugin_id", "unknown")
+            for scope in tier1_scopes:
+                await recorder.record(plugin_id=plugin_id, scope=scope, params=args)
+        except Exception:
+            # best-effort：审计异常不阻断执行（spec 5.3.1 规则 11）
+            pass
 
     async def execute(
         self,
@@ -98,6 +133,9 @@ class ToolRouter:
                 released = True
 
         try:
+            # ── ZG16-5: Tier 1 审计钩子（执行前，参数校验之前） ──
+            await self._audit_tier1_if_needed(tool_name, plugin, args)
+
             # 参数校验
             if declaration is not None and declaration.parameters_schema is not None:
                 try:

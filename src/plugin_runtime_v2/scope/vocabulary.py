@@ -1,8 +1,8 @@
 """Scope 词汇表 — Phoenix 细粒度授权定义。
 
 三段式格式：资源域:操作:资源类型（如 message:send:text）。
-11 个资源域，57 个 scope 条目，覆盖全部 75 个旧 capabilities。
-版本：1.0.0
+14 个资源域，63 个 scope 条目，覆盖全部 75 个旧 capabilities + 6 个 Tier 1 高危操作。
+版本：1.1.0（ZG16-5 扩展 Tier 1：system:execute:cli / system:read:screenshot / system:read:location / account:execute:operation / finance:read:qr_code / network:fetch:url）
 """
 
 
@@ -100,6 +100,23 @@ _SCOPE_ENTRIES: frozenset[ScopeEntry] = frozenset({
     ScopeEntry("system:execute:render", "渲染 HTML 为图片", "render.html2png", "medium", True),
     ScopeEntry("system:execute:command", "发送平台命令", "send.command", "high", True),
     ScopeEntry("system:execute:knowledge", "搜索知识库", "knowledge.search", "low", False),
+})
+
+# ── ZG16-5: Tier 1 高危操作 scope（6 个，均 risk_level=high, approval_required=True） ──
+# 新增 3 个资源域：account / finance / network（design 2.3.2.1）
+# replaces=None：新 scope 无 v1 capability 对应
+# system:execute:cli 区别于既有 system:execute:command（主机 CLI vs 平台命令，调研报告 2.2）
+_TIER1_SCOPE_ENTRIES: frozenset[ScopeEntry] = frozenset({
+    # ── system 资源域 Tier 1 扩展（3 个，复用现有资源域） ──
+    ScopeEntry("system:execute:cli", "主机 CLI 命令执行", None, "high", True),
+    ScopeEntry("system:read:screenshot", "截屏", None, "high", True),
+    ScopeEntry("system:read:location", "GPS 位置读取", None, "high", True),
+    # ── account 资源域（新增，1 个） ──
+    ScopeEntry("account:execute:operation", "账号操作（QQ 空间/签到等）", None, "high", True),
+    # ── finance 资源域（新增，1 个） ──
+    ScopeEntry("finance:read:qr_code", "收款码识别", None, "high", True),
+    # ── network 资源域（新增，1 个） ──
+    ScopeEntry("network:fetch:url", "任意 URL 抓取", None, "high", True),
 })
 
 _CAPABILITY_MAP: dict[str, list[str]] = {
@@ -223,10 +240,10 @@ _CAPABILITY_MAP: dict[str, list[str]] = {
 class ScopeVocabulary:
     """Scope 词汇表 — 细粒度授权的权威定义。"""
 
-    version: str = "1.0.0"
-    scopes: frozenset[ScopeEntry] = _SCOPE_ENTRIES
+    version: str = "1.1.0"  # 版本升级（57→63，标识 Tier 1 扩展）
+    scopes: frozenset[ScopeEntry] = _SCOPE_ENTRIES | _TIER1_SCOPE_ENTRIES  # 63 个
 
-    _SCOPE_INDEX: dict[str, ScopeEntry] = {e.scope: e for e in _SCOPE_ENTRIES}
+    _SCOPE_INDEX: dict[str, ScopeEntry] = {e.scope: e for e in scopes}  # 重建索引，O(1) 查找保持
 
     @classmethod
     def validate(cls, scope_str: str) -> bool:
@@ -242,3 +259,13 @@ class ScopeVocabulary:
     def map_capability(cls, cap: str) -> list[str]:
         """将旧 capability 映射为新 scope 列表。不存在返回空列表。"""
         return _CAPABILITY_MAP.get(cap, [])
+
+    @classmethod
+    def is_tier1(cls, scope_str: str) -> bool:
+        """判断 scope 是否为 Tier 1 高危（risk_level == "high"）。O(1) 查找。
+
+        Tier 1 标识通过 risk_level == "high" 判断（复用既有 risk_level，不新增 tier 字段）。
+        scope 不存在 → 返回 False（不抛异常）。
+        """
+        entry = cls._SCOPE_INDEX.get(scope_str)
+        return entry is not None and entry.risk_level == "high"

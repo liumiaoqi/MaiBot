@@ -561,3 +561,39 @@ class GlobalConfigAppConfigPort:
     def get_plugin_runtime_v2_default_rpm(self) -> int:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
         return int(cfg.default_rpm) if cfg else 60
+
+    # ZG16-5 scopes 强制化审计配置 getter
+    def get_enable_scope_audit(self) -> bool:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return bool(cfg.enable_scope_audit) if cfg else True
+
+    def get_audit_log_path(self) -> str:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return str(cfg.audit_log_path) if cfg else "data/plugin_runtime_v2/scope_audit.log"
+
+    def get_audit_log_max_size_mb(self) -> int:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return int(cfg.audit_log_max_size_mb) if cfg else 10
+
+    def get_audit_log_backup_count(self) -> int:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return int(cfg.audit_log_backup_count) if cfg else 5
+
+    def get_tier1_scopes(self) -> list[str]:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and cfg.tier1_scopes:
+            return list(cfg.tier1_scopes)
+        return [
+            "system:execute:cli",
+            "system:read:screenshot",
+            "system:read:location",
+            "account:execute:operation",
+            "finance:read:qr_code",
+            "network:fetch:url",
+        ]
+
+    def get_sensitive_param_names(self) -> list[str]:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and cfg.sensitive_param_names:
+            return list(cfg.sensitive_param_names)
+        return ["token", "password", "secret", "api_key", "apikey", "credential"]

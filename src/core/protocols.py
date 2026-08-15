@@ -1243,6 +1243,26 @@ class AppConfigPort(Protocol):
     def get_plugin_runtime_v2_max_restart_attempts(self) -> int: ...
     def get_plugin_runtime_v2_scope_approval_file(self) -> str: ...
     def get_plugin_runtime_v2_default_rpm(self) -> int: ...
+
+    # ZG16-5 scopes 强制化审计配置 getter
+    def get_enable_scope_audit(self) -> bool:
+        """读取 [plugin_runtime_v2].enable_scope_audit（默认 true）。"""
+
+    def get_audit_log_path(self) -> str:
+        """读取 [plugin_runtime_v2].audit_log_path（默认 "data/plugin_runtime_v2/scope_audit.log"）。"""
+
+    def get_audit_log_max_size_mb(self) -> int:
+        """读取 [plugin_runtime_v2].audit_log_max_size_mb（默认 10）。"""
+
+    def get_audit_log_backup_count(self) -> int:
+        """读取 [plugin_runtime_v2].audit_log_backup_count（默认 5）。"""
+
+    def get_tier1_scopes(self) -> list[str]:
+        """读取 [plugin_runtime_v2].tier1_scopes（默认 6 个新 scope）。"""
+
+    def get_sensitive_param_names(self) -> list[str]:
+        """读取 [plugin_runtime_v2].sensitive_param_names（默认 6 个敏感字段名）。"""
+
     def get_message_receive_ban_words(self) -> list[str]: ...
     def get_message_receive_ban_msgs_regex(self) -> list[str]: ...
     def get_a_memorix_shared_memory_groups(self) -> list[str]: ...

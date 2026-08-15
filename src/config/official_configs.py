@@ -6258,6 +6258,25 @@ class PluginRuntimeV2Config(ConfigBase):
     scope_approval_file: str = Field(default="data/scope_approvals.json")
     default_rpm: int = Field(default=60)
 
+    # ZG16-5 scopes 强制化审计
+    enable_scope_audit: bool = Field(default=True)
+    audit_log_path: str = Field(default="data/plugin_runtime_v2/scope_audit.log")
+    audit_log_max_size_mb: int = Field(default=10)
+    audit_log_backup_count: int = Field(default=5)
+    tier1_scopes: list[str] = Field(
+        default_factory=lambda: [
+            "system:execute:cli",
+            "system:read:screenshot",
+            "system:read:location",
+            "account:execute:operation",
+            "finance:read:qr_code",
+            "network:fetch:url",
+        ]
+    )
+    sensitive_param_names: list[str] = Field(
+        default_factory=lambda: ["token", "password", "secret", "api_key", "apikey", "credential"]
+    )
+
 
 class AgentSectionConfig(ConfigBase):
     """智能体配置类"""

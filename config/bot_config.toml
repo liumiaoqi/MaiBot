@@ -535,6 +535,21 @@ max_restart_attempts = 3
 scope_approval_file = "data/scope_approvals.json"
 default_rpm = 60
 
+# ZG16-5 scopes 强制化审计
+enable_scope_audit = true                                      # 是否启用 Tier 1 运行时审计（默认开启）
+audit_log_path = "data/plugin_runtime_v2/scope_audit.log"      # 审计日志文件路径
+audit_log_max_size_mb = 10                                     # 审计日志轮转大小阈值 MB（范围 1-100）
+audit_log_backup_count = 5                                     # 审计日志历史文件保留数（范围 1-20）
+tier1_scopes = [                                               # Tier 1 高危 scope 列表（可配置扩展）
+    "system:execute:cli",
+    "system:read:screenshot",
+    "system:read:location",
+    "account:execute:operation",
+    "finance:read:qr_code",
+    "network:fetch:url",
+]
+sensitive_param_names = ["token", "password", "secret", "api_key", "apikey", "credential"]  # 敏感参数名表（脱敏用）
+
 [agent]
 default_agent_id = "silver_wolf" # 新会话未绑定智能体时使用的默认智能体 ID。
 agents_dir = "agents" # 智能体 Markdown 配置文件的存放目录。

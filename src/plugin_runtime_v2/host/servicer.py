@@ -7,6 +7,7 @@
 import asyncio
 import importlib.metadata
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, AsyncIterator
 
 import grpc
@@ -21,6 +22,8 @@ from src.plugin_runtime_v2.host.heartbeat import HeartbeatManager
 from src.plugin_runtime_v2.host.registry import RunnerRegistry
 from src.plugin_runtime_v2.proto import common_pb2, plugin_host_pb2
 from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostServicer
+from src.plugin_runtime_v2.scope.validate_manifest_scopes import Tier1Detector
+
 
 if TYPE_CHECKING:
     from src.common.data_models.message_component_data_model import MessageSequence
@@ -49,6 +52,99 @@ def _check_sdk_version(sdk_version: str) -> bool:
     if not v:
         return False
     return lo <= v < hi
+
+
+# ── ZG16-5: 加载时 scopes 缺失告警 ──
+
+
+@dataclass(frozen=True)
+class LoadAlert:
+    """加载告警事件。"""
+
+    plugin_id: str
+    alert_level: str  # "warning" | "error"
+    is_tier1: bool
+    timestamp: float
+    missing_scopes: list[str] = field(default_factory=list)
+
+
+def check_scopes_completeness(
+    plugin_id: str,
+    manifest: dict,
+    is_v2: bool,
+    plugin_code_path: str | None = None,
+) -> LoadAlert | None:
+    """检测插件 scopes 声明完整性。返回 LoadAlert 或 None（无告警）。
+
+    纯逻辑函数，无副作用（不修改 manifest/不阻断加载，design 2.6.3）。
+    """
+    # v1 插件不触发（spec 5.4.1 规则 6）
+    if not is_v2:
+        return None
+
+    # 提取 scopes
+    scopes = manifest.get("scopes", [])
+    if not isinstance(scopes, list):
+        logger.warning("插件 %s scopes 字段格式错误，跳过检测", plugin_id)
+        return None
+
+    # scopes 缺失或空 → warning（spec 5.4.1 规则 1）
+    if not scopes:
+        return LoadAlert(
+            plugin_id=plugin_id,
+            alert_level="warning",
+            is_tier1=False,
+            timestamp=time.time(),
+        )
+
+    # Tier 1 静态检测
+    if plugin_code_path is not None:
+        try:
+            detected = Tier1Detector.detect(plugin_code_path)
+        except Exception:
+            # 检测失败 → 降级为仅 scopes 字段检测（spec 5.4.3 场景 3）
+            logger.warning("插件 %s Tier 1 检测失败，降级为仅 scopes 字段检测", plugin_id, exc_info=True)
+            return None
+    else:
+        detected = []
+
+    # 比对缺失
+    missing_tier1 = [s for s in detected if s not in scopes]
+    if missing_tier1:
+        return LoadAlert(
+            plugin_id=plugin_id,
+            alert_level="error",
+            missing_scopes=missing_tier1,
+            is_tier1=True,
+            timestamp=time.time(),
+        )
+
+    return None
+
+
+def _emit_load_alert(alert: LoadAlert) -> None:
+    """发送加载告警：logger.warning/error + error_escalation_port 上报。
+
+    best-effort：失败不阻断加载（spec 5.4.1 规则 7）。
+    """
+    try:
+        if alert.alert_level == "warning":
+            msg = f"插件 {alert.plugin_id} 缺失 scopes 声明"
+            logger.warning(msg)
+        else:
+            msg = f"插件 {alert.plugin_id} 缺失 Tier 1 scope: {alert.missing_scopes}"
+            logger.error(msg)
+
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        port = get_error_escalation_port()
+        if port is not None:
+            level = ErrorLevel.WARN if alert.alert_level == "warning" else ErrorLevel.ERROR
+            port.report(level, msg, component_id=alert.plugin_id)
+    except Exception:
+        # best-effort：告警失败不阻断加载（spec 5.4.1 规则 7）
+        logger.warning("加载告警发送失败，跳过", exc_info=True)
 
 
 class _PluginHostServicer(PluginHostServicer):
@@ -151,6 +247,24 @@ class _PluginHostServicer(PluginHostServicer):
                 logger.warning(
                     "Runner %s 部分 scope 被拒绝: %s", runner_id, rejected_scopes,
                 )
+
+        # ── ZG16-5: 加载时 scopes 缺失告警（握手处理中，不阻断加载） ──
+        # 注意：plugin_code_path=None → Tier 1 静态检测不运行（握手时插件代码路径不可得）
+        # 仅检测 scopes 字段缺失/空（warning 级），Tier 1 error 告警需在插件目录可得处补跑
+        try:
+            _manifest_for_check = {"scopes": list(hello.scopes)}
+            _plugin_id_for_check = self._pending_plugin_id or runner_id
+            _alert = check_scopes_completeness(
+                plugin_id=_plugin_id_for_check,
+                manifest=_manifest_for_check,
+                is_v2=True,
+                plugin_code_path=None,
+            )
+            if _alert is not None:
+                _emit_load_alert(_alert)
+        except Exception:
+            # 告警 best-effort：失败不阻断加载（spec 5.4.1 规则 7）
+            logger.warning("scopes 缺失告警失败，跳过", exc_info=True)
 
         try:
             host_ver = importlib.metadata.version("maibot")
