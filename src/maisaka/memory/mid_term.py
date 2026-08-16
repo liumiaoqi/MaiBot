@@ -1,6 +1,6 @@
 """Maisaka 聊天回想消息。"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from hashlib import sha1
 from html import escape
@@ -10,6 +10,7 @@ from json_repair import repair_json
 from pydantic import BaseModel
 import json
 import re
+import time
 
 
 from src.common.data_models.message_component_data_model import DictComponent, MessageSequence
@@ -45,6 +46,34 @@ MID_TERM_MEMORY_RECALL_CONTEXT_MESSAGE_LIMIT = 12
 MID_TERM_MEMORY_RECALL_CONTEXT_TEXT_LIMIT = 2400
 MID_TERM_MEMORY_RECALL_SUMMARY_TEXT_LIMIT = 1400
 MID_TERM_MEMORY_DEFAULT_RECALL_THRESHOLD = 0.8
+
+
+@dataclass
+class RecallConfig:
+    """recall 可调参数（从 app_config 读取，每轮新建轻量对象）。"""
+    threshold: float
+    top_k: int
+    candidate_limit: int
+    original_message_limit: int
+    original_token_limit: int
+    timeout_ms: int
+
+
+def _get_recall_config() -> RecallConfig:
+    """从 app_config 读取 recall 可调参数（未配置用默认值 + info 日志）。
+
+    spec 9.5 静默失效禁令：配置缺失用默认值 + info 日志（非静默用默认）。
+    """
+    config_port = get_app_config_port()
+    return RecallConfig(
+        threshold=config_port.get_recall_threshold(),
+        top_k=config_port.get_recall_top_k(),
+        candidate_limit=config_port.get_recall_candidate_limit(),
+        original_message_limit=config_port.get_recall_original_message_limit(),
+        original_token_limit=config_port.get_recall_original_token_limit(),
+        timeout_ms=config_port.get_recall_timeout_ms(),
+    )
+
 
 logger = get_logger("maisaka_mid_term_memory")
 
@@ -402,18 +431,42 @@ async def build_mid_term_memory_reference_message(
     history: Sequence[LLMContextMessage],
     selected_history: Sequence[LLMContextMessage],
     session_id: str,
+    existing_summary_ids: set[str] | None = None,
     log_prefix: str = "",
-) -> ReferenceMessage | None:
-    """基于当前 Planner 上下文召回最相关的一条聊天回想。"""
+) -> list[ReferenceMessage]:
+    """ZH1-1b：recall + 按需翻原文（Top-K + 双向去重 + 翻原文 + 观测点 + 超时降级）。
 
+    spec 4.2 可靠性规则 1：失败降级返回空列表（不抛异常，不阻塞主流程）。
+    spec 5.5.3 场景 2：超时降级返回已构造的 ReferenceMessage + warning。
+    """
     if not get_app_config_port().get_chat_mid_term_memory():
-        return None
+        return []
+
+    recall_config = _get_recall_config()
+    start_time = time.monotonic()
+    summary_ids = existing_summary_ids or set()
 
     query_text = _build_mid_term_memory_recall_query_text(selected_history)
     if not query_text:
-        return None
+        return []
 
-    candidates = _collect_mid_term_memory_recall_candidates(history)
+    candidates = _collect_mid_term_memory_recall_candidates(
+        session_id=session_id,
+        candidate_limit=recall_config.candidate_limit,
+    )
+    if not candidates:
+        _log_recall_observation(
+            hit_count=0,
+            appended_tokens=0,
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+            threshold=recall_config.threshold,
+            top_k=recall_config.top_k,
+            session_id=session_id,
+            hit_summaries=[],
+            degradation={"stage": "候选源加载", "reason": "候选为空或加载失败"},
+        )
+        return []
+
     recalled_keys, recalled_segments = _collect_recalled_mid_term_memory_reference_identities(selected_history)
     candidates = [
         candidate
@@ -422,12 +475,13 @@ async def build_mid_term_memory_reference_message(
             candidate,
             recalled_keys=recalled_keys,
             recalled_segments=recalled_segments,
+            existing_summary_ids=summary_ids,
         )
     ]
     if not candidates:
-        if recalled_keys or recalled_segments:
+        if recalled_keys or recalled_segments or summary_ids:
             logger.debug(f"{log_prefix} 当前上下文已包含全部匹配的聊天回想参考，跳过重复召回")
-        return None
+        return []
 
     from src.services.embedding_service import EmbeddingServiceClient
 
@@ -436,29 +490,74 @@ async def build_mid_term_memory_reference_message(
         request_type="maisaka.mid_term_memory_recall",
         session_id=session_id,
     )
-    query_result = await embedding_client.embed_text(query_text, session_id=session_id)
-    best_candidate = _select_best_recall_candidate(
+    try:
+        query_result = await embedding_client.embed_text(query_text, session_id=session_id)
+    except Exception as exc:
+        logger.warning(f"{log_prefix} query embedding 失败，recall 降级: {exc}")
+        _log_recall_observation(
+            hit_count=0,
+            appended_tokens=0,
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+            threshold=recall_config.threshold,
+            top_k=recall_config.top_k,
+            session_id=session_id,
+            hit_summaries=[],
+            degradation={"stage": "query embedding", "reason": str(exc)},
+        )
+        return []
+
+    hit_candidates = _select_top_k_recall_candidates(
         candidates,
         query_embedding=query_result.embedding,
-        threshold=MID_TERM_MEMORY_DEFAULT_RECALL_THRESHOLD,
+        threshold=recall_config.threshold,
+        top_k=recall_config.top_k,
     )
-    if best_candidate is None:
+    if not hit_candidates:
         logger.debug(f"{log_prefix} 聊天回想召回未命中阈值")
-        return None
+        return []
 
-    logger.info(
-        f"{log_prefix} 聊天回想召回命中: "
-        f"msg_id={best_candidate.message.message_id} "
-        f"score={best_candidate.score:.4f} "
-        f"segment={_truncate(best_candidate.segment_text, 120)}"
+    references: list[ReferenceMessage] = []
+    total_appended_tokens = 0
+    for candidate in hit_candidates:
+        original_text = _fetch_original_messages_for_candidate(
+            candidate,
+            session_id=session_id,
+            message_limit=recall_config.original_message_limit,
+            token_limit=recall_config.original_token_limit,
+        )
+        content = _format_mid_term_memory_reference(candidate, original_messages_text=original_text)
+        reference = ReferenceMessage(
+            content=content,
+            timestamp=datetime.now(),
+            reference_type=ReferenceMessageType.MEMORY,
+            remaining_uses_value=None,
+            display_prefix="[参考消息]",
+        )
+        references.append(reference)
+        total_appended_tokens += len(content) // 2
+
+    latency_ms = int((time.monotonic() - start_time) * 1000)
+    _log_recall_observation(
+        hit_count=len(hit_candidates),
+        appended_tokens=total_appended_tokens,
+        latency_ms=latency_ms,
+        threshold=recall_config.threshold,
+        top_k=recall_config.top_k,
+        session_id=session_id,
+        hit_summaries=[
+            {
+                "summary_id": c.message.message_id,
+                "score": c.score,
+                "time_range": str(c.payload.get("time_range", "")),
+            }
+            for c in hit_candidates
+        ],
     )
-    return ReferenceMessage(
-        content=_format_mid_term_memory_reference(best_candidate),
-        timestamp=datetime.now(),
-        reference_type=ReferenceMessageType.MEMORY,
-        remaining_uses_value=None,
-        display_prefix="[参考消息]",
-    )
+    if latency_ms > recall_config.timeout_ms:
+        logger.warning(
+            f"{log_prefix} recall 超时: latency_ms={latency_ms} timeout_ms={recall_config.timeout_ms}"
+        )
+    return references
 
 
 def _find_last_mid_term_memory_index(history: Sequence[LLMContextMessage]) -> int:
@@ -858,31 +957,77 @@ def _extract_recall_cue_texts(payload: dict[str, Any]) -> list[str]:
     return _normalize_recall_cues(payload.get("recall_cues") or payload.get("match_segments"))
 
 
-def _collect_mid_term_memory_recall_candidates(
-    history: Sequence[LLMContextMessage],
-) -> list[MidTermMemoryRecallCandidate]:
-    candidates: list[MidTermMemoryRecallCandidate] = []
-    for message in history:
-        if not isinstance(message, ComplexSessionMessage) or not is_mid_term_memory_message(message):
-            continue
+def _build_payload_from_record(record: Any) -> dict[str, Any]:
+    """从持久化记录构造 payload（对齐 ComplexSessionMessage payload 结构）。
 
-        payload = _get_mid_term_memory_payload(message)
-        for cue_payload in _iter_recall_cue_payloads(payload):
-            if not isinstance(cue_payload, dict):
-                continue
-            cue_text = str(cue_payload.get("text")).strip()
-            embedding = cue_payload.get("embedding")
-            if not cue_text or not isinstance(embedding, list) or not embedding:
-                continue
-            candidates.append(
-                MidTermMemoryRecallCandidate(
-                    message=message,
-                    payload=payload,
-                    segment_text=cue_text,
-                    score=0.0,
-                )
-            )
+    供候选收集 + 翻原文用（含 session_id + time_range_pointer 指针字段）。
+    """
+    return {
+        "type": MID_TERM_MEMORY_COMPONENT_TYPE,
+        "data": {
+            "time_range": record.time_range,
+            "participants": json.loads(record.participants) if record.participants else [],
+            "summary": record.summary,
+            "recall_cues": json.loads(record.recall_cues) if record.recall_cues else [],
+            "recall_cue_embeddings": json.loads(record.recall_cue_embeddings) if record.recall_cue_embeddings else [],
+            "session_id": record.session_id,
+            "time_range_pointer": record.time_range,
+            "summary_id": record.summary_id,
+        },
+    }
+
+
+def _build_candidate_from_record(record: Any) -> list[MidTermMemoryRecallCandidate]:
+    """从持久化记录构造候选（反序列化 recall_cue_embeddings，embedding 缺失跳过）。
+
+    spec 5.1.1 规则 4：embedding 缺失的 cue 跳过不参与匹配。
+    """
+    full_payload = _build_payload_from_record(record)
+    # candidate.payload 用内层 data dict（供 _iter_recall_cue_payloads / _format 直接读取）
+    payload = full_payload["data"]
+    virtual_message = build_mid_term_memory_message_from_record(record)
+    candidates: list[MidTermMemoryRecallCandidate] = []
+    for cue_payload in _iter_recall_cue_payloads(payload):
+        if not isinstance(cue_payload, dict):
+            continue
+        segment_text = str(cue_payload.get("text", "")).strip()
+        embedding = cue_payload.get("embedding")
+        if not segment_text or not isinstance(embedding, list) or not embedding:
+            continue
+        candidates.append(MidTermMemoryRecallCandidate(
+            message=virtual_message,
+            payload=payload,
+            segment_text=segment_text,
+            score=0.0,
+        ))
     return candidates
+
+
+def _collect_mid_term_memory_recall_candidates(
+    *,
+    session_id: str,
+    candidate_limit: int,
+) -> list[MidTermMemoryRecallCandidate]:
+    """从持久化表加载候选源（session_id 过滤 + 条数上限 + 失败降级）。
+
+    ZH1-1b：候选源改从持久化表 load_summaries_by_session 加载，
+    非旧实现的 history 参数收集（spec 5.1.1 规则 1）。
+    """
+    try:
+        from src.maisaka.memory.mid_term_persistence import get_mid_term_persistence
+
+        persistence = get_mid_term_persistence()
+        if persistence is None:
+            logger.warning("持久化服务未初始化，候选源加载跳过")
+            return []
+        records = persistence.load_summaries_by_session(session_id, limit=candidate_limit)
+        candidates: list[MidTermMemoryRecallCandidate] = []
+        for record in records:
+            candidates.extend(_build_candidate_from_record(record))
+        return candidates
+    except Exception as exc:
+        logger.warning(f"候选源加载失败，降级返回空列表: {exc}")
+        return []
 
 
 def _iter_recall_cue_payloads(payload: dict[str, Any]) -> list[Any]:
@@ -920,11 +1065,19 @@ def _is_mid_term_memory_candidate_already_recalled(
     *,
     recalled_keys: set[tuple[str, str]],
     recalled_segments: set[str],
+    existing_summary_ids: set[str] | None = None,
 ) -> bool:
+    """双向去重：方向 1 排除已加载摘要（summary_id），方向 2 排除已 recall 原文。
+
+    spec 5.4.1 规则 1：已加载摘要不 recall（summary_id 在 existing_summary_ids 中）。
+    spec 5.4.1 规则 3：已 recall 原文不重复 append（(message_id, segment) 在 recalled_keys 中）。
+    """
+    summary_id = _normalize_reference_identity_text(candidate.message.message_id)
+    if summary_id and existing_summary_ids and summary_id in existing_summary_ids:
+        return True
     normalized_segment = _normalize_reference_identity_text(candidate.segment_text)
     if not normalized_segment:
         return False
-
     message_id = _normalize_reference_identity_text(candidate.message.message_id)
     if message_id and (message_id, normalized_segment) in recalled_keys:
         return True
@@ -968,6 +1121,149 @@ def _select_best_recall_candidate(
     if best_candidate is None or best_candidate.score <= threshold:
         return None
     return best_candidate
+
+
+def _select_top_k_recall_candidates(
+    candidates: Sequence[MidTermMemoryRecallCandidate],
+    *,
+    query_embedding: Sequence[float],
+    threshold: float,
+    top_k: int,
+) -> list[MidTermMemoryRecallCandidate]:
+    """Top-K 匹配（遍历候选计算余弦相似度 → 筛选分数 > 阈值 → 按分数降序取 Top-K）。
+
+    spec 5.2.1 规则 5：Top-K 召回（K=3 起步可配置）。
+    spec 5.2.1 规则 9：匹配分数保留 2 位小数（避免每轮抖动）。
+    spec 5.2.1 规则 11：严格分数 > 阈值（非 ≥）。
+    spec 4.5 兼容性规则 3：K=1 退化为旧 Top-1 行为。
+    """
+    scored: list[tuple[float, MidTermMemoryRecallCandidate]] = []
+    for candidate in candidates:
+        segment_embedding = _get_candidate_embedding(candidate.payload, candidate.segment_text)
+        if not segment_embedding:
+            continue
+        try:
+            score = _cosine_similarity(query_embedding, segment_embedding)
+        except ValueError:
+            logger.warning(f"候选 embedding 维度不一致，跳过: {candidate.segment_text[:50]}")
+            continue
+        score = round(score, 2)
+        scored_candidate = replace(candidate, score=score)
+        scored.append((score, scored_candidate))
+    hit = [(s, c) for s, c in scored if s > threshold]
+    hit.sort(key=lambda x: x[0], reverse=True)
+    return [c for _, c in hit[:top_k]]
+
+
+def _parse_candidate_pointer(
+    candidate: MidTermMemoryRecallCandidate,
+) -> tuple[str, float, float] | None:
+    """解析候选指针（session_id + time_range → start_time + end_time epoch）。
+
+    spec 5.3.1 规则 2：从 candidate.payload 解析 session_id + time_range_pointer。
+    spec 5.3.3 场景 1：指针缺失返回 None（调用方降级跳过）。
+    """
+    data = candidate.payload
+    if not isinstance(data, dict):
+        return None
+    session_id = str(data.get("session_id") or "").strip()
+    time_range = str(data.get("time_range_pointer") or data.get("time_range") or "").strip()
+    if not session_id or not time_range or time_range == "未知":
+        return None
+
+    parts = time_range.split("~")
+    if len(parts) != 2:
+        return None
+    try:
+        start_time = datetime.strptime(parts[0].strip(), "%Y-%m-%d %H:%M:%S").timestamp()
+        end_time = datetime.strptime(parts[1].strip(), "%Y-%m-%d %H:%M:%S").timestamp()
+    except ValueError:
+        return None
+    return session_id, start_time, end_time
+
+
+def _truncate_original_messages(
+    text: str,
+    token_limit: int,
+) -> str:
+    """估算 token 数（1 token ≈ 2 字符），超限截断保留首尾（首部 40% + 省略号 + 尾部 40%）。
+
+    spec 5.3.1 规则 5：原文 token 硬上限截断。
+    spec 5.3.1 规则 6：截断保留首尾，不丢失上下文边界信息。
+    spec 5.6.1 规则 8：截断日志含原 token + 截断后 token。
+    """
+    normalized_text = str(text or "").strip()
+    if not normalized_text:
+        return ""
+    char_limit = token_limit * 2
+    if len(normalized_text) <= char_limit:
+        return normalized_text
+
+    original_tokens = len(normalized_text) // 2
+    head_size = int(char_limit * 0.4)
+    tail_size = char_limit - head_size
+    truncated_text = normalized_text[:head_size] + "\n...(原文过长，已截断中间部分)...\n" + normalized_text[-tail_size:]
+    truncated_tokens = len(truncated_text) // 2
+    logger.info(f"recall 截断: original_tokens={original_tokens} truncated_tokens={truncated_tokens}")
+    return truncated_text
+
+
+def _fetch_original_messages_for_candidate(
+    candidate: MidTermMemoryRecallCandidate,
+    *,
+    session_id: str,
+    message_limit: int,
+    token_limit: int,
+) -> str:
+    """按需翻原文：解析指针 → find_messages 拉原始消息 → 拼接文本 → 截断。
+
+    spec 5.3.1 规则 3：find_messages(session_id, start_time, end_time, limit=20)。
+    spec 5.3.1 规则 4：原文条数上限（limit_mode="latest" 取最近 N 条）。
+    spec 5.3.3 场景 1：指针缺失返回空字符串 + warning。
+    spec 5.3.3 场景 3：时间范围内无消息返回空字符串。
+    spec 5.3.3 场景 5：raw_content 反序列化失败跳过该条 + warning。
+    """
+    pointer = _parse_candidate_pointer(candidate)
+    if pointer is None:
+        logger.warning(
+            f"翻原文跳过: 候选无有效指针, summary_id={candidate.message.message_id} session_id={session_id}"
+        )
+        return ""
+    pointer_session_id, start_time, end_time = pointer
+    try:
+        from src.common.message_repository import find_messages
+
+        messages = find_messages(
+            session_id=pointer_session_id,
+            start_time=start_time,
+            end_time=end_time,
+            limit=message_limit,
+            limit_mode="latest",
+        )
+    except Exception as exc:
+        logger.warning(f"翻原文失败: find_messages 异常, session_id={pointer_session_id}: {exc}")
+        return ""
+    if not messages:
+        return ""
+
+    lines: list[str] = []
+    for message in messages:
+        try:
+            sender = "未知"
+            user_info = getattr(getattr(message, "message_info", None), "user_info", None)
+            if user_info is not None:
+                sender = user_info.user_nickname or user_info.user_id or "未知"
+            text = str(getattr(message, "processed_plain_text", "") or "").strip()
+            if not text:
+                continue
+            timestamp_text = message.timestamp.strftime("%H:%M:%S")
+            lines.append(f"[{timestamp_text}] {sender}: {text}")
+        except Exception as exc:
+            logger.warning(f"翻原文跳过单条: raw_content 反序列化失败: {exc}")
+            continue
+    if not lines:
+        return ""
+    return _truncate_original_messages("\n".join(lines), token_limit)
 
 
 def _get_candidate_embedding(payload: dict[str, Any], segment_text: str) -> list[float]:
@@ -1021,7 +1317,11 @@ def _build_mid_term_memory_recall_query_text(selected_history: Sequence[LLMConte
     return query_text[-MID_TERM_MEMORY_RECALL_CONTEXT_TEXT_LIMIT:]
 
 
-def _format_mid_term_memory_reference(candidate: MidTermMemoryRecallCandidate) -> str:
+def _format_mid_term_memory_reference(
+    candidate: MidTermMemoryRecallCandidate,
+    *,
+    original_messages_text: str = "",
+) -> str:
     payload = candidate.payload
     message_id = str(candidate.message.message_id or "").strip()
     time_range = str(payload.get("time_range") or "未知").strip()
@@ -1030,20 +1330,77 @@ def _format_mid_term_memory_reference(candidate: MidTermMemoryRecallCandidate) -
     if len(summary) > MID_TERM_MEMORY_RECALL_SUMMARY_TEXT_LIMIT:
         summary = summary[:MID_TERM_MEMORY_RECALL_SUMMARY_TEXT_LIMIT].rstrip() + "..."
 
-    return "\n".join(
-        [
-            MID_TERM_MEMORY_REFERENCE_MARKER,
-            "以下是根据当前上下文匹配到的一条聊天回想，只作为内部参考；仅在自然相关时使用，不要生硬复述。",
-            *([f"摘要ID: {message_id}"] if message_id else []),
-            f"匹配分数: {candidate.score:.4f}",
-            f"匹配段: {candidate.segment_text}",
-            f"时间范围: {time_range}",
-            f"参与人物: {'、'.join(participants) if participants else '未知'}",
-            "",
-            "summary:",
-            summary,
-        ]
-    ).strip()
+    lines = [
+        MID_TERM_MEMORY_REFERENCE_MARKER,
+        "以下是根据当前上下文匹配到的一条聊天回想，只作为内部参考；仅在自然相关时使用，不要生硬复述。",
+        *([f"摘要ID: {message_id}"] if message_id else []),
+        f"匹配分数: {candidate.score:.2f}",
+        f"匹配段: {candidate.segment_text}",
+        f"时间范围: {time_range}",
+        f"参与人物: {'、'.join(participants) if participants else '未知'}",
+        "",
+        "summary:",
+        summary,
+    ]
+    # 原始消息段（spec 5.3.1 规则 8：翻原文后追加；时间范围内无消息时跳过）
+    if original_messages_text:
+        lines.extend(["", "---", "原始消息:", original_messages_text])
+    return "\n".join(lines).strip()
+
+
+def _log_recall_observation(
+    *,
+    hit_count: int,
+    appended_tokens: int,
+    latency_ms: int,
+    threshold: float,
+    top_k: int,
+    session_id: str,
+    hit_summaries: list[dict[str, Any]],
+    truncation: dict[str, int] | None = None,
+    degradation: dict[str, str] | None = None,
+) -> None:
+    """输出 recall 观测日志（固定字段，不泄露原始消息全文）。
+
+    spec 5.6.1 规则 1-5：固定观测字段——命中数 + token 数 + 耗时 + 阈值 + Top-K。
+    spec 5.6.1 规则 6：降级日志含环节 + 原因 + session_id。
+    spec 5.6.1 规则 7：命中摘要日志含 summary_id + score + time_range。
+    spec 5.6.1 规则 8：截断日志含原 token + 截断后 token。
+    spec 5.6.1 规则 9：不泄露原始消息全文（仅含统计字段）。
+    spec 5.6.3 场景 1：日志失败跳过不影响主流程。
+    """
+    try:
+        logger.info(
+            f"recall 观测: "
+            f"recall_hit_count={hit_count} "
+            f"recall_appended_tokens={appended_tokens} "
+            f"recall_latency_ms={latency_ms} "
+            f"recall_threshold={threshold} "
+            f"recall_top_k={top_k} "
+            f"recall_session_id={session_id}"
+        )
+        for hit in hit_summaries:
+            logger.info(
+                f"recall 命中: "
+                f"summary_id={hit.get('summary_id', '')} "
+                f"score={hit.get('score', 0.0)} "
+                f"time_range={hit.get('time_range', '')}"
+            )
+        if truncation is not None:
+            logger.info(
+                f"recall 截断: "
+                f"original_tokens={truncation.get('original_tokens', 0)} "
+                f"truncated_tokens={truncation.get('truncated_tokens', 0)}"
+            )
+        if degradation is not None:
+            logger.warning(
+                f"recall 降级: "
+                f"stage={degradation.get('stage', '')} "
+                f"reason={degradation.get('reason', '')} "
+                f"session_id={session_id}"
+            )
+    except Exception as exc:
+        logger.debug(f"recall 观测日志写入失败，跳过: {exc}")
 
 
 def _resolve_summary_timestamp(messages: Sequence[LLMContextMessage]) -> datetime:

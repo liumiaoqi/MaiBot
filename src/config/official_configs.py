@@ -996,6 +996,121 @@ class ChatConfig(ConfigBase):
     )
     """亮度字符集（暗→亮，长度 8-10）。"""
 
+    # ZH1-1b recall + 按需翻原文可调参数
+    recall_threshold: float = Field(
+        default=0.65,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "recall 阈值",
+                "en_US": "Recall threshold",
+                "ja_JP": "リコール閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-horizontal",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "recall-controls",
+        },
+    )
+    """聊天回想 recall 语义匹配阈值（分数 > 阈值才命中，默认 0.65）。"""
+
+    recall_top_k: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "recall Top-K",
+                "en_US": "Recall Top-K",
+                "ja_JP": "リコール Top-K",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-horizontal",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "recall-controls",
+        },
+    )
+    """recall 取分数最高的 Top-K 条（默认 3，K=1 退化为旧 Top-1）。"""
+
+    recall_candidate_limit: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "候选上限",
+                "en_US": "Candidate limit",
+                "ja_JP": "候補上限",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-horizontal",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "recall-controls",
+        },
+    )
+    """recall 候选源从持久化表加载的条数上限（默认 100）。"""
+
+    recall_original_message_limit: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "原文条数上限",
+                "en_US": "Original message limit",
+                "ja_JP": "原文条数上限",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-horizontal",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "recall-controls",
+        },
+    )
+    """翻原文时 find_messages 拉取的条数上限（默认 20）。"""
+
+    recall_original_token_limit: int = Field(
+        default=2000,
+        ge=100,
+        le=10000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "原文 token 上限",
+                "en_US": "Original token limit",
+                "ja_JP": "原文トークン上限",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-horizontal",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "recall-controls",
+        },
+    )
+    """翻原文 token 硬上限（超限截断保留首尾，默认 2000）。"""
+
+    recall_timeout_ms: int = Field(
+        default=1000,
+        ge=100,
+        le=10000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "recall 超时(ms)",
+                "en_US": "Recall timeout (ms)",
+                "ja_JP": "リコールタイムアウト(ms)",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders-horizontal",
+            "x-layout": "inline-right",
+            "x-input-width": "6.5rem",
+            "x-row": "recall-controls",
+        },
+    )
+    """recall 总耗时超限 warning 降级（默认 1000ms）。"""
+
     reply_timing: ChatReplyTimingConfig = Field(default_factory=ChatReplyTimingConfig)
     """什么时候回复、回复频率与等待退避配置。"""
 

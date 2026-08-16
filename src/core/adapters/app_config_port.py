@@ -313,6 +313,24 @@ class GlobalConfigAppConfigPort:
     def get_chat_mid_term_memory(self) -> bool:
         return bool(self._get_cfg().chat.mid_term_memory)
 
+    def get_recall_threshold(self) -> float:
+        return float(getattr(self._get_cfg().chat, "recall_threshold", 0.65))
+
+    def get_recall_top_k(self) -> int:
+        return int(getattr(self._get_cfg().chat, "recall_top_k", 3))
+
+    def get_recall_candidate_limit(self) -> int:
+        return int(getattr(self._get_cfg().chat, "recall_candidate_limit", 100))
+
+    def get_recall_original_message_limit(self) -> int:
+        return int(getattr(self._get_cfg().chat, "recall_original_message_limit", 20))
+
+    def get_recall_original_token_limit(self) -> int:
+        return int(getattr(self._get_cfg().chat, "recall_original_token_limit", 2000))
+
+    def get_recall_timeout_ms(self) -> int:
+        return int(getattr(self._get_cfg().chat, "recall_timeout_ms", 1000))
+
     def get_enable_ascii_image(self) -> bool:
         return bool(getattr(self._get_cfg().chat, "enable_ascii_image", False))
 

@@ -1095,6 +1095,12 @@ class MaisakaChatLoopService:
             is_group_chat=self._is_group_chat,
             usage_prompt=_usage_prompt,
         )
+
+        # ZH1-1b：recall + 按需翻原文（select 后 append，不占普通窗口，失败降级不阻塞主流程）
+        selected_history = await self._append_recall_reference_messages(
+            chat_history, selected_history, log_prefix=""
+        )
+
         await prefetch_forward_nodes_for_messages(selected_history)
         built_messages = self._build_request_messages(
             selected_history,
@@ -1509,6 +1515,56 @@ class MaisakaChatLoopService:
         except Exception as exc:
             logger.warning(f"ZH1-1a 加载摘要失败，跳过: {exc}")
             return chat_history
+
+    async def _append_recall_reference_messages(
+        self,
+        chat_history: List[LLMContextMessage],
+        selected_history: List[LLMContextMessage],
+        *,
+        log_prefix: str,
+    ) -> List[LLMContextMessage]:
+        """ZH1-1b：recall + 按需翻原文（select 后 append，失败降级）。
+
+        spec 5.5.1 规则 6：recall 抛异常 → 捕获 + error 日志 + 上报，selected_history 不变，主流程继续。
+        AGENTS.md 静默失效禁令：不得静默吞错，降级需上报 error_escalation_port。
+        """
+        try:
+            from src.maisaka.memory.mid_term import (
+                build_mid_term_memory_reference_message,
+                is_mid_term_memory_message,
+            )
+
+            if not self._session_id:
+                return selected_history
+            existing_summary_ids = {
+                msg.message_id for msg in chat_history if is_mid_term_memory_message(msg)
+            }
+            recall_references = await build_mid_term_memory_reference_message(
+                history=chat_history,
+                selected_history=selected_history,
+                session_id=self._session_id,
+                existing_summary_ids=existing_summary_ids,
+                log_prefix=log_prefix,
+            )
+            if recall_references:
+                return selected_history + recall_references
+            return selected_history
+        except Exception as exc:
+            logger.warning(f"{log_prefix} ZH1-1b recall 降级，主流程继续: {exc}")
+            try:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(
+                        ErrorLevel.WARNING,
+                        f"ZH1-1b recall 降级: {exc}",
+                        component_id="chat_loop_service._append_recall_reference_messages",
+                    )
+            except Exception:
+                pass
+            return selected_history
 
     @staticmethod
     def _filter_history_for_request_kind(
