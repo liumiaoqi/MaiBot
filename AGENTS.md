@@ -62,6 +62,18 @@
 1. 不提交无边界的 ruff、格式化、导入整理或大面积实现整理
 2. 本地实验目录不进入共享历史
 
+# 设计参考铁律（2026-08-17 立，用户拍板）
+
+**设计派发/SSD/调研文档必须标注参考源码来源：**
+
+1. **设计系统类（OS 化/系统治理/资源/调度/容错）**——必须标注 Linux 内核源码参考：
+   `E:\Users\lmq\importantClone\linuxclone\linux\`（对应机制所在文件，如 mm/vmscan.c、kernel/workqueue.c）
+2. **设计智能体类（agent/记忆/自主性/工具链）**——必须标注 dsh（deepseek-harness）源码参考：
+   `E:\Users\lmq\importantClone\DEEPSEEKCLONE\deepseek-harness\`（对应包，如 packages/compaction、packages/token-meter）
+3. **理由**：MaiBot 底模 = DeepSeek 模型，dsh 是它的 harness——模型特化必须向 harness 看齐；
+   ZG 计划整体对标 Linux——系统机制必须翻内核真实现。两者是最重要的参考，不标注=设计无据。
+4. **范围**：派发文档（dsh2ca_*）、SSD（spec/design/tasks）、调研报告均需在输入材料/引用中体现。
+
 # 新模块接线（硬性规则——2026-08-15 立，ZG16-2/ZG16-5 两次静默失效教训）
 
 **新模块（新文件/新类/新入口函数）必须存在生产接线点，禁止"只有定义没有调用点"。**

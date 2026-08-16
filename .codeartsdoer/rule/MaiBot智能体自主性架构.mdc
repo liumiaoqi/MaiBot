@@ -98,6 +98,12 @@
 3. **不枚举下一步**：做完 A 再决定 B
 4. **用户更新简洁**：一句话说清在做什么
 
+## 设计参考铁律（2026-08-17 用户拍板）
+
+- **设计系统类**：必须标注 Linux 内核源码参考（importantClone/linuxclone/linux/ 对应机制文件）
+- **设计智能体类**：必须标注 dsh 源码参考（importantClone/DEEPSEEKCLONE/deepseek-harness/ 对应包）
+- 理由：ZG 对标 Linux、模型特化对标 harness——两者是最重要的参考，不标注=设计无据
+
 ## SSD 启动必要条件
 
 需求明确，行事有方向。启动 SSD 前必须能回答：做什么、为什么做、怎么验证做对了。
