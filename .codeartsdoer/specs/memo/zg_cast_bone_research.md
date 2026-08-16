@@ -94,7 +94,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | 编号 | 方向 | 理由 | 层级 |
 |------|------|------|------|
 | **ZG-11** | 多核利用（SMP 化） | 见下方 ZG-11 子项详情 | 基础 |
-| **ZG-13** | 角色语音（TTS 输出） | 见下方 ZG-13 子项详情 | 应用 |
+| **ZG-13** | 角色语音（TTS 输出） | ⏸️ **暂缓（2026-08-16 用户拍板）**——设计就绪未实现，见下方 ZG-13 子项详情 | 应用 |
 | **ZG-17** | 记忆水位回收（watermark+shinker 化） | 📚 调研完成（zg17_watermark_shrinker_survey：水位分级 + 两相回收——**2026-08-14 代码核实：未实现**），见下方详情 | 基础 |
 | **ZG-18** | 后台任务救援（workqueue rescuer 化） | 📚 调研完成（zg18_workqueue_rescuer_survey：并发上限 + 救援线程自死锁逃逸——**2026-08-14 代码核实：未实现**），见下方详情 | 基础 |
 | **ZG-19** | 落盘背压（dirty 阈值化） | 📚 调研完成（zg19_dirty_threshold_survey：两级阈值写者节流 + 批量提交对齐——**2026-08-14 代码核实：未实现**），见下方详情 | 基础 |
@@ -119,7 +119,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | ZG-3 | V2 Runner 注册（register_v2_supervisor 方法已存在未调用） | 低 | V2 Runner 普及后 |
 | ZG-5 | §11 WebUI 内省接口暂缓（适配器方法已实现，缺 WebUI 路由暴露） | 低 | 用户决定恢复 WebUI 资源监控时 |
 | 防御扫描 2026-08-08 | **mcp SDK 2.0 迁移**（FastMCP→MCPServer/Client 重构/无握手协议纪元——mcp_module 三文件 + 插件生态，官方建议 pin `<2` 先迁移后升级；当前锁 mcp>=1.28.1,<2.0） | P2 | 协议新纪元收益明确时（stateless/负载均衡/新扩展 API）专项排期 |
-| 2026-08-09 配置损坏事故 | **配置写入前校验**（configfs L5 提交式语义落地）：任何配置保存链路（前端/迁移/自动升级）写入前 tomlkit 校验 TOML 合法性——校验失败拒绝写入 + 清晰报错（含备份提示）。本次事故：bot_config.toml inner_voices 块被写坏（42 声音条目拍平）→ 容器启动崩溃——人肉对比 old/ 备份链修复。**配套**：启动编排配置加载阶段独立校验（ZG-10 方向——坏配置清晰报错而非裸崩溃） | P1 | R2 保存链路修复时一并做（CA 修保存 bug + 加校验） |
+| 2026-08-09 配置损坏事故 | **配置写入前校验**（configfs L5 提交式语义落地）：任何配置保存链路（前端/迁移/自动升级）写入前 tomlkit 校验 TOML 合法性——校验失败拒绝写入 + 清晰报错（含备份提示）。本次事故：bot_config.toml inner_voices 块被写坏（42 声音条目拍平）→ 容器启动崩溃——人肉对比 old/ 备份链修复。**配套**：启动编排配置加载阶段独立校验（ZG-10 方向——坏配置清晰报错而非裸崩溃） | P1 | ✅ **已完成**（38d3a0948 [dsh]：save_toml_with_format 三层防护——产物 TOML 校验 + .bak 备份 + 原子写——toml_utils.py:79，保存链路 12+ 调用点全覆盖） |
 | ZG-2 | L1 deferred output 已实现；L2 锁已实测否决；L3 ratelimit 已完成 | — | 全部关闭 |
 
 ## ZG-10 启动编排演进 — 子项详情
@@ -230,10 +230,11 @@ model_list = ["ali-text-embedding-v4"]
 **Phase 0（前置，接入阿里 embedding API）**：✅ **已完成**（2026-08-03 核实：用户已通过 WebUI 配置阿里 API embedding，运行时 `model_list` 非空，向量检索已恢复，非 sparse BM25 降级）
 - 接入后 embedding 变为 I/O 密集型，asyncio 天然处理，无需 worker
 
-**Phase 1（FAISS 搜索非阻塞化）**：
-- `await loop.run_in_executor(ThreadPoolExecutor, vector_store.search, query, k)`
-- FAISS 是 C 扩展，释放 GIL → ThreadPoolExecutor 即可用多核
-- 改动量：~3 行（search 调用点）
+**Phase 1（FAISS 搜索非阻塞化）**：✅ **已完成**（a55e279c3 [CC] 2026-08-04，2026-08-16 dsh 核实）
+- VectorStore.search_async 原生 async（vector_store.py:193——`asyncio.to_thread(self.search, ...)`，FAISS C 扩展释放 GIL → 多核）
+- async 上下文调用点全切 search_async（dual_path.py:1002/1081/1754）
+- 同步方法链（_collect_mixed_candidates/_search_paragraphs/_search_relations，:1885/1983/2010 同步 search）由生产路径整体 `asyncio.to_thread` 包裹（_parallel_retrieve :1378 / _sequential_retrieve :1269）——worker 线程执行不阻塞事件循环，有意设计（同步链整体入池，避免逐点切换开销）
+- 全库无遗漏同步调用点；dual_path 相关测试 43 passed（2026-08-16 验证）
 
 **Phase 2（本地大模型 embedding worker，按需）**：
 - 仅当使用本地大模型（如 bge-large-zh-v1.5，50-200ms/次）时启用
