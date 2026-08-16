@@ -67,6 +67,8 @@ class HostEndpoint:
         self._actual_listen_address: str = ""
         # ZG16-3：激活编排器（供 stop 逆序卸载用，bootstrap 注入）
         self._activation_coordinator = None
+        # ZG16-6a：PluginConfig servicer（bootstrap 注入）
+        self._plugin_config_servicer = None
 
     async def start(self) -> None:
         """启动 gRPC 服务器，开始监听 Runner 连接。
@@ -191,6 +193,27 @@ class HostEndpoint:
     def set_activation_coordinator(self, coordinator) -> None:
         """注入 ActivationCoordinator（ZG16-3，供 stop 逆序卸载用）。"""
         self._activation_coordinator = coordinator
+
+    def set_plugin_config_servicer(self, config_manager, scope_validator) -> None:
+        """ZG16-6a: 注入 PluginConfigServicer 并注册到已运行的 gRPC server。
+
+        在 HostEndpoint.start() 之后调用——bootstrap 先启动 endpoint 再初始化
+        PluginConfigManager，此处补注册 config 服务到运行中的 server。
+        """
+        from src.plugin_runtime_v2.host.servicer import PluginConfigServicer
+        from src.plugin_runtime_v2.proto.plugin_config_pb2_grpc import (
+            add_PluginConfigServiceServicer_to_server,
+        )
+
+        self._plugin_config_servicer = PluginConfigServicer(
+            config_manager=config_manager,
+            scope_validator=scope_validator,
+        )
+        if self._server is not None:
+            add_PluginConfigServiceServicer_to_server(
+                self._plugin_config_servicer, self._server,
+            )
+            logger.info("PluginConfigServicer 已注册到 Host gRPC server")
 
     def get_supervisor(self):
         """返回 RunnerSupervisor（未设置时 None）。"""

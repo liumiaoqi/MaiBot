@@ -550,6 +550,13 @@ tier1_scopes = [                                               # Tier 1 高危 s
 ]
 sensitive_param_names = ["token", "password", "secret", "api_key", "apikey", "credential"]  # 敏感参数名表（脱敏用）
 
+# ZG16-6a 插件配置管理
+plugin_config_debounce_ms = 300                                                          # FileWatcher debounce 毫秒（范围 100-5000，默认 300）
+plugin_config_revision_path = "data/plugin_runtime_v2/plugin_config_revisions.json"      # revision 持久化文件路径
+enable_plugin_config_watch = true                                                        # 是否监听插件 config.toml 变更（默认 true）
+enable_dump_plugin_config = true                                                         # 是否开启 dump_plugin_config 端点（默认 true）
+enable_schema_drift_detect = true                                                        # 是否开启 schema 漂移检测（默认 true）
+
 [agent]
 default_agent_id = "silver_wolf" # 新会话未绑定智能体时使用的默认智能体 ID。
 agents_dir = "agents" # 智能体 Markdown 配置文件的存放目录。
@@ -603,3 +610,10 @@ standby_visible_to_active = true # 待命智能体对活跃智能体是否可见
 standby_emotion_visible_to_active = false # 待命智能体的情绪是否对活跃智能体可见。
 dormant_visible_to_any = false # 沉睡智能体是否对任何智能体可见。
 state_awareness_enabled = true # 启用后，智能体可感知共居智能体的状态信息。
+
+# ZG16-6a 插件配置覆盖节（可选，无该节时退化为仅 base 层）
+# [plugin_override."maibot-team.napcat-adapter"]
+# napcat_server = { port = 3002 }  # 全局覆盖：覆盖插件 config.toml 的 napcat_server.port
+
+# [plugin_override."maibot-team.napcat-adapter".per_stream."group:123456"]
+# napcat_server = { port = 3003 }  # 聊天流覆盖：仅对 group:123456 生效

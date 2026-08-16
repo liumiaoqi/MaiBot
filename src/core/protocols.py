@@ -1263,6 +1263,29 @@ class AppConfigPort(Protocol):
     def get_sensitive_param_names(self) -> list[str]:
         """读取 [plugin_runtime_v2].sensitive_param_names（默认 6 个敏感字段名）。"""
 
+    # ZG16-6a 插件配置管理
+    def get_plugin_config_debounce_ms(self) -> int:
+        """读取 [plugin_runtime_v2].plugin_config_debounce_ms（默认 300）。"""
+
+    def get_plugin_config_revision_path(self) -> str:
+        """读取 [plugin_runtime_v2].plugin_config_revision_path。"""
+
+    def get_enable_plugin_config_watch(self) -> bool:
+        """读取 [plugin_runtime_v2].enable_plugin_config_watch（默认 true）。"""
+
+    def get_enable_dump_plugin_config(self) -> bool:
+        """读取 [plugin_runtime_v2].enable_dump_plugin_config（默认 true）。"""
+
+    def get_enable_schema_drift_detect(self) -> bool:
+        """读取 [plugin_runtime_v2].enable_schema_drift_detect（默认 true）。"""
+
+    def get_plugin_override(self, plugin_id: str) -> tuple[dict, dict]:
+        """读取 bot_config [plugin_override.{plugin_id}] 节。
+
+        返回 (global_override, per_stream_overrides)。
+        无该节时返回 ({}, {})。
+        """
+
     def get_message_receive_ban_words(self) -> list[str]: ...
     def get_message_receive_ban_msgs_regex(self) -> list[str]: ...
     def get_a_memorix_shared_memory_groups(self) -> list[str]: ...

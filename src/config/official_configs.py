@@ -6277,6 +6277,15 @@ class PluginRuntimeV2Config(ConfigBase):
         default_factory=lambda: ["token", "password", "secret", "api_key", "apikey", "credential"]
     )
 
+    # ZG16-6a 插件配置管理
+    plugin_config_debounce_ms: int = Field(default=300, ge=100, le=5000)
+    plugin_config_revision_path: str = Field(
+        default="data/plugin_runtime_v2/plugin_config_revisions.json"
+    )
+    enable_plugin_config_watch: bool = Field(default=True)
+    enable_dump_plugin_config: bool = Field(default=True)
+    enable_schema_drift_detect: bool = Field(default=True)
+
 
 class AgentSectionConfig(ConfigBase):
     """智能体配置类"""

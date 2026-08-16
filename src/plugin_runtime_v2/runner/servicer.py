@@ -83,3 +83,47 @@ class _PluginRunnerServicer(PluginRunnerServicer):
             args=args,
             timeout_ms=request.timeout_ms or 30000,
         )
+
+
+# ZG16-6a: Runner 侧 PluginConfigService 实现
+class _PluginConfigServicerRunner:
+    """Runner 侧 PluginConfigService 实现——接收 Host 推送的合并后配置。
+
+    收到 UpdatePluginConfig → 调用 handle_update_plugin_config →
+    更新 ConfigContext 缓存 → plugin.on_config_update(new, prev)。
+    """
+
+    def __init__(self, plugin_instance=None) -> None:
+        self._plugin = plugin_instance
+
+    def set_plugin(self, plugin) -> None:
+        """注入插件实例（加载后由 RunnerEndpoint 调用）。"""
+        self._plugin = plugin
+
+    async def UpdatePluginConfig(self, request, context):
+        """接收 Host 推送 → handle_update_plugin_config。"""
+        from src.plugin_runtime_v2.proto import plugin_config_pb2
+        from src.plugin_runtime_v2.runner.rpc_handler import handle_update_plugin_config
+
+        if self._plugin is None:
+            return plugin_config_pb2.UpdatePluginConfigResponse(
+                success=False, error="插件未加载",
+            )
+        registry = _SinglePluginRegistry(self._plugin)
+        return await handle_update_plugin_config(
+            request, registry, runner_supervisor=None,
+        )
+
+
+class _SinglePluginRegistry:
+    """单插件 registry——Runner 侧只有一个插件实例。"""
+
+    def __init__(self, plugin) -> None:
+        self._plugin = plugin
+
+    def get(self, plugin_id: str):
+        """按 plugin_id 查找——Runner 侧只有自身一个插件。"""
+        if self._plugin is not None and getattr(self._plugin, "plugin_id", None) == plugin_id:
+            return self._plugin
+        # fallback：Runner 侧单插件，plugin_id 不匹配也返回（宽容匹配）
+        return self._plugin

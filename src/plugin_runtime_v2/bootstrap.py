@@ -132,7 +132,86 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
         endpoint.listen_address,
         scope_file,
     )
+
+    # ZG16-6a: 初始化 PluginConfigManager（AGENTS.md 硬性规则——生产接线点）
+    if app_config_port.get_enable_plugin_config_watch():
+        try:
+            await init_plugin_config_manager(app_config_port, endpoint)
+        except Exception as exc:
+            logger.warning("PluginConfigManager 初始化失败，降级不监听: %s", exc)
+
     return endpoint
+
+
+# ZG16-6a: PluginConfigManager 全局实例管理
+_plugin_config_manager = None
+
+
+def _set_plugin_config_manager(manager) -> None:
+    global _plugin_config_manager
+    _plugin_config_manager = manager
+
+
+def get_plugin_config_manager():
+    """获取 PluginConfigManager 实例（dump CLI / 调试端点用）。"""
+    return _plugin_config_manager
+
+
+async def init_plugin_config_manager(
+    app_config_port: AppConfigPort,
+    host_endpoint,
+) -> None:
+    """启动时初始化 PluginConfigManager（AGENTS.md 硬性规则——生产接线点）。
+
+    创建 RevisionStore + PluginConfigManager 实例 + 注入依赖。
+    """
+    from src.plugin_runtime_v2.config.host_config_manager import (
+        PluginConfigManager,
+        RunnerConfigStub,
+    )
+    from src.plugin_runtime_v2.config.revision_store import RevisionStore
+
+    revision_store = RevisionStore(
+        path=app_config_port.get_plugin_config_revision_path()
+    )
+    # P0-2 修复：用 RunnerConfigStub 包装 registry，按 plugin_id 路由到 Runner
+    runner_stub = RunnerConfigStub(registry=host_endpoint._registry)
+    manager = PluginConfigManager(
+        app_config_port=app_config_port,
+        revision_store=revision_store,
+        grpc_stub=runner_stub,
+    )
+    _set_plugin_config_manager(manager)
+    # P0-1 修复：注册 PluginConfigServicer 到 Host gRPC server
+    host_endpoint.set_plugin_config_servicer(
+        config_manager=manager,
+        scope_validator=_get_scope_validator(host_endpoint),
+    )
+    logger.info("PluginConfigManager 已初始化（生产接线）")
+
+
+def _get_scope_validator(host_endpoint):
+    """获取 scope 校验器（复用 HostEndpoint 已有的 scope_store）。"""
+    from src.plugin_runtime_v2.scope.validate_manifest_scopes import Tier1Detector
+
+    scope_store = host_endpoint.scope_store
+    return Tier1Detector(scope_store=scope_store) if scope_store is not None else _NullScopeValidator()
+
+
+class _NullScopeValidator:
+    """无 scope_store 时的空校验器（放行所有请求）。"""
+
+    def validate(self, scope: str, context) -> bool:
+        return True
+
+
+async def close_plugin_config_manager() -> None:
+    """关闭时清理 PluginConfigManager（取消 FileWatcher 等）。"""
+    global _plugin_config_manager
+    if _plugin_config_manager is not None:
+        # 清理逻辑（FileWatcher 由 plugin_loader.stop_file_watcher 各自清理）
+        _plugin_config_manager = None
+        logger.info("PluginConfigManager 已关闭")
 
 
 def _get_tool_registry():

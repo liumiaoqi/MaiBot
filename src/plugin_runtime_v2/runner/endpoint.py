@@ -17,8 +17,14 @@ from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostStub
 from src.plugin_runtime_v2.proto.plugin_runner_pb2_grpc import (
     add_PluginRunnerServicer_to_server,
 )
+from src.plugin_runtime_v2.proto.plugin_config_pb2_grpc import (
+    add_PluginConfigServiceServicer_to_server,
+)
 from src.plugin_runtime_v2.runner.reconnect import ReconnectPolicy, RunnerEndpointConfig
-from src.plugin_runtime_v2.runner.servicer import _PluginRunnerServicer
+from src.plugin_runtime_v2.runner.servicer import (
+    _PluginConfigServicerRunner,
+    _PluginRunnerServicer,
+)
 from src.plugin_runtime_v2.runner.tool_router import ToolRouter
 from src.plugin_runtime_v2.lifecycle.refcount import PluginRefcount
 
@@ -58,6 +64,8 @@ class RunnerEndpoint:
         )
         self._tool_router = ToolRouter()
         self._servicer = _PluginRunnerServicer(tool_router=self._tool_router)
+        # ZG16-6a：Runner 侧 PluginConfig servicer（接收 Host 推送配置）
+        self._config_servicer = _PluginConfigServicerRunner()
         self._shutting_down: bool = False
         self._stream_call: grpc.aio.StreamStreamCall | None = None
         self._recv_task: asyncio.Task | None = None
@@ -96,6 +104,8 @@ class RunnerEndpoint:
                 # ZG-15：创建活体引用并注入 servicer（拒新 + GetInflightCount）
                 self._refcount = PluginRefcount(self._config.plugin_id)
                 self._servicer.set_refcount(self._refcount)
+                # ZG16-6a：注入插件实例到 config servicer（接收 Host 推送配置）
+                self._config_servicer.set_plugin(plugin_instance)
                 # 注入 PluginContext
                 from src.plugin_runtime_v2.sdk.context import PluginContext
                 ctx = PluginContext(
@@ -235,6 +245,8 @@ class RunnerEndpoint:
         # 2. 启动 PluginRunner gRPC 服务端（随机端口）
         self._server = grpc.aio.server(options=_GRPC_SERVER_OPTIONS)
         add_PluginRunnerServicer_to_server(self._servicer, self._server)
+        # ZG16-6a: 注册 PluginConfigService（接收 Host 推送配置）
+        add_PluginConfigServiceServicer_to_server(self._config_servicer, self._server)
         listen_port = self._server.add_insecure_port("127.0.0.1:0")
         await self._server.start()
         runner_listen_address = f"127.0.0.1:{listen_port}"

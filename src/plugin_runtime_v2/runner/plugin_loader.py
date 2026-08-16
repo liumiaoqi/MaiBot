@@ -25,6 +25,9 @@ class PluginLoader:
         self._tool_declarations: list[dict[str, Any]] = []
         self._event_declarations: list[dict[str, Any]] = []
         self._homecard_registry: dict[str, dict[str, Any]] = {}
+        # ZG16-6a: 配置管理 + 文件监听
+        self._config_manager = None  # PluginConfigManager 实例（由外部注入）
+        self._file_watchers: dict[str, Any] = {}  # plugin_id → PluginFileWatcher
 
     # ── 公共 API ────────────────────────────────────────────────
 
@@ -87,6 +90,47 @@ class PluginLoader:
             self._homecard_registry,
             self._instance,
         )
+
+    # ZG16-6a: 初始配置下发 + 注册 PluginFileWatcher
+    async def deliver_initial_config(
+        self,
+        plugin_id: str,
+        base_path: str,
+    ) -> None:
+        """加载后调 PluginConfigManager 合并三层 → gRPC 下发初始配置 → 注册 PluginFileWatcher。
+
+        spec 5.2.1 规则 6：插件加载时初始配置下发。
+        """
+        if self._config_manager is None:
+            return  # 未注入 config_manager，跳过（v1 插件或未启用 v2 配置机制）
+        try:
+            await self._config_manager.load_plugin_config(
+                plugin_id, base_path
+            )
+            # 注册 PluginFileWatcher（spec 5.3.1 规则 1）
+            if self._config_manager._port.get_enable_plugin_config_watch():
+                await self._register_file_watcher(plugin_id, base_path)
+        except Exception as e:
+            logger.warning(f"插件 {plugin_id} 初始配置下发失败，降级空配置: {e}")
+
+    async def _register_file_watcher(self, plugin_id: str, base_path: str) -> None:
+        """注册 PluginFileWatcher 监听插件 config.toml。"""
+        from src.plugin_runtime_v2.config.plugin_file_watcher import PluginFileWatcher
+        config_path = f"{base_path}/config.toml"
+        watcher = PluginFileWatcher(
+            plugin_id=plugin_id,
+            config_path=config_path,
+            debounce_ms=self._config_manager._port.get_plugin_config_debounce_ms(),
+            callback=self._config_manager.handle_file_change,
+        )
+        await watcher.start()
+        self._file_watchers[plugin_id] = watcher
+
+    async def stop_file_watcher(self, plugin_id: str) -> None:
+        """插件卸载时取消监听（spec 5.3.1 规则 1b）。"""
+        watcher = self._file_watchers.pop(plugin_id, None)
+        if watcher is not None:
+            await watcher.stop()
 
     async def unload(self, plugin: MaiBotPlugin) -> None:
         """调用插件的 on_unload 生命周期。"""

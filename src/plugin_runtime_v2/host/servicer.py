@@ -776,3 +776,39 @@ class _PluginHostServicer(PluginHostServicer):
                 img_data = base64.b64decode(img_b64) if img_b64 else b""
                 seq.image(img_data)
         return seq
+
+
+# ZG16-6a: Host 侧 PluginConfigService 实现
+class PluginConfigServicer:
+    """Host 侧 PluginConfigService 实现。
+
+    config:write scope 校验（填补既有 config:write:self / plugin:write:config 消费点）。
+    """
+
+    def __init__(self, config_manager, scope_validator) -> None:
+        self._config_manager = config_manager
+        self._scope_validator = scope_validator
+
+    async def UpdatePluginConfig(
+        self,
+        request,
+        context,
+    ):
+        """Host 侧推送配置到 Runner。"""
+        from src.plugin_runtime_v2.proto import plugin_config_pb2
+
+        # scope 校验（spec 4.3.1）——填补既有 config:write scope 消费点
+        if not self._scope_validator.validate("config:write:self", context):
+            return plugin_config_pb2.UpdatePluginConfigResponse(
+                success=False, error="未授权 config:write:self scope"
+            )
+        # 推送配置到 Runner（通过 gRPC stub）
+        try:
+            await self._config_manager.handle_file_change(
+                request.plugin_id, request.source
+            )
+            return plugin_config_pb2.UpdatePluginConfigResponse(
+                success=True, new_revision=self._config_manager._revision_store.get(request.plugin_id)
+            )
+        except Exception as e:
+            return plugin_config_pb2.UpdatePluginConfigResponse(success=False, error=str(e))

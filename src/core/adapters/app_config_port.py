@@ -597,3 +597,58 @@ class GlobalConfigAppConfigPort:
         if cfg and cfg.sensitive_param_names:
             return list(cfg.sensitive_param_names)
         return ["token", "password", "secret", "api_key", "apikey", "credential"]
+
+    # ZG16-6a 插件配置管理
+    def get_plugin_config_debounce_ms(self) -> int:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and getattr(cfg, "plugin_config_debounce_ms", None) is not None:
+            return cfg.plugin_config_debounce_ms
+        return 300
+
+    def get_plugin_config_revision_path(self) -> str:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and getattr(cfg, "plugin_config_revision_path", None) is not None:
+            return cfg.plugin_config_revision_path
+        return "data/plugin_runtime_v2/plugin_config_revisions.json"
+
+    def get_enable_plugin_config_watch(self) -> bool:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and getattr(cfg, "enable_plugin_config_watch", None) is not None:
+            return cfg.enable_plugin_config_watch
+        return True
+
+    def get_enable_dump_plugin_config(self) -> bool:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and getattr(cfg, "enable_dump_plugin_config", None) is not None:
+            return cfg.enable_dump_plugin_config
+        return True
+
+    def get_enable_schema_drift_detect(self) -> bool:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and getattr(cfg, "enable_schema_drift_detect", None) is not None:
+            return cfg.enable_schema_drift_detect
+        return True
+
+    def get_plugin_override(self, plugin_id: str) -> tuple[dict, dict]:
+        """读取 bot_config [plugin_override.{plugin_id}] 节。
+
+        返回 (global_override, per_stream_overrides)。
+        无该节时返回 ({}, {})。
+        """
+        import tomllib
+        from pathlib import Path
+
+        bot_config_path = Path("config/bot_config.toml")
+        if not bot_config_path.exists():
+            return {}, {}
+        try:
+            with open(bot_config_path, "rb") as f:
+                full_config = tomllib.load(f)
+        except Exception:
+            return {}, {}
+        override_section = full_config.get("plugin_override", {})
+        plugin_section = override_section.get(plugin_id, {})
+        if not plugin_section:
+            return {}, {}
+        per_stream = plugin_section.pop("per_stream", {})
+        return plugin_section, per_stream

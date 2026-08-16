@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package plugin_runtime_v2;
+
+// ZG16-6a: 插件配置更新 RPC（Host → Runner 推送合并后配置）
+message UpdatePluginConfigRequest {
+    string plugin_id = 1;       // 目标插件 ID
+    string config_json = 2;     // 合并后配置 JSON 字符串（protobuf 不直接支持 dict）
+    int32 revision = 3;         // 配置版本号
+    string source = 4;          // 变更来源 'file_watcher' | 'webui' | 'sdk_update' | 'init'
+}
+
+message UpdatePluginConfigResponse {
+    bool success = 1;           // 推送是否成功
+    string error = 2;           // 失败错误信息（空时成功）
+    int32 new_revision = 3;     // 新 revision（成功时）
+}
+
+service PluginConfigService {
+    // Host 推送配置到 Runner → Runner 调用 plugin.on_config_update(new, prev)
+    rpc UpdatePluginConfig(UpdatePluginConfigRequest) returns (UpdatePluginConfigResponse);
+}

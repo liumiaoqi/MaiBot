@@ -6,8 +6,10 @@
 
 
 import asyncio
-
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
+
+from src.common.logger import get_logger
 
 if TYPE_CHECKING:
     from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
@@ -111,6 +113,62 @@ class LoggerContext:
         self._logger.error(msg, *args)
 
 
+class ConfigContext:
+    """SDK 暴露给插件的配置访问对象。设计参考 dsh SettingsScope `index.ts:103-129`。"""
+
+    def __init__(self, plugin_id: str, runner_endpoint) -> None:
+        self._plugin_id = plugin_id
+        self._runner_endpoint = runner_endpoint
+        self._cache: dict = {}  # 配置缓存（初始空 dict，spec 5.2.3 场景 3）
+        self._revision: int = 0
+        self._watch_callbacks: list[Callable[[dict, dict], None]] = []
+        self._ready: bool = False
+
+    def get(self) -> dict:
+        """返回合并后配置（内存读取，不触发 gRPC）。"""
+        if not self._ready:
+            get_logger("plugin_runtime_v2.sdk.context").warning(
+                f"插件 {self._plugin_id} 配置未就绪，返回空 dict"
+            )
+        return self._cache
+
+    def watch(
+        self,
+        callback: Callable[[dict, dict], None],
+    ) -> Callable[[], None]:
+        """注册配置变更回调 callback(new, prev)。返回取消订阅函数。"""
+        self._watch_callbacks.append(callback)
+
+        def unsubscribe() -> None:
+            if callback in self._watch_callbacks:
+                self._watch_callbacks.remove(callback)
+        return unsubscribe
+
+    async def update(self, patch: dict) -> None:
+        """发起配置更新请求到 Host（通过 gRPC）。Host 合并后回推。"""
+        await self._runner_endpoint.update_plugin_config(self._plugin_id, patch)
+
+    def _apply_update(self, new_config: dict, revision: int) -> None:
+        """Runner 收到 RPC 推送时调用：更新缓存 → 风扇出 watch callbacks(new, prev)。"""
+        prev_config = self._cache
+        self._cache = new_config
+        self._revision = revision
+        self._ready = True
+        # 风扇出 watch callbacks（spec 5.3.1 规则 9）
+        for callback in self._watch_callbacks:
+            try:
+                callback(new_config, prev_config)
+            except Exception as e:
+                get_logger("plugin_runtime_v2.sdk.context").error(
+                    f"watch callback 异常: {e}"
+                )
+
+    @property
+    def revision(self) -> int:
+        """返回当前配置 revision。"""
+        return self._revision
+
+
 class PluginContext:
     """插件运行时上下文 — 替代 v3 的 self.ctx。Phoenix-6 补全 RPC 调用。"""
 
@@ -120,6 +178,7 @@ class PluginContext:
         granted_scopes: set[str],
         runner_endpoint: RunnerEndpoint,
         homecard_registry: dict[str, dict[str, Any]],
+        config: ConfigContext | None = None,  # ZG16-6a 新增（可选，初始下发后注入）
     ) -> None:
         self._send = SendContext(granted_scopes, runner_endpoint)
         self._storage = StorageContext(granted_scopes, runner_endpoint, plugin_id)
@@ -128,6 +187,8 @@ class PluginContext:
         self._homecard_registry = homecard_registry
         # ZG-15：自启任务登记（on_unload 前 cancel_all_tasks 统一取消）
         self._registered_tasks: set[asyncio.Task] = set()
+        # ZG16-6a: 配置访问对象
+        self._config = config or ConfigContext(plugin_id, runner_endpoint)
 
     @property
     def send(self) -> SendContext:
@@ -143,6 +204,11 @@ class PluginContext:
     def logger(self) -> LoggerContext:
         """日志桥接子对象。"""
         return self._logger
+
+    @property
+    def config(self) -> ConfigContext:
+        """SDK 配置访问对象（ctx.config.get/watch/update）。ZG16-6a 新增。"""
+        return self._config
 
     def _check_scope(self, label: str, scope: str) -> None:
         if scope not in self._send._granted_scopes:

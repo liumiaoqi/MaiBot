@@ -46,5 +46,14 @@ class MaiBotPlugin:
         继续运行导致竞态（访问已释放资源）。
         """
 
-    async def on_config_update(self, config: dict[str, Any]) -> None:
-        """配置更新时调用。子类可覆盖以响应配置变更。"""
+    async def on_config_update(
+        self,
+        new_config: dict[str, Any],
+        prev_config: dict[str, Any],
+    ) -> None:
+        """配置更新时调用。子类可覆盖以响应配置变更。
+
+        签名扩展：既有单参数 config 扩展为 (new_config, prev_config)。
+        设计参考 dsh SettingsScope.watch(callback: (next, prev)) `index.ts:103-129`。
+        prev_config 对比是热更核心价值——插件需知道什么变了。
+        """
