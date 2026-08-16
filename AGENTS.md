@@ -72,7 +72,10 @@
    `E:\Users\lmq\importantClone\DEEPSEEKCLONE\deepseek-harness\`（对应包，如 packages/compaction、packages/token-meter）
 3. **理由**：MaiBot 底模 = DeepSeek 模型，dsh 是它的 harness——模型特化必须向 harness 看齐；
    ZG 计划整体对标 Linux——系统机制必须翻内核真实现。两者是最重要的参考，不标注=设计无据。
-4. **范围**：派发文档（dsh2ca_*）、SSD（spec/design/tasks）、调研报告均需在输入材料/引用中体现。
+4. **插件哲学（2026-08-17 用户拍板）**：MaiBot 插件体系的设计哲学**重点从 dsh 学习**——
+   deepseek-harness 的 47 包 Cordis 插件架构（生命周期/依赖/作用域/上下文注入）是插件设计的第一参考，
+   先于通用插件框架（如 Home Assistant 等仅作补充对照）。
+5. **范围**：派发文档（dsh2ca_*）、SSD（spec/design/tasks）、调研报告均需在输入材料/引用中体现。
 
 # 新模块接线（硬性规则——2026-08-15 立，ZG16-2/ZG16-5 两次静默失效教训）
 
