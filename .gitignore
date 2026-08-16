@@ -406,3 +406,7 @@ importantClone/
 scientific-agent-skills/
 docs/API 文档
 files
+
+# 训练数据不进入仓库（157MB 大文件，曾用 LFS 触发公共 fork 推送限制）
+scripts/embedding_finetune/data/train_triplets.jsonl
+
