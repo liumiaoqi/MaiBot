@@ -15,7 +15,7 @@
 - frozen dataclass 更新用 `copy.replace()`，替代 `dataclasses.replace()`
   -在main干活需要许可，一般在工作树干活，不要擅自合并
 
-## TypeScript 速查（写前端代码必读——开工先看"版本基线警告"节：dashboard 是 React 19/TS 5.9 运行时，代码基线却是 React 18/TS 4.x——旧知识写新代码必爆红）
+## TypeScript 速查（写前端代码必读——开工先看"版本基线警告"节：**mingtang（主战场）是 React 19.2/TS 6.0.2（typescript6 包）+ TS 7.0.2（native）双轨/Vite 8.2/ESLint 10——dashboard 是 React 19.2/TS ~5.9.3/Vite 7.2/ESLint 9.39——两前端版本不同，旧知识写新代码必爆红）
 
 详细版：`.shared/decisions/typescript_new_code_cheatsheet.md`
 
