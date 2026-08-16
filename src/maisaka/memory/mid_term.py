@@ -183,6 +183,7 @@ async def build_mid_term_memory_message(
         participants=participants,
         source_messages=summary_source_messages,
         recall_cue_embeddings=recall_cue_embeddings,
+        session_id=session_id,  # ZH1-1a：传 session_id 构造指针
     )
     logger.info(
         f"{log_prefix} 聊天回想生成内容: "
@@ -220,8 +221,13 @@ def build_mid_term_memory_complex_message(
     participants: Sequence[str],
     source_messages: Sequence[LLMContextMessage],
     recall_cue_embeddings: Sequence[dict[str, Any]] | None = None,
+    session_id: str = "",  # ZH1-1a 新增：构造指针用
 ) -> ComplexSessionMessage:
-    """基于摘要内容构造聊天回想上下文消息。"""
+    """基于摘要内容构造聊天回想上下文消息（含指针）。
+
+    ZH1-1a：payload.data 新增 session_id + time_range_pointer 指针字段，
+    用于持久化隔离 + ZH1-1b 翻原文定位。
+    """
 
     timestamp = _resolve_summary_timestamp(source_messages)
     participants_text = "、".join(participants) if participants else "未知"
@@ -238,6 +244,9 @@ def build_mid_term_memory_complex_message(
             "participants": list(participants),
             "summary": summary_payload.summary.strip(),
             "recall_cues": list(recall_cue_embeddings or []),
+            # ZH1-1a 指针字段（spec 6.2 数据约束）
+            "session_id": session_id,
+            "time_range_pointer": time_range,
         },
     }
     preview_text = build_mid_term_memory_preview_text(payload["data"])
@@ -264,13 +273,81 @@ def build_mid_term_memory_complex_message(
     )
 
 
-def insert_mid_term_memory_message(
+def build_mid_term_memory_message_from_record(
+    record: Any,
+) -> ComplexSessionMessage:
+    """从持久化记录 reconstruct 聊天回想消息（方案 A 加载，design 4.4）。
+
+    chat_loop_service 构建上下文时调用：从 mid_term_memory_summaries 表加载记录
+    → reconstruct 为 ComplexSessionMessage → insert 到历史 → planner 可见。
+
+    Args:
+        record: MidTermMemorySummaries SQLModel 记录。
+
+    Returns:
+        ComplexSessionMessage — 与 build_mid_term_memory_complex_message 构造格式一致。
+    """
+    participants = json.loads(record.participants) if record.participants else []
+    recall_cues = json.loads(record.recall_cues) if record.recall_cues else []
+    payload = {
+        "type": MID_TERM_MEMORY_COMPONENT_TYPE,
+        "data": {
+            "time_range": record.time_range,
+            "participants": participants,
+            "summary": record.summary,
+            "recall_cues": recall_cues,
+            "session_id": record.session_id,
+            "time_range_pointer": record.time_range,
+        },
+    }
+    preview_text = build_mid_term_memory_preview_text(payload["data"])
+    planner_prefix = _build_summary_planner_prefix(
+        timestamp=record.timestamp,
+        message_id=record.summary_id,
+    )
+    participants_text = "、".join(participants) if participants else "未知"
+    visible_text = "\n".join(
+        [
+            f"[{MID_TERM_MEMORY_USER_NAME}]",
+            f"时间范围: {record.time_range}",
+            f"参与人物: {participants_text}",
+            f"summary: {record.summary}",
+        ]
+    )
+    return ComplexSessionMessage(
+        raw_message=MessageSequence([DictComponent(payload)]),
+        visible_text=visible_text,
+        timestamp=record.timestamp,
+        message_id=record.summary_id,
+        source_kind=MID_TERM_MEMORY_SOURCE_KIND,
+        prompt_text=f"{planner_prefix}{preview_text}",
+        complex_message_type=MID_TERM_MEMORY_COMPLEX_TYPE,
+    )
+
+
+async def insert_mid_term_memory_message(
     history: Sequence[LLMContextMessage],
     summary_message: ComplexSessionMessage,
     *,
     max_summary_count: int,
+    session_id: str = "",  # ZH1-1a 新增：持久化用
 ) -> list[LLMContextMessage]:
-    """将新的聊天回想插入到上一条聊天回想之后，并维护最大保留数量。"""
+    """将新的聊天回想插入到上一条聊天回想之后，并维护最大保留数量。
+
+    ZH1-1a：先持久化到新表（mid_term_memory_summaries），持久化成功后才 insert 到历史。
+    持久化失败不 insert（避免历史有摘要但数据库无记录，spec 4.2 可靠性规则 7）。
+    """
+
+    # ZH1-1a：先持久化到数据库（spec 4.2 可靠性规则 7）
+    if session_id:
+        from src.maisaka.memory.mid_term_persistence import get_mid_term_persistence
+
+        persistence = get_mid_term_persistence()
+        if persistence is not None:
+            persist_ok = await persistence.persist_summary_to_db(summary_message, session_id)
+            if not persist_ok:
+                logger.warning(f"摘要持久化失败，跳过 insert 到历史: session_id={session_id}")
+                return list(history)
 
     if max_summary_count <= 0:
         return [message for message in history if not is_mid_term_memory_message(message)]

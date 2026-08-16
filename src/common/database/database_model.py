@@ -648,3 +648,42 @@ class AgentAutonomySpeakerChangeRecord(SQLModel, table=True):
         Index("ix_agent_autonomy_sc_session_created", "session_id", "created_at"),
         Index("ix_agent_autonomy_sc_created", "created_at"),
     )
+
+
+class MidTermMemorySummaries(SQLModel, table=True):
+    """ZH1-1a：聊天回想摘要索引持久化表。
+
+    摘要做索引、数据库做仓库（lmq 拍板）——原文永远在 mai_messages 库里，
+    摘要是带指针（session_id + time_range）的轻量索引，recall 命中后翻原文是 ZH1-1b。
+    """
+
+    __tablename__ = "mid_term_memory_summaries"  # type: ignore
+
+    # summary_id：主键，幂等（复用 _build_summary_message_id：mtm:{timestamp_base36}:{sha1_8}）
+    summary_id: str = Field(primary_key=True, max_length=128)
+    # session_id：会话标识（group:{gid} 或 user:{uid}），隔离 + 指针
+    session_id: str = Field(index=True, max_length=255)
+    # time_range：时间范围字符串（YYYY-MM-DD HH:MM:SS ~ YYYY-MM-DD HH:MM:SS）
+    time_range: str
+    # time_range_start / end：从 time_range 解析，用于索引 + ZH1-1b 按时间范围查 mai_messages
+    time_range_start: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True, index=True))
+    time_range_end: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True, index=True))
+    # participants：JSON 序列化 list[str]
+    participants: str = Field(default="[]")
+    # summary：摘要文本（LLM 生成，几百 token）
+    summary: str
+    # recall_cues：JSON 序列化 list[str]（≤5 条）
+    recall_cues: str = Field(default="[]")
+    # recall_cue_embeddings：JSON 序列化 list[dict]（每条含 text + embedding + model_name）
+    recall_cue_embeddings: str = Field(default="[]")
+    # timestamp：摘要时间戳（source_messages 最大 timestamp）
+    timestamp: datetime = Field(sa_column=Column(DateTime))
+    # created_at：记录创建时间
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+    # revision：乐观并发版本号（预留 ZH1-3 merge/update 用，本批不 bump）
+    revision: int = Field(default=0)
+
+    __table_args__ = (
+        Index("ix_mid_term_summaries_session_time", "session_id", "time_range_start", "time_range_end"),
+        Index("ix_mid_term_summaries_timestamp", "timestamp"),
+    )

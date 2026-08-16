@@ -546,6 +546,7 @@ def process_chat_history_after_cycle(
     *,
     max_context_size: int,
     enable_context_optimization: bool = False,
+    session_id: str = "",  # ZH1-1a：裁切后入队摘要 build 用
 ) -> HistoryPostProcessResult:
     """在每轮结束后统一执行历史裁切与清理。"""
 
@@ -592,6 +593,10 @@ def process_chat_history_after_cycle(
         )
         compact_removed_count = len(removed_messages) + removed_after_trim_count
         moved_tool_result_count += moved_after_trim_count
+
+    # ZH1-1a：裁切后入队摘要 build（异步，不阻塞裁切主流程，spec 5.4.1 规则 4）
+    if removed_messages:
+        _enqueue_mid_term_summary_build(removed_messages, session_id=session_id)
 
     remaining_context_count = sum(1 for message in processed_history if message.count_in_context)
     removed_count = one_shot_removed_count + normalized_removed_count + optimized_removed_count + compact_removed_count
@@ -807,6 +812,34 @@ def _trim_history_to_context_target(
     for index in reversed(remove_indexes):
         del chat_history[index]
     return removed_messages
+
+
+# ZH1-1a：裁切后入队摘要 build（异步，不阻塞主流程）
+def _enqueue_mid_term_summary_build(
+    removed_messages: list[LLMContextMessage],
+    *,
+    session_id: str,
+) -> None:
+    """裁切后入队摘要 build（异步，不阻塞主流程）。
+
+    spec 5.4.1 规则 3：入队含 session_id（指针构造 + 持久化隔离）。
+    spec 5.4.1 规则 4：异步入队不阻塞裁切主流程。
+    spec 5.4.3 场景 1：无 session_id 跳过 + warning。
+    spec 5.4.3 场景 2：入队失败 warning 不阻塞。
+    """
+    if not session_id:
+        logger.warning("裁切接线无 session_id，跳过摘要入队")
+        return
+    try:
+        from src.maisaka.memory.mid_term_summary_queue import get_mid_term_summary_queue
+
+        queue = get_mid_term_summary_queue()
+        if queue is None:
+            logger.warning("摘要队列未初始化，跳过摘要入队")
+            return
+        queue.enqueue_summary_build(removed_messages, session_id=session_id)
+    except Exception as exc:
+        logger.warning(f"摘要入队失败，裁切主流程继续: {exc}")
 
 
 # =============================================================================

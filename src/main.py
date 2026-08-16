@@ -1315,6 +1315,36 @@ class MainSystem:
             _watchdog_touch_loop(), name="watchdog-touch"
         )
 
+    # ── ZH1-1a 记忆索引层接线 ─────────────────────────────────
+
+    @staticmethod
+    @startup_item(
+        name="mid_term_persistence",
+        phase=StartupPhase.CORE_SERVICES,
+        order=17,
+        critical=False,
+    )
+    async def _init_mid_term_persistence() -> None:
+        """ZH1-1a：初始化摘要持久化服务 + 自动建表。"""
+        from src.maisaka.memory.mid_term_persistence import init_mid_term_persistence
+
+        init_mid_term_persistence()
+
+    @staticmethod
+    @startup_item(
+        name="mid_term_summary_queue",
+        phase=StartupPhase.CORE_SERVICES,
+        order=18,
+        critical=False,
+        depends_on=["mid_term_persistence"],
+        dependency_kind={"mid_term_persistence": DependencyKind.STRONG},
+    )
+    async def _init_mid_term_summary_queue() -> None:
+        """ZH1-1a：初始化异步摘要队列 + 消费者 task。"""
+        from src.maisaka.memory.mid_term_summary_queue import init_mid_term_summary_queue
+
+        init_mid_term_summary_queue(maxsize=1000)
+
     @staticmethod
     @startup_item(
         name="ipc_bridge_port",
@@ -1595,6 +1625,13 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
         from src.plugin_runtime_v2.scope.scope_audit import close_scope_audit_recorder
 
         await close_scope_audit_recorder()
+
+        # ZH1-1a: 关闭摘要队列 + 持久化服务
+        from src.maisaka.memory.mid_term_summary_queue import close_mid_term_summary_queue
+        from src.maisaka.memory.mid_term_persistence import close_mid_term_persistence
+
+        await close_mid_term_summary_queue()
+        await close_mid_term_persistence()
 
         set_main_loop(None)
 

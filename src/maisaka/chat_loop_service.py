@@ -55,7 +55,7 @@ from src.maisaka.context.token_estimator import (
 from src.maisaka.context.token_budget import select_by_token_budget
 from src.maisaka.context.grayscale_log import format_grayscale_log
 from src.maisaka.context.usage_anchor import usage_anchor
-from src.maisaka.memory.mid_term import is_mid_term_memory_message
+
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.focus import focus_mode_manager
 from src.maisaka.visual.message_limiter import limit_latest_images_in_messages
@@ -1084,6 +1084,9 @@ class MaisakaChatLoopService:
         except Exception:
             pass
 
+        # ZH1-1a 方案 A（design 4.4）：从持久化表加载摘要 insert 到历史 → planner 可见
+        chat_history = self._load_summaries_into_history(chat_history)
+
         selected_history, selection_reason = self.select_llm_context_messages(
             chat_history,
             request_kind=request_kind,
@@ -1468,13 +1471,55 @@ class MaisakaChatLoopService:
             selected_indices.append(index)
         return selected_indices
 
+    def _load_summaries_into_history(
+        self,
+        chat_history: List[LLMContextMessage],
+    ) -> List[LLMContextMessage]:
+        """ZH1-1a 方案 A：从持久化表加载摘要 insert 到历史（design 4.4）。
+
+        摘要消息插入到历史开头（最旧的上下文），planner 构建请求时可见。
+        若持久化服务未初始化或 session_id 为空，返回原历史不动。
+        """
+        if not self._session_id:
+            return chat_history
+        try:
+            from src.maisaka.memory.mid_term import (
+                build_mid_term_memory_message_from_record,
+                is_mid_term_memory_message,
+            )
+            from src.maisaka.memory.mid_term_persistence import get_mid_term_persistence
+
+            persistence = get_mid_term_persistence()
+            if persistence is None:
+                return chat_history
+            records = persistence.load_summaries_by_session(self._session_id, limit=10)
+            if not records:
+                return chat_history
+            existing_ids = {
+                msg.message_id for msg in chat_history if is_mid_term_memory_message(msg)
+            }
+            summary_messages = [
+                build_mid_term_memory_message_from_record(record)
+                for record in records
+                if record.summary_id not in existing_ids
+            ]
+            if not summary_messages:
+                return chat_history
+            return summary_messages + chat_history
+        except Exception as exc:
+            logger.warning(f"ZH1-1a 加载摘要失败，跳过: {exc}")
+            return chat_history
+
     @staticmethod
     def _filter_history_for_request_kind(
         selected_history: List[LLMContextMessage],
         *,
         request_kind: str,
     ) -> List[LLMContextMessage]:
-        """按请求类型过滤不应暴露的历史工具链。"""
+        """按请求类型过滤不应暴露的历史工具链。
+
+        ZH1-1a：解除 mid_term_memory 过滤——planner 需看到摘要消息恢复上下文。
+        """
 
         if request_kind == "expression_selector":
             return [
@@ -1483,20 +1528,8 @@ class MaisakaChatLoopService:
                 if isinstance(message, SessionBackedMessage)
             ]
 
-        if request_kind == "planner":
-            return [
-                message
-                for message in selected_history
-                if not is_mid_term_memory_message(message)
-            ]
-
-        if request_kind != "planner":
-            return [
-                message
-                for message in selected_history
-                if not is_mid_term_memory_message(message)
-            ]
-
+        # ZH1-1a：planner 和非 planner 分支不再过滤 mid_term_memory 消息
+        # （spec 5.5.1 规则 1-2：planner 要能看到摘要消息——否则插了也白插）
         return selected_history
 
     @staticmethod
