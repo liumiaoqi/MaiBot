@@ -1,12 +1,17 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Sequence, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple
 
+import hashlib
 import re
 
 import jieba
 
+from src.common.logger import get_logger
+
 if TYPE_CHECKING:
-    from .dual_path import DualPathRetriever, RetrievalResult
+    from .dual_path import DualPathRetriever, RetrievalResult, TemporalQueryOptions
+
+logger = get_logger("A_Memorix.posterior_graph")
 
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]+")
@@ -172,6 +177,19 @@ def _build_query_profile(
     *,
     max_tokens: int,
 ) -> _CompetitionProfile:
+    # ZG-28 query profile 缓存（键=query 哈希）
+    cache_key: Optional[str] = None
+    if retriever._enable_profile_cache and retriever._profile_cache is not None:
+
+        cache_key = hashlib.sha1(str(query or "").encode("utf-8")).hexdigest()
+        try:
+            cached = retriever._profile_cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            logger.warning("ZG-28 query profile 缓存读取异常，跳过缓存")
+            cache_key = None
+
     text = str(query or "")
     tokens = set(_tokenize_for_competition(text, max_tokens=max_tokens))
     entities = {
@@ -179,7 +197,15 @@ def _build_query_profile(
         for name in retriever._extract_entities(text).keys()
         if str(name or "").strip()
     }
-    return _CompetitionProfile(text=text, tokens=tokens, entities=entities)
+    profile = _CompetitionProfile(text=text, tokens=tokens, entities=entities)
+
+    # ZG-28 缓存写入
+    if cache_key is not None and retriever._profile_cache is not None:
+        try:
+            retriever._profile_cache.put(cache_key, profile)
+        except Exception:
+            logger.warning("ZG-28 query profile 缓存写入异常，跳过")
+    return profile
 
 
 def _build_candidate_profile(
@@ -188,12 +214,32 @@ def _build_candidate_profile(
     *,
     max_tokens: int,
 ) -> _CompetitionProfile:
+    # ZG-28 candidate profile 缓存（键=候选 hash_value）
+    cache_key: Optional[str] = None
+    if retriever._enable_profile_cache and retriever._profile_cache is not None:
+        cache_key = str(result.hash_value)
+        try:
+            cached = retriever._profile_cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            logger.warning("ZG-28 candidate profile 缓存读取异常，跳过缓存")
+            cache_key = None
+
     text = _candidate_text_for_competition(result)
-    return _CompetitionProfile(
+    profile = _CompetitionProfile(
         text=text,
         tokens=set(_tokenize_for_competition(text, max_tokens=max_tokens)),
         entities=_extract_candidate_entities(retriever, result),
     )
+
+    # ZG-28 缓存写入
+    if cache_key is not None and retriever._profile_cache is not None:
+        try:
+            retriever._profile_cache.put(cache_key, profile)
+        except Exception:
+            logger.warning("ZG-28 candidate profile 缓存写入异常，跳过")
+    return profile
 
 
 def _build_core_profile(
@@ -202,6 +248,20 @@ def _build_core_profile(
     *,
     max_tokens: int,
 ) -> _CompetitionProfile:
+    # ZG-28 core profile 缓存（键=候选 hash_value 组合）
+    cache_key: Optional[str] = None
+    if retriever._enable_profile_cache and retriever._profile_cache is not None:
+
+        hash_combo = "|".join(sorted(str(r.hash_value) for r in results))
+        cache_key = hashlib.sha1(hash_combo.encode("utf-8")).hexdigest()
+        try:
+            cached = retriever._profile_cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            logger.warning("ZG-28 core profile 缓存读取异常，跳过缓存")
+            cache_key = None
+
     parts: List[str] = []
     tokens: Set[str] = set()
     entities: Set[str] = set()
@@ -212,7 +272,15 @@ def _build_core_profile(
         tokens.update(profile.tokens)
         entities.update(profile.entities)
 
-    return _CompetitionProfile(text="\n".join(parts), tokens=tokens, entities=entities)
+    core_profile = _CompetitionProfile(text="\n".join(parts), tokens=tokens, entities=entities)
+
+    # ZG-28 缓存写入
+    if cache_key is not None and retriever._profile_cache is not None:
+        try:
+            retriever._profile_cache.put(cache_key, core_profile)
+        except Exception:
+            logger.warning("ZG-28 core profile 缓存写入异常，跳过")
+    return core_profile
 
 
 def _compute_query_relevance(candidate: _CompetitionProfile, query: _CompetitionProfile) -> float:
@@ -462,8 +530,10 @@ def _linked_core_paragraph_hashes(
 ) -> Set[str]:
     rows = retriever.metadata_store.query(
         """
-        SELECT paragraph_hash FROM paragraph_relations
-        WHERE relation_hash = ?
+        SELECT pr.paragraph_hash FROM paragraph_relations pr
+        JOIN paragraphs p ON p.hash = pr.paragraph_hash
+        WHERE pr.relation_hash = ?
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
         """,
         (relation_hash,),
     )
@@ -478,7 +548,7 @@ def _build_graph_results_from_seeds(
     retriever: DualPathRetriever,
     *,
     seed_entities: Sequence[str],
-    temporal: Any,
+    temporal: Optional["TemporalQueryOptions"],
     alpha: float,
 ) -> List[RetrievalResult]:
     from .dual_path import RetrievalResult
@@ -554,13 +624,41 @@ def _competition_merge(
     }
     selected_hashes = {item.hash_value for item in core_results}
     filtered_graph_results: List[RetrievalResult] = []
-    for item in graph_results:
-        if item.hash_value in selected_hashes:
-            continue
-        linked_hashes = _linked_core_paragraph_hashes(retriever, item.hash_value)
-        if core_paragraph_hashes & linked_hashes:
-            continue
-        filtered_graph_results.append(item)
+
+    # ZG-28 P0-2: 批量查询关联段落哈希（24→1 SQL）
+    candidate_items = [item for item in graph_results if item.hash_value not in selected_hashes]
+    batch_linked = None
+    if candidate_items:
+        relation_hashes = [item.hash_value for item in candidate_items]
+        try:
+            batch_linked = retriever.metadata_store.get_paragraph_hashes_by_relation_hashes(relation_hashes)
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            logger.warning("ZG-28 竞争合并批量查询异常，降级逐条: %s", exc)
+            try:
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "竞争合并批量查询异常", exception=exc)
+            except Exception:
+                pass
+
+    if batch_linked is not None:
+        # 批量路径
+        for item in candidate_items:
+            linked_hashes = set(batch_linked.get(item.hash_value, []))
+            if core_paragraph_hashes & linked_hashes:
+                continue
+            filtered_graph_results.append(item)
+    else:
+        # 降级路径：原逐条循环（保底，语义不丢）
+        for item in graph_results:
+            if item.hash_value in selected_hashes:
+                continue
+            linked_hashes = _linked_core_paragraph_hashes(retriever, item.hash_value)
+            if core_paragraph_hashes & linked_hashes:
+                continue
+            filtered_graph_results.append(item)
 
     tail_candidates: List[RetrievalResult] = []
     for item in ranked[cliff:top_k]:
@@ -622,7 +720,7 @@ def apply_posterior_graph_gate(
     query: str,
     base_results: Sequence[RetrievalResult],
     top_k: int,
-    temporal: Any,
+    temporal: Optional["TemporalQueryOptions"],
     relation_intent: Dict[str, Any],
 ) -> List[RetrievalResult]:
     cfg = getattr(retriever.config, "posterior_graph", None)

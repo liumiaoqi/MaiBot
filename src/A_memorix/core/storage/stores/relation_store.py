@@ -168,6 +168,51 @@ class RelationStore:
         cursor.execute(sql, tuple(params))
         return [row_to_dict(row) for row in cursor.fetchall()]
 
+    def get_relations_by_entity_names(
+        self,
+        entity_names: Sequence[str],
+        include_inactive: bool = False,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """ZG-28 批量查询多个实体名作为 subject 或 object 的关系。
+
+        Returns:
+            Dict[entity_name, List[relation_dict]]，key=实体名，value=该实体作为
+            subject 或 object 的关系列表（一个 relation 可能同时匹配 subject 和
+            object，归入匹配的各 entity_name——与原逐条合并行为一致）。
+        """
+        canonicalized = [canonicalize_name(name) for name in entity_names if name and str(name).strip()]
+        if not canonicalized:
+            return {}
+        # 去重保留顺序
+        seen = set()
+        unique_names = []
+        for name in canonicalized:
+            if name not in seen:
+                seen.add(name)
+                unique_names.append(name)
+
+        out: Dict[str, List[Dict[str, Any]]] = {name: [] for name in unique_names}
+        inactive_sql = "" if include_inactive else "AND (is_inactive IS NULL OR is_inactive = 0)"
+        cursor = self._conn.cursor()
+        for batch in iter_sql_batches(unique_names):
+            placeholders = ",".join(["?"] * len(batch))
+            cursor.execute(
+                f"""
+                SELECT * FROM relations
+                WHERE (LOWER(subject) IN ({placeholders}) OR LOWER(object) IN ({placeholders}))
+                {inactive_sql}
+                """,
+                tuple(batch) + tuple(batch),
+            )
+            for row in cursor.fetchall():
+                payload = row_to_dict(row)
+                row_subject = str(payload.get("subject", "")).lower()
+                row_object = str(payload.get("object", "")).lower()
+                for name in batch:
+                    if row_subject == name or row_object == name:
+                        out[name].append(payload)
+        return out
+
     def get_all_triples(self) -> List[Tuple[str, str, str, str]]:
         cursor = self._conn.cursor()
         cursor.execute("SELECT subject, predicate, object, hash FROM relations")

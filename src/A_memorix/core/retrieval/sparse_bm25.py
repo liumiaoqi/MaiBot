@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
+import hashlib
 import re
 import sqlite3
 import time
@@ -226,6 +227,7 @@ class SparseBM25Index:
         self,
         metadata_store: MetadataStore,
         config: Optional[SparseBM25Config] = None,
+        cache_config: Optional[Any] = None,
     ):
         self.metadata_store = metadata_store
         self.config = config or SparseBM25Config()
@@ -234,6 +236,17 @@ class SparseBM25Index:
         self._jieba_dict_loaded: bool = False
         self._last_load_error = ""
         self._backend = self._create_backend()
+
+        # ZG-28 BM25 缓存初始化（开关默认 False 灰度安全）
+        self._enable_bm25_cache = bool(getattr(cache_config, "enable_bm25_cache", False))
+        if self._enable_bm25_cache:
+            from .caches.bm25_cache import Bm25Cache
+            self._bm25_cache = Bm25Cache(
+                max_entries=int(getattr(cache_config, "bm25_cache_max_entries", 256)),
+                ttl_seconds=float(getattr(cache_config, "bm25_cache_ttl_seconds", 60.0)),
+            )
+        else:
+            self._bm25_cache = None
 
     @property
     def loaded(self) -> bool:
@@ -581,6 +594,26 @@ class SparseBM25Index:
             return []
 
         limit = max(1, int(k))
+
+        # ZG-28 BM25 缓存查询（键=(query 哈希, limit, max_doc_len, tokenizer_mode)）
+        if self._enable_bm25_cache and self._bm25_cache is not None:
+
+            cache_key = (
+                hashlib.sha1(query.encode("utf-8")).hexdigest(),
+                limit,
+                self.config.max_doc_len,
+                self.config.tokenizer_mode,
+            )
+            try:
+                cached_results = self._bm25_cache.get(cache_key)
+                if cached_results is not None:
+                    return cached_results
+            except Exception:
+                logger.warning("ZG-28 BM25 缓存读取异常，跳过缓存")
+                cache_key = None
+        else:
+            cache_key = None
+
         rows: List[Dict[str, Any]] = []
         if self.config.enable_tokenized_shadow_index:
             rows = self.metadata_store.fts_search_tokenized_paragraphs_bm25(
@@ -618,6 +651,12 @@ class SparseBM25Index:
                     "matched_token_ratio": matched_token_count / float(token_count),
                 }
             )
+        # ZG-28 BM25 缓存写入（仅缓存成功结果）
+        if cache_key is not None and self._bm25_cache is not None:
+            try:
+                self._bm25_cache.put(cache_key, results)
+            except Exception:
+                logger.warning("ZG-28 BM25 缓存写入异常，跳过")
         return results
 
     def search_relations(self, query: str, k: int = 20) -> List[Dict[str, Any]]:
@@ -635,9 +674,30 @@ class SparseBM25Index:
         if not match_query:
             return []
 
+        limit = max(1, int(k))
+
+        # ZG-28 BM25 缓存查询（键=(query 哈希, limit, max_doc_len, tokenizer_mode)）
+        if self._enable_bm25_cache and self._bm25_cache is not None:
+
+            cache_key = (
+                hashlib.sha1(query.encode("utf-8")).hexdigest(),
+                limit,
+                self.config.relation_max_doc_len,
+                self.config.tokenizer_mode,
+            )
+            try:
+                cached_results = self._bm25_cache.get(cache_key)
+                if cached_results is not None:
+                    return cached_results
+            except Exception:
+                logger.warning("ZG-28 BM25 关系缓存读取异常，跳过缓存")
+                cache_key = None
+        else:
+            cache_key = None
+
         rows = self._backend.search_relations(
             match_query=match_query,
-            limit=max(1, int(k)),
+            limit=limit,
             max_doc_len=self.config.relation_max_doc_len,
             include_inactive=False,
             conn=self._conn,
@@ -657,6 +717,12 @@ class SparseBM25Index:
                     "score": -bm25_score,
                 }
             )
+        # ZG-28 BM25 缓存写入（仅缓存成功结果）
+        if cache_key is not None and self._bm25_cache is not None:
+            try:
+                self._bm25_cache.put(cache_key, out)
+            except Exception:
+                logger.warning("ZG-28 BM25 关系缓存写入异常，跳过")
         return out
 
     def upsert_paragraph(self, paragraph_hash: str) -> bool:
@@ -666,6 +732,9 @@ class SparseBM25Index:
         if self.config.enable_tokenized_shadow_index:
             shadow_ok = self.metadata_store.fts_upsert_tokenized_paragraph(paragraph_hash, conn=self._conn)
             ok = bool(ok and shadow_ok)
+        # ZG-28 索引变更时清空 BM25 缓存（避免脏数据）
+        if self._bm25_cache is not None:
+            self._bm25_cache.clear()
         return ok
 
     def delete_paragraph(self, paragraph_hash: str) -> bool:
@@ -675,6 +744,9 @@ class SparseBM25Index:
         if self.config.enable_tokenized_shadow_index:
             shadow_ok = self.metadata_store.fts_delete_tokenized_paragraph(paragraph_hash, conn=self._conn)
             ok = bool(ok and shadow_ok)
+        # ZG-28 索引变更时清空 BM25 缓存（避免脏数据）
+        if self._bm25_cache is not None:
+            self._bm25_cache.clear()
         return ok
 
     def unload(self) -> None:

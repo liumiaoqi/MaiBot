@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
+import hashlib
 import re
 import time
 
@@ -111,6 +112,7 @@ class DualPathRetrieverConfig:
     vector_pools: "VectorPoolsConfig" = field(default_factory=lambda: VectorPoolsConfig())
     graph_recall: GraphRelationRecallConfig = field(default_factory=GraphRelationRecallConfig)
     posterior_graph: PosteriorGraphConfig = field(default_factory=PosteriorGraphConfig)
+    cache: Optional[Any] = None  # ZG-28 检索缓存配置（retrieval.cache 子段）
 
     def __post_init__(self):
         """验证配置"""
@@ -126,6 +128,10 @@ class DualPathRetrieverConfig:
             self.graph_recall = GraphRelationRecallConfig(**self.graph_recall)
         if isinstance(self.posterior_graph, dict):
             self.posterior_graph = PosteriorGraphConfig(**self.posterior_graph)
+        # ZG-28: cache 子段 dict → SimpleNamespace（支持 getattr 访问）
+        if isinstance(self.cache, dict):
+            from types import SimpleNamespace
+            self.cache = SimpleNamespace(**self.cache)
 
         if not 0 <= self.alpha <= 1:
             raise ValueError(f"alpha必须在[0, 1]之间: {self.alpha}")
@@ -346,6 +352,72 @@ class DualPathRetriever:
         self._ppr_cache: Dict[Tuple[Any, ...], Tuple[float, Dict[str, float]]] = {}
         self._ppr_cache_ttl_seconds = 300.0
         self._ppr_cache_max_entries = 256
+
+        # ZG-28 检索缓存初始化（对齐 PPR 先例，开关默认 False 灰度安全）
+        cache_cfg = getattr(self.config, "cache", None)
+        self._enable_embedding_cache = bool(getattr(cache_cfg, "enable_embedding_cache", False))
+        self._enable_node_cache = bool(getattr(cache_cfg, "enable_node_cache", False))
+        self._enable_profile_cache = bool(getattr(cache_cfg, "enable_profile_cache", False))
+        if self._enable_embedding_cache:
+            from .caches.embedding_cache import EmbeddingCache
+            self._embedding_cache = EmbeddingCache(
+                max_entries=int(getattr(cache_cfg, "embedding_cache_max_entries", 256)),
+                ttl_seconds=float(getattr(cache_cfg, "embedding_cache_ttl_seconds", 300.0)),
+            )
+        else:
+            self._embedding_cache = None
+        if self._enable_node_cache:
+            from .caches.node_cache import NodeCache
+            self._node_cache = NodeCache(
+                ttl_seconds=float(getattr(cache_cfg, "node_cache_ttl_seconds", 300.0)),
+            )
+        else:
+            self._node_cache = None
+        if self._enable_profile_cache:
+            from .caches.profile_cache import ProfileCache
+            self._profile_cache = ProfileCache(
+                max_entries=int(getattr(cache_cfg, "profile_cache_max_entries", 256)),
+                ttl_seconds=float(getattr(cache_cfg, "profile_cache_ttl_seconds", 300.0)),
+            )
+        else:
+            self._profile_cache = None
+
+        # ZG-28: 注册节点变更失效回调到 graph_store（节点缓存失效订阅）
+        if self._enable_node_cache and self._node_cache is not None:
+            register_cb = getattr(self.graph_store, "register_node_change_callback", None)
+            if register_cb is not None:
+                try:
+                    register_cb(self._invalidate_node_cache)
+                except Exception:
+                    logger.warning("ZG-28 注册节点变更回调失败")
+
+    async def _get_query_embedding(self, query: str) -> np.ndarray:
+        """ZG-28 embedding 缓存挂载（4 处 encode 调用统一走此方法）。
+
+        命中返回缓存向量，未命中 encode 后写入（仅缓存成功结果）。
+        开关默认 False，关闭时无缓存行为。缓存异常跳过缓存直接 encode。
+        """
+        if self._enable_embedding_cache and self._embedding_cache is not None:
+
+            query_hash = hashlib.sha1(query.encode("utf-8")).hexdigest()
+            try:
+                cached = self._embedding_cache.get(query_hash)
+                if cached is not None:
+                    return cached
+                query_emb = await self.embedding_manager.encode(query)
+                if query_emb is not None:
+                    self._embedding_cache.put(query_hash, query_emb)
+                return query_emb
+            except Exception:
+                logger.warning("ZG-28 embedding 缓存异常，跳过缓存直接 encode")
+                return await self.embedding_manager.encode(query)
+        return await self.embedding_manager.encode(query)
+
+    def _invalidate_node_cache(self) -> None:
+        """ZG-28 graph_store 节点变更时调，清空节点缓存 + 置 AC 匹配器失效。"""
+        if self._node_cache is not None:
+            self._node_cache.invalidate()
+        self._ac_nodes_count = -1  # 触发 _extract_entities 内 AC 匹配器重建
 
     def set_runtime_sparse_only(self, enabled: bool) -> None:
         """由运行时控制强制 sparse-only（不改用户配置文件）。"""
@@ -983,7 +1055,7 @@ class DualPathRetriever:
         vector_results: List[RetrievalResult] = []
 
         try:
-            query_emb = await self.embedding_manager.encode(query)
+            query_emb = await self._get_query_embedding(query)
             embedding_ok = self._is_embedding_ready_for_vector_search(
                 query_emb,
                 stage="paragraph_only",
@@ -1061,7 +1133,7 @@ class DualPathRetriever:
         embedding_ok = False
         vector_results: List[RetrievalResult] = []
         try:
-            query_emb = await self.embedding_manager.encode(query)
+            query_emb = await self._get_query_embedding(query)
             embedding_ok = self._is_embedding_ready_for_vector_search(
                 query_emb,
                 stage="relation_only",
@@ -1087,22 +1159,55 @@ class DualPathRetriever:
             entity_map = self.metadata_store.get_entities_by_hashes(ids)
             relation_scores: Dict[str, float] = {}
             relation_pivots: Dict[str, str] = {}
+
+            # ZG-28 P0-1: 批量查询实体枢纽关系（60→1 SQL）
+            entity_entries = []
             for hash_value, score in zip(ids, scores, strict=False):
                 entity = entity_map.get(hash_value)
                 if not entity:
                     continue
-                entity_name = entity["name"]
+                entity_entries.append((entity["name"], float(score)))
 
-                related_rels = []
-                related_rels.extend(self.metadata_store.get_relations(subject=entity_name, include_inactive=False))
-                related_rels.extend(self.metadata_store.get_relations(object=entity_name, include_inactive=False))
+            batch_relations = None
+            if entity_entries:
+                entity_names = [name for name, _ in entity_entries]
+                try:
+                    batch_relations = self.metadata_store.get_relations_by_entity_names(
+                        entity_names, include_inactive=False
+                    )
+                except Exception as exc:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    logger.warning("ZG-28 实体枢纽批量查询异常，降级逐条: %s", exc)
+                    try:
+                        port = get_error_escalation_port()
+                        if port is not None:
+                            port.report(ErrorLevel.WARNING, "实体枢纽批量查询异常", exception=exc)
+                    except Exception:
+                        pass
 
-                for rel in related_rels:
-                    if rel["hash"] in seen_relations:
-                        continue
-                    seen_relations.add(rel["hash"])
-                    relation_scores[rel["hash"]] = float(score)
-                    relation_pivots[rel["hash"]] = str(entity_name)
+            if batch_relations is not None:
+                # 批量路径
+                for entity_name, score in entity_entries:
+                    related_rels = batch_relations.get(entity_name, [])
+                    for rel in related_rels:
+                        if rel["hash"] in seen_relations:
+                            continue
+                        seen_relations.add(rel["hash"])
+                        relation_scores[rel["hash"]] = score
+                        relation_pivots[rel["hash"]] = str(entity_name)
+            else:
+                # 降级路径：原逐条循环（保底，语义不丢）
+                for entity_name, score in entity_entries:
+                    related_rels = []
+                    related_rels.extend(self.metadata_store.get_relations(subject=entity_name, include_inactive=False))
+                    related_rels.extend(self.metadata_store.get_relations(object=entity_name, include_inactive=False))
+                    for rel in related_rels:
+                        if rel["hash"] in seen_relations:
+                            continue
+                        seen_relations.add(rel["hash"])
+                        relation_scores[rel["hash"]] = score
+                        relation_pivots[rel["hash"]] = str(entity_name)
 
             vector_results = self._build_relation_results_from_ids(
                 list(relation_scores.keys()),
@@ -1242,7 +1347,7 @@ class DualPathRetriever:
             return fused_results[:top_k]
 
         try:
-            query_emb = await self.embedding_manager.encode(query)
+            query_emb = await self._get_query_embedding(query)
             embedding_ok = self._is_embedding_ready_for_vector_search(
                 query_emb,
                 stage="dual_path",
@@ -1733,7 +1838,7 @@ class DualPathRetriever:
         relation_intent = relation_intent or {}
         semantic_weight, sparse_weight, graph_weight, graph_top_k = self._dual_pool_weights(relation_intent)
         try:
-            query_emb = await self.embedding_manager.encode(query)
+            query_emb = await self._get_query_embedding(query)
             embedding_ok = self._is_embedding_ready_for_vector_search(
                 query_emb,
                 stage="dual_vector_pool",
@@ -2696,8 +2801,20 @@ class DualPathRetriever:
         Returns:
             实体字典 {实体名: 权重}
         """
-        # 获取所有实体
-        all_entities = self.graph_store.get_nodes()
+        # 获取所有实体（ZG-28 节点缓存挂载）
+        if self._enable_node_cache and self._node_cache is not None:
+            try:
+                cached_nodes = self._node_cache.get()
+                if cached_nodes is not None:
+                    all_entities = cached_nodes
+                else:
+                    all_entities = self.graph_store.get_nodes()
+                    self._node_cache.put(all_entities)
+            except Exception:
+                logger.warning("ZG-28 节点缓存异常，跳过缓存直接拉")
+                all_entities = self.graph_store.get_nodes()
+        else:
+            all_entities = self.graph_store.get_nodes()
         if not all_entities:
             return {}
 

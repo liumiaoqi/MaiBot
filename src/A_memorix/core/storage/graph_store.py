@@ -8,7 +8,7 @@ import json
 import sqlite3
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union, Tuple, List, Dict, Set, Any
+from typing import Callable, Optional, Union, Tuple, List, Dict, Set, Any
 from collections import defaultdict
 import asyncio
 
@@ -121,7 +121,22 @@ class GraphStore:
         # V5: 简单的异步锁 (实际上 asyncio 环境下单线程主循环可能不需要，但为了安全保留)
         self._lock = asyncio.Lock()
 
+        # ZG-28: 节点变更回调列表（节点缓存失效订阅）
+        self._node_change_callbacks: List[Callable[[], None]] = []
+
         logger.debug(f"图存储初始化: format={matrix_format}")
+
+    def register_node_change_callback(self, callback: Callable[[], None]) -> None:
+        """ZG-28 注册节点变更回调（节点缓存失效订阅）。"""
+        self._node_change_callbacks.append(callback)
+
+    def _notify_node_change(self) -> None:
+        """ZG-28 通知所有节点变更回调。"""
+        for cb in self._node_change_callbacks:
+            try:
+                cb()
+            except Exception as exc:
+                logger.warning("ZG-28 节点变更回调异常: %s", exc)
 
     def _canonicalize(self, node: str) -> str:
         """规范化节点名称 (用于去重和内部索引)"""
@@ -271,6 +286,8 @@ class GraphStore:
             self._expand_adjacency_matrix(added)
 
         logger.debug(f"添加 {added} 个节点")
+        if added > 0:
+            self._notify_node_change()
         return added
 
     def add_edges(
@@ -556,6 +573,8 @@ class GraphStore:
         self._saliency_cache = None
 
         logger.info(f"删除 {deleted_count} 个节点")
+        if deleted_count > 0:
+            self._notify_node_change()
         return deleted_count
 
     def remove_nodes(self, nodes: List[str]) -> int:

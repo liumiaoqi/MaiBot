@@ -89,7 +89,18 @@ class KernelInitializer:
                 port.report(ErrorLevel.WARNING, 'sparse 配置非法，回退默认', exception=exc)
             logger.warning(f"sparse 配置非法，回退默认: {exc}")
             sparse_cfg = SparseBM25Config()
-        kernel.sparse_index = SparseBM25Index(metadata_store=kernel.metadata_store, config=sparse_cfg)
+        # ZG-28: 传递 retrieval.cache 配置给 SparseBM25Index
+        cache_cfg_raw = kernel._cfg("retrieval.cache", {}) or {}
+        if cache_cfg_raw:
+            from types import SimpleNamespace
+            cache_config_obj = SimpleNamespace(**cache_cfg_raw)
+        else:
+            cache_config_obj = None
+        kernel.sparse_index = SparseBM25Index(
+            metadata_store=kernel.metadata_store,
+            config=sparse_cfg,
+            cache_config=cache_config_obj,
+        )
         if kernel.sparse_index.config.enabled:
             warmup_summary = kernel.sparse_index.warmup()
             if warmup_summary.get("ok"):
@@ -664,6 +675,21 @@ class KernelInitializer:
             if kernel.vector_store is not None:
                 reclaim_scheduler.register(CachedMapShrinker(kernel.vector_store))
                 reclaim_scheduler.register(VectorShrinker(kernel.vector_store))
+            # ZG-28: 注册 3 个新检索缓存 shrinker（仅在缓存启用时注册）
+            if kernel.retriever is not None:
+                from src.A_memorix.core.runtime.shrinkers.embedding_cache_shrinker import EmbeddingCacheShrinker
+                embedding_cache = getattr(kernel.retriever, "_embedding_cache", None)
+                if embedding_cache is not None:
+                    reclaim_scheduler.register(EmbeddingCacheShrinker(embedding_cache))
+                from src.A_memorix.core.runtime.shrinkers.profile_cache_shrinker import ProfileCacheShrinker
+                profile_cache = getattr(kernel.retriever, "_profile_cache", None)
+                if profile_cache is not None:
+                    reclaim_scheduler.register(ProfileCacheShrinker(profile_cache))
+            if kernel.sparse_index is not None:
+                from src.A_memorix.core.runtime.shrinkers.bm25_cache_shrinker import Bm25CacheShrinker
+                bm25_cache = getattr(kernel.sparse_index, "_bm25_cache", None)
+                if bm25_cache is not None:
+                    reclaim_scheduler.register(Bm25CacheShrinker(bm25_cache))
             kernel._memory_kswapd = MemoryKswapd(
                 watermark_zone=watermark_zone,
                 reclaim_scheduler=reclaim_scheduler,

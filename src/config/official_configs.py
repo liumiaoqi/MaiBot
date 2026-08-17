@@ -2648,6 +2648,36 @@ class AMemorixVectorPoolsConfig(ConfigBase):
     """关系意图命中时的双向量池配置"""
 
 
+class AMemorixRetrievalCacheConfig(ConfigBase):
+    """ZG-28 检索缓存配置（对齐 PPR 缓存 256 条/TTL 300s 先例）。"""
+
+    enable_embedding_cache: bool = Field(default=False, description="embedding 缓存开关（灰度启用）")
+    """embedding 缓存开关"""
+    embedding_cache_max_entries: int = Field(default=256, ge=1, description="embedding 缓存容量上限")
+    """embedding 缓存容量上限"""
+    embedding_cache_ttl_seconds: float = Field(default=300.0, ge=1.0, description="embedding 缓存 TTL（秒）")
+    """embedding 缓存 TTL"""
+
+    enable_bm25_cache: bool = Field(default=False, description="BM25 缓存开关（灰度启用）")
+    """BM25 缓存开关"""
+    bm25_cache_max_entries: int = Field(default=256, ge=1, description="BM25 缓存容量上限")
+    """BM25 缓存容量上限"""
+    bm25_cache_ttl_seconds: float = Field(default=60.0, ge=1.0, description="BM25 缓存 TTL（秒，短于 embedding——对新增文档敏感）")
+    """BM25 缓存 TTL"""
+
+    enable_profile_cache: bool = Field(default=False, description="profile 缓存开关（灰度启用）")
+    """profile 缓存开关"""
+    profile_cache_max_entries: int = Field(default=256, ge=1, description="profile 缓存容量上限")
+    """profile 缓存容量上限"""
+    profile_cache_ttl_seconds: float = Field(default=300.0, ge=1.0, description="profile 缓存 TTL（秒）")
+    """profile 缓存 TTL"""
+
+    enable_node_cache: bool = Field(default=False, description="节点缓存开关（灰度启用）")
+    """节点缓存开关"""
+    node_cache_ttl_seconds: float = Field(default=300.0, ge=1.0, description="节点缓存 TTL（秒，单例无 max_entries）")
+    """节点缓存 TTL"""
+
+
 class AMemorixRetrievalConfig(ConfigBase):
     """A_Memorix 检索配置"""
 
@@ -2827,6 +2857,18 @@ class AMemorixRetrievalConfig(ConfigBase):
         },
     )
     """稀疏检索配置"""
+
+    cache: AMemorixRetrievalCacheConfig = Field(
+        default_factory=AMemorixRetrievalCacheConfig,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "检索缓存",
+                "en_US": "Retrieval cache",
+                "ja_JP": "検索キャッシュ",
+            },
+        },
+    )
+    """ZG-28 检索缓存配置（embedding/BM25/profile/node，开关默认 False 灰度安全）"""
 
     relation_vectorization: AMemorixRelationVectorizationConfig = Field(default_factory=AMemorixRelationVectorizationConfig)
     """关系向量化配置"""

@@ -254,6 +254,7 @@ def build_search_runtime(
             vector_pools=vector_pools_cfg,
             graph_recall=graph_recall_cfg,
             posterior_graph=posterior_graph_cfg,
+            cache=_get_config_value(plugin_config, "retrieval.cache", None),
         )
 
         runtime.retriever = DualPathRetriever(

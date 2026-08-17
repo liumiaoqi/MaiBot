@@ -245,21 +245,90 @@ class GraphRelationRecallService:
         graph_hops: int,
         graph_seed_entities: Sequence[str],
     ) -> None:
-        for relation_hash in sorted({str(h) for h in relation_hashes if str(h).strip()}):
-            if len(out) >= self.config.candidate_k:
-                break
-            if relation_hash in seen_hashes:
-                continue
-            candidate = self._build_candidate(
-                relation_hash=relation_hash,
-                candidate_type=candidate_type,
-                graph_hops=graph_hops,
-                graph_seed_entities=graph_seed_entities,
+        # ZG-28 P0-3: 批量查询关系+段落（48→2 SQL）
+        pending_hashes = [
+            h for h in sorted({str(h) for h in relation_hashes if str(h).strip()})
+            if h not in seen_hashes
+        ]
+        pending_hashes = pending_hashes[:max(0, self.config.candidate_k - len(out))]
+        if not pending_hashes:
+            return
+
+        batch_relations = None
+        batch_paragraphs = None
+        try:
+            batch_relations = self.metadata_store.get_relations_by_hashes(
+                pending_hashes, include_inactive=False
             )
-            if candidate is None:
-                continue
-            seen_hashes.add(relation_hash)
-            out.append(candidate)
+            batch_paragraphs = self.metadata_store.get_paragraphs_by_relation_hashes(pending_hashes)
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            logger.warning("ZG-28 图关系召回批量查询异常，降级逐条: %s", exc)
+            try:
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, "图关系召回批量查询异常", exception=exc)
+            except Exception:
+                pass
+
+        if batch_relations is not None and batch_paragraphs is not None:
+            # 批量路径
+            for relation_hash in pending_hashes:
+                if len(out) >= self.config.candidate_k:
+                    break
+                relation = batch_relations.get(relation_hash)
+                if relation is None:
+                    continue
+                supporting_paragraphs = batch_paragraphs.get(relation_hash, [])
+                candidate = self._build_candidate_from_batch(
+                    relation_hash=relation_hash,
+                    relation=relation,
+                    supporting_paragraphs=supporting_paragraphs,
+                    candidate_type=candidate_type,
+                    graph_hops=graph_hops,
+                    graph_seed_entities=graph_seed_entities,
+                )
+                seen_hashes.add(relation_hash)
+                out.append(candidate)
+        else:
+            # 降级路径：原逐条循环（保底，语义不丢）
+            for relation_hash in pending_hashes:
+                if len(out) >= self.config.candidate_k:
+                    break
+                candidate = self._build_candidate(
+                    relation_hash=relation_hash,
+                    candidate_type=candidate_type,
+                    graph_hops=graph_hops,
+                    graph_seed_entities=graph_seed_entities,
+                )
+                if candidate is None:
+                    continue
+                seen_hashes.add(relation_hash)
+                out.append(candidate)
+
+    def _build_candidate_from_batch(
+        self,
+        *,
+        relation_hash: str,
+        relation: Dict[str, Any],
+        supporting_paragraphs: List[Dict[str, Any]],
+        candidate_type: str,
+        graph_hops: int,
+        graph_seed_entities: Sequence[str],
+    ) -> GraphRelationCandidate:
+        """ZG-28 从批量查询结果构建候选（字段赋值与原 _build_candidate 一致）。"""
+        return GraphRelationCandidate(
+            hash_value=relation_hash,
+            subject=str(relation.get("subject", "")),
+            predicate=str(relation.get("predicate", "")),
+            object=str(relation.get("object", "")),
+            confidence=float(relation.get("confidence", 1.0) or 1.0),
+            graph_seed_entities=[str(x) for x in graph_seed_entities],
+            graph_hops=int(graph_hops),
+            graph_candidate_type=str(candidate_type),
+            supporting_paragraph_count=len(supporting_paragraphs),
+        )
 
     def _build_candidate(
         self,

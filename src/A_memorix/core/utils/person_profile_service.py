@@ -157,6 +157,7 @@ class PersonProfileService:
                 graph_recall=graph_recall_cfg,
                 posterior_graph=posterior_graph_cfg,
                 vector_pools=vector_pools_cfg,
+                cache=self._cfg("retrieval.cache", None),
             )
             return DualPathRetriever(
                 vector_store=self.vector_store,

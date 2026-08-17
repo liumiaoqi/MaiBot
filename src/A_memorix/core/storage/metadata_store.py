@@ -432,6 +432,16 @@ class MetadataStore:
             include_inactive=include_inactive,
         )
 
+    def get_relations_by_entity_names(
+        self,
+        entity_names: Sequence[str],
+        include_inactive: bool = False,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """ZG-28 批量查询多个实体名作为 subject 或 object 的关系（转发到 RelationStore）。"""
+        return self.relations.get_relations_by_entity_names(
+            entity_names, include_inactive=include_inactive
+        )
+
     def get_all_triples(self) -> List[Tuple[str, str, str, str]]:
         return self.relations.get_all_triples()
 
@@ -1674,6 +1684,7 @@ class MetadataStore:
             SELECT p.* FROM paragraphs p
             JOIN paragraph_relations pr ON p.hash = pr.paragraph_hash
             WHERE pr.relation_hash = ?
+              AND (p.is_deleted IS NULL OR p.is_deleted = 0)
             """,
             (relation_hash,),
         )
