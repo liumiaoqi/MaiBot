@@ -2,6 +2,27 @@
 
 > 工作手册。硬性规则见 `AGENTS.md`，架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
 .shared\decisions\review_gate_runbook_0801.md  CC调用CX指南
+
+## 项目中枢（2026-08-17 立——MaiBot 是所有项目的枢纽）
+
+**MaiBot 不只是 QQ 机器人——它是 lmq 全部项目的协作中枢 + 项目中枢。**
+权威索引：`.shared/PROJECTS_INDEX.md`（项目表 + 克隆池 + 学习线全景）；决策背景：`.shared/decisions/2026-08/project_hub_decision_0816.md`（方案 B）。
+
+### 学习线全景速查（完整版见 PROJECTS_INDEX.md）
+
+| 学习线 | 节点（按顺序） | 勾连 |
+|--------|--------------|------|
+| **C++ 引擎线** | first-flame（实战）→ UE 源码（对照） | fl 每课对照 UE 真实现 |
+| **编译器线**（0817 起） | minivm（排期）→ chibicc → LLVM/Clang | minivm 用 C++26（fl 同款语言）；LLVM = wasm 前置 |
+| **系统线** | Linux 内核源码 → MaiBot ZG（对标实践） | 每个 ZG 机制翻 linuxclone 真实现 |
+| **智能体线** | deepseek-harness → MaiBot 记忆/插件 | 底模特化向 harness 看齐；插件哲学学 Cordis 47 包 |
+| **浏览器线**（未来） | WebAssembly = LLVM 后端 + 栈式 VM | minivm 即 wasm 缩小版预习 |
+| **电气线** | SPICE 数学 → 电工实操 → elecClone | 数学支撑电路分析 |
+| **AI 实验线** | scripts/embedding_finetune（SNN：LIF→Braitenberg→STDP→R-STDP） | 反哺 MaiBot 记忆设计 |
+| **写作/生活线** | QQD 投稿、唱歌（messa di voce） | 独立生活线 |
+
+**新项目接入流程**（方案 B 规则）：建 skill（`C:\Users\lmq\.dsh\skills\`）→ PROJECTS_INDEX.md 加行 → 记录到 decisions。
+
 ## Python 3.14 速查（写新代码必读）
 
 详细版：`.shared/decisions/python314_new_code_cheatsheet.md`
