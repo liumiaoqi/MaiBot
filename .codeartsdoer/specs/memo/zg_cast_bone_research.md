@@ -102,6 +102,21 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 > 依赖关系：ZG-24 是 ZG-25（G 层）与 recall 能力的前置；ZG-27 依赖 ZG-29 的部分清理基线；其余独立。
 > 排期：等用户拍板（试新模型队列排队中——新模型首次完整流程可能从 ZG-24 开始）。
 
+### P2/P3 存量清单（不入 ZG 编号——主批次完成后按需取用）
+
+| 级 | 内容 | 来源报告 |
+|:---:|------|---------|
+| P2 | ChatManager 死代码 + data_migration.py 独立脚本 + 概念命名分歧（多 ChatManager）+ 2 个孤岛死代码 | component_coordination |
+| P2 | 记忆容量 4 项：串行无退避 / vacuum 未接线 / PPR O(n) 扫描 / 全图衰减无分批 | memory_capacity_cleanup |
+| P2 | 社会关系 5 项：死锁清理 / 配置未用 / confidence 未作边权重 / 融合未用 confidence / Facade 废弃未迁移 | social_relation_memory |
+| P2 | 压缩体系候选点 F（跨轮）/ C（注入前）/ D（注入后）/ E（prompt 前）——风险高暂缓，B 落地后再评估 | compaction_sites |
+| P2 | 情绪跨会话持久化（c1——风险中，命中收益预估 +20%/+10%） | cache_hit_improvement |
+| P2 | 前端错误告警面板缺失 + /reload-config 占位实现 | config_hotreload_escalation |
+| P2 | 并行工具执行 + 工具调用限制（中价值） | agent_framework_tools |
+| P3 | 渐进式工具暴露 + Handoff 路由模式（理论价值） | agent_framework_tools |
+| P3 | 记忆注入标准化（c2——收益有限 +2%） | cache_hit_improvement |
+| P3 | 测试债务（可疑测试分布——只测自己 init / 源码字符串断言）治理 | test_health_audit |
+
 ### 🟡 P1 — 值得做
 
 | 编号 | 方向 | 理由 | 层级 |
