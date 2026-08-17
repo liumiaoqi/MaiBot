@@ -7454,3 +7454,138 @@ class EventBusConfig(ConfigBase):
 
     vote_history_capacity: int = Field(default=100)
     """内省投票历史环形缓冲容量（条）。"""
+
+
+class CompactionSectionConfig(ConfigBase):
+    """B 层替换式 compaction 配置（ZG-25）。
+
+    select 后对 selected_history 做摘要替换的 7 个可调参数；
+    默认 enable=False（灰度阶段不默认开启）。
+    """
+    __ui_label__ = "B 层压缩"
+    __ui_order__ = 87
+    __ui_parent__ = "system_state"
+
+    version: int = Field(default=1)
+    """配置版本号。"""
+
+    enable_b_layer_compaction: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用 B 层压缩",
+                "en_US": "Enable B-layer compaction",
+                "ja_JP": "B 層圧縮を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "compress",
+        },
+    )
+    """是否启用 B 层替换式 compaction（select 后摘要替换）。"""
+
+    compaction_threshold_ratio: float = Field(
+        default=0.72,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "触发阈值比例",
+                "en_US": "Trigger threshold ratio",
+                "ja_JP": "トリガー閾値比率",
+            },
+            "x-widget": "number",
+        },
+    )
+    """selected_history token 占 context_window 比例超此值时触发 compaction。"""
+
+    compaction_retain_ratio: float = Field(
+        default=0.32,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "保留比例",
+                "en_US": "Retain ratio",
+                "ja_JP": "保持比率",
+            },
+            "x-widget": "number",
+        },
+    )
+    """尾部保留 token 占总 token 比例（不压缩尾部近期消息）。"""
+
+    compaction_min_segment_size: int = Field(
+        default=6,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "最小段条数",
+                "en_US": "Min segment size",
+                "ja_JP": "最小セグメント数",
+            },
+            "x-widget": "number",
+        },
+    )
+    """可压缩段最少消息条数（低于此值不压缩）。"""
+
+    compaction_min_segment_tokens: int = Field(
+        default=500,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "最小段 token",
+                "en_US": "Min segment tokens",
+                "ja_JP": "最小セグメント token",
+            },
+            "x-widget": "number",
+        },
+    )
+    """可压缩段最少 token 数（低于此值不压缩）。"""
+
+    compaction_timeout_ms: int = Field(
+        default=3000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "摘要超时（毫秒）",
+                "en_US": "Summary timeout (ms)",
+                "ja_JP": "要約タイムアウト（ms）",
+            },
+            "x-widget": "number",
+        },
+    )
+    """摘要生成 LLM 调用超时（毫秒），超时降级返回原 history。"""
+
+    compaction_summary_max_tokens: int = Field(
+        default=500,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "摘要最大 token",
+                "en_US": "Summary max tokens",
+                "ja_JP": "要約最大 token",
+            },
+            "x-widget": "number",
+        },
+    )
+    """摘要生成 max_tokens 上限。"""
+
+
+class CachePrefixStabilityConfig(ConfigBase):
+    """缓存前缀稳定化配置（ZG-26）。
+
+    将 system prompt 中动态字段（emotion/relationship/favor）后移到 injected，
+    使 system prompt 前缀完全稳定以提升 DeepSeek 上下文缓存命中率；
+    默认 enable=False（灰度阶段不默认开启）。
+    """
+    __ui_label__ = "缓存前缀稳定化"
+    __ui_order__ = 93
+    __ui_parent__ = "system_state"
+
+    version: int = Field(default=1)
+    """配置版本号。"""
+
+    enable_cache_prefix_stability: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用缓存前缀稳定化",
+                "en_US": "Enable cache prefix stability",
+                "ja_JP": "キャッシュプレフィックス安定化を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "cache",
+        },
+    )
+    """是否启用缓存前缀稳定化（emotion/relationship/favor 从 system 后移到 injected）。"""

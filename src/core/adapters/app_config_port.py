@@ -670,3 +670,27 @@ class GlobalConfigAppConfigPort:
             return {}, {}
         per_stream = plugin_section.pop("per_stream", {})
         return plugin_section, per_stream
+
+    def get_enable_b_layer_compaction(self) -> bool:
+        return bool(self._get_cfg().compaction.enable_b_layer_compaction)
+
+    def get_compaction_threshold_ratio(self) -> float:
+        return float(self._get_cfg().compaction.compaction_threshold_ratio)
+
+    def get_compaction_retain_ratio(self) -> float:
+        return float(self._get_cfg().compaction.compaction_retain_ratio)
+
+    def get_compaction_min_segment_size(self) -> int:
+        return int(self._get_cfg().compaction.compaction_min_segment_size)
+
+    def get_compaction_min_segment_tokens(self) -> int:
+        return int(self._get_cfg().compaction.compaction_min_segment_tokens)
+
+    def get_compaction_timeout_ms(self) -> int:
+        return int(self._get_cfg().compaction.compaction_timeout_ms)
+
+    def get_compaction_summary_max_tokens(self) -> int:
+        return int(self._get_cfg().compaction.compaction_summary_max_tokens)
+
+    def is_cache_prefix_stability_enabled(self) -> bool:
+        return bool(self._get_cfg().cache_prefix_stability.enable_cache_prefix_stability)

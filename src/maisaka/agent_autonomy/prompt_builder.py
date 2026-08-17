@@ -14,6 +14,15 @@ logger = get_logger("agent_autonomy.prompt_builder")
 DynamicIdentityProvider = Callable[[str], str | None]
 
 
+def _is_cache_stability_enabled() -> bool:
+    """读取缓存前缀稳定化配置开关（ZG-26）。"""
+    try:
+        return get_app_config_port().is_cache_prefix_stability_enabled()
+    except Exception as exc:
+        logger.warning("ZG-26 缓存前缀稳定化配置读取失败，降级为关闭: %s", exc)
+        return False
+
+
 class EmbodiedPlannerPromptBuilder:
     """角色化 Planner 提示词构建器——从旁观者视角变为角色内部视角。
 
@@ -116,6 +125,10 @@ class EmbodiedPlannerPromptBuilder:
             self._agent_id, agent_config
         )
 
+        # ZG-26 b2: 缓存前缀稳定化——favor 后移到 injected
+        cache_stability_enabled = _is_cache_stability_enabled()
+        agent_favor_injection_for_system = "" if cache_stability_enabled else agent_favor_injection
+
         return {
             "bot_name": self._get_agent_display_name(),
             "file_tools_section": tools_section,
@@ -126,7 +139,7 @@ class EmbodiedPlannerPromptBuilder:
             "agent_anti_mechanization": agent_anti_mechanization,
             "agent_internal_relationships": agent_internal_relationships,
             "agent_interaction_memory": agent_interaction_memory,
-            "agent_favor_injection": agent_favor_injection,
+            "agent_favor_injection": agent_favor_injection_for_system,
             "agent_emotion_state": "",
             "agent_relationship": "",
             "butler_context": self._build_butler_context(),

@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.event_bus_port_registry import get_event_bus_port
 from src.core.protocols import AgentRoutingService, NoticeClassifier, ThinkingOrganFactory
 from src.core.types import CoreMessage, NoticeKind, ThinkAction, ThinkContext
@@ -1702,6 +1703,30 @@ class AgentOrchestrator:
         # LS-0: 读取上次思考摘要
         prev_thought_summary, time_since_last_think = await self._load_thought_summary(agent.agent_id)
 
+        # ZG-26 b2: 计算 favor_injection_text 传给 ThinkContext（injected 段用）
+        favor_injection_text = ""
+        try:
+            port = get_app_config_port()
+            if port is not None and port.is_cache_prefix_stability_enabled():
+                from src.core.adapters.agent_config_port import get_agent_config_provider
+
+                registry = get_agent_config_provider()
+                if registry.has_agent(agent.agent_id):
+                    ac = registry.get_agent(agent.agent_id)
+                    # P1-2: 使用真实用户参数（与旁观者路径 chat_loop_service 一致）
+                    user_name = ""
+                    is_owner = False
+                    try:
+                        cls = self._chat_loop_adapter.chat_loop_service
+                        user_name = getattr(cls, "_current_user_name", "") or ""
+                        owner_ids = get_bot_config_port().get_bot_owner_user_ids()
+                        is_owner = getattr(cls, "_current_user_id", "") in owner_ids
+                    except Exception:
+                        pass
+                    favor_injection_text = ac.get_favor_injection(user_name=user_name, is_owner=is_owner)
+        except Exception as exc:
+            logger.warning("ZG-26 favor_injection_text 计算失败，降级为空: %s", exc, exc_info=True)
+
         return ThinkContext(
             messages=messages,
             emotion_state_text=emotion_state_text,
@@ -1715,6 +1740,7 @@ class AgentOrchestrator:
             is_group_chat=self._is_group_chat,
             prev_thought_summary=prev_thought_summary,
             time_since_last_think=time_since_last_think,
+            favor_injection_text=favor_injection_text,
         )
 
     @staticmethod

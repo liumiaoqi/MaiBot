@@ -52,6 +52,8 @@ from .official_configs import (
     VoiceConfig,
     WatchdogSectionConfig,
     WebUIConfig,
+    CompactionSectionConfig,
+    CachePrefixStabilityConfig,
 )
 
 """
@@ -179,6 +181,12 @@ class Config(ConfigBase):
 
     agent_autonomy: AgentAutonomySectionConfig = Field(default_factory=AgentAutonomySectionConfig)
     """智能体自主性架构配置类"""
+
+    compaction: CompactionSectionConfig = Field(default_factory=CompactionSectionConfig)
+    """B 层替换式 compaction 配置类（ZG-25）"""
+
+    cache_prefix_stability: CachePrefixStabilityConfig = Field(default_factory=CachePrefixStabilityConfig)
+    """缓存前缀稳定化配置类（ZG-26）"""
 
 
 class ModelConfig(ConfigBase):

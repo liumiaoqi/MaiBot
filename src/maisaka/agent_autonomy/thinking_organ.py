@@ -862,6 +862,10 @@ class ThinkingOrgan:
         if self_reply_text:
             parts.append(self_reply_text)
 
+        # ZG-26 b2: favor_injection 从 system prompt 后移到 injected
+        if context.favor_injection_text:
+            parts.append(f"好感度：{context.favor_injection_text}")
+
         return parts
 
     @staticmethod

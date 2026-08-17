@@ -46,6 +46,7 @@ from src.maisaka.context.messages import (
     prefetch_forward_nodes_for_messages,
 )
 from src.maisaka.context.history import normalize_tool_call_result_pairs
+from src.maisaka.context.compaction import CompactionConfig, compact_selected_history
 from src.maisaka.context.token_estimator import (
     DEFAULT_CONTEXT_WINDOW,
     estimate_messages,
@@ -485,6 +486,7 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
             ),
         ]
     )
+
 
 
 class MaisakaChatLoopService:
@@ -1096,6 +1098,15 @@ class MaisakaChatLoopService:
             usage_prompt=_usage_prompt,
         )
 
+        # ZG-25：B 层替换式 compaction（select 后，recall 前）
+        selected_history = await compact_selected_history(
+            selected_history,
+            context_window=MaisakaChatLoopService._resolve_context_window(request_kind),
+            session_id=self._session_id,
+            llm_service=self._llm_service,
+            config=MaisakaChatLoopService._build_compaction_config(),
+        )
+
         # ZH1-1b：recall + 按需翻原文（select 后 append，不占普通窗口，失败降级不阻塞主流程）
         selected_history = await self._append_recall_reference_messages(
             chat_history, selected_history, log_prefix=""
@@ -1315,6 +1326,20 @@ class MaisakaChatLoopService:
             return DEFAULT_CONTEXT_WINDOW
         except Exception:
             return DEFAULT_CONTEXT_WINDOW
+
+    @staticmethod
+    def _build_compaction_config() -> CompactionConfig:
+        """从 app_config 构建 CompactionConfig（ZG-25）。"""
+        port = get_app_config_port()
+        return CompactionConfig(
+            enable=port.get_enable_b_layer_compaction(),
+            threshold_ratio=port.get_compaction_threshold_ratio(),
+            retain_ratio=port.get_compaction_retain_ratio(),
+            min_segment_size=port.get_compaction_min_segment_size(),
+            min_segment_tokens=port.get_compaction_min_segment_tokens(),
+            timeout_ms=port.get_compaction_timeout_ms(),
+            summary_max_tokens=port.get_compaction_summary_max_tokens(),
+        )
 
     @staticmethod
     def select_llm_context_messages(

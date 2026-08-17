@@ -593,6 +593,9 @@ class ThinkContext:
     lambda_value: float = 0.5
     """A3 λ 参数 — 控制 inner_voice 对 L2 的影响权重"""
 
+    favor_injection_text: str = ""
+    """好感度注入文本（ZG-26 b2: 从 system prompt 后移到 injected）"""
+
 
 class ThinkAction(Enum):
     """思考动作类型。"""
