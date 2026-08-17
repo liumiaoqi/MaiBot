@@ -2101,6 +2101,19 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         return self._pending_wait_tool_call_id is not None
 
+    def apply_trimmed_history(self, trimmed_history: list[LLMContextMessage]) -> None:
+        """写回裁切后历史（列表替换，原子操作）。
+
+        ZG-24：process_chat_history_after_cycle 返回裁切后历史，
+        通过此方法写回 _chat_history。
+        """
+
+        try:
+            self._chat_history = trimmed_history
+            logger.debug(f"{self.log_prefix} 历史写回: count={len(trimmed_history)}")
+        except Exception as exc:
+            logger.warning(f"{self.log_prefix} 历史写回失败: {exc}")
+
     async def _trigger_trimmed_history_learning(self, context_messages: Sequence[LLMContextMessage]) -> None:
         """提交对 Maisaka 裁切历史的后台学习任务。"""
 

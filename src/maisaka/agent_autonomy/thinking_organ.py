@@ -264,6 +264,66 @@ class ThinkingOrgan:
             return self._chat_loop_adapter.chat_history
         return []
 
+    def _trigger_post_cycle_trim(self, *, request_kind: str) -> None:
+        """回复后裁切 + 入队摘要 build + 触发裁切历史学习。
+
+        ZG-24：接线 process_chat_history_after_cycle（post_processor.py:544），
+        恢复 ZH1-1a 摘要写入链路生产运行。
+
+        spec 5.1.1 规则 1-6：回复后调用，失败不阻塞返回。
+        spec 5.1.4 决策 3：同步调用（耗时 < 10ms），
+        _trigger_trimmed_history_learning fire-and-forget。
+        """
+
+        try:
+            from src.maisaka.context.post_processor import process_chat_history_after_cycle
+
+            runtime = None
+            if self._chat_loop_adapter is not None:
+                runtime = getattr(self._chat_loop_adapter, "_runtime", None)
+            if runtime is None:
+                return
+
+            chat_history = self._get_chat_history()
+            if not chat_history:
+                return
+
+            max_context_size = 65536
+            if hasattr(self._chat_loop_service, "_resolve_context_window"):
+                max_context_size = self._chat_loop_service._resolve_context_window(request_kind)
+
+            result = process_chat_history_after_cycle(
+                chat_history,
+                max_context_size=max_context_size,
+                enable_context_optimization=False,
+                session_id=getattr(runtime, "session_id", "") or "",
+            )
+
+            if hasattr(runtime, "apply_trimmed_history"):
+                runtime.apply_trimmed_history(result.history)
+
+            if result.removed_messages and hasattr(runtime, "_trigger_trimmed_history_learning"):
+                import asyncio
+                asyncio.create_task(
+                    runtime._trigger_trimmed_history_learning(result.removed_messages),
+                    name="trimmed_history_learning",
+                )
+
+            if result.removed_count > 0:
+                logger.info(
+                    f"[thinking_organ] 裁切完成: agent={self._agent_id} "
+                    f"removed={result.removed_count} "
+                    f"remaining={result.remaining_context_count} "
+                    f"enqueued={bool(result.removed_messages)}"
+                )
+            else:
+                logger.debug(
+                    f"[thinking_organ] 无需裁切: agent={self._agent_id} "
+                    f"remaining={result.remaining_context_count}"
+                )
+        except Exception as exc:
+            logger.warning(f"[thinking_organ] 裁切+入队失败，不阻塞回复: {exc}")
+
     async def _think_with_tools(
         self,
         context: ThinkContext,
@@ -327,6 +387,9 @@ class ThinkingOrgan:
                 return result
 
             last_response = response
+
+            # ZG-24：回复后裁切 + 入队摘要 build + 触发裁切历史学习
+            self._trigger_post_cycle_trim(request_kind=request_kind)
 
             time_records["planner"] = time.time() - cycle_started_at
 
