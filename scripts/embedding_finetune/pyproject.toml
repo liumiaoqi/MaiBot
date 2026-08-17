@@ -1,16 +1,20 @@
-# embedding_finetune 独立工作区声明
+# AI 实验区独立工作区声明（scripts/embedding_finetune——2026-08-17 升级）
 #
 # 作用：
-#   1. 本目录内的 uv 命令（uv venv / uv run / uv sync）自动使用本目录的 .venv，
+#   1. 本目录 = MaiBot 所有 AI 相关实验统一工作区（embedding 微调 / SNN 脉冲网络 / 小模型 / 新架构验证）
+#   2. 本目录内的 uv 命令（uv venv / uv run / uv sync / uv pip install）自动使用本目录的 .venv，
 #      与主项目（MaiBot 根）环境彻底隔离——主项目的 uv run 永远不会冲掉这里
-#   2. requires-python 锁定 3.12（torch 训练栈在 3.12 最稳）
-#   3. torch 自动从 cu128 索引安装（RTX 50 系 Blackwell 必需）
+#   3. requires-python 锁定 3.12（torch 训练栈在 3.12 最稳）
+#   4. torch 自动从 cu128+ 索引安装（RTX 50 系 Blackwell 必需）
 #
 # 用法：
 #   cd scripts/embedding_finetune
 #   uv venv --python 3.12 .venv
 #   uv pip install -e .          # 或 uv sync——按本文件声明装依赖
-#   python run_train_v1.py       # 训练
+#   python run_train_v1.py       # embedding 微调训练
+#   python snn_behavior/xxx.py   # SNN 行为实验（新实验子目录 + NOTES.md）
+#
+# 新实验依赖：加进下方 dependencies（如 snntorch），uv 增量安装——不要用裸 pip
 
 [project]
 name = "maibot-embedding-finetune"
@@ -31,6 +35,8 @@ dependencies = [
     "uvicorn",
     "numpy",
     "matplotlib",
+    # SNN 脉冲网络实验（2026-08-17 加——AI 实验区，动物行为模拟用）
+    "snntorch>=0.8",
 ]
 
 [tool.setuptools]
