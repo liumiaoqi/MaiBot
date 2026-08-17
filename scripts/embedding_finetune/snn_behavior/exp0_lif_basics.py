@@ -9,9 +9,14 @@
 运行：scripts/embedding_finetune/.venv/Scripts/python snn_behavior/exp0_lif_basics.py
 """
 
+import matplotlib
 import matplotlib.pyplot as plt
 import snntorch as snn
 import torch
+
+# 中文字体（Windows：微软雅黑——matplotlib 默认 DejaVu 无中文会乱码）
+matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei"]
+matplotlib.rcParams["axes.unicode_minus"] = False  # 负号正常显示
 
 def demo_single_neuron() -> None:
     """单个 LIF 神经元：不同输入强度下的放电行为。"""
