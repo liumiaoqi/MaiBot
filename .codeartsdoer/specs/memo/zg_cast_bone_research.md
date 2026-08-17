@@ -83,6 +83,25 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 |------|------|------|--------|------|
 | **ZG-12** | 模型配置重写（alternative 化） | V1 遗留命名+硬编码回退+embedding 静默失败+TaskConfig 无分化，**用户决定整体重写** | 高 | 应用 |
 
+## ZG-24~31 调研驱动新批次（2026-08-17 立——44 份调研报告的落地编排）
+
+> 2026-08-16 晚 44 任务调研队列全部完成（.shared/research/2026-08/），本批次为调研结论的正式 ZG 化。
+> 优先级排序依据：P0 死代码/静默失效 > 用户疑问方向 > 性能 N+1 > 观测。
+
+| 编号 | 任务 | 来源报告 | 优先级 | 核心内容 |
+|------|------|---------|:---:|---------|
+| **ZG-24** | 记忆写入链路接线（ZH1-1a 死代码修复） | memory_write_chain_0817 + compaction_sites_analysis_0817 | **P0** | `process_chat_history_after_cycle` 全库无调用者——裁切摘要入队/队列消费/insert 历史整条死链；修复后 mid_term_memory_summaries 表恢复增长，ZH1-1b recall 候选源复活。AGENTS.md 硬性规则违反项 |
+| **ZG-25** | 会话压缩体系（B 层替换式 compaction） | compaction_sites_analysis_0817 + maiobot_vs_dsh_compression_0817 | **P1** | select 后对 selected_history 做摘要替换释放 token（对标 dsh compactSurfaceRegion），不污染共享历史；与 ZG16-2 软裁切正交叠加；组合方案：ZG16-2 选择→B 替换→G 持久化 |
+| **ZG-26** | 缓存命中率提升（前缀稳定化） | cache_hit_improvement_0817 + cache_cold_start_analysis_0817 | **P1** | system prompt 4 个动态字段（emotion/relationship/favor/interaction_memory）后移/稳定化——b1 旁观者路径学习角色化路径（改动 1 文件、收益预估 30-50% 命中、低风险）——用户疑问③落地 |
+| **ZG-27** | 记忆水位回收落地 | zg17_watermark_shrinker_survey_v2_0816 + memory_capacity_cleanup_0817 | **P1** | ZG-17 12 项落地清单：watermark/shrinker/ReclaimScheduler/kswapd/eviction_score + 6 机制直接注册 shrinker + 防误杀（核心记忆 priority_score=-1000） |
+| **ZG-28** | 检索链路 N+1 与缓存治理 | memory_retrieval_chain_0817 | **P1** | 3 处 P0 N+1（关系检索/图后验竞争合并/图关系召回——循环内单条查询，批量 API 已存在可直接替换）+ embedding/BM25/profile 缓存覆盖不足 |
+| **ZG-29** | 记忆容量清理治理 | memory_capacity_cleanup_0817 | **P1** | 3 个 P0 残留（deleted_relations 无自动清理/graph_edges 孤儿边/delete_entity 不级联）+ 7 个 P1 容量空缺（无水位/墓碑无 compaction/缓存无驱逐） |
+| **ZG-30** | 社会关系记忆协调治理 | social_relation_memory_0817 | **P1** | 5 个 P0（profile 版本号竞态/relation RMW 非原子/跨存储无事务/person_profile 注入死代码/多写者无锁）+ 5 个 P1——灵魂理念（关系）实现层加固 |
+| **ZG-31** | except 静默吞错清零 | except_audit_0816 | **P1** | 120 处 P0 静默吞错（pass_body 无日志，logger.py 4 处最优先）+ ZG-14 差额 74 处纳入改造（8-06 后新增代码） |
+
+> 依赖关系：ZG-24 是 ZG-25（G 层）与 recall 能力的前置；ZG-27 依赖 ZG-29 的部分清理基线；其余独立。
+> 排期：等用户拍板（试新模型队列排队中——新模型首次完整流程可能从 ZG-24 开始）。
+
 ### 🟡 P1 — 值得做
 
 | 编号 | 方向 | 理由 | 层级 |
