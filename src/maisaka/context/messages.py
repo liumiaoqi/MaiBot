@@ -28,7 +28,7 @@ from src.common.data_models.message_component_data_model import (
     TextComponent,
     VoiceComponent,
 )
-from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
+from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType, TextMessagePart
 from src.llm_models.payload_content.tool_option import ToolCall
 logger = get_logger("auto.messages")
 
@@ -676,6 +676,40 @@ class ComplexSessionMessage(SessionBackedMessage):
             source_kind=source_kind,
             prompt_text=f"{planner_prefix}{prompt_text}",
         )
+
+
+@dataclass(slots=True)
+class CompactionSummaryMessage(LLMContextMessage):
+    """B 层 compaction 摘要消息（替换原段，占窗口）。
+
+    ZG-25：select 后对 selected_history 中"可压缩段"做摘要替换，
+    替换为一条本消息，释放 token 且信息损失最小。
+    """
+
+    summary_text: str
+    timestamp: datetime
+    original_segment_count: int = 0
+    original_time_range: str = ""
+    message_id: Optional[str] = None
+
+    @property
+    def role(self) -> str:
+        return RoleType.User.value
+
+    @property
+    def processed_plain_text(self) -> str:
+        return self.summary_text
+
+    @property
+    def count_in_context(self) -> bool:
+        return True
+
+    @property
+    def source(self) -> str:
+        return "compaction_summary"
+
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
+        return Message(role=RoleType.User, parts=[TextMessagePart(text=self.summary_text)])
 
 
 @dataclass(slots=True)
