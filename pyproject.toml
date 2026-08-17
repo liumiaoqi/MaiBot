@@ -158,6 +158,7 @@ ignore = ["E711", "E501", "TID252"]
 "scripts/**" = ["TID251"]  # 运维/工具脚本直测内部实现（一次性或手动运行，非服务代码）
 "pytests/config_test/test_config_base.py" = ["TID251"]  # 测试构造 stdlib LogRecord（受控用途，同 log_pipeline_test 先例）
 "pytests/webui/test_memory_routes_integration.py" = ["TID251"]  # 端到端集成测试直连 A_memorix 内部（同 A_memorix_test 先例）
+"tests/unit/a_memorix/*" = ["TID251"]  # ZG-27 A_memorix 内部模块单元测试（直测内部实现，MemoryServicePort 契约由集成测试覆盖）
 ".codeartsdoer/temp/**" = ["ALL"]  # 临时接受目录（非源码）
 
 [tool.ruff.format]

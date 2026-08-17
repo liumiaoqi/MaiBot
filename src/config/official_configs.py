@@ -3560,6 +3560,32 @@ class AMemorixConnectionistConfig(ConfigBase):
     """各智能体的内心声音配置，键为 agent_id"""
 
 
+class WatermarkConfig(ConfigBase):
+    """ZG-27 水位分级配置（对标 Linux WMARK_MIN/LOW/HIGH）。"""
+
+    min: int = Field(default=100, ge=0, description="水位 MIN 阈值（硬底线）")
+    """水位 MIN 阈值——usage 低于此值时禁止回收（硬底线）"""
+    low: int = Field(default=200, ge=0, description="水位 LOW 阈值（唤醒 kswapd）")
+    """水位 LOW 阈值——usage 低于此值时唤醒 kswapd 回收"""
+    high: int = Field(default=400, ge=0, description="水位 HIGH 阈值（回收目标）")
+    """水位 HIGH 阈值——回收到此值后 kswapd 休眠"""
+    check_interval_sec: float = Field(default=10.0, gt=0, description="kswapd 检查间隔")
+    """kswapd 检查间隔（秒）"""
+
+
+class ShrinkerConfig(ConfigBase):
+    """ZG-27 shrinker 回收配置（对标 Linux SHRINK_BATCH/DEF_PRIORITY）。"""
+
+    batch_size: int = Field(default=128, ge=1, description="回收批次大小（对标 SHRINK_BATCH=128）")
+    """回收批次大小"""
+    def_priority: int = Field(default=12, ge=1, description="初始 priority（对标 DEF_PRIORITY）")
+    """初始 priority"""
+
+
+class EvictionConfig(ConfigBase):
+    """ZG-27 驱逐评分配置（对标 Linux oom_score_adj）。V1 仅占位，V2 扩展。"""
+
+
 class AMemorixMemoryEvolutionConfig(ConfigBase):
     """A_Memorix 记忆演化配置"""
 
@@ -3574,6 +3600,30 @@ class AMemorixMemoryEvolutionConfig(ConfigBase):
         },
     )
     """是否启用记忆演化"""
+
+    enable_watermark_reclaim: bool = Field(
+        default=False,
+        description="ZG-27 水位回收开关（灰度启用）",
+    )
+    """ZG-27 水位回收开关——默认 False（灰度安全）"""
+
+    watermark: WatermarkConfig = Field(
+        default_factory=WatermarkConfig,
+        description="水位分级配置",
+    )
+    """水位分级配置"""
+
+    shrinker: ShrinkerConfig = Field(
+        default_factory=ShrinkerConfig,
+        description="shrinker 回收配置",
+    )
+    """shrinker 回收配置"""
+
+    eviction: EvictionConfig = Field(
+        default_factory=EvictionConfig,
+        description="驱逐评分配置",
+    )
+    """驱逐评分配置"""
 
     half_life_hours: float = Field(
         default=24.0,

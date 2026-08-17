@@ -404,6 +404,7 @@ class KernelInitializer:
         KernelInitializer.init_vector_rebuild_service(kernel)
         KernelInitializer.init_dual_vector_migration_service(kernel)
         KernelInitializer.init_vector_ensure_service(kernel)
+        KernelInitializer.init_watermark_reclaim(kernel)
 
     @staticmethod
     def init_vector_ensure_service(kernel: SDKMemoryKernel) -> None:
@@ -598,6 +599,106 @@ class KernelInitializer:
         }
 
     @staticmethod
+    def init_watermark_reclaim(kernel: SDKMemoryKernel) -> None:
+        """ZG-27 水位回收初始化——enable_watermark_reclaim=True 时挂载 kswapd。
+
+        AGENTS.md 硬性规则：新模块必须存在生产接线点。
+        静默失效禁令：初始化失败要出声（spec 10.1 规则 5）。
+        """
+        if not bool(kernel._cfg("memory.enable_watermark_reclaim", False)):
+            return
+        try:
+            from src.A_memorix.core.runtime.kswapd import MemoryKswapd
+            from src.A_memorix.core.runtime.reclaim_scheduler import (
+                ReclaimScheduler,
+                ShrinkerRuntimeConfig,
+            )
+            from src.A_memorix.core.runtime.shrinkers.adjacency_t import AdjacencyTShrinker
+            from src.A_memorix.core.runtime.shrinkers.cached_map import CachedMapShrinker
+            from src.A_memorix.core.runtime.shrinkers.ppr import PprCacheShrinker
+            from src.A_memorix.core.runtime.shrinkers.saliency import SaliencyCacheShrinker
+            from src.A_memorix.core.runtime.shrinkers.vector import VectorShrinker
+            from src.A_memorix.core.runtime.watermark import (
+                WatermarkConfig,
+                WatermarkZone,
+            )
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+
+            wm_config = WatermarkConfig(
+                min=int(kernel._cfg("memory.watermark.min", 100)),
+                low=int(kernel._cfg("memory.watermark.low", 200)),
+                high=int(kernel._cfg("memory.watermark.high", 400)),
+                check_interval_sec=float(kernel._cfg("memory.watermark.check_interval_sec", 10.0)),
+            )
+            watermark_zone = WatermarkZone(
+                config=wm_config,
+                usage_provider=KernelInitializer._build_usage_provider(kernel),
+            )
+            shrinker_config = ShrinkerRuntimeConfig(
+                batch_size=int(kernel._cfg("memory.shrinker.batch_size", 128)),
+                def_priority=int(kernel._cfg("memory.shrinker.def_priority", 12)),
+            )
+            reclaim_scheduler = ReclaimScheduler(
+                config=shrinker_config,
+                error_port=get_error_escalation_port(),
+            )
+            # 注册缓存类 shrinker（spec 5.5.3 决策 3）
+            # V1 注册 4 个内存缓存 shrinker；cognitive/profile 为 DB-backed，V1 跳过并出声
+            from src.common.logger import get_logger as _get_logger
+            _wm_logger = _get_logger("a_memorix.watermark_reclaim")
+            if kernel.retriever is not None:
+                reclaim_scheduler.register(PprCacheShrinker(kernel.retriever))
+            # cognitive state 存于 CognitiveStore(SQLite)，无内存 _states dict 可回收——V1 跳过
+            _wm_logger.info(
+                "ZG-27 shrinker 跳过 cognitive_state：认知状态存于 CognitiveStore(SQLite)，"
+                "无内存缓存可回收，V1 不注册"
+            )
+            # profile snapshot 由 metadata_store 按需构建，无内存 _snapshots dict 可回收——V1 跳过
+            _wm_logger.info(
+                "ZG-27 shrinker 跳过 profile_snapshot：快照由 metadata_store 按需构建，"
+                "无内存缓存可回收，V1 不注册"
+            )
+            if kernel.graph_store is not None:
+                reclaim_scheduler.register(SaliencyCacheShrinker(kernel.graph_store))
+                reclaim_scheduler.register(AdjacencyTShrinker(kernel.graph_store))
+            if kernel.vector_store is not None:
+                reclaim_scheduler.register(CachedMapShrinker(kernel.vector_store))
+                reclaim_scheduler.register(VectorShrinker(kernel.vector_store))
+            kernel._memory_kswapd = MemoryKswapd(
+                watermark_zone=watermark_zone,
+                reclaim_scheduler=reclaim_scheduler,
+                background_scheduler=kernel._background_scheduler,
+                error_port=get_error_escalation_port(),
+            )
+        except Exception as exc:
+            from src.common.logger import get_logger
+
+            logger = get_logger("a_memorix.kernel_initializer")
+            logger.error("ZG-27 水位回收初始化失败: %s", exc, exc_info=True)
+            raise
+
+    @staticmethod
+    def _build_usage_provider(kernel: SDKMemoryKernel):
+        """构造内存占用计量函数——汇总各存储/缓存模块的当前占用。"""
+
+        def usage_provider() -> int:
+            total = 0
+            if kernel.retriever is not None:
+                cache = getattr(kernel.retriever, "_ppr_cache", None)
+                if isinstance(cache, dict):
+                    total += len(cache)
+            if kernel.graph_store is not None:
+                total += 1 if getattr(kernel.graph_store, "_saliency_cache", None) is not None else 0
+                total += 1 if getattr(kernel.graph_store, "_adjacency_T", None) is not None else 0
+            if kernel.vector_store is not None:
+                cm = getattr(kernel.vector_store, "_cached_map", None)
+                if cm:
+                    total += len(cm) if hasattr(cm, "__len__") else 1
+            return total
+
+        return usage_provider
+
+    @staticmethod
     async def start_background_tasks(kernel: SDKMemoryKernel) -> None:
         registrations = {
             "auto_save": kernel._auto_save_loop,
@@ -608,6 +709,9 @@ class KernelInitializer:
             "person_profile_refresh": kernel._person_profile_refresh_loop,
             "person_profile_refresh_queue": kernel._person_profile_refresh_queue_loop,
         }
+        # ZG-27 水位回收接线——enable_watermark_reclaim=True 时挂载 kswapd
+        if hasattr(kernel, "_memory_kswapd"):
+            registrations["kswapd"] = kernel._memory_kswapd.run
         if kernel._should_start_dual_vector_auto_migration():
             registrations["dual_vector_auto_migration"] = kernel._dual_vector_auto_migration_loop
         await kernel._background_scheduler.start_all(registrations)
