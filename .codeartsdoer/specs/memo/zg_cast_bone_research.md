@@ -117,6 +117,17 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 | P3 | 记忆注入标准化（c2——收益有限 +2%） | cache_hit_improvement |
 | P3 | 测试债务（可疑测试分布——只测自己 init / 源码字符串断言）治理 | test_health_audit |
 
+### P4/P5 明确不做/暂缓清单（记录在案——不占编号不排期，白纸黑字防重复问）
+
+| 级 | 内容 | 理由 | 来源 |
+|:---:|------|------|------|
+| P4 | 压缩候选点 C/D/E（记忆注入前/后、prompt 构建前压缩） | 破坏记忆完整性/已合并难分离——报告明确不做 | compaction_sites |
+| P4 | ZG-17 VectorShrinker 首版（向量回收） | 向量重建代价极高——降级为仅注册 count_objects 返回 0，留 V2 | zg17_survey_v2 |
+| P4 | ZG-11 Phase 3 组件级进程隔离 | 架构变动大，当前规模不需要 | zg_cast_bone_research |
+| P4 | ZG-13 角色语音 TTS | 用户拍板暂缓（2026-08-16） | zg_cast_bone_research |
+| P5 | ZG-11 Phase 2 本地大模型 embedding worker | 等 bge 微调部署决策——倾向 Xinference 独立服务，大概率不需要 | zg_cast_bone_research |
+| P5 | 组件级进程隔离（memory/embedding/LLM 各一进程 + Unix socket） | 同 P4 隔离项，更远期 | zg_cast_bone_research |
+
 ### 🟡 P1 — 值得做
 
 | 编号 | 方向 | 理由 | 层级 |
