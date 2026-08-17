@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import plugin_config_pb2 as plugin__config__pb2
+from src.plugin_runtime_v2.proto import plugin_config_pb2 as plugin__config__pb2
 
 GRPC_GENERATED_VERSION = '1.83.0'
 GRPC_VERSION = grpc.__version__
