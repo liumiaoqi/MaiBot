@@ -1,11 +1,28 @@
-# embedding_finetune 工作规则
+# AI 实验区工作规则（scripts/embedding_finetune）
 
-> 最后更新：2026-08-04
-> 本目录是独立于 MaiBot 主项目的本地模型微调工作区（训练环境 3.12，与主项目 3.14 隔离）。
+> 最后更新：2026-08-17
+> **本目录 = MaiBot 所有 AI 相关实验的统一工作区**（embedding 微调 / SNN 脉冲网络 / 小模型 / 新架构验证）——独立于主项目，uv 隔离环境（Python 3.12 + torch cu128，与主项目 3.14 彻底隔离）。
+> 规则：AGENTS.md「AI 实验区」条款 + 本文件。
 
 ---
 
-## 1. 环境规则（硬性）
+## 0. AI 实验区总则（2026-08-17 立）
+
+- **统一位置**：所有 AI 相关实验（微调/SNN/小模型/新架构/行为模拟）在**本目录**做；lab/ 只放非 AI 的零散脚本
+- **uv 隔离**：独立 .venv（Python 3.12），不用根目录 uv run（会按主项目 pyproject 用根 .venv）
+- **环境**：torch 必须 cu128（RTX 50 系 Blackwell sm_120）
+- **新实验子目录**：每个实验一个子目录（如 snn_behavior/）+ 自己的 NOTES.md + 报告进 .shared/research/
+- **依赖**：新实验依赖加入 pyproject.toml（如 snntorch）或实验子目录 requirements
+
+---
+
+## 1. embedding_finetune 微调专题（原 RULES 内容）
+
+> 环境规则（硬性）
+
+---
+
+### 1.1 环境规则（硬性）
 
 - **独立环境**：本目录有独立的 `.venv`（Python 3.12，由 `pyproject.toml` 声明）——与主项目（MaiBot 根 .venv）**彻底隔离**。
 - **建环境**（torch 命中 uv 缓存，秒装）：
@@ -19,14 +36,14 @@
 - **torch 必须 cu128**：RTX 50 系（Blackwell sm_120）的 kernel 只在 cu128+ 轮子中；cu126 报 `no kernel image is available for execution on the device`。
 - 依赖声明：`pyproject.toml`（torch 走 `pytorch-cu128` 专用索引）；requirements.txt 是参考副本。
 
-## 2. 数据规则
+### 1.2 数据规则
 
 - 三元组格式：`{"anchor": str, "positive": str, "negative": str}`，JSONL 一行一条。
 - **positive 必须同源相关**（同一角色/话题的不同侧面），negative 必须语义不相关（hard negative 优先：同域不同话题 > 跨域）。
 - 数据量：**1000 条精审数据足够**（比 2283 条混审更好）；资料类长文做 doc 侧、对话短文本（5-100 字）做 query 侧——**过滤规则别按长度剔**，短文本是 query 侧样本。
 - 审核优先级：positive 对细看（跨会话的优先），negative 扫一眼（纯怪的直接过，假 negative——其实相关的——要挑出）。
 
-## 3. 训练规则
+### 1.3 训练规则
 
 - 入口：`run_train_v1.py` → `step3b_finetune.py`。step3 是初版（无 instruction），正式训练只用 step3b。
 - **fp16 必需**：`--fp16`（sentence-transformers 3.x 参数是 `use_amp`，不是 fp16——传错报 TypeError）。Tensor Core 只加速 fp16，fp32 浪费 5060 一半算力。
@@ -38,7 +55,7 @@
   2. 向量 L2 normalize（训练验证与部署都做）
   3. 度量：训练 cosine = 部署 faiss 内积 + 归一化向量
 
-## 4. 部署规则
+### 1.4 部署规则
 
 - 导出：`python step4_export_onnx.py --model scripts\embedding_finetune\output\v1`（输出 onnx_model/：model.onnx fp32 + model_q8.onnx int8 + tokenizer）。
 - 推理服务：`embedding_server.py`（OpenAI 兼容 /v1/embeddings，加载 model_q8.onnx）：
@@ -50,7 +67,7 @@
 - MaiBot 接入**零代码**（配置见调研报告 `.shared/research/2026-08/embedding_config_chain_0804.md`）：model_config.toml 加 `LocalEmbed` provider（auth_type="none" + api_key="none"）+ embedding.model_list；bot_config.toml `dimension = 1024`。
 - **维度迁移大坑**：之前用过 2048 维（如阿里 text-embedding-v4）则存量向量库是 2048——接 1024 的 bge 前必须清空 `data/a-memorix/vectors` 重建，否则持久化被锁 + 检索降级。
 
-## 5. 踩坑记录（2026-08-03/04）
+### 1.5 踩坑记录（2026-08-03/04）
 
 | 坑 | 现象 | 解法 |
 |----|------|------|
@@ -66,7 +83,7 @@
 | setuptools 包发现 | `uv pip install -e .` 报 `Multiple top-level packages: data/output/onnx_model` | pyproject 加 `[tool.setuptools] py-modules=[] + packages.find exclude` |
 | torchvision warning | 导出时 `torchvision is not installed. Skipping torchvision::roi_align` | 无害噪音（图像算子，BERT 用不到），忽略 |
 
-## 6. 当前状态（2026-08-04）
+### 1.6 当前状态（2026-08-04）
 
 - v1 训练完成：2283 条 × 3 epochs，模型在 `output/v1`
 - v2 计划：用户精审 1000 条 + CA 短文本语料（query 侧）后重训
