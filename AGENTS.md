@@ -76,6 +76,15 @@
    deepseek-harness 的 47 包 Cordis 插件架构（生命周期/依赖/作用域/上下文注入）是插件设计的第一参考，
    先于通用插件框架（如 Home Assistant 等仅作补充对照）。
 5. **范围**：派发文档（dsh2ca_*）、SSD（spec/design/tasks）、调研报告均需在输入材料/引用中体现。
+6. **dsh 参考文档地图（2026-08-17 立——做设计前先翻说明书再翻源码）**：
+   - 架构总览：`DEEPSEEKCLONE/deepseek-harness/docs/architecture.md` + `cordis-primer.md`
+   - 「一切皆插件」落地：`docs/capability-seams.md`（核心脊柱/可换接缝/bundle 组合点）
+   - 配置设计：`docs/config-catalog.md`（132KB 全量配置目录——模型配置分层/编组直接参考）
+   - 工具设计：`docs/tool-catalog.md`（80KB）+ `docs/tool-execution-pipeline.md`
+   - **防御模式（缺陷类规则）**：`docs/defensive-patterns.md`——写生命周期/并发/子进程代码前必读
+   - 事件体系：`docs/event-producer-consumer.md` / 生命周期：`docs/agent-lifecycle.md`
+   - 团队 skill（工作流即插件）：`.agents/skills/`（11 个——code-review/pre-push-checks/trim-cot-leakage 等）
+   - 全部有中文版（.zh.md）；详见 `.shared/decisions/dsh_team_skills_observation_0817.md`
 
 # 新模块接线（硬性规则——2026-08-15 立，ZG16-2/ZG16-5 两次静默失效教训）
 

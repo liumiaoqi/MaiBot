@@ -103,6 +103,7 @@
 - **设计系统类**：必须标注 Linux 内核源码参考（importantClone/linuxclone/linux/ 对应机制文件）
 - **设计智能体类**：必须标注 dsh 源码参考（importantClone/DEEPSEEKCLONE/deepseek-harness/ 对应包）
 - **插件哲学**：MaiBot 插件体系重点从 dsh 学习（47 包 Cordis 插件架构是第一参考，其他框架仅补充）
+- **dsh 参考文档地图**（做设计/调研先翻说明书再翻源码——全部在 DEEPSEEKCLONE/deepseek-harness/docs/ 下，有中文版）：architecture.md（总览）/ capability-seams.md（一切皆插件落地）/ config-catalog.md（132KB 配置目录——模型配置分层直接参考）/ tool-catalog.md + tool-execution-pipeline.md（工具）/ defensive-patterns.md（缺陷类防御规则——生命周期/并发代码前必读）/ event-producer-consumer.md（事件）/ agent-lifecycle.md（生命周期）/ .agents/skills/（团队 11 skill——工作流即插件）；详见 .shared/decisions/dsh_team_skills_observation_0817.md
 - 理由：ZG 对标 Linux、模型特化对标 harness——两者是最重要的参考，不标注=设计无据
 
 ## SSD 启动必要条件
