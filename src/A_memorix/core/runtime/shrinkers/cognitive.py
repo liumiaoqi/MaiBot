@@ -1,6 +1,10 @@
-"""ZG-27 Cognitive state 过期 shrinker。
+"""ZG-27 Cognitive state 过期 shrinker（测试专用，未在生产环境注册）。
 
 spec 5.4.1 规则 2：count=过期条数，scan=resolve 过期，seeks=1，priority_score=700。
+
+本 shrinker 未在 kernel_initializer.init_watermark_reclaim 中注册——认知状态存于
+CognitiveStore(SQLite)，无内存 _states dict 可回收。保留此文件仅用于测试 shrinker
+接口契约（count_objects/scan_objects）。参见 kernel_initializer.py:662-666。
 """
 
 import time

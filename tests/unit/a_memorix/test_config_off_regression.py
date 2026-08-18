@@ -15,7 +15,7 @@ def test_config_off_no_kswapd_in_registrations():
     """配置关闭时 start_background_tasks registrations 不含 kswapd。"""
     content = Path("src/A_memorix/core/runtime/services/kernel_initializer.py").read_text(encoding="utf-8")
     assert 'registrations["kswapd"]' in content
-    assert "hasattr(kernel, \"_memory_kswapd\")" in content
+    assert "kernel._memory_kswapd is not None" in content
 
 
 def test_maintenance_unchanged():

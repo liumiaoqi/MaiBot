@@ -47,6 +47,7 @@ class RunnerHealthBridge:
         self._v1_supervisors: dict[str, Any] = {}
         self._last_restart_count: dict[str, int] = {}
         self._poll_tasks: dict[str, asyncio.Task] = {}
+        self._skip_warning_logged: set[str] = set()
 
     def register_v2_supervisor(
         self,
@@ -224,10 +225,12 @@ class RunnerHealthBridge:
                 try:
                     process = getattr(supervisor, "_runner_process", None)
                     if process is None:
-                        logger.warning(
-                            "V1 supervisor._runner_process 属性缺失，跳过本轮轮询（runner_id=%s）",
-                            runner_id,
-                        )
+                        if runner_id not in self._skip_warning_logged:
+                            self._skip_warning_logged.add(runner_id)
+                            logger.warning(
+                                "V1 supervisor._runner_process 属性缺失，跳过本轮轮询（runner_id=%s，后续静默）",
+                                runner_id,
+                            )
                     else:
                         returncode = getattr(process, "returncode", None)
                         if returncode is not None:
@@ -309,17 +312,21 @@ class RunnerHealthBridge:
 
         sm_port = get_service_manager_port()
         if sm_port is None:
-            logger.warning(
-                "ServiceManagerPort 未注册，跳过 Runner %s 上报", runner_id
-            )
+            if runner_id not in self._skip_warning_logged:
+                self._skip_warning_logged.add(runner_id)
+                logger.warning(
+                    "ServiceManagerPort 未注册，跳过 Runner %s 上报（后续静默）", runner_id
+                )
             return
         component_state = sm_port.get_state(status.component_id)
         if component_state is None:
-            logger.warning(
-                "Runner %s 未纳入服务管理器，跳过上报（component_id=%s）",
-                runner_id,
-                status.component_id,
-            )
+            if runner_id not in self._skip_warning_logged:
+                self._skip_warning_logged.add(runner_id)
+                logger.warning(
+                    "Runner %s 未纳入服务管理器，跳过上报（component_id=%s，后续静默）",
+                    runner_id,
+                    status.component_id,
+                )
             return
 
         try:
@@ -345,6 +352,7 @@ class RunnerHealthBridge:
             last_report_time=time.monotonic(),
             is_recovering=False,
         )
+        self._skip_warning_logged.discard(runner_id)
 
     async def _on_runner_recovered(self, runner_id: str) -> None:
         """处理 Runner 恢复信号。"""

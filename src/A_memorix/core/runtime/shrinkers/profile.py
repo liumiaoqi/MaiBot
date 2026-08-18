@@ -1,6 +1,10 @@
-"""ZG-27 Profile snapshot 过期 shrinker。
+"""ZG-27 Profile snapshot 过期 shrinker（测试专用，未在生产环境注册）。
 
 spec 5.4.1 规则 3：count=过期 snapshot 数，scan=删过期，seeks=1，priority_score=600。
+
+本 shrinker 未在 kernel_initializer.init_watermark_reclaim 中注册——快照由
+metadata_store 按需构建，无内存 _snapshots dict 可回收。保留此文件仅用于测试
+shrinker 接口契约（count_objects/scan_objects）。参见 kernel_initializer.py:667-671。
 """
 
 import time

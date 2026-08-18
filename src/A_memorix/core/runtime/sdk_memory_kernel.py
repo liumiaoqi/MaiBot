@@ -92,6 +92,7 @@ class SDKMemoryKernel:
         self._unified_profile_service: Optional[Any] = None
         self._fusion_pipeline: Optional[Any] = None
         self._fusion_spread_depth: int = 3
+        self._memory_kswapd: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)

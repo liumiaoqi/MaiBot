@@ -681,15 +681,21 @@ class KernelInitializer:
                 embedding_cache = getattr(kernel.retriever, "_embedding_cache", None)
                 if embedding_cache is not None:
                     reclaim_scheduler.register(EmbeddingCacheShrinker(embedding_cache))
+                else:
+                    _wm_logger.info("ZG-28 shrinker 跳过 embedding_cache：retriever._embedding_cache 为 None（缓存未启用）")
                 from src.A_memorix.core.runtime.shrinkers.profile_cache_shrinker import ProfileCacheShrinker
                 profile_cache = getattr(kernel.retriever, "_profile_cache", None)
                 if profile_cache is not None:
                     reclaim_scheduler.register(ProfileCacheShrinker(profile_cache))
+                else:
+                    _wm_logger.info("ZG-28 shrinker 跳过 profile_cache：retriever._profile_cache 为 None（缓存未启用）")
             if kernel.sparse_index is not None:
                 from src.A_memorix.core.runtime.shrinkers.bm25_cache_shrinker import Bm25CacheShrinker
                 bm25_cache = getattr(kernel.sparse_index, "_bm25_cache", None)
                 if bm25_cache is not None:
                     reclaim_scheduler.register(Bm25CacheShrinker(bm25_cache))
+                else:
+                    _wm_logger.info("ZG-28 shrinker 跳过 bm25_cache：sparse_index._bm25_cache 为 None（缓存未启用）")
             kernel._memory_kswapd = MemoryKswapd(
                 watermark_zone=watermark_zone,
                 reclaim_scheduler=reclaim_scheduler,
@@ -736,7 +742,7 @@ class KernelInitializer:
             "person_profile_refresh_queue": kernel._person_profile_refresh_queue_loop,
         }
         # ZG-27 水位回收接线——enable_watermark_reclaim=True 时挂载 kswapd
-        if hasattr(kernel, "_memory_kswapd"):
+        if kernel._memory_kswapd is not None:
             registrations["kswapd"] = kernel._memory_kswapd.run
         if kernel._should_start_dual_vector_auto_migration():
             registrations["dual_vector_auto_migration"] = kernel._dual_vector_auto_migration_loop
