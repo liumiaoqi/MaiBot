@@ -1,0 +1,16 @@
+{
+ "gen": 0,
+ "fitness": 12125.115830660749,
+ "genes": {
+  "polarity": -0.43210169209424887,
+  "gain": 1.0,
+  "scal_back": 1.0,
+  "scal_fwd": 0.1,
+  "scal_turn": 1.0,
+  "scal_motor": 1.771808783632653,
+  "scal_sense": 1.0,
+  "decay": 1.0,
+  "explore": 1.0,
+  "threshold": 0.14275450060885653
+ }
+}
