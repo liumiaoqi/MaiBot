@@ -279,26 +279,24 @@ class MainSystem:
             await self._lifecycle_adapter.trigger_startup_complete_degraded()
 
         # ZG-3: V1 Runner 批量注册到看门狗桥接（watchdog 本体已由 CORE_SERVICES
-        # 相位 watchdog 启动项注册；此处仅补 V1 supervisor 注册——依赖
-        # plugin_runtime 在 SUBSYSTEMS 相位已启动（supervisors 在 manager.start()
-        # 时才构建）；group_name ∈ {builtin, third_party}，v1-* 与 V2 runner-* 隔离；
-        # 看门狗/管理器异常时降级跳过，不阻断启动链路）
-        try:
-            from src.plugin_runtime.integration import get_plugin_runtime_manager
-
-            for sv in get_plugin_runtime_manager().supervisors:
-                self._watchdog.register_v1_supervisor(
-                    f"v1-{sv.group_name}", sv, "plugin_runtime",
-                )
-        except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, "V1 Runner 注册到看门狗桥接失败，已降级跳过", exception=exc)
-            logger.warning(
-                "V1 Runner 注册到看门狗桥接失败，已降级跳过", exc_info=True
-            )
+        # ZG-32: v1 plugin runtime disabled, V1 看门狗注册跳过
+        logger.info("v1 plugin runtime disabled, skip watchdog registration")
+        # try:
+        #     from src.plugin_runtime.integration import get_plugin_runtime_manager
+        #
+        #     for sv in get_plugin_runtime_manager().supervisors:
+        #         self._watchdog.register_v1_supervisor(
+        #             f"v1-{sv.group_name}", sv, "plugin_runtime",
+        #         )
+        # except Exception as exc:
+        #     from src.core.error_escalation.types import ErrorLevel
+        #     from src.core.error_escalation_port_registry import get_error_escalation_port
+        #     port = get_error_escalation_port()
+        #     if port is not None:
+        #         port.report(ErrorLevel.WARNING, "V1 Runner 注册到看门狗桥接失败，已降级跳过", exception=exc)
+        #     logger.warning(
+        #         "V1 Runner 注册到看门狗桥接失败，已降级跳过", exc_info=True
+        #     )
 
         # ZG-8: 控制消息优先级接线（适配器实例化 + 订阅 + force 触发 + 状态联动）
         await self._init_control_message()
@@ -1030,20 +1028,24 @@ class MainSystem:
 
     # ── 阶段 3 闭包 ───────────────────────────────────────────
 
-    @staticmethod
-    @startup_item(
-        name="plugin_runtime",
-        phase=StartupPhase.SUBSYSTEMS,
-        order=0,
-        critical=False,
-        depends_on=["llm_service_port"],
-        dependency_kind={"llm_service_port": DependencyKind.WEAK},
-    )
-    async def _start_plugin_runtime() -> None:
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
-
-        manager = get_plugin_runtime_manager()
-        await manager.start()
+    # ZG-32: v1 插件运行时已废弃（2026-08-18），收敛到 v2 单一运行时
+    # 对齐 dsh Cordis 单一运行时模型（设计参考铁律——智能体类标注 dsh 源码参考）
+    # v1 源码保留（v1-compat 依赖 v1 runner 桥接），仅禁用启动
+    # 若需恢复 v1，取消下方注释即可（生命周期可逆，对齐 dsh agent-lifecycle）
+    logger.info("v1 plugin runtime disabled (ZG-32), converged to v2 single runtime")
+    # @startup_item(
+    #     name="plugin_runtime",
+    #     phase=StartupPhase.SUBSYSTEMS,
+    #     order=0,
+    #     critical=False,
+    #     depends_on=["llm_service_port"],
+    #     dependency_kind={"llm_service_port": DependencyKind.WEAK},
+    # )
+    # async def _start_plugin_runtime() -> None:
+    #     from src.plugin_runtime.integration import get_plugin_runtime_manager
+    #
+    #     manager = get_plugin_runtime_manager()
+    #     await manager.start()
 
     @staticmethod
     @startup_item(
@@ -1351,8 +1353,7 @@ class MainSystem:
         phase=StartupPhase.SUBSYSTEMS,
         order=1,
         critical=False,
-        depends_on=["plugin_runtime"],
-        dependency_kind={"plugin_runtime": DependencyKind.STRONG},
+
     )
     async def _inject_ipc_bridge_port() -> None:
         # SUBSYSTEMS 波次依赖保证 plugin_runtime 先于本组件执行，但保留懒加载
@@ -1370,8 +1371,7 @@ class MainSystem:
         phase=StartupPhase.SUBSYSTEMS,
         order=2,
         critical=False,
-        depends_on=["plugin_runtime"],
-        dependency_kind={"plugin_runtime": DependencyKind.STRONG},
+
     )
     async def _init_forward_fetch_port() -> None:
         from src.core.adapters.forward_fetch_adapter import ForwardFetchAdapter
@@ -1598,7 +1598,7 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
             await system.webui_server.shutdown()
         from src.common.service_registry import service_registry
         from src.emoji_system.emoji_manager import emoji_manager
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
+
         from src.services.memory_flow_service import memory_automation_service
 
         emoji_manager.shutdown()
@@ -1607,8 +1607,10 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
             await service_registry.get("a_memorix_host_service").stop()
         if system._v2_host_endpoint is not None:
             await system._v2_host_endpoint.stop()
-        await get_plugin_runtime_manager().bridge_event("on_stop")
-        await get_plugin_runtime_manager().stop()
+        # ZG-32: v1 plugin runtime disabled, skip shutdown
+        logger.info("v1 plugin runtime disabled, skip shutdown")
+        # await get_plugin_runtime_manager().bridge_event("on_stop")
+        # await get_plugin_runtime_manager().stop()
         # ZG-21: 停止 SoftirqBatcher drainer（无悬挂 Task，积压不再处理）
         from src.core.event_bus_port_registry import get_event_bus_port
         from src.core.event_bus import event_bus as _core_event_bus

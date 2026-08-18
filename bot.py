@@ -241,14 +241,15 @@ async def graceful_shutdown(main_system: MainSystem | None = None):  # sourcery 
             step_name="触发 ON_STOP 事件",
         )
 
-        # 停止新版本插件运行时
-        from src.plugin_runtime.integration import get_plugin_runtime_manager
-
-        await _await_shutdown_step(
-            get_plugin_runtime_manager().stop(),
-            timeout=8.0,
-            step_name="停止插件运行时",
-        )
+        # ZG-32: v1 plugin runtime disabled, skip shutdown
+        logger.info("v1 plugin runtime disabled, skip shutdown (bot.py)")
+        # from src.plugin_runtime.integration import get_plugin_runtime_manager
+        #
+        # await _await_shutdown_step(
+        #     get_plugin_runtime_manager().stop(),
+        #     timeout=8.0,
+        #     step_name="停止插件运行时",
+        # )
 
         # 停止所有异步任务
         await _await_shutdown_step(
