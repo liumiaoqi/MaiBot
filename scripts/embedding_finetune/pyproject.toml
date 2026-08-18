@@ -37,6 +37,8 @@ dependencies = [
     "matplotlib",
     # SNN 脉冲网络实验（2026-08-17 加——AI 实验区，动物行为模拟用）
     "snntorch>=0.8",
+    # 金融实验（2026-08-18 加——真实 A 股数据获取，验证半仓/网格策略）
+    "akshare>=1.14",
 ]
 
 [tool.setuptools]
