@@ -4,6 +4,7 @@
 
 import pickle
 import sqlite3
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -25,8 +26,9 @@ logger = get_logger("A_Memorix.RelationStore")
 class RelationStore:
     """关系 CRUD + V5 状态 + 保护/修剪 + 回收站 + FTS。"""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, write_lock: Optional[threading.Lock] = None) -> None:
         self._conn = conn
+        self._write_lock = write_lock or threading.RLock()
 
     # ==================================================================
     # 基础 CRUD
@@ -53,39 +55,40 @@ class RelationStore:
     ) -> str:
         hash_value = self.compute_relation_hash(subject, predicate, obj)
         now = datetime.now().timestamp()
-        cursor = self._conn.cursor()
-        try:
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO relations
-                (hash, subject, predicate, object, vector_index, confidence,
-                 created_at, source_paragraph, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    hash_value,
-                    subject,
-                    predicate,
-                    obj,
-                    vector_index,
-                    confidence,
-                    now,
-                    source_paragraph,
-                    pickle.dumps(metadata or {}),
-                ),
-            )
-            self._conn.commit()
-            if cursor.rowcount > 0:
-                logger.debug(f"添加关系: {subject} -{predicate}-> {obj}")
-            else:
-                logger.debug(f"关系已存在: {subject} -{predicate}-> {obj}")
+        with self._write_lock:
+            cursor = self._conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO relations
+                    (hash, subject, predicate, object, vector_index, confidence,
+                     created_at, source_paragraph, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        hash_value,
+                        subject,
+                        predicate,
+                        obj,
+                        vector_index,
+                        confidence,
+                        now,
+                        source_paragraph,
+                        pickle.dumps(metadata or {}),
+                    ),
+                )
+                self._conn.commit()
+                if cursor.rowcount > 0:
+                    logger.debug(f"添加关系: {subject} -{predicate}-> {obj}")
+                else:
+                    logger.debug(f"关系已存在: {subject} -{predicate}-> {obj}")
 
-            if source_paragraph:
-                self.link_paragraph_relation(source_paragraph, hash_value)
-            return hash_value
-        except sqlite3.IntegrityError as e:
-            logger.warning(f"添加关系异常: {e}")
-            return hash_value
+                if source_paragraph:
+                    self.link_paragraph_relation(source_paragraph, hash_value)
+                return hash_value
+            except sqlite3.IntegrityError as e:
+                logger.warning(f"添加关系异常: {e}")
+                return hash_value
 
     def get_relation(
         self,
@@ -256,20 +259,21 @@ class RelationStore:
     # ==================================================================
 
     def link_paragraph_relation(self, paragraph_hash: str, relation_hash: str) -> bool:
-        cursor = self._conn.cursor()
-        try:
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO paragraph_relations
-                (paragraph_hash, relation_hash)
-                VALUES (?, ?)
-                """,
-                (paragraph_hash, relation_hash),
-            )
-            self._conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        with self._write_lock:
+            cursor = self._conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO paragraph_relations
+                    (paragraph_hash, relation_hash)
+                    VALUES (?, ?)
+                    """,
+                    (paragraph_hash, relation_hash),
+                )
+                self._conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
 
     # ==================================================================
     # Metadata 更新
@@ -288,22 +292,85 @@ class RelationStore:
         if not isinstance(patch, dict):
             raise TypeError("patch 必须是 dict")
 
-        cursor = self._conn.cursor()
-        cursor.execute(
-            "SELECT metadata FROM relations WHERE hash = ? LIMIT 1", (hash_token,)
-        )
-        row = cursor.fetchone()
-        if row is None:
-            return None
+        # P0-2: relation metadata RMW 原子化（ZG-30）
+        # 对标 dsh defensive-patterns "Async state is not synchronous state"
+        # RMW 竞态本质是异步状态（并发 SELECT metadata）当同步状态用，显式事务边界是修复
+        # 不用 json_patch：metadata 是 pickle 序列化非 JSON，改 JSON 需迁移——显式事务零迁移风险
+        for attempt in range(3):
+            try:
+                with self._write_lock:
+                    cursor = self._conn.cursor()
+                    cursor.execute("BEGIN IMMEDIATE")
+                    cursor.execute(
+                        "SELECT metadata FROM relations WHERE hash = ? LIMIT 1", (hash_token,)
+                    )
+                    row = cursor.fetchone()
+                    if row is None:
+                        cursor.execute("ROLLBACK")
+                        return None
 
-        metadata = decode_metadata(row["metadata"])
-        updated = deep_merge_dict(metadata, patch) if merge else dict(patch)
-        cursor.execute(
-            "UPDATE relations SET metadata = ? WHERE hash = ?",
-            (pickle.dumps(updated), hash_token),
-        )
-        self._conn.commit()
-        return updated
+                    metadata = decode_metadata(row["metadata"])
+                    updated = deep_merge_dict(metadata, patch) if merge else dict(patch)
+                    cursor.execute(
+                        "UPDATE relations SET metadata = ? WHERE hash = ?",
+                        (pickle.dumps(updated), hash_token),
+                    )
+                    cursor.execute("COMMIT")
+                return updated
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e):
+                    try:
+                        cursor.execute("ROLLBACK")
+                    except Exception:
+                        pass
+                    if attempt == 2:
+                        logger.error(f"relation metadata update db locked after 3 retries, hash={hash_token}")
+                        raise
+                    continue
+                raise
+
+    # ==================================================================
+    # P0-3: graph_synced 标记 + 补偿查询（ZG-30）
+    # ==================================================================
+
+    def set_graph_synced(self, relation_hash: str, synced: bool) -> None:
+        """标记 relation 的 graph_synced 状态（P0-3 跨存储补偿）。"""
+        hash_token = str(relation_hash or "").strip()
+        if not hash_token:
+            return
+        self.update_relation_metadata(hash_token, {"graph_synced": bool(synced)}, merge=True)
+
+    def get_relations_pending_graph_sync(self, limit: int = 50) -> list:
+        """查询 graph_synced=false 的 relation（P0-3 补偿队列消费）。
+
+        全表扫描 + pickle decode（低频：维护循环 1h 间隔）。
+        先按 metadata IS NOT NULL 缩小范围。
+        """
+        with self._write_lock:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                "SELECT hash, subject, object, confidence, metadata FROM relations "
+                "WHERE metadata IS NOT NULL LIMIT ?",
+                (limit * 10,),
+            )
+            rows = cursor.fetchall()
+
+        pending = []
+        for row in rows:
+            try:
+                meta = decode_metadata(row["metadata"])
+                if meta.get("graph_synced") is False:
+                    pending.append({
+                        "hash": row["hash"],
+                        "subject": row["subject"],
+                        "object": row["object"],
+                        "confidence": row["confidence"],
+                    })
+                    if len(pending) >= limit:
+                        break
+            except Exception:
+                continue
+        return pending
 
     def update_relation_timestamp(
         self,

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 
 from src.common.logger import get_logger
 
+from .confidence_guard import ConfidenceGuard
+
 logger = get_logger("A_Memorix.GraphRelationRecall")
 
 
@@ -70,6 +72,7 @@ class GraphRelationRecallService:
         self.graph_store = graph_store
         self.metadata_store = metadata_store
         self.config = config or GraphRelationRecallConfig()
+        self.confidence_guard = ConfidenceGuard()
 
     def recall(
         self,
@@ -112,6 +115,21 @@ class GraphRelationRecallService:
                 seen_hashes=seen_hashes,
                 out=candidates,
             )
+
+        # P2: confidence 边权重 + 安全护栏（ZG-30）
+        # 召回候选按 confidence 权重排序（护栏接线）
+        if candidates:
+            confidence_weights = [
+                self.confidence_guard.compute_weight(c.confidence, candidates)[0]
+                for c in candidates
+            ]
+            candidates = [
+                c for _, c in sorted(
+                    zip(confidence_weights, candidates, strict=True),
+                    key=lambda x: x[0],
+                    reverse=True,
+                )
+            ]
 
         return candidates[: self.config.candidate_k]
 

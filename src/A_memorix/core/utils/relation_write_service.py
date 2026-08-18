@@ -161,9 +161,22 @@ class RelationWriteService:
             obj=obj,
             confidence=confidence,
             source_paragraph=source_paragraph,
-            metadata=metadata or {},
+            metadata={**(metadata or {}), "graph_synced": False},
         )
-        self.graph_store.add_edges([(subject, obj)], relation_hashes=[rel_hash])
+
+        # P0-3: 跨存储事务补偿（ZG-30）
+        # 对标 dsh defensive-patterns "Dispose must reach quiescence" + 补偿事务/Saga
+        # 跨存储操作需 await 子操作完成 + 失败补偿，不得 fire-and-forget
+        # P2: graph 写入传 confidence 作为权重
+        try:
+            self.graph_store.add_edges(
+                [(subject, obj)], weights=[confidence], relation_hashes=[rel_hash]
+            )
+            self.metadata_store.relations.set_graph_synced(rel_hash, True)
+        except Exception as e:
+            logger.warning(
+                f"graph write failed, relation hash={rel_hash} pending sync, err={e}"
+            )
 
         if not write_vector:
             self.metadata_store.set_relation_vector_state(rel_hash, "none")
@@ -181,3 +194,26 @@ class RelationWriteService:
             obj=obj,
             typed_id=self.use_typed_relation_ids,
         )
+
+    async def compensate_graph_sync(self) -> None:
+        """补偿 graph_synced=false 的 relation（P0-3 维护循环补偿）。
+
+        对标 dsh "Dispose must reach quiescence"——失败不孤儿，需补偿。
+        """
+        pending = self.metadata_store.relations.get_relations_pending_graph_sync(limit=50)
+        for rel in pending:
+            for attempt in range(5):
+                try:
+                    self.graph_store.add_edges(
+                        [(rel["subject"], rel["object"])],
+                        weights=[rel["confidence"]],
+                        relation_hashes=[rel["hash"]],
+                    )
+                    self.metadata_store.relations.set_graph_synced(rel["hash"], True)
+                    break
+                except Exception as e:
+                    if attempt == 4:
+                        logger.error(
+                            f"graph sync failed after 5 retries, hash={rel['hash']}, err={e}"
+                        )
+                    continue

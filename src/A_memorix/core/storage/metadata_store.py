@@ -12,6 +12,7 @@ MetadataStore 作为门面，将具体操作委托给 5 个子 Store：
 import json
 import re
 import sqlite3
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -71,6 +72,12 @@ class MetadataStore:
         self._is_initialized = False
         self._db_path: Optional[Path] = None
 
+        # P0-5: 多写者显式锁（ZG-30）
+        # 对标 dsh defensive-patterns "Contain callback exceptions in the dispatcher"
+        # 并发写冲突异常在 dispatcher 层捕获重试而非上抛污染核心生命周期
+        # RLock：子 Store 方法可能调用其他子 Store 写方法（如 add_relation→link_paragraph_relation），可重入避免死锁
+        self._write_lock = threading.RLock()
+
         # 子 Store（connect() 时注入连接）
         self.paragraphs: Optional[ParagraphStore] = None
         self.entities: Optional[EntityStore] = None
@@ -112,11 +119,11 @@ class MetadataStore:
 
         logger.info(f"数据库已连接: {db_path}")
 
-        # 创建子 Store 实例
-        self.paragraphs = ParagraphStore(self._conn)
-        self.entities = EntityStore(self._conn)
-        self.relations = RelationStore(self._conn)
-        self.profiles = ProfileStore(self._conn)
+        # 创建子 Store 实例（传入写锁，P0-5）
+        self.paragraphs = ParagraphStore(self._conn, write_lock=self._write_lock)
+        self.entities = EntityStore(self._conn, write_lock=self._write_lock)
+        self.relations = RelationStore(self._conn, write_lock=self._write_lock)
+        self.profiles = ProfileStore(self._conn, write_lock=self._write_lock)
 
         # 初始化或校验 schema
         if not self._is_initialized:

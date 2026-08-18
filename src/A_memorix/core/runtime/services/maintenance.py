@@ -107,8 +107,36 @@ class MaintenanceService:
 
         await self._process_freeze_and_prune()
         await self._orphan_gc_phase()
+        await self._compensate_graph_sync(metadata_store, graph_store)
         self._last_maintenance_at = time.time()
         self._persist()
+
+    async def _compensate_graph_sync(self, metadata_store: Any, graph_store: Any) -> None:
+        """P0-3: 补偿 graph_synced=false 的 relation（ZG-30）。
+
+        对标 dsh "Dispose must reach quiescence"——失败不孤儿，需补偿。
+        在 _process_freeze_and_prune/_orphan_gc_phase 之后执行。
+        """
+        try:
+            pending = metadata_store.relations.get_relations_pending_graph_sync(limit=50)
+            for rel in pending:
+                for attempt in range(5):
+                    try:
+                        graph_store.add_edges(
+                            [(rel["subject"], rel["object"])],
+                            weights=[rel["confidence"]],
+                            relation_hashes=[rel["hash"]],
+                        )
+                        metadata_store.relations.set_graph_synced(rel["hash"], True)
+                        break
+                    except Exception as e:
+                        if attempt == 4:
+                            logger.error(
+                                f"graph sync compensation failed after 5 retries, hash={rel['hash']}, err={e}"
+                            )
+                        continue
+        except Exception as exc:
+            logger.warning(f"graph sync compensation cycle 异常: {exc}")
 
     async def _process_freeze_and_prune(self) -> None:
         import time

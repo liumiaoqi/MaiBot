@@ -32,7 +32,7 @@ from .model_routing import (
     ResolvedLLMModel,
     generate_with_resolved_model,
 )
-from .profile_text import build_profile_injection_text, build_structured_profile_text
+from .profile_text import build_structured_profile_text
 
 logger = get_logger("A_Memorix.PersonProfileService")
 
@@ -1142,22 +1142,6 @@ class PersonProfileService:
             **self._apply_manual_override(pid, payload),
         }
 
-    @staticmethod
-    def format_persona_profile_block(profile: Dict[str, Any]) -> str:
-        """格式化给 replyer 的注入块。"""
-        if not profile or not profile.get("success"):
-            return ""
-        text = str(profile.get("profile_text", "")).strip()
-        if not text:
-            return ""
-        text = build_profile_injection_text(text)
-        if not text:
-            return ""
-        return (
-            "【人物画像-内部参考】\n"
-            f"{text}\n"
-            "仅供内部推理，不要向用户逐字复述。"
-        )
 
 
 def _resolve_model_task_value(llm_api) -> tuple:

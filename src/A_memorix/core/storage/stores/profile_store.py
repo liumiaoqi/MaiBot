@@ -4,6 +4,7 @@
 
 import json
 import sqlite3
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -16,8 +17,9 @@ logger = get_logger("A_Memorix.ProfileStore")
 class ProfileStore:
     """人物画像开关、活跃集、快照、覆盖管理。"""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, write_lock: Optional[threading.Lock] = None) -> None:
         self._conn = conn
+        self._write_lock = write_lock or threading.RLock()
 
     # ------------------------------------------------------------------
     # 开关
@@ -206,42 +208,72 @@ class ProfileStore:
         evidence_ids = evidence_ids or []
         ts = float(updated_at) if updated_at is not None else datetime.now().timestamp()
 
-        cursor = self._conn.cursor()
-        cursor.execute(
-            """
-            SELECT profile_version
-            FROM person_profile_snapshots
-            WHERE person_id = ?
-            ORDER BY profile_version DESC
-            LIMIT 1
-            """,
-            (str(person_id),),
-        )
-        row = cursor.fetchone()
-        next_version = int(row[0]) + 1 if row else 1
+        # P0-1: profile 版本号竞态修复（ZG-30）
+        # 对标 dsh defensive-patterns "Async state is not synchronous state"
+        # 版本号竞态本质是异步状态（并发 SELECT max）当同步状态用，显式事务边界是修复
+        # 对齐 dsh append-only session log 不变式：version 严格单调递增无间断
+        for attempt in range(3):
+            try:
+                with self._write_lock:
+                    cursor = self._conn.cursor()
+                    cursor.execute("BEGIN IMMEDIATE")
+                    cursor.execute(
+                        """
+                        SELECT profile_version
+                        FROM person_profile_snapshots
+                        WHERE person_id = ?
+                        ORDER BY profile_version DESC
+                        LIMIT 1
+                        """,
+                        (str(person_id),),
+                    )
+                    row = cursor.fetchone()
+                    next_version = int(row[0]) + 1 if row else 1
 
-        cursor.execute(
-            """
-            INSERT INTO person_profile_snapshots (
-                person_id, profile_version, profile_text,
-                aliases_json, relation_edges_json, vector_evidence_json, evidence_ids_json,
-                updated_at, expires_at, source_note
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(person_id),
-                next_version,
-                str(profile_text or ""),
-                json.dumps(aliases, ensure_ascii=False),
-                json.dumps(relation_edges, ensure_ascii=False),
-                json.dumps(vector_evidence, ensure_ascii=False),
-                json.dumps(evidence_ids, ensure_ascii=False),
-                ts,
-                float(expires_at) if expires_at is not None else None,
-                str(source_note or ""),
-            ),
-        )
-        self._conn.commit()
+                    cursor.execute(
+                        """
+                        INSERT INTO person_profile_snapshots (
+                            person_id, profile_version, profile_text,
+                            aliases_json, relation_edges_json, vector_evidence_json, evidence_ids_json,
+                            updated_at, expires_at, source_note
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(person_id),
+                            next_version,
+                            str(profile_text or ""),
+                            json.dumps(aliases, ensure_ascii=False),
+                            json.dumps(relation_edges, ensure_ascii=False),
+                            json.dumps(vector_evidence, ensure_ascii=False),
+                            json.dumps(evidence_ids, ensure_ascii=False),
+                            ts,
+                            float(expires_at) if expires_at is not None else None,
+                            str(source_note or ""),
+                        ),
+                    )
+                    cursor.execute("COMMIT")
+                break
+            except sqlite3.IntegrityError:
+                try:
+                    cursor.execute("ROLLBACK")
+                except Exception:
+                    pass
+                if attempt == 2:
+                    logger.error(f"profile version conflict after 3 retries, person_id={person_id}")
+                    raise
+                continue
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e):
+                    try:
+                        cursor.execute("ROLLBACK")
+                    except Exception:
+                        pass
+                    if attempt == 2:
+                        logger.error(f"profile upsert db locked after 3 retries, person_id={person_id}")
+                        raise
+                    continue
+                raise
+
         latest = self.get_latest_person_profile_snapshot(person_id)
         return latest or {
             "person_id": person_id,

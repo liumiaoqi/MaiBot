@@ -4,6 +4,7 @@
 
 import pickle
 import sqlite3
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -22,8 +23,9 @@ logger = get_logger("A_Memorix.EntityStore")
 class EntityStore:
     """实体 CRUD + 段落-实体关联管理。"""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, write_lock: Optional[threading.Lock] = None) -> None:
         self._conn = conn
+        self._write_lock = write_lock or threading.RLock()
 
     # ------------------------------------------------------------------
     # 实体 CRUD

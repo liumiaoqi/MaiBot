@@ -21,6 +21,7 @@ from ..embedding import EmbeddingAPIAdapter
 from ..utils.matcher import AhoCorasick
 from ..utils.metadata import coerce_metadata_dict
 from ..utils.time_parser import format_timestamp
+from .confidence_guard import ConfidenceGuard
 from .graph_relation_recall import GraphRelationRecallConfig, GraphRelationRecallService
 from .pagerank import PersonalizedPageRank, PageRankConfig
 from .posterior_graph import PosteriorGraphConfig, apply_posterior_graph_gate
@@ -331,6 +332,7 @@ class DualPathRetriever:
             metadata_store=metadata_store,
             config=self.config.graph_recall,
         )
+        self.confidence_guard = ConfidenceGuard()
 
         logger.debug(
             f"DualPathRetriever 初始化: "
@@ -1019,7 +1021,13 @@ class DualPathRetriever:
             meta["graph_seed_entities"] = list(meta.get("graph_seed_entities") or [])
             if "graph_hops" in meta:
                 meta["graph_hops"] = int(meta.get("graph_hops") or 0)
-            item.score = 0.60 * semantic_norm + 0.30 * graph_score + 0.10 * evidence_score
+            # P2: confidence 边权重 + 安全护栏（ZG-30）
+            # 实验结论：3/4 场景提升（nDCG +5-20%、MAP +61-215%、Recall +72-160%），MaiBot 分布≈稀疏高置信收益最大（+19.8% nDCG）
+            # 安全护栏：confidence floor + 一致性检测降级（实验场景 C 反对齐 MAP/Recall -100%，必须双护栏）
+            # 参考：confidence_edge_weight_compare_0817.md
+            confidence = float(meta.get("confidence", 1.0) or 1.0)
+            confidence_weight, _degraded = self.confidence_guard.compute_weight(confidence, out)
+            item.score = (0.60 * semantic_norm + 0.30 * graph_score + 0.10 * evidence_score) * confidence_weight
 
             sources = source_sets.get(item.hash_value, set())
             if len(sources) > 1:

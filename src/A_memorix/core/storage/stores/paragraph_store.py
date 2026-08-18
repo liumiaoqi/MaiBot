@@ -5,6 +5,7 @@
 import pickle
 import re
 import sqlite3
+import threading
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -40,8 +41,9 @@ logger = get_logger("A_Memorix.ParagraphStore")
 class ParagraphStore:
     """段落 CRUD + FTS5 + N-gram 倒排索引 + 软删除 / GC。"""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, write_lock: Optional[threading.Lock] = None) -> None:
         self._conn = conn
+        self._write_lock = write_lock or threading.RLock()
 
     # ==================================================================
     # 段落 CRUD
