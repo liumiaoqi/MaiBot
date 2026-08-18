@@ -109,9 +109,9 @@ class Server:
             try:
                 # 添加 3 秒超时，避免 shutdown 永久挂起
                 await asyncio.wait_for(self._server.shutdown(), timeout=3.0)
-            except asyncio.TimeoutError:
-                # 超时就强制标记为 None，让垃圾回收处理
-                pass
+            except asyncio.TimeoutError as exc:
+                # P0-4: shutdown 超时出声（强制标记 None 让 GC 处理）（ZG-31）
+                logger.warning("message_server shutdown 超时（3s），强制标记 None: %s", exc)
             except Exception as exc:
                 from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port

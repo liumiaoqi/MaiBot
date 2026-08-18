@@ -53,7 +53,11 @@ class InteractionScheduler:
             try:
                 await self._task
             except asyncio.CancelledError:
+                # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                 pass
+            except Exception as exc:
+                # P0-4: 关闭路径非预期异常出声（ZG-31）
+                logger.warning("agent_interaction scheduler 关闭异常: %s", exc, exc_info=True)
             self._task = None
         logger.info("[agent_interaction] 调度器已停止")
 

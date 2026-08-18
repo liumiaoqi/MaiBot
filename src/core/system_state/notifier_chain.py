@@ -105,8 +105,9 @@ class NotifierChain:
         """移除订阅者，不存在时无副作用。"""
         try:
             self._subscribers.remove(subscriber)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            # P0-6: 幂等清理出声（debug 防刷屏）（ZG-31）
+            logger.debug("subscribers.remove 未找到订阅者（幂等）: %s", exc)
 
     async def notify(
         self,

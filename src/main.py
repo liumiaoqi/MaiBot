@@ -1577,8 +1577,9 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
         for _sig in (_signal.SIGTERM, _signal.SIGINT):
             try:
                 asyncio.get_running_loop().add_signal_handler(_sig, _on_terminate_signal)
-            except NotImplementedError:
-                pass  # 仅主线程可用；不可用则保留适配器兜底 handler
+            except NotImplementedError as exc:
+                # P0-4: 信号处理器注册失败出声（ZG-31）——仅主线程可用，保留适配器兜底 handler
+                logger.debug("add_signal_handler 失败（非主线程？），保留兜底 handler: %s", exc)
 
         await system.schedule_tasks()
     finally:
@@ -1587,7 +1588,11 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
             try:
                 await system._watchdog_touch_task
             except asyncio.CancelledError:
+                # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                 pass
+            except Exception as exc:
+                # P0-4: 关闭路径非预期异常出声（ZG-31）
+                logger.warning("watchdog_touch_task 关闭异常: %s", exc, exc_info=True)
         if system._watchdog is not None:
             await system._watchdog.stop()
         if system._service_manager is not None:

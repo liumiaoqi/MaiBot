@@ -557,7 +557,9 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
                 try:
                     if re.match(trusted_entry, ip):
                         return True
-                except re.error:
+                except re.error as exc:
+                    # P0-6: 正则匹配失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("trusted_entry 正则匹配失败，跳过 %s: %s", trusted_entry, exc)
                     continue
             # CIDR格式（网络对象）
             elif isinstance(trusted_entry, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
@@ -565,7 +567,9 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
                     client_ip_obj = ipaddress.ip_address(ip)
                     if client_ip_obj in trusted_entry:
                         return True
-                except (ValueError, AttributeError):
+                except (ValueError, AttributeError) as exc:
+                    # P0-6: IP 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("trusted CIDR IP 解析失败，跳过 %s: %s", ip, exc)
                     continue
             # 精确IP（地址对象）
             elif isinstance(trusted_entry, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
@@ -573,7 +577,9 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
                     client_ip_obj = ipaddress.ip_address(ip)
                     if client_ip_obj == trusted_entry:
                         return True
-                except (ValueError, AttributeError):
+                except (ValueError, AttributeError) as exc:
+                    # P0-6: IP 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("trusted IP 解析失败，跳过 %s: %s", ip, exc)
                     continue
 
         return False
@@ -660,7 +666,9 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
                 try:
                     if re.match(allowed_entry, ip):
                         return True
-                except re.error:
+                except re.error as exc:
+                    # P0-6: 正则匹配失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("allowed_entry 正则匹配失败，跳过 %s: %s", allowed_entry, exc)
                     # 正则表达式错误，跳过
                     continue
             # CIDR格式（网络对象）
@@ -669,7 +677,9 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
                     client_ip_obj = ipaddress.ip_address(ip)
                     if client_ip_obj in allowed_entry:
                         return True
-                except (ValueError, AttributeError):
+                except (ValueError, AttributeError) as exc:
+                    # P0-6: IP 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("allowed CIDR IP 解析失败，跳过 %s: %s", ip, exc)
                     # IP格式无效，跳过
                     continue
             # 精确IP（地址对象）
@@ -678,7 +688,9 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
                     client_ip_obj = ipaddress.ip_address(ip)
                     if client_ip_obj == allowed_entry:
                         return True
-                except (ValueError, AttributeError):
+                except (ValueError, AttributeError) as exc:
+                    # P0-6: IP 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("allowed IP 解析失败，跳过 %s: %s", ip, exc)
                     # IP格式无效，跳过
                     continue
 

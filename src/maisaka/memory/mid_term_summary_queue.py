@@ -81,8 +81,9 @@ class MidTermSummaryQueue:
             if self._queue.full():
                 try:
                     self._queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
+                except asyncio.QueueEmpty as exc:
+                    # P0-6: 幂等清理出声（debug 防刷屏）（ZG-31）
+                    logger.debug("摘要队列 get_nowait 空（幂等）: %s", exc)
                 logger.warning("摘要队列已满，丢弃最老条目")
             self._queue.put_nowait(snapshot)
         except Exception as exc:
@@ -144,7 +145,11 @@ class MidTermSummaryQueue:
             try:
                 await self._consumer_task
             except asyncio.CancelledError:
+                # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                 pass
+            except Exception as exc:
+                # P0-4: 关闭路径非预期异常出声（ZG-31）
+                logger.warning("mid_term_summary_queue consumer 关闭异常: %s", exc, exc_info=True)
         while True:
             try:
                 snapshot = self._queue.get_nowait()

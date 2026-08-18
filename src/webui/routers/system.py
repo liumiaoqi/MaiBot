@@ -773,8 +773,9 @@ def _remove_directory_contents(directory: Path) -> tuple[int, int]:
         if child.is_dir():
             try:
                 child.rmdir()
-            except OSError:
-                pass
+            except OSError as exc:
+                # P0-6: rmdir 幂等出声（debug 防刷屏）（ZG-31）
+                logger.debug("rmdir 失败（幂等）%s: %s", child, exc)
     return removed_files, removed_bytes
 
 def _remove_direct_files(directory: Path) -> tuple[int, int]:

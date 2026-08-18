@@ -106,8 +106,9 @@ class ScopeAuditRecorder:
             if self._queue.full():
                 try:
                     self._queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
+                except asyncio.QueueEmpty as exc:
+                    # P0-6: 幂等清理出声（debug 防刷屏）（ZG-31）
+                    logger.debug("审计队列 get_nowait 空（幂等）: %s", exc)
                 logger.warning("审计队列已满，丢弃最老条目")
             self._queue.put_nowait(entry)
         except Exception as e:
@@ -178,9 +179,10 @@ class ScopeAuditRecorder:
             if port is not None:
                 error_level = ErrorLevel.ERROR if level == "ERROR" else ErrorLevel.WARN
                 port.report(error_level, message, component_id=component_id)
-        except Exception:
+        except Exception as exc:
+            # P0-7: 上报失败出声（debug 防刷屏，best-effort）（ZG-31）
             # 上报失败 → 跳过上报（best-effort，spec 5.3.3 场景 2）
-            pass
+            logger.debug("error_escalation_port.report 失败（best-effort）: %s", exc)
 
     async def close(self) -> None:
         """关闭：取消消费者 + flush 队列 + 关闭日志文件。"""
@@ -194,7 +196,11 @@ class ScopeAuditRecorder:
             try:
                 await self._consumer_task
             except asyncio.CancelledError:
+                # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                 pass
+            except Exception as exc:
+                # P0-4: 关闭路径非预期异常出声（ZG-31）
+                logger.warning("scope_audit consumer 关闭异常: %s", exc, exc_info=True)
 
         # flush 剩余队列：同步写入文件
         if self._handler is not None and not self._handler_disabled:

@@ -307,8 +307,9 @@ class AMemorixHostService:
                 if valence_str:
                     try:
                         valence = Valence(valence_str)
-                    except ValueError:
-                        pass
+                    except ValueError as exc:
+                        # P0-5: Valence 枚举解析失败出声（debug 防刷屏，保持 NEUTRAL）（ZG-31）
+                        logger.debug("Valence 解析失败 %s，保持 NEUTRAL: %s", valence_str, exc)
                 participants_raw = payload.get("participants")
                 participants = list(participants_raw) if isinstance(participants_raw, list) else None
                 tags_raw = payload.get("tags")

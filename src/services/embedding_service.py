@@ -176,8 +176,9 @@ class EmbeddingServiceClient:
         """
         try:
             asyncio.get_running_loop()
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            # P0-7: 无运行中事件循环是预期（debug 防刷屏，else 分支抛异常）（ZG-31）
+            logger.debug("无运行中事件循环（预期，继续创建新 loop）: %s", exc)
         else:
             raise RuntimeError("当前线程存在运行中的事件循环，请改用异步 Embedding 接口")
 

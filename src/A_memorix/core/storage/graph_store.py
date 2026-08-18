@@ -422,8 +422,9 @@ class GraphStore:
                         t_idx = self._node_to_idx[tgt_canon]
                         self._edge_hash_map[(s_idx, t_idx)].add(r_hash)
                         synced.add((src_canon, tgt_canon))
-                    except KeyError:
-                        pass # 正常情况下节点已在上方添加，此处仅作防错处理
+                    except KeyError as exc:
+                        # P0-6: edge_hash_map 更新失败出声（debug 防刷屏，防错处理）（ZG-31）
+                        logger.debug("edge_hash_map 更新 KeyError（防错）: %s", exc)
             for sc, tc in synced:
                 self._upsert_edge_sqlite(sc, tc)
 
@@ -1651,8 +1652,9 @@ class GraphStore:
                     "SELECT COUNT(*) FROM graph_nodes"
                 ).fetchone()
                 return row is not None and row[0] > 0
-            except sqlite3.Error:
-                pass
+            except sqlite3.Error as exc:
+                # P0-6: has_data 查询失败出声（debug 防刷屏，返回 False）（ZG-31）
+                logger.debug("has_data graph_nodes 查询失败: %s", exc)
         return False
 
     def __repr__(self) -> str:

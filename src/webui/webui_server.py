@@ -95,8 +95,9 @@ class WebUIServer:
                     if af == _socket.AF_INET6:
                         try:
                             sock.setsockopt(_socket.IPPROTO_IPV6, _socket.IPV6_V6ONLY, 1)
-                        except OSError:
-                            pass
+                        except OSError as exc:
+                            # P0-6: IPV6_V6ONLY 设置失败出声（debug 防刷屏，非致命）（ZG-31）
+                            logger.debug("IPV6_V6ONLY 设置失败，继续: %s", exc)
                     sock.bind(sa)
                     sock.listen()
                     sockets.append(sock)
@@ -105,8 +106,9 @@ class WebUIServer:
                     if sock is not None:
                         try:
                             sock.close()
-                        except OSError:
-                            pass
+                        except OSError as exc:
+                            # P0-6: sock.close 失败出声（debug 防刷屏，幂等）（ZG-31）
+                            logger.debug("sock.close 失败（幂等）: %s", exc)
                     logger.warning(f"⚠️ WebUI 无法绑定到 {host}:{self.port} ({sa}): {bind_err}")
                     continue
 

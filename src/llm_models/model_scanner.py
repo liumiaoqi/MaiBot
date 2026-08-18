@@ -15,7 +15,10 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.common.logger import get_logger
 from src.llm_models.model_requirement import ModelEntry
+
+logger = get_logger("llm_models.model_scanner")
 
 _SCAN_DIRS: dict[str, list[str]] = {}
 """category → 搜索目录列表（add_model_folder_path 注册）"""
@@ -194,7 +197,9 @@ class ModelScanner:
                 try:
                     file_size = os.path.getsize(file_path)
                     mtime = os.path.getmtime(file_path)
-                except OSError:
+                except OSError as exc:
+                    # P0-6: getsize/getmtime 失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("model file stat 失败，跳过 %s: %s", file_path, exc)
                     continue
                 found.append(ScannedModel(
                     category=category,

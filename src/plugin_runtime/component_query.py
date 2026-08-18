@@ -385,8 +385,9 @@ class ComponentQueryService:
         if chat_stream is not None:
             try:
                 return str(chat_stream.session_id)
-            except AttributeError:
-                pass
+            except AttributeError as exc:
+                # P0-7: chat_stream 无 session_id 属性出声（debug 防刷屏，fallback stream_id）（ZG-31）
+                logger.debug("chat_stream 无 session_id 属性，fallback stream_id: %s", exc)
 
         return str(kwargs.get("stream_id", ""))
 

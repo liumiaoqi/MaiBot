@@ -94,7 +94,8 @@ class HealthCheckEngine:
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=sleep_sec)
             except asyncio.TimeoutError:
-                pass
+                # P0-4: 定时唤醒超时是预期行为（debug 防刷屏）（ZG-31）
+                logger.debug("health_check wait_for 超时唤醒（预期）")
 
     async def _probe_one(self, component_id: str) -> None:
         """对单个 ACTIVE_PROBE 模式组件调用探针。

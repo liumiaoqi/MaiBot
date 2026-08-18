@@ -8,8 +8,10 @@ from typing import Callable, Optional
 
 import asyncio
 import json
+import sys
 import threading
 import time
+import traceback
 
 import structlog
 
@@ -438,7 +440,12 @@ class SuppressionFilter(logging.Filter):
 
                     mark_taint(TaintFlag.TAINT_WARN)
                 except Exception as exc:
-                    pass
+                    # P0-1: 日志器自身故障 fallback stderr 防递归（ZG-31）
+                    # 对标 Linux kernel/panic.c:67-75 panic 路径 bust_spinlocks + 直接 console
+                    # dsh defensive-patterns: 静默失效禁令——日志器吞错导致排障信号全失
+                    # 防递归: fallback 不走 logger，直接 stderr
+                    sys.stderr.write(f"logger.mark_taint failed: {exc}\n")
+                    traceback.print_exc()
 
             # 周期性摘要输出（窗口过期且有抑制时）
             if not _is_rate_limit_record(record):
@@ -493,7 +500,11 @@ class RingBufferHandler(logging.Handler):
             )
             self._ring_buffer.append(entry)
         except Exception as exc:
-            pass  # 异常隔离：写入失败不影响落盘/WS
+            # P0-1: 日志器自身故障 fallback stderr 防递归（ZG-31）
+            # 对标 Linux kernel/panic.c:67-75 panic 路径 bust_spinlocks + 直接 console
+            # 防递归: fallback 不走 logger，直接 stderr
+            sys.stderr.write(f"logger.RingBufferHandler.emit failed: {exc}\n")
+            traceback.print_exc()
 
 
 def _maybe_flush_summaries() -> None:
@@ -518,12 +529,18 @@ def _emit_ratelimit_summaries() -> None:
         try:
             _log_summary(summary)
         except Exception as exc:
-            pass
+            # P0-1: 日志器自身故障 fallback stderr 防递归（ZG-31）
+            # 防递归: fallback 不走 logger，直接 stderr
+            sys.stderr.write(f"logger._log_summary failed: {exc}\n")
+            traceback.print_exc()
 
     try:
         _rate_limiter.emit_summaries(_output)
     except Exception as exc:
-        pass
+        # P0-1: 日志器自身故障 fallback stderr 防递归（ZG-31）
+        # 防递归: fallback 不走 logger，直接 stderr
+        sys.stderr.write(f"logger.emit_summaries failed: {exc}\n")
+        traceback.print_exc()
 
 
 def _log_summary(summary: dict) -> None:

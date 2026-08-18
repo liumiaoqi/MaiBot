@@ -163,7 +163,12 @@ class HostEndpoint:
                 if self._token_service is not None:
                     self._token_service.cleanup_expired()
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-2: 后台循环异常出声（ZG-31）
+            # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
+            logger.exception("token cleanup loop failed: %s", exc, exc_info=True)
 
     def get_status(self) -> dict[str, RunnerConnectionSnapshot]:
         """返回所有 Runner 连接状态快照，供 WebUI 调试页使用。"""

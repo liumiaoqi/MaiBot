@@ -377,7 +377,12 @@ class _PluginHostServicer(PluginHostServicer):
                         return
                     yield msg
             except GeneratorExit:
+                # P0-4: 生成器关闭静默（对标 CancelledError，正常关闭路径）
                 pass
+            except Exception as exc:
+                # P0-2: 发送循环异常出声（ZG-31）
+                # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
+                logger.exception("send loop failed (runner_id=%s): %s", runner_id, exc, exc_info=True)
 
         recv_task = asyncio.create_task(_recv_loop(), name=f"recv-{runner_id}")
 

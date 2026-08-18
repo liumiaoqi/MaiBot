@@ -11,7 +11,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from src.common.logger import get_logger
 from src.plugin_runtime_v2.scope.vocabulary import ScopeVocabulary
+
+logger = get_logger("plugin_runtime_v2.scope.validate_manifest_scopes")
 
 
 @dataclass(frozen=True)
@@ -70,8 +73,10 @@ class Tier1Detector:
         for py_file in code_dir.rglob("*.py"):
             try:
                 content = py_file.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except (OSError, UnicodeDecodeError) as exc:
+                # P0-6: 文件读取失败出声（debug 防刷屏，跳过）（ZG-31）
                 # 不可读文件 → 跳过继续其他（design 2.4.1）
+                logger.debug("py_file 读取失败，跳过 %s: %s", py_file, exc)
                 continue
             for pattern, scope in active_rules.items():
                 if re.search(pattern, content):

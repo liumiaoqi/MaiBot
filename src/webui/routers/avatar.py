@@ -97,7 +97,9 @@ def _find_cached_avatar_path(
     for cache_path in _iter_cached_avatar_paths(platform, target_id, target_type):
         try:
             cache_path.relative_to(AVATAR_CACHE_ROOT)
-        except ValueError:
+        except ValueError as exc:
+            # P0-6: relative_to 失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("cache_path 不在 AVATAR_CACHE_ROOT 内，跳过 %s: %s", cache_path, exc)
             continue
         if cache_path.is_file():
             return cache_path

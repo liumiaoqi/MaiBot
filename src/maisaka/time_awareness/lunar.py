@@ -151,8 +151,9 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
                     port.report(ErrorLevel.WARNING, '获取今日节气失败', exception=exc)
                 logger.warning("操作异常 in lunar.py", exc_info=True)
 
-    except ImportError:
-        pass
+    except ImportError as exc:
+        # P0-7: zhdate 导入失败出声（功能降级，节气计算不可用）（ZG-31）
+        logger.warning("zhdate 导入失败，节气计算功能降级: %s", exc)
     except Exception as e:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port

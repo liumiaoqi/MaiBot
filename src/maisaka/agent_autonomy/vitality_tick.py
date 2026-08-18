@@ -80,8 +80,9 @@ class VitalityTickScheduler:
                                 trigger_reason="vitality_tick",
                             )
                         )
-                    except RuntimeError:
-                        pass
+                    except RuntimeError as exc:
+                        # P0-7: get_event_loop 失败出声（debug 防刷屏，无事件循环）（ZG-31）
+                        logger.debug("create_task 失败（无事件循环？）: %s", exc)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port

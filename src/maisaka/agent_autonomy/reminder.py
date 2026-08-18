@@ -223,7 +223,9 @@ class ReminderStore:
                     try:
                         data = json.loads(line)
                         reminders.append(Reminder.from_dict(data))
-                    except (json.JSONDecodeError, KeyError):
+                    except (json.JSONDecodeError, KeyError) as exc:
+                        # P0-5: 单行解析失败出声（debug 防刷屏，跳过脏行）（ZG-31）
+                        logger.debug("reminder 行解析失败，跳过: %s", exc)
                         continue
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel
@@ -266,7 +268,9 @@ class ReminderStore:
                     try:
                         data = json.loads(line)
                         all_reminders.append(Reminder.from_dict(data))
-                    except (json.JSONDecodeError, KeyError):
+                    except (json.JSONDecodeError, KeyError) as exc:
+                        # P0-5: 单行解析失败出声（debug 防刷屏，跳过脏行）（ZG-31）
+                        logger.debug("reminder 行解析失败，跳过: %s", exc)
                         continue
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel

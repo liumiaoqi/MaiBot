@@ -43,7 +43,11 @@ class AsyncWriteQueue:
         try:
             await task
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-4: 关闭路径非预期异常出声（ZG-31）
+            logger.warning("async_write_queue consumer 关闭异常: %s", exc, exc_info=True)
 
     async def enqueue(self, **kwargs: Any) -> MemoryWriteResult:
         """入队写入请求，立即返回 pending 结果。
@@ -77,7 +81,11 @@ class AsyncWriteQueue:
                 finally:
                     self._queue.task_done()
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-4: consumer 循环非预期异常出声（ZG-31）
+            logger.warning("async_write_queue consumer 循环异常: %s", exc, exc_info=True)
 
     async def _write_with_retry(self, kwargs: dict[str, Any]) -> None:
         last_error: str = ""

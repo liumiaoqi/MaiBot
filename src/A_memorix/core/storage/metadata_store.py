@@ -1032,8 +1032,9 @@ class MetadataStore:
         c = self._resolve_conn(conn)
         try:
             c.execute("PRAGMA shrink_memory")
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            # P0-6: PRAGMA shrink_memory 失败出声（debug 防刷屏，不支持时跳过）（ZG-31）
+            logger.debug("PRAGMA shrink_memory 失败（不支持？）: %s", exc)
 
     # =========================================================================
     # 软删除 / GC（委托子 Store + 门面协调）

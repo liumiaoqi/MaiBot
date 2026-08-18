@@ -390,6 +390,8 @@ def _parse_cli_datetime(text: str, is_end: bool = False) -> float:
                 dt = dt.replace(hour=23, minute=59, second=59, microsecond=0)
             return dt.timestamp()
         except ValueError:
+            # P0-5: 多格式 strptime 尝试（debug 防刷屏）（ZG-31）
+            logger.debug("strptime 格式 %s 解析失败，尝试下一格式", fmt)
             continue
 
     raise ValueError(
@@ -540,8 +542,10 @@ class SourceDB:
         for sql in pragmas:
             try:
                 self.conn.execute(sql)
-            except sqlite3.OperationalError:
+            except sqlite3.OperationalError as exc:
+                # P0-6: PRAGMA 失败出声（debug 防刷屏，mode=ro 下部分会失败）（ZG-31）
                 # 部分 PRAGMA 在 mode=ro 下会失败，不影响只读扫描能力
+                logger.debug("PRAGMA %s 失败（mode=ro？）: %s", sql, exc)
                 continue
         self.schema = self._detect_schema()
 

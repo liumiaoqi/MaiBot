@@ -1083,8 +1083,11 @@ class MaisakaChatLoopService:
                     _usage_prompt = usage_anchor.get_baseline(
                         _model_name, system_prompt or "", all_tools
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            # P0-3: 主循环降级安全模式（行为变更——本任务唯一允许，ZG-31）
+            # 对标 Linux kernel/panic.c:67-75 PANIC 语义——核心心跳出错降级不静默继续
+            logger.error("get_model_config_port failed, degrading _usage_prompt to None: %s", exc, exc_info=True)
+            _usage_prompt = None  # 明确降级值——后续走默认 system_prompt
 
         # ZH1-1a 方案 A（design 4.4）：从持久化表加载摘要 insert 到历史 → planner 可见
         chat_history = self._load_summaries_into_history(chat_history)
@@ -1467,8 +1470,11 @@ class MaisakaChatLoopService:
                 usage_prompt=usage_prompt,
                 overflow_ratio=overflow_ratio,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            # P0-3: 主循环降级安全模式（ZG-31）
+            # 对标 Linux kernel/panic.c:67-75 PANIC 语义——grayscale 是辅助日志，降级空串
+            logger.warning("token_est/grayscale 计算失败，降级 grayscale='': %s", exc, exc_info=True)
+            grayscale = ""  # 明确降级值
 
         selection_reason = (
             f"实际发送 {len(selected_history)} 条消息"
@@ -1587,8 +1593,9 @@ class MaisakaChatLoopService:
                         f"ZH1-1b recall 降级: {exc}",
                         component_id="chat_loop_service._append_recall_reference_messages",
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                # P0-3: error_escalation 上报失败出声（外层已 warning，内层 debug 防刷屏）（ZG-31）
+                logger.debug("error_escalation_port.report failed in recall 降级: %s", exc, exc_info=True)
             return selected_history
 
     @staticmethod

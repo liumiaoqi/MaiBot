@@ -162,8 +162,9 @@ class PromptCLIVisualizer:
         if raw_duration_ms is not None:
             try:
                 normalized["duration_ms"] = round(float(raw_duration_ms), 2)
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                # P0-5: duration_ms 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                logger.debug("duration_ms 解析失败，跳过: %s", exc)
 
         return normalized
 

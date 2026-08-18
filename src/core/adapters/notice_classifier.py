@@ -23,8 +23,9 @@ class NapCatNoticeClassifier:
         if notice_kind:
             try:
                 return NoticeKind(notice_kind)
-            except ValueError:
-                pass
+            except ValueError as exc:
+                # P0-7: NoticeKind 枚举解析失败出声（debug 防刷屏，返回 UNKNOWN）（ZG-31）
+                logger.debug("NoticeKind 解析失败 %s，返回 UNKNOWN: %s", notice_kind, exc)
         return NoticeKind.UNKNOWN
 
     @staticmethod

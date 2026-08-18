@@ -164,7 +164,11 @@ class RunnerHealthBridge:
                     mark_exception_swallowed()
                     logger.exception("V2 diff 轮询异常（runner_id=%s）", runner_id)
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-4: 关闭路径非预期异常出声（ZG-31）
+            logger.exception("V2 diff 轮询循环异常（runner_id=%s）: %s", runner_id, exc, exc_info=True)
 
     def register_v1_supervisor(
         self,
@@ -258,7 +262,11 @@ class RunnerHealthBridge:
                     mark_exception_swallowed()
                     logger.exception("V1 旁路轮询异常（runner_id=%s）", runner_id)
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-4: 关闭路径非预期异常出声（ZG-31）
+            logger.exception("V1 旁路轮询循环异常（runner_id=%s）: %s", runner_id, exc, exc_info=True)
 
     async def _report_runner_unresponsive(
         self,
@@ -412,7 +420,11 @@ class RunnerHealthBridge:
                 try:
                     await task
                 except asyncio.CancelledError:
+                    # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                     pass
+                except Exception as exc:
+                    # P0-4: 关闭路径非预期异常出声（ZG-31）
+                    logger.warning("poll_task 关闭异常（runner_id=%s）: %s", runner_id, exc, exc_info=True)
         self._bridge_status.clear()
         self._v2_supervisors.clear()
         self._v1_supervisors.clear()

@@ -110,8 +110,13 @@ class ActivationCoordinator:
                     raw = json.loads(manifest_path.read_text(encoding="utf-8"))
                     manifest = ManifestV3.model_validate(raw)
                     candidates_map[plugin_id] = (plugin_dir, manifest)
-                except (OSError, json.JSONDecodeError, ValidationError):
-                    pass
+                except (OSError, json.JSONDecodeError, ValidationError) as exc:
+                    # P0-2: manifest 加载失败出声（ZG-31）
+                    # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
+                    logger.warning(
+                        "插件 %s manifest 加载失败，跳过该插件: %s", plugin_id, exc,
+                        exc_info=True,
+                    )
 
         self._candidates = candidates_map
         self._candidate_dirs = dict(plan.candidate_dirs)

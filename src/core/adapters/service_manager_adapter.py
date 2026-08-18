@@ -374,7 +374,11 @@ class ServiceManagerAdapter:
             try:
                 await self._health_check_task
             except asyncio.CancelledError:
+                # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                 pass
+            except Exception as exc:
+                # P0-4: 关闭路径非预期异常出声（ZG-31）
+                logger.warning("health_check_task 关闭异常: %s", exc, exc_info=True)
             self._health_check_task = None
 
         for task in list(self._recovery_tasks.values()):
@@ -382,7 +386,11 @@ class ServiceManagerAdapter:
             try:
                 await task
             except asyncio.CancelledError:
+                # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
                 pass
+            except Exception as exc:
+                # P0-4: 关闭路径非预期异常出声（ZG-31）
+                logger.warning("recovery_task 关闭异常: %s", exc, exc_info=True)
         self._recovery_tasks.clear()
 
         logger.info("服务管理器已关闭")

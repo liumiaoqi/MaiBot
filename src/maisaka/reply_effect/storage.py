@@ -75,7 +75,9 @@ class ReplyEffectStorage:
         for old_file in sorted_files[:trim_count]:
             try:
                 old_file.unlink()
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
+                # P0-6: unlink 幂等出声（debug 防刷屏）（ZG-31）
+                logger.debug("reply_effect 文件已不存在（幂等）: %s", exc)
                 continue
 
     @classmethod

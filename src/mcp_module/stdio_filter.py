@@ -174,8 +174,9 @@ async def tolerant_stdio_client(
                     await process.wait()
             except TimeoutError:
                 await _terminate_process_tree(process)
-            except ProcessLookupError:
-                pass
+            except ProcessLookupError as exc:
+                # P0-7: 进程已退出出声（debug 防刷屏，幂等）（ZG-31）
+                logger.debug("process.wait 进程已退出（幂等）: %s", exc)
             await read_stream.aclose()
             await write_stream.aclose()
             await read_stream_writer.aclose()

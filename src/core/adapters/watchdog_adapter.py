@@ -200,8 +200,9 @@ class WatchdogAdapter(WatchdogPort):
         """取消订阅。"""
         try:
             self._timeout_subscribers.remove(callback)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            # P0-6: 幂等清理出声（高频，debug 防刷屏，对标 lib/ratelimit.c）（ZG-31）
+            logger.debug("timeout_subscribers.remove 未找到回调（幂等）: %s", exc)
 
     def _notify_timeout_subscribers(self, event: FaultReportEvent) -> None:
         """通知超时订阅者（组件无响应类故障）。"""
@@ -230,8 +231,9 @@ class WatchdogAdapter(WatchdogPort):
         """取消订阅。"""
         try:
             self._status_subscribers.remove(callback)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            # P0-6: 幂等清理出声（高频，debug 防刷屏，对标 lib/ratelimit.c）（ZG-31）
+            logger.debug("status_subscribers.remove 未找到回调（幂等）: %s", exc)
 
     def register_v2_supervisor(
         self,

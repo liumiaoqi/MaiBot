@@ -137,8 +137,9 @@ class MemoryNeedCalculator(BaseNeedCalculator):
                             source="memory_driven",
                             description=f"想念{target_id}（{elapsed_hours:.0f}小时未交互）",
                         ))
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError) as exc:
+                    # P0-5: elapsed_hours 计算失败出声（debug 防刷屏，跳过）（ZG-31）
+                    logger.debug("elapsed_hours 计算失败，跳过: %s", exc)
 
         return needs
 

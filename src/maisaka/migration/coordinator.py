@@ -156,7 +156,9 @@ class MigrationCoordinator:
                             last_updated=data.get("last_updated", time.time()),
                             notes=data.get("notes", ""),
                         )
-                    except (json.JSONDecodeError, KeyError, ValueError):
+                    except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                        # P0-5: 迁移状态行解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                        logger.debug("migration state 行解析失败，跳过: %s", exc)
                         continue
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel

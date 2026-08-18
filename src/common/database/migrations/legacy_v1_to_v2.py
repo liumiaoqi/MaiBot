@@ -295,8 +295,9 @@ def _coerce_datetime(value: Any, fallback_now: bool = False) -> Optional[datetim
         return datetime.now() if fallback_now else None
     try:
         return datetime.fromtimestamp(float(normalized_text))
-    except (TypeError, ValueError, OSError, OverflowError):
-        pass
+    except (TypeError, ValueError, OSError, OverflowError) as exc:
+        # P0-5: timestamp 解析失败出声（debug 防刷屏，尝试 fromisoformat）（ZG-31）
+        logger.debug("fromtimestamp 解析失败，尝试 fromisoformat: %s", exc)
     try:
         return datetime.fromisoformat(normalized_text.replace("Z", "+00:00"))
     except ValueError:

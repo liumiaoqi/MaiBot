@@ -244,7 +244,9 @@ def _get_jargon_counts_by_session(session: Any, session_ids: List[str]) -> Dict[
     for raw_session_id_dict in session.exec(statement).all():
         try:
             session_counts = json.loads(raw_session_id_dict or "{}")
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            # P0-5: session_counts 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("session_counts json 解析失败，跳过: %s", exc)
             continue
         if not isinstance(session_counts, dict):
             continue

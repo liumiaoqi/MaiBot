@@ -48,8 +48,9 @@ class AhoCorasick:
         if raw_value:
             try:
                 return max(1, int(raw_value))
-            except ValueError:
-                pass
+            except ValueError as exc:
+                # P0-5: 环境变量解析失败出声（debug 防刷屏，fallback 3000）（ZG-31）
+                logger.debug("A_MEMORIX_NATIVE_MATCHER_MIN_PATTERNS 解析失败，fallback 3000: %s", exc)
         return 3000
 
     def add_pattern(self, pattern: str):

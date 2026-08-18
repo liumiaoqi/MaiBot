@@ -10,7 +10,11 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
+from src.common.logger import get_logger
+
 router = APIRouter(prefix="/api/webui/log", tags=["log"])
+
+logger = get_logger("webui.routers.log")
 
 _LOG_DIR = Path("logs")
 _LEVEL_NAMES = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
@@ -88,15 +92,17 @@ def _match_log_entry(entry: dict, module_prefix: str, min_level: int,
             entry_dt = datetime.fromisoformat(str(ts))
             if entry_dt.timestamp() < since_ts:
                 return False
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as exc:
+            # P0-5: 时间解析失败出声（debug 防刷屏，脏数据）（ZG-31）
+            logger.debug("log entry timestamp 解析失败（since 过滤）: %s", exc)
     if ts and until_ts:
         try:
             entry_dt = datetime.fromisoformat(str(ts))
             if entry_dt.timestamp() > until_ts:
                 return False
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as exc:
+            # P0-5: 时间解析失败出声（debug 防刷屏，脏数据）（ZG-31）
+            logger.debug("log entry timestamp 解析失败（until 过滤）: %s", exc)
     return True
 
 
@@ -122,7 +128,9 @@ def _read_jsonl_reverse(filepath: Path, limit: int) -> list[dict]:
                     continue
                 try:
                     results.append(json.loads(line))
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as exc:
+                    # P0-5: JSONL 行解析失败出声（debug 防刷屏，跳过脏行）（ZG-31）
+                    logger.debug("JSONL 行解析失败，跳过: %s", exc)
                     continue
                 if len(results) >= limit:
                     break
@@ -156,8 +164,9 @@ async def search_logs(
             since_ts = datetime.fromisoformat(since).timestamp()
         if until:
             until_ts = datetime.fromisoformat(until).timestamp()
-    except ValueError:
-        pass
+    except ValueError as exc:
+        # P0-5: since/until 参数解析失败出声（降级为无时间过滤）（ZG-31）
+        logger.warning("since/until 参数解析失败，降级为无时间过滤: %s", exc)
 
     results: list[dict] = []
 

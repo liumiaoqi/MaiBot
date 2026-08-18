@@ -133,9 +133,9 @@ class SoftirqBatcher(Generic[T]):
             # 跨线程：call_soon_threadsafe
             try:
                 loop.call_soon_threadsafe(self._wakeup.set)
-            except RuntimeError:
-                # loop 已关闭：仅入队，不唤醒
-                pass
+            except RuntimeError as exc:
+                # P0-6: loop 已关闭出声（debug 防刷屏，仅入队不唤醒）（ZG-31）
+                logger.debug("call_soon_threadsafe 失败（loop 已关闭），仅入队: %s", exc)
 
     def _lazy_start(self) -> None:
         """惰性兜底：检测到 running loop 且 drainer 为 None 时自动启动"""

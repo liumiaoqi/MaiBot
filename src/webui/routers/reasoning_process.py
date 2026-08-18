@@ -393,7 +393,9 @@ def _list_stage_infos() -> list[ReasoningPromptStageInfo]:
         for session_dir in session_dirs:
             try:
                 latest_modified_at = max(latest_modified_at, session_dir.stat().st_mtime)
-            except OSError:
+            except OSError as exc:
+                # P0-6: stat 失败出声（debug 防刷屏，跳过）（ZG-31）
+                logger.debug("session_dir stat 失败，跳过 %s: %s", session_dir, exc)
                 continue
 
         stage_infos.append(
@@ -914,6 +916,8 @@ def _is_path_in_roots(file_path: Path, roots: tuple[Path, ...]) -> bool:
             resolved_path.relative_to(root)
             return True
         except ValueError:
+            # P0-6: relative_to 失败（不在该 root 内，尝试下一 root）（debug 防刷屏）（ZG-31）
+            logger.debug("relative_to 失败，尝试下一 root: %s vs %s", resolved_path, root)
             continue
     return False
 
@@ -1491,12 +1495,16 @@ def _collect_prompt_file_records_for_session(
 
             try:
                 stat = entry.stat()
-            except OSError:
+            except OSError as exc:
+                # P0-6: stat 失败出声（debug 防刷屏，跳过）（ZG-31）
+                logger.debug("entry stat 失败，跳过: %s", exc)
                 continue
 
             try:
                 relative_path = file_path.relative_to(PROMPT_LOG_ROOT)
-            except ValueError:
+            except ValueError as exc:
+                # P0-6: relative_to 失败出声（debug 防刷屏，跳过）（ZG-31）
+                logger.debug("relative_to PROMPT_LOG_ROOT 失败，跳过 %s: %s", file_path, exc)
                 continue
 
             parts = relative_path.parts

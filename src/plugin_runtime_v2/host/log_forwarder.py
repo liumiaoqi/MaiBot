@@ -54,6 +54,14 @@ class LogForwarder:
                 if text:
                     logger.info(f"[runner:{self._runner_id}:{label}] {text}")
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
         except (BrokenPipeError, ValueError) as exc:
             logger.debug(f"[runner:{self._runner_id}:{label}] pipe 读取结束: {exc}")
+        except Exception as exc:
+            # P0-2: 后台循环异常出声（ZG-31）
+            # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
+            logger.exception(
+                "[runner:%s:%s] read loop failed: %s", self._runner_id, label, exc,
+                exc_info=True,
+            )

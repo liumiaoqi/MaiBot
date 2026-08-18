@@ -187,7 +187,13 @@ class RunnerSupervisor:
                 await self.check_health()
                 self._reset_counters_if_stable()
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-2: 后台循环异常出声 + 触发 shutdown（ZG-31）
+            # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
+            logger.exception("health check loop failed: %s", exc, exc_info=True)
+            self._shutdown_event.set()
 
     async def _on_runner_failed(self, runner_id: str, reason: str) -> None:
         """Runner 失败 → 判断是否重启。"""

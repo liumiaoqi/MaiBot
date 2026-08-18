@@ -256,15 +256,17 @@ def parse_keywords_string(keywords_input) -> list[str]:
                 return [str(k).strip() for k in keywords_list if str(k).strip()]
         elif isinstance(json_data, list):
             return [str(k).strip() for k in json_data if str(k).strip()]
-    except (json.JSONDecodeError, ValueError):
-        pass
+    except (json.JSONDecodeError, ValueError) as exc:
+        # P0-5: JSON 解析失败出声（debug 防刷屏，fallback 到分隔符）（ZG-31）
+        logger.debug("keywords JSON 解析失败，尝试 ast/分隔符: %s", exc)
 
     try:
         parsed = ast.literal_eval(keywords_str)
         if isinstance(parsed, list):
             return [str(k).strip() for k in parsed if str(k).strip()]
-    except (ValueError, SyntaxError):
-        pass
+    except (ValueError, SyntaxError) as exc:
+        # P0-5: ast.literal_eval 失败出声（debug 防刷屏，fallback 到分隔符）（ZG-31）
+        logger.debug("keywords ast.literal_eval 失败，尝试分隔符: %s", exc)
 
     separators = ["/", ",", " ", "|", ";"]
 

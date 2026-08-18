@@ -191,4 +191,9 @@ class HeartbeatManager:
                             await timeout_callback(runner_id)
                         return
         except asyncio.CancelledError:
+            # P0-4: 正常取消静默（防刷屏，对标 kernel/signal.c TASK_KILLABLE）
             pass
+        except Exception as exc:
+            # P0-2: 心跳循环异常出声（ZG-31）
+            # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
+            logger.exception("heartbeat loop failed (runner_id=%s): %s", runner_id, exc, exc_info=True)

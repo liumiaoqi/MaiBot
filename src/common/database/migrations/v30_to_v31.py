@@ -808,7 +808,9 @@ def _normalize_distribution(items: Sequence[dict[str, Any]]) -> str:
             continue
         try:
             probability = float(item.get("probability") or 0.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            # P0-5: probability 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("probability 解析失败，跳过: %s", exc)
             continue
         if probability <= 0:
             continue

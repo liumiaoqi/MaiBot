@@ -60,7 +60,9 @@ def _discover_plugins() -> dict[str, dict[str, Any]]:
     for manifest_path in _PLUGINS_DIR.rglob("_manifest.json"):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            # P0-5: manifest 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("manifest 解析失败，跳过 %s: %s", manifest_path, exc)
             continue
         pid = manifest.get("id", "")
         if pid:
@@ -99,7 +101,9 @@ async def list_all_plugin_scopes(request: Request) -> list[PluginScopeInfo]:
             entry = None
             try:
                 entry = ScopeVocabulary.lookup(scope)
-            except KeyError:
+            except KeyError as exc:
+                # P0-5: scope 查找失败出声（debug 防刷屏，跳过未知 scope）（ZG-31）
+                logger.debug("scope 查找失败，跳过 %s: %s", scope, exc)
                 continue
             scope_statuses.append(ScopeStatus(
                 scope=scope,
@@ -138,7 +142,9 @@ async def get_plugin_scopes(plugin_id: str, request: Request) -> PluginScopeInfo
     for scope in requested_scopes:
         try:
             entry = ScopeVocabulary.lookup(scope)
-        except KeyError:
+        except KeyError as exc:
+            # P0-5: scope 查找失败出声（debug 防刷屏，跳过未知 scope）（ZG-31）
+            logger.debug("scope 查找失败，跳过 %s: %s", scope, exc)
             continue
         scope_statuses.append(ScopeStatus(
             scope=scope,

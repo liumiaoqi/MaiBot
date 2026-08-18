@@ -2682,6 +2682,8 @@ class ImportTaskManager:
                     )
                     break
                 except asyncio.TimeoutError:
+                    # P0-4: 轮询超时重试（debug 防刷屏）（ZG-31）
+                    logger.debug("process.wait 轮询超时，继续等待")
                     continue
         finally:
             await asyncio.gather(*drain_tasks, return_exceptions=True)
@@ -2942,6 +2944,8 @@ class ImportTaskManager:
                     )
                     break
                 except asyncio.TimeoutError:
+                    # P0-4: 轮询超时重试（debug 防刷屏）（ZG-31）
+                    logger.debug("process.wait 轮询超时，继续等待")
                     continue
         finally:
             await asyncio.gather(*drain_tasks, return_exceptions=True)
@@ -4067,6 +4071,8 @@ class ImportTaskManager:
             try:
                 return datetime.strptime(text, fmt)
             except ValueError:
+                # P0-5: 多格式 strptime 尝试（debug 防刷屏）（ZG-31）
+                logger.debug("strptime 格式 %s 解析失败，尝试下一格式", fmt)
                 continue
         return datetime.now()
 

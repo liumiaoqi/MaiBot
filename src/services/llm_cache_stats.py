@@ -504,14 +504,18 @@ def _read_usage_events() -> list[dict[str, Any]]:
     for file_path in _iter_usage_log_paths():
         try:
             lines = file_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
+        except OSError as exc:
+            # P0-5: 日志文件读取失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("usage log 读取失败，跳过 %s: %s", file_path, exc)
             continue
         for line in lines:
             if not line.strip():
                 continue
             try:
                 event = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                # P0-5: JSONL 行解析失败出声（debug 防刷屏，跳过脏行）（ZG-31）
+                logger.debug("usage log 行解析失败，跳过: %s", exc)
                 continue
             if isinstance(event, dict):
                 events.append(event)

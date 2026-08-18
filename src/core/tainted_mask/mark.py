@@ -8,7 +8,10 @@
         mark_taint(TaintFlag.TAINT_EXCEPTION_SWALLOWED)
 """
 
+from src.common.logger import get_logger
 from src.core.tainted_mask.taint_flag import TaintFlag
+
+logger = get_logger("core.tainted_mask.mark")
 
 
 def mark_taint(flag: TaintFlag) -> None:
@@ -23,9 +26,10 @@ def mark_taint(flag: TaintFlag) -> None:
         from src.core.taint_mask_port_registry import get_taint_mask_port
 
         get_taint_mask_port().add_taint(flag)
-    except RuntimeError:
-        # ZG-7 渐进启用：registry 未就绪（RuntimeError）是预期降级状态，静默跳过不上报
-        pass
+    except RuntimeError as exc:
+        # ZG-7 渐进启用：registry 未就绪（RuntimeError）是预期降级状态
+        # P0-7: 出声（debug 防刷屏，预期降级不上报）（ZG-31）
+        logger.debug("taint registry 未就绪，跳过标记（预期降级）: %s", exc)
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port

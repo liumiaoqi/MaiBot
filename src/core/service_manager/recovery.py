@@ -122,7 +122,8 @@ class RecoveryEngine:
                 self.reset_count(component_id)
                 return True
             except asyncio.TimeoutError:
-                pass  # 退避时间到，继续恢复
+                # P0-4: 退避时间到，继续恢复（debug 防刷屏）（ZG-31）
+                logger.debug("recovery backoff 超时，继续恢复（预期）")
 
             # 委托停止残留
             try:

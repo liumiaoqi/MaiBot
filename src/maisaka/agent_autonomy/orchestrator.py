@@ -582,8 +582,9 @@ class AgentOrchestrator:
                         try:
                             strength = float(part[part.index("(") + 1 : -1])
                             max_strength = max(max_strength, strength)
-                        except ValueError:
-                            pass
+                        except ValueError as exc:
+                            # P0-5: strength 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                            logger.debug("strength 解析失败，跳过 %s: %s", part, exc)
 
                 if max_strength < 30.0:
                     continue

@@ -299,8 +299,9 @@ class VitalityManager:
             try:
                 intensity = agent.emotion_manager.state.get_dominant_intensity()
                 emotion_bonus = min(intensity / 10.0, 10.0)
-            except (AttributeError, TypeError):
-                pass
+            except (AttributeError, TypeError) as exc:
+                # P0-5: emotion 加成计算失败出声（debug 防刷屏，降级 0）（ZG-31）
+                logger.debug("emotion_bonus 计算失败，降级 0: %s", exc)
 
         # 时间衰减
         elapsed_minutes = 0.0

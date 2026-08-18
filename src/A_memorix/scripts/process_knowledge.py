@@ -295,6 +295,8 @@ class AutoImporter:
             try:
                 return datetime.strptime(text, fmt)
             except ValueError:
+                # P0-5: 多格式 strptime 尝试（debug 防刷屏）（ZG-31）
+                logger.debug("strptime 格式 %s 解析失败，尝试下一格式", fmt)
                 continue
         logger.warning(
             f"无法解析 chat_reference_time={value}，将回退为当前本地时间"
@@ -660,8 +662,9 @@ Chat paragraph:
             emb = await self.embedding_manager.encode(entity_name)
             try:
                 self.vector_store.add(emb.reshape(1, -1), [hash_value])
-            except ValueError:
-                pass
+            except ValueError as exc:
+                # P0-6: vector_store.add 失败出声（debug 防刷屏，维度不匹配？）（ZG-31）
+                logger.debug("vector_store.add 失败（维度？）%s: %s", hash_value, exc)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port

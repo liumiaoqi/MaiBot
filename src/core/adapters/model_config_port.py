@@ -262,8 +262,9 @@ class ConfigManagerModelConfigPort:
         """注销配置热重载回调。"""
         try:
             self._reload_callbacks.remove(callback)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            # P0-6: 幂等清理出声（debug 防刷屏）（ZG-31）
+            logger.debug("reload_callbacks.remove 未找到回调（幂等）: %s", exc)
 
     def _on_config_reloaded(self, changed_scopes: Sequence[str] = ()) -> None:
         """ConfigManager 热重载完成后调用，传播给消费者。

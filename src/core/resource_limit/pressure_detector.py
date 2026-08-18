@@ -50,7 +50,9 @@ def get_psi_summary() -> Optional[dict[str, dict[str, float]]]:
                         entry[key] = float(val)
             if entry:
                 summary[resource] = entry
-        except (FileNotFoundError, PermissionError, ValueError, OSError):
+        except (FileNotFoundError, PermissionError, ValueError, OSError) as exc:
+            # P0-6: /proc/pressure 读取失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("pressure 读取失败，跳过 %s: %s", resource, exc)
             continue
 
     return summary if summary else None

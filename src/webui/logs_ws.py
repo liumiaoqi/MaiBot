@@ -102,7 +102,9 @@ def load_recent_logs(limit: int = 100) -> List[Dict]:
                         formatted_log = _format_log_entry(log_entry, f"{timestamp_id}_{log_counter}")
                         logs.append(formatted_log)
                         log_counter += 1
-                    except (json.JSONDecodeError, KeyError):
+                    except (json.JSONDecodeError, KeyError) as exc:
+                        # P0-5: 日志行解析失败出声（debug 防刷屏，跳过脏行）（ZG-31）
+                        logger.debug("logs_ws 行解析失败，跳过: %s", exc)
                         continue
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel

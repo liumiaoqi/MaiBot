@@ -64,8 +64,9 @@ class VersionComparator:
             while len(parts) < 3:
                 parts.append("0")
             return ".".join(parts)
-        except InvalidVersion:
-            pass
+        except InvalidVersion as exc:
+            # P0-5: Version 解析失败出声（debug 防刷屏，尝试 regex fallback）（ZG-31）
+            logger.debug("Version 解析失败 %s，尝试 regex fallback: %s", normalized, exc)
 
         if not re.match(r"^\d+(\.\d+){0,2}$", normalized):
             return "0.0.0"
@@ -1264,8 +1265,9 @@ class ManifestValidator:
             raw_version = importlib_metadata.version("maibot-plugin-sdk")
             if VersionComparator.is_valid_project_version(raw_version):
                 return raw_version
-        except importlib_metadata.PackageNotFoundError:
-            pass
+        except importlib_metadata.PackageNotFoundError as exc:
+            # P0-7: SDK 包未安装出声（debug 防刷屏，尝试 pyproject fallback）（ZG-31）
+            logger.debug("maibot-plugin-sdk 未安装，尝试 pyproject fallback: %s", exc)
 
         sdk_pyproject_path = project_root / "packages" / "maibot-plugin-sdk" / "pyproject.toml"
         try:
@@ -1329,7 +1331,9 @@ class ManifestValidator:
 
             try:
                 requirement = Requirement(dependency_text)
-            except InvalidRequirement:
+            except InvalidRequirement as exc:
+                # P0-5: Requirement 解析失败出声（debug 防刷屏，跳过）（ZG-31）
+                logger.debug("Requirement 解析失败 %s，跳过: %s", dependency_text, exc)
                 continue
 
             requirements[canonicalize_name(requirement.name)] = requirement

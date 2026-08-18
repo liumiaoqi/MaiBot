@@ -1200,7 +1200,9 @@ async def get_autonomy_logs(
                 continue
             try:
                 entry = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                # P0-5: JSONL 行解析失败出声（debug 防刷屏，跳过脏行）（ZG-31）
+                logger.debug("agent log 行解析失败，跳过: %s", exc)
                 continue
 
             event = entry.get("event", "")

@@ -125,7 +125,9 @@ def get_image_records_by_path(session: Any, image_type: ImageType) -> dict[Path,
     for record in records:
         try:
             record_path = resolve_stored_image_path(record.full_path)
-        except (OSError, RuntimeError, StoredImagePathError):
+        except (OSError, RuntimeError, StoredImagePathError) as exc:
+            # P0-6: 路径解析失败出声（debug 防刷屏，跳过）（ZG-31）
+            logger.debug("resolve_stored_image_path 失败，跳过 %s: %s", record.full_path, exc)
             continue
         records_by_path.setdefault(record_path, []).append(record)
     return records_by_path

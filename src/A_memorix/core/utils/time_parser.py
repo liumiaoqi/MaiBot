@@ -13,6 +13,10 @@ import re
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
+from src.common.logger import get_logger
+
+logger = get_logger("A_memorix.time_parser")
+
 
 _QUERY_DATE_RE = re.compile(r"^\d{4}/\d{2}/\d{2}$")
 _QUERY_MINUTE_RE = re.compile(r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}$")
@@ -100,6 +104,8 @@ def parse_ingest_datetime_to_timestamp(
                 dt = dt.replace(hour=23, minute=59, second=0, microsecond=0)
             return dt.timestamp()
         except ValueError:
+            # P0-5: 多格式 strptime 尝试（debug 防刷屏）（ZG-31）
+            logger.debug("strptime 格式 %s 解析失败，尝试下一格式", fmt)
             continue
 
     raise ValueError(f"无法解析时间: {text}")

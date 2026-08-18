@@ -834,8 +834,9 @@ def _load_json_payload(response: str) -> Any:
 def _parse_json_candidate(candidate: str) -> Any:
     try:
         return json.loads(candidate)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as exc:
+        # P0-5: JSON 解析失败出声（debug 防刷屏，尝试 repair_json）（ZG-31）
+        logger.debug("json.loads 失败，尝试 repair_json: %s", exc)
 
     try:
         return repair_json(candidate, return_objects=True, logging=False)

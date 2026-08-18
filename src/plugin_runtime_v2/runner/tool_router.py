@@ -85,9 +85,10 @@ class ToolRouter:
             plugin_id = getattr(plugin, "plugin_id", "unknown")
             for scope in tier1_scopes:
                 await recorder.record(plugin_id=plugin_id, scope=scope, params=args)
-        except Exception:
+        except Exception as exc:
+            # P0-7: 审计异常出声（debug 防刷屏，best-effort 不阻断执行）（ZG-31）
             # best-effort：审计异常不阻断执行（spec 5.3.1 规则 11）
-            pass
+            logger.debug("scope audit 记录失败（best-effort）: %s", exc)
 
     async def execute(
         self,

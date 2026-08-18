@@ -1962,6 +1962,8 @@ def _resolve_safe_adapter_config_path(path: str) -> Path:
             candidate_path.relative_to(allowed_root)
             return candidate_path
         except ValueError:
+            # P0-6: relative_to 失败（不在该 root 内，尝试下一 root）（debug 防刷屏）（ZG-31）
+            logger.debug("relative_to 失败，尝试下一 root: %s vs %s", candidate_path, allowed_root)
             continue
 
     raise AppError(ErrorCode.PARAM_INVALID, "适配器配置路径超出允许范围")
@@ -1978,9 +1980,10 @@ def _to_relative_path(path: str) -> str:
         # 如果相对路径不是以 .. 开头（说明文件在项目目录内），则返回相对路径
         if not rel_path.startswith(".."):
             return rel_path
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        # P0-6: relpath 失败出声（debug 防刷屏，返回原路径）（ZG-31）
         # 在 Windows 上，如果路径在不同驱动器，relpath 会抛出 ValueError
-        pass
+        logger.debug("os.path.relpath 失败，返回原路径: %s", exc)
 
     # 无法转换为相对路径，返回绝对路径
     return path
