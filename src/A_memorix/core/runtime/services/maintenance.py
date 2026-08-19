@@ -19,6 +19,7 @@ class MaintenanceService:
         resolve_deleted_relation_hashes: Callable[[str], List[str]],
         delete_vectors_by_type: Callable[..., None],
         background_scheduler: Any,
+        trigger_vector_compaction: Optional[Callable[[], int]] = None,
     ) -> None:
         self._get_metadata_store = get_metadata_store
         self._get_graph_store = get_graph_store
@@ -29,7 +30,9 @@ class MaintenanceService:
         self._resolve_deleted_relation_hashes = resolve_deleted_relation_hashes
         self._delete_vectors_by_type = delete_vectors_by_type
         self._background_scheduler = background_scheduler
+        self._trigger_vector_compaction = trigger_vector_compaction
         self._last_maintenance_at: Optional[float] = None
+        self._last_vector_compaction_at: float = 0.0
 
     async def maintain_memory(
         self,
@@ -107,9 +110,61 @@ class MaintenanceService:
 
         await self._process_freeze_and_prune()
         await self._orphan_gc_phase()
+        await self._purge_deleted_relations_phase()
+        await self._vector_compaction_phase()
         await self._compensate_graph_sync(metadata_store, graph_store)
         self._last_maintenance_at = time.time()
         self._persist()
+
+    async def _purge_deleted_relations_phase(self) -> None:
+        """P0-1: 清理过期 deleted_relations（ZG-29）。
+
+        对标 Linux kernel/exit.c:411 do_exit——删除路径必须级联清理，
+        不能"删一半留一半"。deleted_relations 是 backup_and_delete_relations
+        的备份表，需定期物理清理。
+        """
+        import time
+        metadata_store = self._get_metadata_store()
+        assert metadata_store is not None
+        retention_days = max(1.0, float(self._cfg("memory.deleted_relations_retention_days", 30.0) or 30.0))
+        batch_size = max(1, int(self._cfg("memory.purge_batch_size", 500) or 500))
+        cutoff = time.time() - retention_days * 86400.0
+        try:
+            purged = metadata_store.purge_deleted_relations(cutoff_time=cutoff, limit=batch_size)
+            if purged:
+                logger.info(f"purge_deleted_relations: 清理 {len(purged)} 条过期记录")
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "purge_deleted_relations 异常", exception=exc)
+            logger.warning(f"purge_deleted_relations cycle 异常: {exc}")
+
+    async def _vector_compaction_phase(self) -> None:
+        """定期强制向量 compaction（ZG-29 P1-4）。
+
+        对标 Linux slab shrinker 定期扫描——不能只靠阈值触发，需周期性兜底。
+        """
+        import time
+        if self._trigger_vector_compaction is None:
+            return
+        interval_days = max(1.0, float(self._cfg("memory.vector_compaction_interval_days", 7.0) or 7.0))
+        now = time.time()
+        if self._last_vector_compaction_at > 0 and now - self._last_vector_compaction_at < interval_days * 86400.0:
+            return
+        try:
+            compacted = self._trigger_vector_compaction()
+            self._last_vector_compaction_at = now
+            if compacted > 0:
+                logger.info(f"vector compaction: 压缩 {compacted} 个 store")
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "vector compaction 异常", exception=exc)
+            logger.warning(f"vector compaction cycle 异常: {exc}")
 
     async def _compensate_graph_sync(self, metadata_store: Any, graph_store: Any) -> None:
         """P0-3: 补偿 graph_synced=false 的 relation（ZG-30）。

@@ -362,6 +362,10 @@ class MetadataStore:
     def delete_entity(self, hash_or_name: str) -> bool:
         return self.entities.delete_entity(hash_or_name)
 
+    def delete_entity_with_info(self, hash_or_name: str) -> tuple:
+        """ZG-29 P0-3: 返回 (ok, entity_hash, entity_name) 供 kernel 级联使用。"""
+        return self.entities.delete_entity_with_info(hash_or_name)
+
     def count_entities(self) -> int:
         return self.entities.count_entities()
 

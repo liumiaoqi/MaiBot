@@ -563,6 +563,18 @@ class GraphStore:
                     )
                 except sqlite3.Error as e:
                     logger.warning(f"删除 graph_nodes 记录失败 ({node}): {e}")
+            # P0-2: 级联删 graph_edges 中涉及已删节点的边（ZG-29）
+            # 对标 Linux fs/inode.c:1515 iput_final——inode 释放时级联删 address_space 页缓存
+            # 字段名：source_node_id / target_node_id（schema_manager.py:289-298）
+            try:
+                canon_nodes = [self._canonicalize(node) for node in existing_nodes]
+                placeholders = ",".join(["?"] * len(canon_nodes))
+                self._conn.execute(
+                    f"DELETE FROM graph_edges WHERE source_node_id IN ({placeholders}) OR target_node_id IN ({placeholders})",
+                    canon_nodes + canon_nodes,
+                )
+            except sqlite3.Error as e:
+                logger.warning(f"级联删 graph_edges 失败: {e}")
             try:
                 self._conn.commit()
             except sqlite3.Error as e:

@@ -237,6 +237,53 @@ class SDKMemoryKernel:
             merge_tokens_fn=self._merge_tokens,
         )
 
+    def _trigger_vector_compaction(self) -> int:
+        """ZG-29 P1-4: 触发所有 vector store 的 compaction（rebuild_index）。
+
+        遍历 vector_pool_manager 下非 None 的 store，调 rebuild_index。
+        返回 compaction 的 store 数量。
+        """
+        compacted = 0
+        stores = []
+        if self._vector_pool_manager is not None:
+            stores.append(self._vector_pool_manager.vector_store)
+            if self._vector_pool_manager.dual_pools_enabled:
+                stores.append(self._vector_pool_manager.paragraph_vector_store)
+                stores.append(self._vector_pool_manager.graph_vector_store)
+        for store in stores:
+            if store is not None and hasattr(store, "rebuild_index"):
+                try:
+                    store.rebuild_index()
+                    compacted += 1
+                except Exception as e:
+                    logger.warning(f"vector store compaction 失败: {e}")
+        return compacted
+
+    def delete_entity(self, hash_or_name: str) -> bool:
+        """P0-3: 删实体并级联删向量/图（ZG-29）。
+
+        对标 Linux mm/slab_common.c:486 kmem_cache_destroy——slab 释放时清孤儿对象。
+        entity_store.delete_entity 保持存储层纯净（只删 metadata），
+        kernel 层做级联（已持有 metadata_store/graph_store/_vector_pool_manager）。
+        """
+        ok, entity_hash, entity_name = self.metadata_store.delete_entity_with_info(hash_or_name)
+        if not ok or not entity_hash or not entity_name:
+            return ok
+        # 级联删向量（失败出声，不回滚 metadata）
+        try:
+            self._delete_vectors_by_type(entity_hashes=[entity_hash])
+        except Exception as e:
+            from src.common.logger import get_logger as _gl
+            _gl("A_Memorix.SDKMemoryKernel").error(f"delete_entity 级联删向量失败: {e}")
+        # 级联删图节点（失败出声，不回滚 metadata）
+        try:
+            if self.graph_store is not None:
+                self.graph_store.delete_nodes([entity_name])
+        except Exception as e:
+            from src.common.logger import get_logger as _gl
+            _gl("A_Memorix.SDKMemoryKernel").error(f"delete_entity 级联删图节点失败: {e}")
+        return True
+
     def _set_embedding_degraded(self, *, active: bool, reason: str = "", checked_at: Optional[float] = None) -> None:
         if self._embedding_recovery_service is not None:
             self._embedding_recovery_service.set_embedding_degraded(active=active, reason=reason, checked_at=checked_at)

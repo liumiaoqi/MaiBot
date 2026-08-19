@@ -325,6 +325,7 @@ class KernelInitializer:
             resolve_deleted_relation_hashes=kernel._resolve_deleted_relation_hashes,
             delete_vectors_by_type=kernel._delete_vectors_by_type,
             background_scheduler=kernel._background_scheduler,
+            trigger_vector_compaction=kernel._trigger_vector_compaction,
         )
 
     @staticmethod

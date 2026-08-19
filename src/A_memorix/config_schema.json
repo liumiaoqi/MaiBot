@@ -1011,6 +1011,48 @@
           "order": 1,
           "hint": "关闭后不再自动衰减、裁剪或冻结记忆状态。",
           "choices": null
+        },
+        "deleted_relations_retention_days": {
+          "name": "deleted_relations_retention_days",
+          "type": "number",
+          "default": 30,
+          "description": "deleted_relations 表保留天数，过期自动清理",
+          "label": "已删关系保留天数",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 2,
+          "hint": "超过此天数的已删关系将被物理清理。",
+          "choices": null
+        },
+        "purge_batch_size": {
+          "name": "purge_batch_size",
+          "type": "integer",
+          "default": 500,
+          "description": "分批删除批次大小",
+          "label": "清理批次大小",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 3,
+          "hint": "每轮 maintenance 清理的最大记录数。",
+          "choices": null
+        },
+        "vector_compaction_interval_days": {
+          "name": "vector_compaction_interval_days",
+          "type": "number",
+          "default": 7,
+          "description": "向量 compaction 周期天数",
+          "label": "向量压缩周期(天)",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 4,
+          "hint": "定期强制压缩向量墓碑，不依赖阈值触发。",
+          "choices": null
         }
       }
     },

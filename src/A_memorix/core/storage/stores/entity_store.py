@@ -110,6 +110,11 @@ class EntityStore:
 
     def delete_entity(self, hash_or_name: str) -> bool:
         """删除实体（级联删除相关关联）。"""
+        ok, _, _ = self.delete_entity_with_info(hash_or_name)
+        return ok
+
+    def delete_entity_with_info(self, hash_or_name: str) -> tuple:
+        """ZG-29 P0-3: 删实体并返回 (ok, entity_hash, entity_name) 供 kernel 级联使用。"""
         cursor = self._conn.cursor()
         entity_name = None
         entity_hash = None
@@ -136,7 +141,7 @@ class EntityStore:
 
         if not entity_name or not entity_hash:
             logger.debug(f"删除实体请求跳过：未在元数据记录中找到 {hash_or_name}")
-            return False
+            return (False, None, None)
 
         logger.info(f"开始删除实体: {entity_name} (Hash: {entity_hash[:8]}...)")
         try:
@@ -162,7 +167,7 @@ class EntityStore:
             cursor.execute("DELETE FROM entities WHERE hash = ?", (entity_hash,))
             self._conn.commit()
             logger.info("实体删除完成")
-            return True
+            return (True, entity_hash, entity_name)
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -171,7 +176,7 @@ class EntityStore:
                 port.report(ErrorLevel.ERROR, "删除实体失败", exception=e)
             logger.error(f"删除实体时发生错误: {e}")
             self._conn.rollback()
-            return False
+            return (False, None, None)
 
     def count_entities(self) -> int:
         cursor = self._conn.cursor()

@@ -80,6 +80,7 @@ def test_dual_path_graph_merge_ignores_non_dict_metadata():
         }
     )
     retriever._build_minmax_score_map = lambda results: {item.hash_value: 1.0 for item in results}
+    retriever.confidence_guard = SimpleNamespace(compute_weight=lambda confidence, out: (1.0, False))
 
     merged = DualPathRetriever._merge_relation_results_graph_enhanced(
         retriever,
