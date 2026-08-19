@@ -4,7 +4,7 @@ import pytest
 
 from src.maisaka.agent_autonomy.personality_drift.drift_params import DriftParams
 from src.maisaka.agent_autonomy.personality_drift.narrative_push_bias import (
-    EVENT_BIAS_MAP,
+
     NarrativePushBias,
 )
 

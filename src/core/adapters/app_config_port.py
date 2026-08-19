@@ -181,6 +181,17 @@ class GlobalConfigAppConfigPort:
             mention_chain_max_depth=aa.mention_chain_max_depth,
             cohabitation_decay_factor=aa.cohabitation_decay_factor,
             cohabitation_min_max=aa.cohabitation_min_max,
+            # ZH-1: 角色参数漂移
+            zh1_role_drift_enabled=aa.zh1_role_drift_enabled,
+            zh1_role_drift_drift_period=aa.zh1_role_drift_drift_period,
+            zh1_role_drift_regression_rate=aa.zh1_role_drift_regression_rate,
+            zh1_role_drift_sigma_max=aa.zh1_role_drift_sigma_max,
+            zh1_role_drift_selection_ratio=aa.zh1_role_drift_selection_ratio,
+            zh1_role_drift_w_interaction=aa.zh1_role_drift_w_interaction,
+            zh1_role_drift_w_relation=aa.zh1_role_drift_w_relation,
+            zh1_role_drift_w_uniqueness=aa.zh1_role_drift_w_uniqueness,
+            zh1_role_drift_w_emotion=aa.zh1_role_drift_w_emotion,
+            zh1_role_drift_reflection_interval=aa.zh1_role_drift_reflection_interval,
 
         )
 

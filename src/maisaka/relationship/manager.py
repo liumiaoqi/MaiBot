@@ -123,6 +123,28 @@ class RelationshipManager:
             return None
 
     @staticmethod
+    def get_strongest_relationship(agent_id: str) -> Optional[tuple[str, int]]:
+        """获取与智能体互动最多的用户及其互动次数。
+
+        Returns:
+            (user_id, interaction_count) 或 None（无关系记录时）。
+        """
+        try:
+            with get_db_session() as session:
+                row = (
+                    session.query(AgentRelationship)
+                    .filter(AgentRelationship.agent_id == agent_id)
+                    .order_by(AgentRelationship.interaction_count.desc())
+                    .first()
+                )
+                if row is not None:
+                    return (row.user_id, row.interaction_count)
+                return None
+        except Exception as exc:
+            logger.warning("获取最强关系失败: agent=%s error=%s", agent_id, exc)
+            return None
+
+    @staticmethod
     def _save_snapshot(agent_id: str, user_id: str, snapshot: RelationshipSnapshot) -> None:
         """将关系快照持久化到数据库。"""
         try:

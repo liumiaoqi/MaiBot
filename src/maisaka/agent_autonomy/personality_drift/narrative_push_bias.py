@@ -2,6 +2,10 @@
 
 事件→8方向→参数偏置向量（B4 借鉴点 + exp56 +11.7%）。
 偏置临时不累积，下次漂移循环合并后自然消化。
+
+接线状态：V1 未接入生产事件总线。M4 将在事件系统集成时通过
+EventBus.subscribe("narrative_event", narrative_bias.on_event) 接线。
+当前 on_event 已通过 T4 单测验证逻辑正确性。
 """
 
 from src.common.logger import get_logger

@@ -1,6 +1,5 @@
 """T6: M6 context shaping 接线验证——参数不进 prompt，自动投影。"""
 
-import pytest
 
 from src.maisaka.agent.config import AgentConfig, LayeredPersonality, PersonalityLayer
 from src.maisaka.agent_autonomy.personality_drift.drift_params import DriftParams

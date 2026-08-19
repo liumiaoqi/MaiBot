@@ -7353,6 +7353,159 @@ class AgentAutonomySectionConfig(ConfigBase):
     )
     """共居参数递减后的下限保护，保证角色在超多人群聊中仍有最低插话能力。推荐范围 1-5。"""
 
+    # ZH-1: 角色参数漂移
+    zh1_role_drift_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用角色参数漂移",
+                "en_US": "Enable role parameter drift",
+                "ja_JP": "ロールパラメータドリフトを有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "shuffle",
+            "advanced": True,
+        },
+    )
+    """ZH-1 角色参数漂移灰度开关。启用后智能体性格参数将根据互动反馈自适应漂移。"""
+
+    zh1_role_drift_drift_period: int = Field(
+        default=500,
+        ge=100,
+        le=5000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "漂移周期（互动次数）",
+                "en_US": "Drift period (interactions)",
+                "ja_JP": "ドリフト周期（インタラクション数）",
+            },
+            "x-widget": "input",
+            "x-icon": "repeat",
+            "advanced": True,
+        },
+    )
+    """每 N 次互动触发一次漂移评估。推荐范围 200-1000。"""
+
+    zh1_role_drift_regression_rate: float = Field(
+        default=0.03,
+        ge=0.0,
+        le=0.1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "回归速率",
+                "en_US": "Regression rate",
+                "ja_JP": "回帰速率",
+            },
+            "x-widget": "input",
+            "x-icon": "rotate-ccw",
+            "advanced": True,
+        },
+    )
+    """参数向初始值拉回的回归力强度。推荐范围 0.02-0.05。"""
+
+    zh1_role_drift_sigma_max: float = Field(
+        default=0.3,
+        ge=0.05,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "漂移最大标准差",
+                "en_US": "Drift max sigma",
+                "ja_JP": "ドリフト最大標準偏差",
+            },
+            "x-widget": "input",
+            "x-icon": "sigma",
+            "advanced": True,
+        },
+    )
+    """漂移高斯噪声的最大标准差。推荐范围 0.1-0.5。"""
+
+    zh1_role_drift_selection_ratio: float = Field(
+        default=0.167,
+        ge=0.0,
+        le=0.5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "选择算子淘汰比例",
+                "en_US": "Selection ratio",
+                "ja_JP": "選択オペレータ淘汰比率",
+            },
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """进化笼子中淘汰最低适应度参数的比例（2/12≈0.167）。"""
+
+    zh1_role_drift_w_interaction: float = Field(
+        default=0.4,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {"zh_CN": "互动深度权重", "en_US": "Interaction weight", "ja_JP": "インタラクション重み"},
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """适应度 = w1×互动 + w2×关系 + w3×独特 + w4×情绪。"""
+
+    zh1_role_drift_w_relation: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {"zh_CN": "关系贡献权重", "en_US": "Relation weight", "ja_JP": "関係重み"},
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """关系贡献权重。"""
+
+    zh1_role_drift_w_uniqueness: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {"zh_CN": "表达独特性权重", "en_US": "Uniqueness weight", "ja_JP": "独自性重み"},
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """表达独特性权重。"""
+
+    zh1_role_drift_w_emotion: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "label": {"zh_CN": "情绪匹配权重（预留）", "en_US": "Emotion weight (reserved)", "ja_JP": "感情重み（予約）"},
+            "x-widget": "input",
+            "x-icon": "percent",
+            "advanced": True,
+        },
+    )
+    """情绪匹配权重——V2 开启，V1=0.0 预留。"""
+
+    zh1_role_drift_reflection_interval: int = Field(
+        default=3600,
+        ge=600,
+        le=86400,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "反思周期（秒）",
+                "en_US": "Reflection interval (seconds)",
+                "ja_JP": "内省周期（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "clock",
+            "advanced": True,
+        },
+    )
+    """M5 反思节拍间隔秒数。推荐范围 1800-7200。"""
+
 
 class WatchdogSectionConfig(ConfigBase):
     """看门狗配置类（ZG-3 事件循环阻塞检测与 Runner 健康桥接）。

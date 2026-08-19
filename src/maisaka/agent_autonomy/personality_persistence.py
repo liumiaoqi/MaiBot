@@ -11,7 +11,7 @@ from typing import Optional
 
 from sqlmodel import select
 
-from src.common.database.database import get_session
+from src.common.database.database import get_db_session
 from src.common.database.database_model import AgentSelfModification
 from src.common.logger import get_logger
 from src.maisaka.agent.config import PersonalityLayer
@@ -50,7 +50,7 @@ class PersonalityPersistence:
         new_hash = hashlib.sha256(modification_text.encode()).hexdigest()
 
         try:
-            async with get_session() as session:
+            async with get_db_session() as session:
                 record = AgentSelfModification(
                     agent_id=agent_id,
                     layer=layer.value,
@@ -80,7 +80,7 @@ class PersonalityPersistence:
     ) -> list[AgentSelfModificationRead]:
         """查询未覆盖的修改（overridden_by_yaml=False）。"""
         try:
-            async with get_session() as session:
+            async with get_db_session() as session:
                 result = await session.exec(
                     select(AgentSelfModification)
                     .where(AgentSelfModification.agent_id == agent_id)
@@ -138,7 +138,7 @@ class PersonalityPersistence:
     ) -> None:
         """管理员修改 YAML 后标记旧数据库修改为已覆盖。"""
         try:
-            async with get_session() as session:
+            async with get_db_session() as session:
                 result = await session.exec(
                     select(AgentSelfModification)
                     .where(AgentSelfModification.agent_id == agent_id)

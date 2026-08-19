@@ -929,6 +929,17 @@ class AgentAutonomySnapshot:
     mention_chain_max_depth: int = 4
     cohabitation_decay_factor: float = 0.5
     cohabitation_min_max: int = 2
+    # ZH-1: 角色参数漂移配置
+    zh1_role_drift_enabled: bool = False
+    zh1_role_drift_drift_period: int = 500
+    zh1_role_drift_regression_rate: float = 0.03
+    zh1_role_drift_sigma_max: float = 0.3
+    zh1_role_drift_selection_ratio: float = 0.167
+    zh1_role_drift_w_interaction: float = 0.4
+    zh1_role_drift_w_relation: float = 0.2
+    zh1_role_drift_w_uniqueness: float = 0.3
+    zh1_role_drift_w_emotion: float = 0.0
+    zh1_role_drift_reflection_interval: int = 3600
 
 
 

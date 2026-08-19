@@ -3,3 +3,7 @@
 三通道协同：参数漂移（内因·性格）+ 叙事推力（外因·事件）+ 反思节拍（内省·质量）。
 exp60 实测三合一协同 +87.2% > 单机制。
 """
+
+from src.maisaka.agent_autonomy.personality_drift.personality_drift_manager import PersonalityDriftManager
+
+__all__ = ["PersonalityDriftManager"]

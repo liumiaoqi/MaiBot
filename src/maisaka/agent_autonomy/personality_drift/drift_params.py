@@ -8,6 +8,12 @@ import json
 from dataclasses import dataclass, field, fields
 from typing import List
 
+from src.common.logger import get_logger
+
+logger = get_logger("maisaka.personality_drift.drift_params")
+
+ZH1_DRIFT_MARKER = '"exploration_rate"'
+
 
 @dataclass
 class DriftParam:
@@ -86,13 +92,27 @@ class DriftParams:
         )
 
     @classmethod
+    def is_drift_format(cls, text: str) -> bool:
+        """检查文本是否为 DriftParams JSON 格式（而非角色原文）。"""
+        if not text or not text.strip():
+            return False
+        return ZH1_DRIFT_MARKER in text
+
+    @classmethod
     def from_layer_text(cls, text: str) -> "DriftParams":
-        """从 EXPRESSION 层文本解析。空文本返回默认值。"""
+        """从 EXPRESSION 层文本解析。空文本返回默认值。
+
+        解析失败时出声警告（不静默 return），防止覆写角色原文。
+        """
         if not text or not text.strip():
             return cls()
         try:
             data = json.loads(text)
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning(
+                "from_layer_text: EXPRESSION 层文本非 DriftParams JSON，返回默认值（不覆写原文）: %s",
+                exc,
+            )
             return cls()
         params = cls()
         for p in params.all_params():

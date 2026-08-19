@@ -60,7 +60,7 @@ class TestDriftStep:
         after = DriftParams.from_layer_text(lp.get_layer_text(PersonalityLayer.EXPRESSION))
         changed = any(
             abs(o.value - a.value) > 1e-9
-            for o, a in zip(original.all_params(), after.all_params())
+            for o, a in zip(original.all_params(), after.all_params(), strict=True)
         )
         assert changed
 

@@ -2,6 +2,10 @@
 
 Concordia QuestionOfRecentMemories 范式 + exp57 +7.3%。
 情境变化触发（非轮次节流——exp57 实测每 5 轮 +0.9%≈无效）。
+
+接线状态：V1 未接入生产情境感知。M5 将在情境感知系统集成时通过
+orchestrator 在 context_change 事件中调用 reflection.should_trigger + reflect 接线。
+当前 reflect 已通过 T5 单测验证逻辑正确性。
 """
 
 from typing import TYPE_CHECKING

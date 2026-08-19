@@ -36,6 +36,17 @@ def agent_autonomy_ports():
         mention_chain_max_depth=4,
         cohabitation_decay_factor=0.5,
         cohabitation_min_max=2,
+        # ZH-1: 角色参数漂移配置
+        zh1_role_drift_enabled=False,
+        zh1_role_drift_drift_period=500,
+        zh1_role_drift_regression_rate=0.03,
+        zh1_role_drift_sigma_max=0.3,
+        zh1_role_drift_selection_ratio=0.167,
+        zh1_role_drift_w_interaction=0.4,
+        zh1_role_drift_w_relation=0.2,
+        zh1_role_drift_w_uniqueness=0.3,
+        zh1_role_drift_w_emotion=0.0,
+        zh1_role_drift_reflection_interval=3600,
     )
     app_config_port.get_agent_autonomy_config.return_value = autonomy_config
     event_bus_port = MagicMock()

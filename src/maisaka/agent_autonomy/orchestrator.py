@@ -1,7 +1,7 @@
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from src.maisaka.agent_interaction.engine import InteractionEngine
@@ -123,8 +123,12 @@ class AgentOrchestrator:
             self._strategy = DefaultOrchestratorStrategy()
 
         # 生命力管理
+        self._drift_manager = None
         self._vitality_manager = VitalityManager(self)
-        self._vitality_tick_scheduler = VitalityTickScheduler(self._vitality_manager)
+        self._vitality_tick_scheduler = VitalityTickScheduler(
+            self._vitality_manager,
+            drift_tick_callback=self._build_drift_tick_callback(),
+        )
         self._vitality_tick_scheduler.start()
 
         # 状态互知
@@ -188,6 +192,68 @@ class AgentOrchestrator:
         bus.subscribe("interjection_mention", self._on_interjection_mention)
         bus.subscribe("session_message", self._ambient_awareness.on_session_message)
         bus.subscribe("agent_speak", self._ambient_awareness.on_agent_speak)
+
+    def _build_drift_tick_callback(self) -> Callable[[], None]:
+        """ZH-1: 构建角色参数漂移心跳回调。
+
+        创建 PersonalityDriftManager 并返回闭包——遍历活跃智能体，
+        查询最强关系获取 interaction_count + user_id，调用 on_tick。
+        """
+        cfg = self._config
+        if not cfg.zh1_role_drift_enabled:
+            return lambda: None
+
+        try:
+            from src.maisaka.agent.config import LayeredPersonalityConfig
+            from src.maisaka.agent_autonomy.personality_algo.plasticity import PlasticityCalculator
+            from src.maisaka.agent_autonomy.personality_drift import PersonalityDriftManager
+            from src.maisaka.agent_autonomy.personality_drift.drift_fitness_collector import DriftFitnessCollector
+            from src.maisaka.agent_autonomy.personality_persistence import PersonalityPersistence
+            from src.maisaka.relationship.manager import RelationshipManager
+
+            drift_config = {
+                "enabled": cfg.zh1_role_drift_enabled,
+                "drift_period": cfg.zh1_role_drift_drift_period,
+                "regression_rate": cfg.zh1_role_drift_regression_rate,
+                "sigma_max": cfg.zh1_role_drift_sigma_max,
+                "selection_ratio": cfg.zh1_role_drift_selection_ratio,
+            }
+            fitness_config = {
+                "w_interaction": cfg.zh1_role_drift_w_interaction,
+                "w_relation": cfg.zh1_role_drift_w_relation,
+                "w_uniqueness": cfg.zh1_role_drift_w_uniqueness,
+                "w_emotion": cfg.zh1_role_drift_w_emotion,
+            }
+
+            relationship_manager = RelationshipManager()
+            fitness_collector = DriftFitnessCollector(relationship_manager, fitness_config)
+            plasticity = PlasticityCalculator(LayeredPersonalityConfig())
+            persistence = PersonalityPersistence()
+            drift_manager = PersonalityDriftManager(
+                drift_config, persistence, plasticity, fitness_collector,
+            )
+            self._drift_manager = drift_manager
+
+            def _drift_tick() -> None:
+                for agent_id, agent in self._active_agents.items():
+                    agent_config = agent.agent_config
+                    if agent_config is None:
+                        continue
+                    layered_personality = getattr(agent_config, "layered_personality", None)
+                    if layered_personality is None:
+                        continue
+                    strongest = RelationshipManager.get_strongest_relationship(agent_id)
+                    if strongest is None:
+                        continue
+                    user_id, interaction_count = strongest
+                    drift_manager.on_tick(
+                        agent_id, interaction_count, layered_personality, user_id,
+                    )
+
+            return _drift_tick
+        except Exception as exc:
+            logger.warning("[ZH-1] 漂移管理器初始化失败，漂移回调禁用: %s", exc)
+            return lambda: None
 
 
     async def _on_interaction_signal(self, event: Any) -> None:

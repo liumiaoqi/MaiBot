@@ -3,8 +3,12 @@
 漂移算子 = 选择 + 经典梯度（exp53b 实证 +85.3%）。
 回归力 3-4%（exp60 实测 6% 略强，调 3%）。
 V2 增强：自我认知协方差（exp60c +54.7% > 全局共享 +52.6%），V1 用独立高斯。
+
+V1 范围：经典梯度漂移 + 回归力 + 存档。
+V2 范围：进化笼子（淘汰最低 selection_ratio + 冠军繁殖）+ 协方差漂移。
 """
 
+import asyncio
 import random
 from typing import TYPE_CHECKING
 
@@ -55,19 +59,28 @@ class PersonalityDriftManager:
         if interaction_count <= 0 or interaction_count % self._drift_period != 0:
             return
         try:
-            fitness = self._fitness.collect(agent_id, user_id)
             layer_text = layered_personality.get_layer_text(PersonalityLayer.EXPRESSION)
-            params = DriftParams.from_layer_text(layer_text)
+            if not DriftParams.is_drift_format(layer_text):
+                logger.info(
+                    "drift tick: agent=%s EXPRESSION 层非 DriftParams JSON，首次漂移初始化参数（不覆写角色原文）",
+                    agent_id,
+                )
+                params = DriftParams()
+            else:
+                params = DriftParams.from_layer_text(layer_text)
+            before_values = {p.name: round(p.value, 3) for p in params.all_params()}
+            fitness = self._fitness.collect(agent_id, user_id)
             self._drift_step(params, fitness, interaction_count)
             self._regression(params)
             params.clamp_all()
-            layered_personality.set_layer_text(
-                PersonalityLayer.EXPRESSION, params.to_layer_text()
-            )
+            new_text = params.to_layer_text()
+            layered_personality.set_layer_text(PersonalityLayer.EXPRESSION, new_text)
+            after_values = {p.name: round(p.value, 3) for p in params.all_params()}
             logger.info(
-                "drift tick: agent=%s fitness=%.3f params=%s",
-                agent_id, fitness, {p.name: round(p.value, 3) for p in params.all_params()},
+                "drift tick: agent=%s interactions=%d fitness=%.3f before=%s after=%s",
+                agent_id, interaction_count, fitness, before_values, after_values,
             )
+            self._fire_and_forget_save(agent_id, params)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -83,6 +96,7 @@ class PersonalityDriftManager:
 
         V1: 独立高斯 random.gauss(0, sigma*scale)。
         V2: 自我认知协方差（exp60c 验证更优），V1 跑稳后切换。
+        V2: 进化笼子——淘汰最低 selection_ratio 参数 + 冠军繁殖（未实现，V1 跑稳后启用）。
         """
         plasticity = self._plasticity.compute(interaction_count)
         sigma = self._sigma_max * plasticity
@@ -102,6 +116,14 @@ class PersonalityDriftManager:
                 p.value * (1 - self._regression_rate)
                 + p.initial_value * self._regression_rate
             )
+
+    def _fire_and_forget_save(self, agent_id: str, params: DriftParams) -> None:
+        """异步存档漂移记录（fire-and-forget，失败不阻断漂移）。"""
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.save_drift_record(agent_id, params))
+        except RuntimeError:
+            logger.debug("drift save 跳过（无事件循环）: agent=%s", agent_id)
 
     async def save_drift_record(
         self,

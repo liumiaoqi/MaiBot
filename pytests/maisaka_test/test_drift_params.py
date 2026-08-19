@@ -1,7 +1,5 @@
 """T1: M1 DriftParams dataclass 测试。"""
 
-import json
-
 import pytest
 
 from src.maisaka.agent.config import LayeredPersonality, PersonalityLayer
@@ -16,7 +14,7 @@ class TestDriftParamsSerialization:
         params = DriftParams()
         text = params.to_layer_text()
         restored = DriftParams.from_layer_text(text)
-        for p_orig, p_restored in zip(params.all_params(), restored.all_params()):
+        for p_orig, p_restored in zip(params.all_params(), restored.all_params(), strict=True):
             assert p_orig.name == p_restored.name
             assert p_orig.value == pytest.approx(p_restored.value)
             assert p_orig.min_val == pytest.approx(p_restored.min_val)
