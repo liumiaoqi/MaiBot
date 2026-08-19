@@ -2,7 +2,7 @@
 
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
@@ -18,13 +18,15 @@ class VitalityTickScheduler:
 
     def __init__(
         self,
-        vitality_manager: VitalityManager,
+        vitality_manager: "VitalityManager",
         interval_seconds: int | None = None,
+        drift_tick_callback: Optional[Callable[[], None]] = None,
     ) -> None:
         self._vitality_manager = vitality_manager
         self._interval = interval_seconds or get_app_config_port().get_agent_autonomy_config().vitality_tick_interval_seconds
         self._task: asyncio.Task | None = None
         self._running = False
+        self._drift_tick_callback = drift_tick_callback
 
     def start(self) -> None:
         """启动心跳周期任务。"""
@@ -56,6 +58,8 @@ class VitalityTickScheduler:
                 self._tick_emotion_decay()
                 # LS-4: 心跳驱动共激活衰减
                 await self._tick_coactivation_decay()
+                # ZH-1: 心跳驱动角色参数漂移
+                self._tick_drift()
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -108,3 +112,17 @@ class VitalityTickScheduler:
             if port is not None:
                 port.report(ErrorLevel.WARNING, '[vitality_tick] 共激活衰减跳过: error=', exception=exc)
             logger.debug(f"[vitality_tick] 共激活衰减跳过: error={exc}")
+
+    def _tick_drift(self) -> None:
+        """ZH-1: 心跳驱动角色参数漂移。"""
+        if self._drift_tick_callback is None:
+            return
+        try:
+            self._drift_tick_callback()
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, '[vitality_tick] 漂移回调跳过: error=', exception=exc)
+            logger.debug(f"[vitality_tick] 漂移回调跳过: error={exc}")
