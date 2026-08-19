@@ -161,6 +161,7 @@ class KernelInitializer:
             kernel,
             import_write_blocked_provider=kernel.import_task_manager.is_write_blocked,
             llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
+            artifacts_base=kernel.data_dir / "artifacts",
         )
 
     @staticmethod

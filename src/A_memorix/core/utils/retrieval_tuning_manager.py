@@ -296,6 +296,7 @@ class RetrievalTuningManager:
         *,
         import_write_blocked_provider: Optional[Callable[[], bool]] = None,
         llm_api: Any = None,
+        artifacts_base: Optional[Path] = None,
     ):
         self.plugin = plugin
         self._import_write_blocked_provider = import_write_blocked_provider
@@ -311,7 +312,10 @@ class RetrievalTuningManager:
 
         self._rollback_snapshot: Optional[Dict[str, Any]] = None
 
-        self._artifacts_root = artifacts_root() / "retrieval_tuning"
+        # ZG-32 修复: 运行时路径由调用方传入(kernel.data_dir 派生), 不再硬编码
+        # v1 插件目录(data/plugins/a-dawn.a-memorix)——否则每次启动重建废弃目录
+        base = artifacts_base if artifacts_base is not None else artifacts_root()
+        self._artifacts_root = base / "retrieval_tuning"
         self._artifacts_root.mkdir(parents=True, exist_ok=True)
 
     def _cfg(self, key: str, default: Any = None) -> Any:
