@@ -87,6 +87,11 @@
    - 团队 skill（工作流即插件）：`.agents/skills/`（11 个——code-review/pre-push-checks/trim-cot-leakage 等）
    - 全部有中文版（.zh.md）；详见 `.shared/decisions/dsh_team_skills_observation_0817.md`
 
+7. **克隆池 Skill 库使用引导（2026-08-19 立——5 库 + dsh 11 + 用户 6 全景）**：
+   - 完整版：`.shared/decisions/clone_skill_library_guide_0819.md`
+   - 常用映射：双轴审核→skills/code-review；对抗审查→agent-skills/doubt-driven-development；安全加固→agent-skills/security-and-hardening；科学统计→scientific-agent-skills/statistical-analysis；代码审计→reverse-skill/code-audit
+   - 原则：skill 是方法不是圣经——引入前问"它解决我们哪个具体痛点"
+
 # 新模块接线（硬性规则——2026-08-15 立，ZG16-2/ZG16-5 两次静默失效教训）
 
 **新模块（新文件/新类/新入口函数）必须存在生产接线点，禁止"只有定义没有调用点"。**
