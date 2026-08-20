@@ -28,7 +28,7 @@ ENV PYTHON_FREE_THREADED=1
 COPY pyproject.toml uv.lock ./
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends git ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
 # Install runtime dependencies
