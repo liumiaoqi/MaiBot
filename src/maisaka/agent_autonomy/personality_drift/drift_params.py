@@ -6,7 +6,7 @@
 
 import json
 from dataclasses import dataclass, field, fields
-from typing import List
+
 
 from src.common.logger import get_logger
 
@@ -24,7 +24,7 @@ class DriftParam:
     min_val: float
     max_val: float
     initial_value: float
-    history: List[float] = field(default_factory=list)
+    history: list[float] = field(default_factory=list)
 
     def clamp(self) -> None:
         """将值约束到 [min_val, max_val]。"""
@@ -72,7 +72,7 @@ class DriftParams:
     curiosity: DriftParam = field(default_factory=lambda: _param("curiosity", 0.6, 0.0, 1.0))
     emotion_volatility: DriftParam = field(default_factory=lambda: _param("emotion_volatility", 0.3, 0.0, 1.0))
 
-    def all_params(self) -> List[DriftParam]:
+    def all_params(self) -> list[DriftParam]:
         """返回所有参数列表。"""
         return [getattr(self, f.name) for f in fields(self)]
 
