@@ -132,3 +132,8 @@ description = "用于根据用户的自然语言修改描述和候选记忆，�
 display_name = "中期聊天摘要"
 advanced = true
 description = "用于在上下文裁切时，将被移出的聊天记录概括成 long_summary、brief 和 keywords。"
+
+[memory_retrieval_react_prompt_head_memory]
+display_name = "记忆检索 ReAct 头部"
+advanced = true
+description = "ReAct 式记忆查询流程使用的高级记忆检索提示词头部。"

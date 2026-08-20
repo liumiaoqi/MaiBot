@@ -9,7 +9,7 @@
 
 import asyncio
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from typing import Protocol, runtime_checkable
 
@@ -1491,7 +1491,7 @@ class AppConfigPort(Protocol):
 
     def get_resource_limit_plugin_config(
         self, plugin_id: str
-    ) -> "ResourceLimitConfigData" | None:
+    ) -> Optional["ResourceLimitConfigData"]:
         """获取插件资源配置（四档阈值 + oom_group + events_local）。"""
         ...
 
@@ -1559,11 +1559,11 @@ class ServiceManagerPort(Protocol):
     async def restart(self, component_id: str, *, confirmed: bool = False) -> "LifecycleActionResult":
         """重启组件（停止后启动，限时 30s）。"""
 
-    def get_state(self, component_id: str) -> "ServiceStateSnapshot" | None:
+    def get_state(self, component_id: str) -> Optional["ServiceStateSnapshot"]:
         """查询单个组件状态（内存，≤100ms）。"""
 
     def list_states(
-        self, *, filter_state: "ServiceState" | None = None
+        self, *, filter_state: Optional["ServiceState"] = None
     ) -> list["ServiceStateSnapshot"]:
         """查询全部组件状态，可按状态过滤。"""
 
@@ -1672,7 +1672,7 @@ class WatchdogPort(Protocol):
             WatchdogStatus 不可变快照
         """
 
-    def get_runner_bridge_status(self, runner_id: str) -> "RunnerBridgeStatus" | None:
+    def get_runner_bridge_status(self, runner_id: str) -> Optional["RunnerBridgeStatus"]:
         """查询单个 Runner 桥接状态快照。
 
         Args:
@@ -1828,7 +1828,7 @@ class ResourceLimitPort(Protocol):
 
     def get_usage_snapshot(
         self, plugin_id: str
-    ) -> "ResourceUsageSnapshot" | None:
+    ) -> Optional["ResourceUsageSnapshot"]:
         """查询单插件资源计量快照（同步，内存）。"""
 
     async def register_plugin(
@@ -1849,7 +1849,7 @@ class ResourceLimitPort(Protocol):
 
     def record_pressure_sample(
         self, scanned: int, reclaimed: int, scan_priority: int = 12
-    ) -> "PressureLevel" | None:
+    ) -> Optional["PressureLevel"]:
         """记录压力采样（同步，热路径）。
 
         窗口累计 + 三重判定（窗口累计 + 比率算法 + 优先级兜底）。
@@ -1870,7 +1870,7 @@ class ResourceLimitPort(Protocol):
         dimension: "ResourceDimension",
         usage: int,
         limit: int,
-    ) -> "OOMDecision" | None:
+    ) -> Optional["OOMDecision"]:
         """触发 OOM 处理（单锁串行 + 异步处置）。
 
         Args:
@@ -1976,7 +1976,7 @@ class ControlMessagePort(Protocol):
             ValueError: kind 编号越界或非系统级强制类别
         """
 
-    def dequeue_next(self, session_id: str) -> "ControlMessage" | None:
+    def dequeue_next(self, session_id: str) -> Optional["ControlMessage"]:
         """出队下一个可投递控制消息（同步，热路径）。
 
         前置：无。后置：按固定优先级链（系统级强制 → 引擎致命 → 会话控制 →
@@ -2206,7 +2206,7 @@ class ErrorEscalationPort(Protocol):
         *,
         component_id: str | None = None,
         exception: Exception | None = None,
-        taint_flag: "TaintFlag" | None = None,
+        taint_flag: Optional["TaintFlag"] = None,
         once: bool = False,
     ) -> None:
         """统一错误上报入口。
@@ -2275,3 +2275,5 @@ class SystemStateMachinePort(Protocol):
 
     async def trigger_shutdown(self) -> None:
         """SHUTDOWN_SIGNAL 幂等守卫，优雅停机（不杀进程，N2 裁决）。"""
+
+
