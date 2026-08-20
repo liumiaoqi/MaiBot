@@ -145,7 +145,6 @@ class TestScenario5FatalGracefulStop:
         """N2 裁决：FATAL 上报后测试进程继续运行（spec §5.3.1 规则 12）。"""
         esc, ports = make_escalator()
         esc.report(ErrorLevel.FATAL, "must not kill")
-        assert True  # 进程未退出即通过
 
 
 class TestScenario13NestedFatalGuard:
@@ -257,13 +256,11 @@ class TestPortMissingFallback:
         await _drain(esc)
         esc.report(ErrorLevel.CRITICAL, "still fine", component_id="x")
         await _drain(esc)
-        assert True  # 全程不抛异常
 
     async def test_crash_dump_without_port_logs_warning(self) -> None:
         esc, _ = make_escalator(with_ports=False)
         esc.report(ErrorLevel.CRITICAL, "missing crash port")
         await _drain(esc)
-        assert True
 
 
 class TestActionsOverride:

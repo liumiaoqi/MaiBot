@@ -39,7 +39,7 @@ class TestProductionWiring:
 
         # 优先检查 registry（运行时收集）
         if _registry_contains("mid_term_persistence"):
-            assert True
+
             return
         # fallback: 源码检查声明存在
         assert _source_contains(src.main, 'name="mid_term_persistence"'), \
@@ -50,7 +50,7 @@ class TestProductionWiring:
         import src.main
 
         if _registry_contains("mid_term_summary_queue"):
-            assert True
+
             return
         assert _source_contains(src.main, 'name="mid_term_summary_queue"'), \
             "main.py 未声明 @startup_item(name='mid_term_summary_queue')"

@@ -168,7 +168,6 @@ class TestScenario14N2NoKill:
         for level in ErrorLevel:
             esc.report(level, f"n2 check {level.value}")
         await drain(esc)
-        assert True  # 进程未退出即通过
 
     async def test_no_kill_actions_in_defaults(self) -> None:
         """FATAL 最高动作 STOP_CORE 优雅停机，无 kill/exit（N2 裁决）。"""
