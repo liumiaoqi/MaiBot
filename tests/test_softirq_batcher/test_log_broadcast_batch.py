@@ -13,6 +13,8 @@ async def test_set_loop_constructs_softirq():
     loop = asyncio.get_running_loop()
     handler.set_loop(loop)
     assert handler._softirq is not None
+    # set_loop 通过 call_soon 调度 start，需让事件循环处理回调后 _drainer 才赋值
+    await asyncio.sleep(0)
     assert handler._softirq._drainer is not None
     handler.close()
 

@@ -1,48 +1,60 @@
 from types import SimpleNamespace
 
+import pytest
+
 from src.A_memorix.core.utils.summary_importer import (
     SummaryImporter,
     _message_timestamp,
     _normalize_entity_items,
     _normalize_relation_items,
 )
-from src.config.model_configs import TaskConfig
+
+from src.core.model_config_port_registry import (
+    register_model_config_port,
+    reset_model_config_port,
+)
+from src.llm_models.model_requirement import ResolvedModel
 
 
-def _fake_llm_api(models: dict[str, TaskConfig]):
-    return SimpleNamespace(get_available_models=lambda: models)
+class _FakeModelConfigPort:
+    """假 ModelConfigPort——resolve_by_capability 返回指定模型（ZG-12 主路径）。"""
+
+    def __init__(self, model_name: str = "memory-model") -> None:
+        self._model_name = model_name
+
+    def resolve_by_capability(self, capabilities, *, agent_id="", options=None):
+        return ResolvedModel(
+            category="llm",
+            name=self._model_name,
+            model_identifier=self._model_name,
+            api_provider="fake-provider",
+            capabilities=frozenset(capabilities),
+        )
+
+    def get_model_config(self):
+        return SimpleNamespace(models_dict={self._model_name: SimpleNamespace(name=self._model_name)})
 
 
-def test_resolve_summary_model_config_uses_auto_list_when_summarization_missing():
-    importer = SummaryImporter(
+@pytest.fixture(autouse=True)
+def _reset_model_config_port_around_test():
+    yield
+    reset_model_config_port()
+
+
+def _make_importer(plugin_config=None, llm_api=None):
+    return SummaryImporter(
         vector_store=None,
         graph_store=None,
         metadata_store=None,
         embedding_manager=None,
-        plugin_config={},
-        llm_api=_fake_llm_api(
-            {
-                "memory": TaskConfig(
-                    model_list=["memory-model"],
-                    max_tokens=512,
-                    temperature=0.4,
-                    selection_strategy="random",
-                ),
-                "utils": TaskConfig(
-                    model_list=["utils-model"],
-                    max_tokens=256,
-                    temperature=0.5,
-                    selection_strategy="random",
-                ),
-                "replyer": TaskConfig(
-                    model_list=["replyer-model"],
-                    max_tokens=128,
-                    temperature=0.7,
-                    selection_strategy="random",
-                ),
-            }
-        ),
+        plugin_config=plugin_config or {},
+        llm_api=llm_api or SimpleNamespace(get_available_models=lambda: {}),
     )
+
+
+def test_resolve_summary_model_config_uses_auto_list_when_summarization_missing():
+    register_model_config_port(_FakeModelConfigPort("memory-model"))
+    importer = _make_importer()
 
     resolved = importer._resolve_summary_model_config()
 
@@ -51,49 +63,21 @@ def test_resolve_summary_model_config_uses_auto_list_when_summarization_missing(
 
 
 def test_resolve_summary_model_config_auto_falls_back_to_utils_then_planner():
-    importer = SummaryImporter(
-        vector_store=None,
-        graph_store=None,
-        metadata_store=None,
-        embedding_manager=None,
-        plugin_config={},
-        llm_api=_fake_llm_api(
-            {
-            "utils": TaskConfig(model_list=["utils-model"]),
-            "planner": TaskConfig(model_list=["planner-model"]),
-            "replyer": TaskConfig(model_list=["replyer-model"]),
-            }
-        ),
-    )
+    register_model_config_port(_FakeModelConfigPort("utils-model"))
+    importer = _make_importer()
     resolved = importer._resolve_summary_model_config()
     assert resolved is not None
     assert resolved[1].model_list == ["utils-model"]
 
-    importer._llm_api = _fake_llm_api(
-        {
-            "planner": TaskConfig(model_list=["planner-model"]),
-            "replyer": TaskConfig(model_list=["replyer-model"]),
-        }
-    )
+    register_model_config_port(_FakeModelConfigPort("planner-model"))
     resolved = importer._resolve_summary_model_config()
     assert resolved is not None
     assert resolved[1].model_list == ["planner-model"]
 
 
 def test_resolve_summary_model_config_auto_falls_back_to_replyer():
-    importer = SummaryImporter(
-        vector_store=None,
-        graph_store=None,
-        metadata_store=None,
-        embedding_manager=None,
-        plugin_config={},
-        llm_api=_fake_llm_api(
-            {
-            "replyer": TaskConfig(model_list=["replyer-model"]),
-            "embedding": TaskConfig(model_list=["embedding-model"]),
-            }
-        ),
-    )
+    register_model_config_port(_FakeModelConfigPort("replyer-model"))
+    importer = _make_importer()
 
     resolved = importer._resolve_summary_model_config()
     assert resolved is not None
@@ -101,23 +85,8 @@ def test_resolve_summary_model_config_auto_falls_back_to_replyer():
 
 
 def test_resolve_summary_model_config_tolerates_legacy_string_selector():
-    importer = SummaryImporter(
-        vector_store=None,
-        graph_store=None,
-        metadata_store=None,
-        embedding_manager=None,
-        plugin_config={"summarization": {"model_name": "auto"}},
-        llm_api=_fake_llm_api(
-            {
-                "memory": TaskConfig(
-                    model_list=["memory-model"],
-                    max_tokens=512,
-                    temperature=0.4,
-                    selection_strategy="random",
-                ),
-            }
-        ),
-    )
+    register_model_config_port(_FakeModelConfigPort("memory-model"))
+    importer = _make_importer(plugin_config={"summarization": {"model_name": "auto"}})
 
     resolved = importer._resolve_summary_model_config()
     assert resolved is not None

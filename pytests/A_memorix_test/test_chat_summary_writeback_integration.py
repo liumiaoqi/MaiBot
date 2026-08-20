@@ -417,6 +417,24 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
     monkeypatch.setattr(integration_config, "chat_summary_writeback_context_length", 10, raising=False)
     monkeypatch.setattr(integration_config, "person_fact_writeback_enabled", False, raising=False)
 
+    from src.core.model_config_port_registry import register_model_config_port, reset_model_config_port
+    from src.llm_models.model_requirement import ResolvedModel
+
+    class _FakeModelConfigPort:
+        def resolve_by_capability(self, capabilities, *, agent_id="", options=None):
+            return ResolvedModel(
+                category="llm",
+                name="fake-summary-model",
+                model_identifier="fake-summary-model",
+                api_provider="fake-provider",
+                capabilities=frozenset(capabilities),
+            )
+
+        def get_model_config(self):
+            return SimpleNamespace(models_dict={})
+
+    register_model_config_port(_FakeModelConfigPort())
+
     await kernel.initialize()
 
     try:
@@ -472,6 +490,7 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
     finally:
         await service.shutdown()
         await kernel.shutdown()
+        reset_model_config_port()
         try:
             database_module.engine.dispose()
         except Exception:
