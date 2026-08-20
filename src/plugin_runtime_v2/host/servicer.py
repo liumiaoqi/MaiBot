@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, AsyncIterator
 
 import grpc
 
+from src.common.async_utils import _safe_create_task
 from src.common.logger import get_logger
 from src.plugin_runtime_v2.host.connection import (
     ConnectionState,
@@ -301,7 +302,7 @@ class _PluginHostServicer(PluginHostServicer):
             logger.warning("Runner %s 心跳超时，关闭双向流", rid)
             supervisor = getattr(self, "_supervisor", None)
             if supervisor is not None:
-                asyncio.create_task(
+                _safe_create_task(
                     supervisor._on_heartbeat_timeout(rid),
                     name=f"supervisor-hb-timeout-{rid}",
                 )
@@ -344,7 +345,7 @@ class _PluginHostServicer(PluginHostServicer):
                             "Runner %s 推送 Event: %s", runner_id, event.event_name,
                         )
                         if self._host_bridge is not None:
-                            asyncio.create_task(
+                            _safe_create_task(
                                 self._host_bridge.on_event_received(
                                     event.event_name, event.payload, runner_id,
                                 ),
@@ -572,7 +573,7 @@ class _PluginHostServicer(PluginHostServicer):
         self._registry.unregister(runner_id)
         self._outboxes.pop(runner_id, None)
         if self._host_bridge is not None:
-            asyncio.create_task(
+            _safe_create_task(
                 self._host_bridge.on_runner_disconnected(runner_id, plugin_id),
                 name=f"bridge-disconnect-{runner_id}",
             )

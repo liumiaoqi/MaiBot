@@ -641,7 +641,7 @@ def _competition_merge(
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "竞争合并批量查询异常", exception=exc)
             except Exception:
-                pass
+                logger.exception("posterior_graph error_port.report 失败")
 
     if batch_linked is not None:
         # 批量路径

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable, Coroutine, cast
 
+from src.common.async_utils import _safe_create_task
 from src.common.logger import get_logger
 
 from ...paths import default_data_dir, resolve_repo_path
@@ -106,7 +107,7 @@ def start_background_tasks(plugin: Any) -> None:
         and plugin.get_config("schedule.enabled", True)
         and (plugin._scheduled_import_task is None or plugin._scheduled_import_task.done())
     ):
-        plugin._scheduled_import_task = asyncio.create_task(plugin._scheduled_import_loop())
+        plugin._scheduled_import_task = _safe_create_task(plugin._scheduled_import_loop(), name="scheduled-import")
 
     if (
         plugin.get_config("advanced.enable_auto_save", True)

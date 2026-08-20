@@ -6,12 +6,12 @@ oom_lock 在异步处置派发之前释放（ADR-04：锁内无 I/O）。
 
 
 import asyncio
-from src.common.logger import get_logger
 import time
 import uuid
 from collections import deque
 from typing import Any, Callable, Optional
 
+from src.common.logger import get_logger
 from src.core.error_escalation.types import ErrorLevel
 from src.core.resource_limit.types import (
     OOMAction,

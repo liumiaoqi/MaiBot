@@ -118,7 +118,7 @@ class WatchdogAdapter(WatchdogPort):
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.ERROR, '故障上报异常（component_id=%s）', exception=exc)
+                port.report(ErrorLevel.ERROR, f'故障上报异常（component_id={event.component_id}）', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("故障上报异常（component_id=%s）", event.component_id)

@@ -1,28 +1,31 @@
 """CLI 下的 Prompt 可视化渲染模块。"""
 
-from src.common.logger import get_logger
-
-
+import hashlib
+import json
 from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Mapping
 from urllib.parse import quote
 
-import hashlib
-import json
-
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
+from src.common.logger import get_logger
+
 from .display_utils import (
     format_token_count,
+)
+from .display_utils import (
     format_tool_call_for_display as normalize_tool_call_for_display,
+)
+from .display_utils import (
     get_request_panel_style as get_shared_request_panel_style,
 )
-from .preview_path_utils import build_display_path, build_file_uri, REPO_ROOT
+from .preview_path_utils import REPO_ROOT, build_display_path, build_file_uri
 from .prompt_preview_logger import PromptPreviewLogger
+
 logger = get_logger("auto.prompt_cli_renderer")
 
 DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"

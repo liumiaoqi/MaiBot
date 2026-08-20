@@ -9,7 +9,7 @@ from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
 from src.core.adapters.control_message_adapter import ControlMessageAdapter
 from src.core.adapters.core_readiness_port import CoreReadinessPortAdapter
 from src.core.adapters.llm_service_port import get_llm_service, reset_llm_service  # noqa: F401
-from src.core.adapters.memory_service import get_memory_service_port, reset_memory_service_port  # noqa: F401
+from src.core.adapters.memory_service import AMemorixMemoryServicePort, get_memory_service_port, reset_memory_service_port  # noqa: F401
 from src.core.adapters.message_ingestion_port import get_message_ingestion_port, reset_message_ingestion_port  # noqa: F401
 from src.core.adapters.notice_classifier import NapCatNoticeClassifier
 from src.core.adapters.person_info_port import PersonInfoPortAdapter  # noqa: F401

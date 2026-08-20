@@ -118,7 +118,7 @@ class ReclaimScheduler:
 
                 self._error_port.report(ErrorLevel.WARNING, msg, exception=exc)
             except Exception:
-                pass
+                logger.exception("reclaim_scheduler error_port.report 失败")
 
     async def run_reclaim(self, priority: int = 12) -> ReclaimResult:
         """遍历已注册 shrinker，按 priority 分级预算调 count/scan 两相。

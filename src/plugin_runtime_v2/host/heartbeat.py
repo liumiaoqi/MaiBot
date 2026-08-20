@@ -9,6 +9,7 @@ import asyncio
 import inspect
 from typing import Any, Awaitable, Callable, Optional
 
+from src.common.async_utils import _safe_create_task
 from src.common.logger import get_logger
 
 logger = get_logger("plugin_runtime_v2.host.heartbeat")
@@ -52,7 +53,7 @@ class HeartbeatManager:
             return
         self._response_events[runner_id] = asyncio.Event()
         self._miss_counts[runner_id] = 0
-        self._tasks[runner_id] = asyncio.create_task(
+        self._tasks[runner_id] = _safe_create_task(
             self._heartbeat_loop(runner_id, send_callback, timeout_callback),
             name=f"heartbeat-{runner_id}",
         )

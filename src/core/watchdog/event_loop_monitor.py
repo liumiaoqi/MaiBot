@@ -10,10 +10,9 @@ import threading
 import time
 from typing import Callable, Optional
 
+from src.common.logger import get_logger
 from src.core.watchdog.config import WatchdogConfig
 from src.core.watchdog.types import BlockSeverity, FaultReason, FaultReportEvent, WatchdogStatus
-
-from src.common.logger import get_logger
 
 logger = get_logger(__name__)
 

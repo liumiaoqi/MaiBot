@@ -9,7 +9,7 @@
 
 import asyncio
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Tuple
 
 from typing import Protocol, runtime_checkable
 
@@ -99,7 +99,7 @@ if TYPE_CHECKING:
 class SessionRepository(Protocol):
     """会话查询接口 — 核心通过此接口查询会话信息，不直接依赖 chat_manager。"""
 
-    async def get_session(self, session_id: str) -> Optional[SessionInfo]:
+    async def get_session(self, session_id: str) -> SessionInfo | None:
         """查询会话信息，返回不可变快照。
 
         Args:
@@ -124,7 +124,7 @@ class SessionRepository(Protocol):
 class AgentRoutingService(Protocol):
     """智能体路由接口 — 核心通过此接口解析会话应使用的智能体。"""
 
-    def resolve_agent(self, session_id: str, group_id: Optional[str] = None) -> AgentConfig:
+    def resolve_agent(self, session_id: str, group_id: str | None = None) -> AgentConfig:
         """解析会话应使用的智能体。
 
         Args:
@@ -146,7 +146,7 @@ class AgentRoutingService(Protocol):
             绑定是否成功（智能体不存在或达到上限时返回 False）
         """
 
-    def unbind_session(self, session_id: str, agent_id: Optional[str] = None) -> None:
+    def unbind_session(self, session_id: str, agent_id: str | None = None) -> None:
         """解除会话的智能体绑定。
 
         Args:
@@ -154,7 +154,7 @@ class AgentRoutingService(Protocol):
             agent_id: 智能体 ID，None 时清除该会话所有绑定
         """
 
-    def get_primary_agent(self, session_id: str) -> Optional[str]:
+    def get_primary_agent(self, session_id: str) -> str | None:
         """获取会话的主发言智能体 ID。
 
         Args:
@@ -205,7 +205,7 @@ class ChatRuntime(Protocol):
         intent: str,
         reason: str = "",
         priority: str = "",
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """触发主动对话任务。
 
@@ -260,7 +260,7 @@ class MessageIngestionPort(Protocol):
 class ChatRuntimeRegistry(Protocol):
     """运行时注册表接口 — 核心通过此接口查询运行时实例。"""
 
-    async def get_runtime(self, session_id: str) -> Optional[ChatRuntime]:
+    async def get_runtime(self, session_id: str) -> ChatRuntime | None:
         """获取指定会话的运行时实例。
 
         Args:
@@ -290,7 +290,7 @@ class ChatRuntimeRegistry(Protocol):
             ChatRuntime 实例列表
         """
 
-    def get_runtime_sync(self, session_id: str) -> Optional[ChatRuntime]:
+    def get_runtime_sync(self, session_id: str) -> ChatRuntime | None:
         """同步获取指定会话的运行时实例。
 
         Args:
@@ -300,7 +300,7 @@ class ChatRuntimeRegistry(Protocol):
             ChatRuntime 实例，不存在时返回 None
         """
 
-    def remove_runtime(self, session_id: str) -> Optional[ChatRuntime]:
+    def remove_runtime(self, session_id: str) -> ChatRuntime | None:
         """移除并返回指定会话的运行时实例。
 
         Args:
@@ -418,7 +418,7 @@ class MemoryServicePort(Protocol):
         *,
         action: str,
         target: str = "",
-        hours: Optional[float] = None,
+        hours: float | None = None,
         reason: str = "",
         limit: int = 50,
     ) -> MemoryWriteResult:
@@ -533,7 +533,7 @@ class MemoryServicePort(Protocol):
 class SessionInfoPort(Protocol):
     """会话信息查询接口 — 供组件反向查询会话信息。"""
 
-    def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
+    def get_session_info(self, session_id: str) -> SessionInfo | None:
         """查询会话信息（仅内存缓存）。
 
         Args:
@@ -543,7 +543,7 @@ class SessionInfoPort(Protocol):
             SessionInfo 快照，不存在时返回 None
         """
 
-    def get_existing_session_info(self, session_id: str) -> Optional[SessionInfo]:
+    def get_existing_session_info(self, session_id: str) -> SessionInfo | None:
         """查询会话信息（内存未命中时从数据库加载）。
 
         Args:
@@ -945,11 +945,11 @@ class ReplyerServicePort(Protocol):
 
     def get_replyer(
         self,
-        chat_stream: Optional[SessionInfo] = None,
-        chat_id: Optional[str] = None,
+        chat_stream: SessionInfo | None = None,
+        chat_id: str | None = None,
         request_type: str = "replyer",
         replyer_type: str = "default",
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """获取回复生成器实例。"""
 
 
@@ -970,7 +970,7 @@ class ImageDescriptionPort(Protocol):
 class ForwardFetchPort(Protocol):
     """合并转发拉取接口 — maisaka 通过此接口请求 NapCat get_forward_msg 拉取转发节点。"""
 
-    async def fetch_forward_nodes(self, forward_id: str) -> Optional[list[dict]]:
+    async def fetch_forward_nodes(self, forward_id: str) -> list[dict] | None:
         """根据 forward_id 拉取合并转发节点列表。
 
         Args:
@@ -1074,7 +1074,7 @@ class LLMService(Protocol):
 class PersonInfoPort(Protocol):
     """人物信息查询接口 — 核心通过此接口查询人物信息，不直接依赖 Person 类。"""
 
-    def get_person_info(self, platform: str, user_id: str) -> Optional[PersonInfoResult]:
+    def get_person_info(self, platform: str, user_id: str) -> PersonInfoResult | None:
         """查询人物信息。"""
         ...
 
@@ -1090,7 +1090,7 @@ class PersonInfoPort(Protocol):
         """根据 person_id 获取人物属性值。"""
         ...
 
-    def get_person_detail(self, person_id: str) -> Optional[PersonDetailSnapshot]:
+    def get_person_detail(self, person_id: str) -> PersonDetailSnapshot | None:
         """根据 person_id 获取人物详情快照。"""
         ...
 
@@ -1437,7 +1437,7 @@ class AppConfigPort(Protocol):
         """获取污染动作映射（key=标志名，value=动作；缺省仅记录，默认空 dict）。"""
         ...
 
-    def get_error_escalation_config(self) -> Optional[dict]:
+    def get_error_escalation_config(self) -> dict | None:
         """获取错误升级梯配置域（ZG-14，8 配置项 + 校验；缺失返回 None 按全默认）。"""
         ...
 
@@ -1491,7 +1491,7 @@ class AppConfigPort(Protocol):
 
     def get_resource_limit_plugin_config(
         self, plugin_id: str
-    ) -> Optional["ResourceLimitConfigData"]:
+    ) -> "ResourceLimitConfigData" | None:
         """获取插件资源配置（四档阈值 + oom_group + events_local）。"""
         ...
 
@@ -1559,11 +1559,11 @@ class ServiceManagerPort(Protocol):
     async def restart(self, component_id: str, *, confirmed: bool = False) -> "LifecycleActionResult":
         """重启组件（停止后启动，限时 30s）。"""
 
-    def get_state(self, component_id: str) -> Optional["ServiceStateSnapshot"]:
+    def get_state(self, component_id: str) -> "ServiceStateSnapshot" | None:
         """查询单个组件状态（内存，≤100ms）。"""
 
     def list_states(
-        self, *, filter_state: Optional["ServiceState"] = None
+        self, *, filter_state: "ServiceState" | None = None
     ) -> list["ServiceStateSnapshot"]:
         """查询全部组件状态，可按状态过滤。"""
 
@@ -1672,7 +1672,7 @@ class WatchdogPort(Protocol):
             WatchdogStatus 不可变快照
         """
 
-    def get_runner_bridge_status(self, runner_id: str) -> Optional["RunnerBridgeStatus"]:
+    def get_runner_bridge_status(self, runner_id: str) -> "RunnerBridgeStatus" | None:
         """查询单个 Runner 桥接状态快照。
 
         Args:
@@ -1828,11 +1828,11 @@ class ResourceLimitPort(Protocol):
 
     def get_usage_snapshot(
         self, plugin_id: str
-    ) -> Optional["ResourceUsageSnapshot"]:
+    ) -> "ResourceUsageSnapshot" | None:
         """查询单插件资源计量快照（同步，内存）。"""
 
     async def register_plugin(
-        self, plugin_id: str, parent_id: Optional[str] = None
+        self, plugin_id: str, parent_id: str | None = None
     ) -> None:
         """注册插件到资源计量树。
 
@@ -1849,7 +1849,7 @@ class ResourceLimitPort(Protocol):
 
     def record_pressure_sample(
         self, scanned: int, reclaimed: int, scan_priority: int = 12
-    ) -> Optional["PressureLevel"]:
+    ) -> "PressureLevel" | None:
         """记录压力采样（同步，热路径）。
 
         窗口累计 + 三重判定（窗口累计 + 比率算法 + 优先级兜底）。
@@ -1870,7 +1870,7 @@ class ResourceLimitPort(Protocol):
         dimension: "ResourceDimension",
         usage: int,
         limit: int,
-    ) -> Optional["OOMDecision"]:
+    ) -> "OOMDecision" | None:
         """触发 OOM 处理（单锁串行 + 异步处置）。
 
         Args:
@@ -1976,7 +1976,7 @@ class ControlMessagePort(Protocol):
             ValueError: kind 编号越界或非系统级强制类别
         """
 
-    def dequeue_next(self, session_id: str) -> Optional["ControlMessage"]:
+    def dequeue_next(self, session_id: str) -> "ControlMessage" | None:
         """出队下一个可投递控制消息（同步，热路径）。
 
         前置：无。后置：按固定优先级链（系统级强制 → 引擎致命 → 会话控制 →
@@ -2175,8 +2175,8 @@ class IpcBridgePort(Protocol):
     async def bridge_event(
         self,
         event_type_value: str,
-        message_dict: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        message_dict: Dict[str, Any] | None = None,
+    ) -> Tuple[bool, Dict[str, Any] | None]:
         """桥接事件到插件运行时。
 
         Args:
@@ -2204,9 +2204,9 @@ class ErrorEscalationPort(Protocol):
         level: "ErrorLevel",
         message: str,
         *,
-        component_id: Optional[str] = None,
-        exception: Optional[Exception] = None,
-        taint_flag: Optional["TaintFlag"] = None,
+        component_id: str | None = None,
+        exception: Exception | None = None,
+        taint_flag: "TaintFlag" | None = None,
         once: bool = False,
     ) -> None:
         """统一错误上报入口。
@@ -2246,7 +2246,7 @@ class CrashDumpPort(Protocol):
     def export_on_crash(self, reason: str) -> None:
         """一次性导出（首次调用后后续直接返回，spec §5.5.1 规则 1）。"""
 
-    def export_snapshot(self, reason: str, context: Optional[dict] = None) -> None:
+    def export_snapshot(self, reason: str, context: dict | None = None) -> None:
         """多次导出（快照含等级/计数/配置/日志缓冲，规则 3）。"""
 
 

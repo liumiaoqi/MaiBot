@@ -10,6 +10,9 @@ CognitiveStore(SQLite)，无内存 _states dict 可回收。保留此文件仅�
 import time
 
 from src.A_memorix.core.runtime.shrinker import ShrinkControl
+from src.common.logger import get_logger
+
+logger = get_logger("a_memorix.shrinkers.cognitive")
 
 
 class CognitiveStateShrinker:
@@ -60,6 +63,6 @@ class CognitiveStateShrinker:
                         update_fn(key, status="resolved")
                         resolved += 1
                     except Exception:
-                        pass
+                        logger.exception("cognitive shrinker update_entry 失败 key=%s", key)
         sc.nr_scanned = resolved
         return resolved

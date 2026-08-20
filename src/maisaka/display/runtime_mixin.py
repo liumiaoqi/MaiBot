@@ -9,11 +9,10 @@ from rich.panel import Panel
 from rich.pretty import Pretty
 from rich.text import Text
 
-from src.core.types import CycleDetail
 from src.cli.console import console
 from src.common.logger import get_logger
-
 from src.core.app_config_port_registry import get_app_config_port
+from src.core.types import CycleDetail
 from src.plugin_runtime.hook_payloads import deserialize_prompt_messages
 
 from .display_utils import build_tool_call_summary_lines, format_token_count

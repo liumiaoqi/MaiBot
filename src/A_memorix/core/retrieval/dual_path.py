@@ -1192,7 +1192,7 @@ class DualPathRetriever:
                         if port is not None:
                             port.report(ErrorLevel.WARNING, "实体枢纽批量查询异常", exception=exc)
                     except Exception:
-                        pass
+                        logger.exception("dual_path error_port.report 失败")
 
             if batch_relations is not None:
                 # 批量路径

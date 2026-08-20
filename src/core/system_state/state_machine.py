@@ -8,6 +8,7 @@
 import asyncio
 import time
 from pathlib import Path
+from typing import Any
 from typing import Optional
 
 from src.common.logger import get_logger
@@ -96,7 +97,7 @@ class SystemStateMachine:
         """降级启动完成 → DEGRADING（W1）。"""
         await self._execute_transition(TransitionReason.STARTUP_COMPLETE_DEGRADED)
 
-    async def trigger_health_level_change(self, new_level) -> None:
+    async def trigger_health_level_change(self, new_level: Any) -> None:
         """健康等级变更驱动 READY↔DEGRADING（StateAggregator 衔接映射）。
 
         状态/等级判定在锁内进行（CX 审查发现）：锁外预检查在并发迁移

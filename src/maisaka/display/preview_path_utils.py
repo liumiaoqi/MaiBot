@@ -1,13 +1,11 @@
 """Maisaka Prompt 预览路径工具。"""
 
 
+import re
 from pathlib import Path
 from urllib.parse import quote
 
-import re
-
 from src.core.session_port_registry import get_session_info
-
 
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.absolute().resolve()
 SAFE_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")

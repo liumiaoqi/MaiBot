@@ -322,7 +322,7 @@ class RelationStore:
                     try:
                         cursor.execute("ROLLBACK")
                     except Exception:
-                        pass
+                        logger.exception("relation_store ROLLBACK 失败")
                     if attempt == 2:
                         logger.error(f"relation metadata update db locked after 3 retries, hash={hash_token}")
                         raise

@@ -8,7 +8,6 @@ from src.llm_models.payload_content.tool_option import (
     TOOL_CALL_SOURCE_RESPONSE,
 )
 
-
 _REQUEST_PANEL_STYLE_MAP: dict[str, tuple[str, str]] = {
     "planner": ("MaiSaka 大模型请求 - 对话单步", "green"),
     "replyer": ("MaiSaka 回复器 Prompt", "bright_yellow"),

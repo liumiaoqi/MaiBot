@@ -4,6 +4,10 @@
 """
 
 from .types import (
+    REALTIME_MASK,
+    STANDARD_MASK,
+    SYNCHRONOUS_MASK,
+    UNMASKABLE_MASK,
     ControlMessage,
     ControlMessageCategory,
     ControlMessageDeliveryResult,
@@ -19,10 +23,6 @@ from .types import (
     MaskScope,
     ProtectionAction,
     ProtectionResult,
-    REALTIME_MASK,
-    STANDARD_MASK,
-    SYNCHRONOUS_MASK,
-    UNMASKABLE_MASK,
     UnkillableDeclaration,
 )
 

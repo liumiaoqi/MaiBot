@@ -114,7 +114,19 @@ class BaseMaisakaReplyGenerator:
             alias_names = get_bot_config_port().get_bot_alias_names()
             bot_aliases = f"，也有人叫你{','.join(alias_names)}" if alias_names else ""
 
-            prompt_personality = get_chat_config_port().get_personality().strip()
+            # 优先从智能体配置读取 identity_prompt
+            prompt_personality = ""
+            try:
+                from src.core.adapters.agent_config_port import get_agent_config_provider
+
+                registry = get_agent_config_provider()
+                agent_config = registry.get_default_agent()
+                prompt_personality = agent_config.identity_prompt.strip()
+            except Exception:
+                logger.warning("replyer identity_prompt 获取失败，fallback 到 get_personality", exc_info=True)
+            # fallback 到 deprecated get_personality
+            if not prompt_personality:
+                prompt_personality = get_chat_config_port().get_personality().strip()
             if not prompt_personality:
                 prompt_personality = "是人类。"
 

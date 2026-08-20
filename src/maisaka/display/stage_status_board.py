@@ -1,11 +1,10 @@
 """Maisaka 阶段状态广播。"""
 
 
-from typing import Any
-
 import asyncio
 import threading
 import time
+from typing import Any
 
 
 class MaisakaStageStatusBoard:

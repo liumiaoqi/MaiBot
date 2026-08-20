@@ -51,6 +51,13 @@ class GlobalConfigChatConfigPort:
         }
 
     def get_personality(self) -> str:
+        import warnings
+
+        warnings.warn(
+            "get_personality() is deprecated, use agent_config.identity_prompt instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from src.config.config import global_config
         return global_config.personality.personality
 

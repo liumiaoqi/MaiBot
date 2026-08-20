@@ -9,20 +9,17 @@
 
 import time
 
-
+# force 通道默认白名单（spec §5.7.1 规则 2：系统核心层）
+from src.common.logger import get_logger
 from src.core.control_message.mask_manager import ControlMessageMaskManager
 from src.core.control_message.two_level_pending import TwoLevelPendingManager
 from src.core.control_message.types import (
+    FORCE_ALLOWED_MASK,
     ControlMessageDeliveryResult,
     ControlMessageKind,
     DeliveryResult,
-    FORCE_ALLOWED_MASK,
 )
 from src.core.control_message.unkillable_guard import UnkillableGuard
-
-
-# force 通道默认白名单（spec §5.7.1 规则 2：系统核心层）
-from src.common.logger import get_logger
 
 logger = get_logger("force_channel")
 

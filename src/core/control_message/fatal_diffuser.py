@@ -11,14 +11,12 @@ import time
 from collections import deque
 from typing import Any, Optional
 
-
+from src.common.logger import get_logger
 from src.core.control_message.types import (
-    ControlMessageKind,
     FATAL_MASK,
+    ControlMessageKind,
     FatalDiffuseRecord,
 )
-
-from src.common.logger import get_logger
 
 logger = get_logger("fatal_diffuser")
 
@@ -55,7 +53,7 @@ class FatalDiffuser:
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, '扩散超时配置读取失败，使用默认 %s', exception=exc)
+                    port.report(ErrorLevel.WARNING, f'扩散超时配置读取失败，使用默认 {_DEFAULT_DIFFUSE_TIMEOUT_SEC}', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("扩散超时配置读取失败，使用默认 %s", _DEFAULT_DIFFUSE_TIMEOUT_SEC, exc_info=True)
@@ -73,7 +71,7 @@ class FatalDiffuser:
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, 'control 事件发布失败: %s', exception=exc)
+                    port.report(ErrorLevel.WARNING, f'control 事件发布失败: {event_type}', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 logger.warning("control 事件发布失败: %s", event_type, exc_info=True)
@@ -105,7 +103,7 @@ class FatalDiffuser:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, 'CONTROL_ZAP_QUERY_FAILED: 关联任务查询失败 session=%s', exception=exc)
+                port.report(ErrorLevel.WARNING, f'CONTROL_ZAP_QUERY_FAILED: 关联任务查询失败 session={session_id}', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.warning("CONTROL_ZAP_QUERY_FAILED: 关联任务查询失败 session=%s", session_id, exc_info=True)
@@ -146,7 +144,7 @@ class FatalDiffuser:
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, 'CONTROL_ZAP_TASK_CANCEL_FAILED: 任务取消失败 session=%s', exception=exc)
+                    port.report(ErrorLevel.WARNING, f'CONTROL_ZAP_TASK_CANCEL_FAILED: 任务取消失败 session={session_id}', exception=exc)
                 from src.core.tainted_mask.mark import mark_exception_swallowed
                 mark_exception_swallowed()
                 failed += 1  # 部分失败继续扩散（spec §5.9.2 异常场景 2）

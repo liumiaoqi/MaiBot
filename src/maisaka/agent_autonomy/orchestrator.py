@@ -239,7 +239,7 @@ class AgentOrchestrator:
                     agent_config = agent.agent_config
                     if agent_config is None:
                         continue
-                    layered_personality = getattr(agent_config, "layered_personality", None)
+                    layered_personality = agent_config.layered_personality
                     if layered_personality is None:
                         continue
                     strongest = RelationshipManager.get_strongest_relationship(agent_id)
@@ -1789,7 +1789,7 @@ class AgentOrchestrator:
                         owner_ids = get_bot_config_port().get_bot_owner_user_ids()
                         is_owner = getattr(cls, "_current_user_id", "") in owner_ids
                     except Exception:
-                        pass
+                        logger.warning("favor_injection user_name/is_owner 获取失败", exc_info=True)
                     favor_injection_text = ac.get_favor_injection(user_name=user_name, is_owner=is_owner)
         except Exception as exc:
             logger.warning("ZG-26 favor_injection_text 计算失败，降级为空: %s", exc, exc_info=True)

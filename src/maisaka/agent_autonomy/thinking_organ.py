@@ -123,7 +123,19 @@ class ThinkingOrgan:
         风格指令注入思考轮，reply 工具直接发送思考轮生成的 text。
         """
         try:
-            personality = get_chat_config_port().get_personality().strip()
+            # 优先从智能体配置读取 identity_prompt
+            personality = ""
+            try:
+                from src.core.adapters.agent_config_port import get_agent_config_provider
+
+                registry = get_agent_config_provider()
+                if registry.has_agent(self._agent_id):
+                    personality = registry.get_agent(self._agent_id).identity_prompt.strip()
+            except Exception:
+                logger.warning("thinking_organ identity_prompt 获取失败，fallback 到 get_personality", exc_info=True)
+            # fallback 到 deprecated get_personality
+            if not personality:
+                personality = get_chat_config_port().get_personality().strip()
             reply_style = get_chat_config_port().get_reply_style_text().strip()
             temporary_style = self._select_temporary_reply_style()
         except Exception as exc:

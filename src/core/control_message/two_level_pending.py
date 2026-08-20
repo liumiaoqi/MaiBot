@@ -10,19 +10,16 @@
 import asyncio
 from typing import Optional
 
-
+from src.common.logger import get_logger
 from src.core.control_message.kind_registry import ControlMessageKindRegistry
 from src.core.control_message.mask_manager import ControlMessageMaskManager
 from src.core.control_message.pending_queue import ControlMessagePending
 from src.core.control_message.priority_dispatcher import PriorityDispatcher
 from src.core.control_message.types import (
-
     ControlMessageKind,
     ControlMessagePendingNode,
     EnqueueResult,
 )
-
-from src.common.logger import get_logger
 
 logger = get_logger("two_level_pending")
 

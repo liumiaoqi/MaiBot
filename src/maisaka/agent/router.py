@@ -1,12 +1,12 @@
-from src.common.logger import get_logger
-
-
 from typing import TYPE_CHECKING, Optional
+
+from src.common.logger import get_logger
 
 if TYPE_CHECKING:
     from src.core.protocols import AgentConfigProvider
 
 from .config import AgentConfig
+
 logger = get_logger("auto.router")
 
 
@@ -48,7 +48,7 @@ class AgentRouter:
         if primary is not None:
             if self._registry.has_agent(primary):
                 agent = self._registry.get_agent(primary)
-                if not getattr(agent, "is_butler", False):
+                if not agent.is_butler:
                     return agent
                 logger.warning("会话主发言是管家，跳过: session=%s, agent=%s", session_id, primary)
 
@@ -57,16 +57,16 @@ class AgentRouter:
             if agent_id is not None:
                 if self._registry.has_agent(agent_id):
                     agent = self._registry.get_agent(agent_id)
-                    if not getattr(agent, "is_butler", False):
+                    if not agent.is_butler:
                         return agent
                     logger.warning("群绑定的是管家，跳过: group=%s, agent=%s", group_id, agent_id)
 
         # 默认智能体如果是管家，找第一个非管家智能体
         default = self._registry.get_default_agent()
-        if default is not None and not getattr(default, "is_butler", False):
+        if default is not None and not default.is_butler:
             return default
         for agent in self._registry.list_agents():
-            if not getattr(agent, "is_butler", False):
+            if not agent.is_butler:
                 return agent
         return default
 

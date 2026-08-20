@@ -10,18 +10,14 @@
 import time
 from dataclasses import dataclass, field
 
-
+from src.common.logger import get_logger
 from src.core.control_message.types import (
-
     UNMASKABLE_MASK,
     ControlMessageEffectiveMask,
     ControlMessageKind,
     MaskOperation,
     MaskScope,
 )
-
-
-from src.common.logger import get_logger
 
 logger = get_logger("core.control_message.mask_manager")
 

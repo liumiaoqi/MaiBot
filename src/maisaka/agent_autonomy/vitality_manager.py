@@ -105,7 +105,7 @@ class VitalityManager:
             for agent_id in all_registered:
                 # 管家智能体始终 active，检查要优先于 active/standby 判断
                 agent_cfg = get_agent_config_provider().get_agent(agent_id)
-                if agent_cfg and getattr(agent_cfg, "is_butler", False):
+                if agent_cfg and agent_cfg.is_butler:
                     if agent_id not in active_ids:
                         self._orchestrator.restore_agent(agent_id, is_primary=False)
                         logger.info(f"[vitality] 管家智能体激活: agent={agent_id} session={session_id}")

@@ -288,7 +288,7 @@ class GraphRelationRecallService:
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "图关系召回批量查询异常", exception=exc)
             except Exception:
-                pass
+                logger.exception("graph_relation_recall error_port.report 失败")
 
         if batch_relations is not None and batch_paragraphs is not None:
             # 批量路径

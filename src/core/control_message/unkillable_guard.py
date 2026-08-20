@@ -10,17 +10,14 @@
 import time
 from typing import Optional
 
-
+from src.common.logger import get_logger
 from src.core.control_message.types import (
-    ControlMessageKind,
     FATAL_MASK,
+    ControlMessageKind,
     ProtectionAction,
     ProtectionResult,
     UnkillableDeclaration,
 )
-
-
-from src.common.logger import get_logger
 
 logger = get_logger("unkillable_guard")
 

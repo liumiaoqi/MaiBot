@@ -257,7 +257,7 @@ class ProfileStore:
                 try:
                     cursor.execute("ROLLBACK")
                 except Exception:
-                    pass
+                    logger.exception("profile_store ROLLBACK 失败 (IntegrityError)")
                 if attempt == 2:
                     logger.error(f"profile version conflict after 3 retries, person_id={person_id}")
                     raise
@@ -267,7 +267,7 @@ class ProfileStore:
                     try:
                         cursor.execute("ROLLBACK")
                     except Exception:
-                        pass
+                        logger.exception("profile_store ROLLBACK 失败 (db locked)")
                     if attempt == 2:
                         logger.error(f"profile upsert db locked after 3 retries, person_id={person_id}")
                         raise

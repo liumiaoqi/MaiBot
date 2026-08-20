@@ -10,6 +10,9 @@ shrinker 接口契约（count_objects/scan_objects）。参见 kernel_initialize
 import time
 
 from src.A_memorix.core.runtime.shrinker import ShrinkControl
+from src.common.logger import get_logger
+
+logger = get_logger("a_memorix.shrinkers.profile")
 
 
 class ProfileSnapshotShrinker:
@@ -35,7 +38,7 @@ class ProfileSnapshotShrinker:
             try:
                 return bool(is_stale_fn(snapshot))
             except Exception:
-                pass
+                logger.exception("profile shrinker _is_snapshot_stale 失败")
         expires_at = getattr(snapshot, "expires_at", None)
         return expires_at is not None and expires_at < now
 

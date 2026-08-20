@@ -121,7 +121,7 @@ class AgentRelationshipManager:
                     port = get_error_escalation_port()
                     if port is not None:
                         port.report(ErrorLevel.WARNING, "涌现检测失败，跳过", exception=exc)
-                    logger.debug(f"涌现检测跳过: error={exc}")
+                    logger.warning("涌现检测跳过: error=%s", exc, exc_info=True)
             return _table_to_read(row)
 
     async def _apply_emergent_types(self, communities: list[dict]) -> None:

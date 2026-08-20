@@ -88,7 +88,7 @@ def get_global_api() -> MessageServer:  # sourcery skip: extract-method
                     if api_key in allowed_keys:
                         return True
 
-                    api_logger.warning(f"Rejected connection with invalid API Key: {api_key}")
+                    api_logger.warning(f"Rejected connection with invalid API Key: {api_key[:8]}...")
                     return False
 
                 server_config.on_auth = auth_handler  # type: ignore # maim_message库写错类型了
@@ -116,11 +116,11 @@ def get_global_api() -> MessageServer:  # sourcery skip: extract-method
                             # Get api_key from metadata, use uuid as fallback if api_key is empty
                             api_key = metadata.get("api_key") or metadata.get("uuid") or "unknown"
                             platform = msg_info.get("platform")
-                            api_logger.debug(f"Bridge received: api_key='{api_key}', platform='{platform}'")
+                            api_logger.debug(f"Bridge received: api_key='{api_key[:8]}...', platform='{platform}'")
 
                             if platform:
                                 global_api.platform_map[platform] = api_key  # type: ignore
-                                api_logger.info(f"Updated platform_map: {platform} -> {api_key}")
+                                api_logger.info(f"Updated platform_map: {platform} -> {api_key[:8]}...")
                         except Exception as e:
                             from src.core.error_escalation.types import ErrorLevel
                             from src.core.error_escalation_port_registry import get_error_escalation_port

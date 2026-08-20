@@ -10,6 +10,7 @@ import asyncio
 import time
 from typing import Any, Awaitable, Callable, Optional
 
+from src.common.logger import get_logger
 from src.core.service_manager_port_registry import get_service_manager_port
 from src.core.watchdog.config import WatchdogConfig
 from src.core.watchdog.exceptions import UnknownRunnerError
@@ -19,8 +20,6 @@ from src.core.watchdog.types import (
     FaultReportEvent,
     RunnerBridgeStatus,
 )
-
-from src.common.logger import get_logger
 
 logger = get_logger(__name__)
 

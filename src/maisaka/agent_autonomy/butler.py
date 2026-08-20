@@ -110,7 +110,7 @@ class Butler:
 
         for agent in agents:
             # 加载管家配置
-            if getattr(agent, "is_butler", False):
+            if agent.is_butler:
                 self._butler_config = agent
                 self._butler_id = agent.agent_id
                 self._butler_display_name = agent.display_name

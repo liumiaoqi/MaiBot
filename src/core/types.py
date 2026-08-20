@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, fields
 from enum import Enum
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, TypedDict
 
 import copy
 import time
@@ -180,7 +180,7 @@ class MaiMessages:
     plain_text: str = ""
     """纯文本消息内容"""
 
-    raw_message: Optional[str] = None
+    raw_message: str | None = None
     """原始消息内容"""
 
     is_group_message: bool = False
@@ -189,25 +189,25 @@ class MaiMessages:
     is_private_message: bool = False
     """是否为私聊消息"""
 
-    stream_id: Optional[str] = None
+    stream_id: str | None = None
     """流ID，用于标识消息流"""
 
-    llm_prompt: Optional[str] = None
+    llm_prompt: str | None = None
     """LLM提示词"""
 
-    llm_response_content: Optional[str] = None
+    llm_response_content: str | None = None
     """LLM响应内容"""
 
-    llm_response_reasoning: Optional[str] = None
+    llm_response_reasoning: str | None = None
     """LLM响应推理内容"""
 
-    llm_response_model: Optional[str] = None
+    llm_response_model: str | None = None
     """LLM响应模型名称"""
 
-    llm_response_tool_call: Optional[List[ToolCall]] = None
+    llm_response_tool_call: List[ToolCall] | None = None
     """LLM使用的工具调用"""
 
-    action_usage: Optional[List[str]] = None
+    action_usage: List[str] | None = None
     """使用的Action"""
 
     additional_data: Dict[Any, Any] = field(default_factory=dict)
@@ -470,7 +470,7 @@ class CoreMessage:
     platform: str = ""
     """来源平台标识"""
 
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
     """消息时间戳"""
 
     additional_data: Dict[str, Any] = field(default_factory=dict, hash=False)
@@ -511,10 +511,10 @@ class SessionInfo:
     cohabitant_agent_ids: frozenset[str] = frozenset()
     """共居智能体 ID 列表（不可变集合）"""
 
-    created_timestamp: Optional[datetime] = None
+    created_timestamp: datetime | None = None
     """会话创建时间"""
 
-    last_active_timestamp: Optional[datetime] = None
+    last_active_timestamp: datetime | None = None
     """会话最后活跃时间"""
 
     account_id: str = ""
@@ -656,7 +656,7 @@ class ThinkCycleLog:
     session_name: str = ""
     trigger: str = ""
     status: CycleStatus = CycleStatus.COMPLETED_SILENT
-    silence_reason: Optional[SilenceReason] = None
+    silence_reason: SilenceReason | None = None
     thought_summary: str = ""
     action_summary: str = ""
     reply_text: str = ""
@@ -732,7 +732,7 @@ class ThinkResult:
     wait_seconds: float = 0.0
     """等待秒数（action=WAIT 时有效）"""
 
-    silence_reason: Optional[SilenceReason] = None
+    silence_reason: SilenceReason | None = None
     """沉默原因（action=SILENT 时有值）"""
 
     thought_summary: str = ""
@@ -762,13 +762,13 @@ class CycleDetail:
     """思考ID"""
     start_time: float = field(default_factory=time.time)
     """开始时间，单位为秒"""
-    end_time: Optional[float] = None
+    end_time: float | None = None
     """结束时间，单位为秒，None表示未结束"""
     time_records: Dict[str, float] = field(default_factory=dict)
     """计时器记录，key为计时器名称，value为用时，单位为秒"""
-    loop_plan_info: Optional[CyclePlanInfo] = None
+    loop_plan_info: CyclePlanInfo | None = None
     """循环计划记录"""
-    loop_action_info: Optional[CycleActionInfo] = None
+    loop_action_info: CycleActionInfo | None = None
     """循环Action调用记录"""
 
 
@@ -823,8 +823,8 @@ class MemoryServiceError(Exception):
 class PersonInfoResult:
     """人物信息查询结果 — 不可变数据对象。"""
     is_known: bool
-    person_id: Optional[str] = None
-    person_name: Optional[str] = None
+    person_id: str | None = None
+    person_name: str | None = None
 
 
 class TemporaryMemoryError(MemoryServiceError):

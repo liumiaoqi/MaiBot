@@ -7,7 +7,6 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
-from typing import Optional
 
 from sqlmodel import select
 
@@ -28,7 +27,7 @@ class AgentSelfModificationRead:
     field: str
     modification_text: str
     trigger: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 
 class PersonalityPersistence:

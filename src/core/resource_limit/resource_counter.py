@@ -7,10 +7,10 @@ GIL 保证单线程原子性，无需原子操作（design §3.1.4 D1）。
 """
 
 
-from src.common.logger import get_logger
 import time
 from typing import Callable, Optional
 
+from src.common.logger import get_logger
 from src.core.resource_limit.types import (
     ChargeResult,
     ResourceDimension,

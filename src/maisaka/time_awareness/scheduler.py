@@ -9,9 +9,9 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from src.common.logger import get_logger
 from src.maisaka.agent.config import TimeTriggerRule
 
-from src.common.logger import get_logger
 logger = get_logger(__name__)
 
 

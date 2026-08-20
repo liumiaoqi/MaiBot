@@ -8,8 +8,8 @@
 """
 
 
+from src.common.logger import get_logger
 from src.core.control_message.types import (
-
     FATAL_MASK,
     REALTIME_MASK,
     STANDARD_MASK,
@@ -18,8 +18,6 @@ from src.core.control_message.types import (
     ControlMessageCategory,
     ControlMessageKind,
 )
-
-from src.common.logger import get_logger
 
 logger = get_logger("kind_registry")
 

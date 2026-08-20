@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, Callable, Coroutine, Dict
 
+from src.common.async_utils import _safe_create_task
 from src.common.logger import get_logger
 
 logger = get_logger("a_memorix.services.background_scheduler")
@@ -22,7 +23,7 @@ class BackgroundTaskScheduler:
         task = self._tasks.get(name)
         if task is not None and not task.done():
             return
-        self._tasks[name] = asyncio.create_task(factory(), name=f"A_Memorix.{name}")
+        self._tasks[name] = _safe_create_task(factory(), name=f"A_Memorix.{name}")
 
     async def start_all(self, registrations: Dict[str, Callable[[], Coroutine[Any, Any, None]]]) -> None:
         async with self._lock:

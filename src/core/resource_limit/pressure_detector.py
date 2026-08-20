@@ -5,10 +5,10 @@
 """
 
 
-from src.common.logger import get_logger
 import time
 from typing import Any, Optional
 
+from src.common.logger import get_logger
 from src.core.resource_limit.types import PressureLevel
 
 logger = get_logger(__name__)
