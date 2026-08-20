@@ -33,6 +33,7 @@ class MaintenanceService:
         self._trigger_vector_compaction = trigger_vector_compaction
         self._last_maintenance_at: Optional[float] = None
         self._last_vector_compaction_at: float = 0.0
+        self._last_vacuum_at: float = 0.0
 
     async def maintain_memory(
         self,
@@ -112,6 +113,7 @@ class MaintenanceService:
         await self._orphan_gc_phase()
         await self._purge_deleted_relations_phase()
         await self._vector_compaction_phase()
+        await self._vacuum_phase()
         await self._compensate_graph_sync(metadata_store, graph_store)
         self._last_maintenance_at = time.time()
         self._persist()
@@ -165,6 +167,31 @@ class MaintenanceService:
             if port is not None:
                 port.report(ErrorLevel.WARNING, "vector compaction 异常", exception=exc)
             logger.warning(f"vector compaction cycle 异常: {exc}")
+
+    async def _vacuum_phase(self) -> None:
+        """定期 VACUUM 回收 SQLite 物理空间（P2 批2.4）。
+
+        对标 Linux mm/vmscan.c slab shrinker——DELETE 不回收空间，需 VACUUM 才能缩小 db 文件。
+        VACUUM 需独占锁，在大 db 上耗时，故频率低（默认 7 天）且在 purge/compaction 后执行。
+        """
+        import time
+        if self._last_vacuum_at > 0:
+            interval_days = max(1.0, float(self._cfg("memory.vacuum_interval_days", 7.0) or 7.0))
+            if time.time() - self._last_vacuum_at < interval_days * 86400.0:
+                return
+        metadata_store = self._get_metadata_store()
+        if metadata_store is None:
+            return
+        try:
+            metadata_store.vacuum()
+            self._last_vacuum_at = time.time()
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "metadata VACUUM 异常", exception=exc)
+            logger.warning(f"metadata VACUUM cycle 异常: {exc}")
 
     async def _compensate_graph_sync(self, metadata_store: Any, graph_store: Any) -> None:
         """P0-3: 补偿 graph_synced=false 的 relation（ZG-30）。

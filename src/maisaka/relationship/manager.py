@@ -201,7 +201,14 @@ class RelationshipManager:
         )
 
     def _apply_time_decay(self, snapshot: RelationshipSnapshot, agent_id: str = "", user_id: str = "") -> None:
-        """按时间衰减关系分数。"""
+        """按时间衰减关系分数。
+
+        设计选择（P2 批2.3 文档说明）：
+        - ``get_relationship`` 调用本方法后只返回视图，不落库——只读查询不应触发写库（避免读放大 + 锁竞争）。
+        - ``update_interaction`` 调用本方法后会 ``_save_snapshot`` 落库——decay 在交互时被持久化。
+        - 即：只读路径的 decay 是"当前预览"，写路径的 decay 是"持久化结算"。两者基于同一个
+          ``last_interaction_at`` 计算，不会重复扣减。
+        """
         if snapshot.last_interaction_at <= 0:
             return
 

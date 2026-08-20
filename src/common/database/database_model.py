@@ -401,6 +401,11 @@ class AgentRelationship(SQLModel, table=True):
 
     __tablename__ = "agent_relationships"  # type: ignore
 
+    __table_args__ = (
+        Index("ix_agent_relationships_agent_user", "agent_id", "user_id"),
+        Index("ix_agent_relationships_interaction_count", "interaction_count"),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
     agent_id: str = Field(index=True, max_length=64)
