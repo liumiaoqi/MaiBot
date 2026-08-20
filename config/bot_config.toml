@@ -282,7 +282,7 @@ evidence_classification_temperature = 0.1 # 人物画像证据分类模型温度
 [a_memorix.memory] # 记忆演化配置
 enabled = true # 是否启用记忆演化
 half_life_hours = 24.0 # 半衰期小时数
-prune_threshold = 0.1 # 裁剪阈值
+prune_threshold = 0.05 # 裁剪阈值（2026-08-20 用户拍板：记得多——弱关系保留更久，代价是库增长快些；VACUUM 7天周期兜底）
 freeze_duration_hours = 24.0 # 冻结时长小时数
 
 [a_memorix.connectionist] # 连接主义记忆系统配置
