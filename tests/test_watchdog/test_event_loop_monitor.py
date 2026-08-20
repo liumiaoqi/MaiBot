@@ -131,8 +131,8 @@ def test_severe_block_reports_after_consecutive(fast_config, event_loop, reporte
     m.start()
     try:
         m.touch()
-        time.sleep(0.45)
-        time.sleep(0.15)
+        # 阻塞 0.7s（> 2×check_interval）确保至少 2 次 check 的 elapsed 超过 severe_threshold 0.5s
+        time.sleep(0.7)
         assert len(reported) >= 1
         event = reported[0]
         assert event.component_id == "event_loop"
