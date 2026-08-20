@@ -41,6 +41,15 @@ class ThinkingOrganFactory:
         self._tool_registry = tool_registry
         self._chat_loop_adapter = chat_loop_adapter
 
+    @property
+    def chat_loop_adapter(self) -> Any:
+        """获取 chat_loop_adapter（公共接口）。"""
+        return self._chat_loop_adapter
+
+    def set_chat_loop_adapter(self, adapter: Any) -> None:
+        """设置 chat_loop_adapter（公共接口，替代直接写私有属性）。"""
+        self._chat_loop_adapter = adapter
+
     def create(self, agent_id: str, session_id: str) -> ThinkingOrganProtocol:
         """为指定智能体创建思维管道。
 

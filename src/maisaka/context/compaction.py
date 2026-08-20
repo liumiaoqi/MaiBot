@@ -246,8 +246,8 @@ def _commit_compaction(
     """替换执行——将可压缩段替换为一条 CompactionSummaryMessage。"""
 
     segment = history[segment_start:segment_end]
-    first_ts = getattr(segment[0], "timestamp", datetime.now()) if segment else datetime.now()
-    last_ts = getattr(segment[-1], "timestamp", datetime.now()) if segment else datetime.now()
+    first_ts = segment[0].timestamp if segment else datetime.now()
+    last_ts = segment[-1].timestamp if segment else datetime.now()
     time_range = f"{first_ts.strftime('%Y-%m-%d %H:%M')} ~ {last_ts.strftime('%Y-%m-%d %H:%M')}"
 
     summary_msg = CompactionSummaryMessage(

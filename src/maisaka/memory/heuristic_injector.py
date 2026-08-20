@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from time import time
 from typing import Any, Sequence
 
-from src.core.types import SessionMessage
+from src.core.types import SessionMessage, MemoryHit, SessionInfo
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
 from src.llm_models.model_requirement import model_requirement
@@ -19,7 +19,6 @@ from src.common.message_repository import count_messages, find_messages
 from src.common.prompt_i18n import load_prompt
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.session_port_registry import get_existing_session_info, get_session_name
-from src.core.types import MemoryHit, SessionInfo
 from src.core.person_info_port_registry import get_person_info_port
 from src.core.adapters.llm_service_port import get_llm_service
 from src.core.protocols import LLMService

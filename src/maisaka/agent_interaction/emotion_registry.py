@@ -4,10 +4,18 @@ from src.core.adapters.agent_config_port import get_agent_config_provider
 
 
 class AgentEmotionManagerRegistry:
-    """为每个智能体维护一个全局 EmotionManager 实例"""
+    """为每个智能体维护一个全局 EmotionManager 实例。
+
+    单例语义：全进程共享同一份 _managers，避免各模块各自 new 导致情绪状态分裂。
+    构造时若已有全局实例，复用其 _managers 字典。
+    """
+
+    _shared_managers: dict[str, EmotionManager] | None = None
 
     def __init__(self) -> None:
-        self._managers: dict[str, EmotionManager] = {}
+        if AgentEmotionManagerRegistry._shared_managers is None:
+            AgentEmotionManagerRegistry._shared_managers = {}
+        self._managers = AgentEmotionManagerRegistry._shared_managers
         self._registry = get_agent_config_provider()
 
     def get_emotion_manager(self, agent_id: str) -> EmotionManager:

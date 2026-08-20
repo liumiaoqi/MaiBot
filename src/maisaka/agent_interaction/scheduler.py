@@ -10,6 +10,8 @@ from src.common.logger import get_logger
 import asyncio
 
 from src.core.adapters.agent_config_port import get_agent_config_provider
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 from src.maisaka.agent_interaction.monologue_engine import MonologueEngine
 from src.maisaka.agent_interaction.trigger_scheduler import InteractionTrigger
 logger = get_logger("auto.scheduler")
@@ -70,8 +72,7 @@ class InteractionScheduler:
             try:
                 await self._evaluate_all_agents()
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.ERROR, "调度循环异常，降级静默", exception=exc)
@@ -101,8 +102,7 @@ class InteractionScheduler:
                                 exc_info=True,
                             )
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "智能体评估异常，跳过", exception=exc)

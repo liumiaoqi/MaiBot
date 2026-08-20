@@ -7,6 +7,10 @@ import json
 from dataclasses import dataclass, field
 
 from src.common.logger import get_logger
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
+from src.core.event_bus_port_registry import get_event_bus_port
+from src.maisaka.agent_autonomy.event_bus import InteractionSignalEvent
 from src.maisaka.agent_interaction.effect_calculator import EffectCalculator
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
@@ -158,8 +162,7 @@ class InteractionEngine:
             try:
                 await self._echo_detector.check_and_propagate(result, evaluation)
             except Exception as e:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, '[agent_interaction] 回声检测异常，静默截断: %s', exception=e)
@@ -167,8 +170,7 @@ class InteractionEngine:
 
             # 非阻塞：发布交互信号到自主性架构
             try:
-                from src.maisaka.agent_autonomy.event_bus import InteractionSignalEvent
-                from src.core.event_bus_port_registry import get_event_bus_port
+
 
                 signal = InteractionSignalEvent(
                     initiator_agent_id=initiator_id,
@@ -181,8 +183,7 @@ class InteractionEngine:
                 )
                 get_event_bus_port().emit_sync("interaction_signal", signal)
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, '操作异常 in engine.py', exception=exc)
@@ -191,8 +192,7 @@ class InteractionEngine:
             return result
 
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.ERROR, '[agent_interaction] 交互执行失败: %s', exception=e)
@@ -225,8 +225,7 @@ class InteractionEngine:
             logger.warning("[agent_interaction] 记忆写入失败: %s", result.detail)
             return "failed"
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆写入异常，降级为日志: %s', exception=e)

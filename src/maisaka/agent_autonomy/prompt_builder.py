@@ -93,6 +93,14 @@ class EmbodiedPlannerPromptBuilder:
             return "maisaka_chat"
         return "maisaka_chat_embodied"
 
+    def build_embodied_context(self, tools_section: str = "") -> dict[str, str]:
+        """构建角色化提示词渲染上下文（公共接口）。
+
+        对外暴露的封装方法，供 AutonomousAgent 等外部调用方使用，
+        避免直接访问私有 _build_embodied_context 破坏封装。
+        """
+        return self._build_embodied_context(tools_section)
+
     def _build_embodied_context(self, tools_section: str) -> dict[str, str]:
         """构建角色化提示词渲染上下文。
 

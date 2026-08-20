@@ -18,6 +18,7 @@ from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import MemoryServicePort
 from src.maisaka.agent_interaction.cooldown import InteractionCooldownManager
+from src.maisaka.agent_interaction.config.trigger_config import MemoryDrivenTriggerConfig
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.engine import InteractionEngine
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
@@ -65,7 +66,7 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
     trigger_registry.register("mention_propagation", MentionPropagationTrigger())
     trigger_registry.register("event_ripple", EventRippleTrigger())
     trigger_registry.register("inner_need", InnerNeedTrigger())
-    from src.maisaka.agent_interaction.config.trigger_config import MemoryDrivenTriggerConfig
+
     memory_driven_cfg = MemoryDrivenTriggerConfig()
     trigger_registry.register(
         "memory_driven",

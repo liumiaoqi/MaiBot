@@ -13,6 +13,8 @@ from src.maisaka.agent.emotion import EmotionState
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.models import AgentInteractionRelationshipRead
 from src.maisaka.agent_interaction.trigger_base import BaseTrigger, TriggerEvaluation
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 
 from src.common.logger import get_logger
 logger = get_logger(__name__)
@@ -140,8 +142,7 @@ class MemoryDrivenTrigger(BaseTrigger):
                             memory_desc = "好久没互动了"
 
             except Exception as e:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "记忆检索失败，使用低触发概率", exception=e)

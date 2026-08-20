@@ -14,6 +14,8 @@ import time
 
 from src.core.protocols import MemoryServicePort
 from src.core.types import MemorySearchResult, MemoryWriteResult
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 logger = get_logger("auto.adapter")
 
 
@@ -270,8 +272,7 @@ class AgentMemoryAdapter:
                 reason=f"agent_interaction_decay:{agent_id}:{target_agent_id}",
             )
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆衰减失败: %s', exception=e)
@@ -288,8 +289,7 @@ class AgentMemoryAdapter:
             target = content_hash or self.build_chat_id(agent_id, target_agent_id)
             await self.memory_port.maintain_memory(action="reinforce", target=target)
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆强化失败: %s', exception=e)
@@ -316,8 +316,7 @@ class AgentMemoryAdapter:
                         )
                 return True
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, '操作异常 in adapter.py', exception=exc)

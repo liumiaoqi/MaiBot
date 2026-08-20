@@ -37,7 +37,7 @@ class FocusModeManager:
 
     @staticmethod
     def _normalize_session_id(session_id: str) -> str:
-        return str(session_id or "").strip()
+        return session_id.strip()
 
     def is_enabled(self) -> bool:
         """Return whether focus mode is enabled in the live chat config."""
@@ -356,7 +356,7 @@ class FocusModeManager:
     def mark_cycle(self, session_id: str, when: Optional[float] = None) -> None:
         """Record that a focused chat has started a Maisaka loop."""
 
-        normalized_session_id = str(session_id or "").strip()
+        normalized_session_id = session_id.strip()
         if not normalized_session_id:
             return
         self._last_cycle_at_by_session_id[normalized_session_id] = when if when is not None else time.time()
@@ -364,7 +364,7 @@ class FocusModeManager:
     def get_last_cycle_at(self, session_id: str) -> Optional[float]:
         """Return the last Maisaka loop start time for a focused chat."""
 
-        return self._last_cycle_at_by_session_id.get(str(session_id or "").strip())
+        return self._last_cycle_at_by_session_id.get(session_id.strip())
 
     def is_cycle_cool_time_elapsed(self, session_id: str, now: Optional[float] = None) -> bool:
         """Return whether a focused chat has exceeded the configured cool time."""
@@ -380,7 +380,7 @@ class FocusModeManager:
     def mark_read(self, session_id: str, when: Optional[datetime] = None) -> None:
         """Record that Maisaka inspected messages from a chat."""
 
-        normalized_session_id = str(session_id or "").strip()
+        normalized_session_id = session_id.strip()
         if not normalized_session_id:
             return
         self._last_read_at_by_session_id[normalized_session_id] = when or datetime.now()
@@ -388,7 +388,7 @@ class FocusModeManager:
     def get_last_read_at(self, session_id: str) -> Optional[datetime]:
         """Return the last time Maisaka read a chat in focus mode."""
 
-        return self._last_read_at_by_session_id.get(str(session_id or "").strip())
+        return self._last_read_at_by_session_id.get(session_id.strip())
 
     def resolve_session_from_args(
         self,
@@ -400,7 +400,7 @@ class FocusModeManager:
         session_by_id = {
             info.session_id: info
             for info in available_session_infos
-            if str(info.session_id or "").strip()
+            if info.session_id.strip()
         }
 
         chat_id = str(arguments.get("chat_id") or arguments.get("session_id") or "").strip()
@@ -410,7 +410,7 @@ class FocusModeManager:
                 return FocusTargetResolution(None, f"未找到 chat_id={chat_id} 对应的运行中已创建聊天。")
             return FocusTargetResolution(info)
 
-        platform = str(arguments.get("platform")).strip()
+        platform = str(arguments.get("platform") or "").strip()
         target_id = str(
             arguments.get("id")
             or arguments.get("target_id")
@@ -423,7 +423,7 @@ class FocusModeManager:
 
         matched_infos: list[SessionInfo] = []
         for info in session_by_id.values():
-            if str(info.platform or "").strip() != platform:
+            if info.platform.strip() != platform:
                 continue
             info_target_id = info.group_id if chat_type == "group" else info.user_id
             if str(info_target_id or "").strip() == target_id:

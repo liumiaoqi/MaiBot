@@ -10,8 +10,7 @@ import asyncio
 import time
 import uuid
 
-from src.core.types import SessionMessage
-from src.core.types import SessionInfo
+from src.core.types import SessionInfo, SessionMessage
 from src.maisaka.context.history import build_session_message_visible_text
 
 from .image_utils import extract_visual_attachments_from_sequence
@@ -276,5 +275,12 @@ def _message_timestamp_to_iso(message: SessionMessage) -> str:
 def _parse_iso_timestamp(value: str) -> float:
     try:
         return datetime.fromisoformat(value).timestamp()
-    except ValueError:
+    except ValueError as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "解析 ISO 时间戳失败，回退为当前时间", exception=exc)
+        logger.warning("解析 ISO 时间戳失败，回退为当前时间: %s", exc)
         return time.time()

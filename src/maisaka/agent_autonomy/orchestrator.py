@@ -85,8 +85,8 @@ class AgentOrchestrator:
         self._routing_service = routing_service or self._get_default_routing_service()
         self._notice_classifier = notice_classifier or self._get_default_notice_classifier()
         self._thinking_organ_factory = thinking_organ_factory or self._get_default_thinking_organ_factory()
-        if self._thinking_organ_factory._chat_loop_adapter is None:
-            self._thinking_organ_factory._chat_loop_adapter = chat_loop_adapter
+        if self._thinking_organ_factory.chat_loop_adapter is None:
+            self._thinking_organ_factory.set_chat_loop_adapter(chat_loop_adapter)
         self._config = get_app_config_port().get_agent_autonomy_config()
         self._activity_store = AgentActivityStore()
         self._lifecycle_manager = AgentLifecycleManager(self._activity_store)

@@ -46,7 +46,7 @@ def run_model_config_check() -> int:
         "src.learners.expression_learner",
         "src.learners.jargon_miner",
         "src.A_memorix.core.runtime.sdk_memory_kernel",
-        "src.maisaka.memory.heuristic_injector",
+
         "src.services.memory_flow_service",
         "src.maisaka.memory.mid_term",
     )

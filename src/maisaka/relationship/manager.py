@@ -8,6 +8,8 @@ from typing import Optional
 from src.common.database.database import get_db_session
 from src.common.database.database_model import AgentRelationship
 from src.common.logger import get_logger
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 
 from .level import LEVEL_THRESHOLDS, RelationshipLevel, RelationshipSnapshot
 from .tracker import RelationshipTracker
@@ -141,6 +143,9 @@ class RelationshipManager:
                     return (row.user_id, row.interaction_count)
                 return None
         except Exception as exc:
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"获取最强关系失败: agent={agent_id}", exception=exc)
             logger.warning("获取最强关系失败: agent=%s error=%s", agent_id, exc)
             return None
 

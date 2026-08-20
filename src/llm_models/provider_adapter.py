@@ -50,7 +50,7 @@ class DeepSeekAdapter:
     supportsReasoningEffort、maxTokensField=max_tokens）。
     """
 
-    _SUPPORTED = frozenset({"max_tokens", "thinking"})
+    _SUPPORTED = frozenset({"max_tokens", "thinking", "temperature", "top_p"})
 
     def translate_request_params(
         self,
@@ -59,8 +59,9 @@ class DeepSeekAdapter:
         capabilities: frozenset[str] = frozenset(),
     ) -> dict[str, Any]:
         translated = dict(params)
-        # think 模式 temperature 无效：移除，避免"配置了温度但没生效"的隐性陷阱
-        if "temperature" in translated:
+        # think 模式 temperature 无效：仅在 thinking 开启时移除，避免"配置了温度但没生效"的隐性陷阱
+        thinking = translated.get("thinking")
+        if thinking and "temperature" in translated:
             del translated["temperature"]
         # 统一语义 thinking 翻译为 DeepSeek API 参数 enable_thinking
         # （声明支持 thinking 即必须翻译——P0-5：声明与实现一致性）

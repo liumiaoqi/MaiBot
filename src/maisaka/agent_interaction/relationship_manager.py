@@ -1,3 +1,5 @@
+import math
+import time
 from datetime import datetime
 
 from sqlalchemy import select
@@ -7,6 +9,8 @@ from src.common.database.database_model import AgentInteractionRelationship as A
 from src.common.logger import get_logger
 
 from src.core.adapters.agent_config_port import get_agent_config_provider
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 from src.maisaka.agent_interaction.models import AgentInteractionRelationshipRead
 
 logger = get_logger("agent_interaction.relationship_manager")
@@ -116,8 +120,7 @@ class AgentRelationshipManager:
                     if communities:
                         await self._apply_emergent_types(communities)
                 except Exception as exc:
-                    from src.core.error_escalation.types import ErrorLevel
-                    from src.core.error_escalation_port_registry import get_error_escalation_port
+
                     port = get_error_escalation_port()
                     if port is not None:
                         port.report(ErrorLevel.WARNING, "涌现检测失败，跳过", exception=exc)
@@ -158,9 +161,9 @@ class AgentRelationshipManager:
         delta 由交互类型决定：共在场 +0.08，互相提及 +0.12。
         先应用时间衰减，再累加增量，上限 1.0。
         """
-        import time as _time
 
-        now = _time.time()
+
+        now = time.time()
         with get_db_session() as session:
             result = session.execute(
                 select(AIRTable).where(
@@ -175,7 +178,7 @@ class AgentRelationshipManager:
             # 先衰减
             hours_elapsed = (now - row.last_coactivation_at) / 3600.0
             if hours_elapsed > 0 and row.coactivation_strength > 0:
-                import math
+
                 row.coactivation_strength *= math.exp(-_COACTIVATION_DECAY_RATE * hours_elapsed)
 
             # 累加增量
@@ -189,10 +192,9 @@ class AgentRelationshipManager:
 
         由心跳调度器定期调用。返回衰减的行数。
         """
-        import math
-        import time as _time
 
-        now = _time.time()
+
+        now = time.time()
         decayed = 0
         with get_db_session() as session:
             result = session.execute(
@@ -217,10 +219,9 @@ class AgentRelationshipManager:
 
     async def get_coactivation(self, agent_id: str, target_agent_id: str) -> float:
         """获取共激活强度（先衰减再返回）。"""
-        import math
-        import time as _time
 
-        now = _time.time()
+
+        now = time.time()
         with get_db_session() as session:
             result = session.execute(
                 select(AIRTable).where(
@@ -302,9 +303,9 @@ class AgentRelationshipManager:
 
     async def _build_coactivation_graph(self) -> dict[str, dict[str, float]]:
         """构建共激活邻接表（全量）。"""
-        import time as _time
 
-        now = _time.time()
+
+        now = time.time()
         graph: dict[str, dict[str, float]] = {}
         with get_db_session() as session:
             rows = session.execute(select(AIRTable)).scalars().all()
@@ -314,7 +315,7 @@ class AgentRelationshipManager:
                     continue
                 hours_elapsed = (now - row.last_coactivation_at) / 3600.0
                 if hours_elapsed > 0:
-                    import math
+
                     strength = strength * math.exp(-_COACTIVATION_DECAY_RATE * hours_elapsed)
                 if strength < 0.001:
                     continue

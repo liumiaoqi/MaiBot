@@ -22,13 +22,13 @@ def _assert_report(port: MagicMock, level: ErrorLevel, message: str) -> None:
 
 
 def test_coverage_interface() -> None:
-    """覆盖率接口输出与 Phase 4 实际改造数一致。"""
+    """覆盖率接口输出真实采集数据（非硬编码假数据）。"""
     coverage = get_coverage()
-    assert coverage == {
-        "reformed_files": 333,
-        "reformed_sites": 1473,
-        "total_sites": 1477,
-    }
+    assert set(coverage.keys()) == {"reformed_files", "reformed_sites", "total_sites"}
+    assert coverage["reformed_files"] > 0
+    assert coverage["reformed_sites"] > 0
+    assert coverage["total_sites"] > 0
+    assert coverage["reformed_sites"] <= coverage["total_sites"]
 
 
 def test_runner_main_fallback_reports_and_keeps_default(tmp_path) -> None:

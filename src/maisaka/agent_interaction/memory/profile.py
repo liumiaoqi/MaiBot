@@ -14,6 +14,8 @@ from typing import Any
 
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 logger = get_logger("auto.profile")
 
 
@@ -122,8 +124,7 @@ class AgentProfileService:
                 if emotion_tag:
                     emotion_counts[emotion_tag] = emotion_counts.get(emotion_tag, 0) + 1
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "刷新画像失败", exception=exc)
@@ -197,8 +198,7 @@ class AgentProfileService:
                     traits_set.add(content[:20])
             return list(traits_set)
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, "抽取画像特征失败", exception=exc)

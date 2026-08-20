@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 from src.common.database.database import get_db_session
 from src.common.database.database_model import InnerMonologueEvent as MonologueTable
+from src.core.error_escalation.types import ErrorLevel
+from src.core.error_escalation_port_registry import get_error_escalation_port
 from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EmotionState
 from src.core.adapters.agent_config_port import get_agent_config_provider
@@ -105,8 +107,7 @@ class MonologueEngine:
         try:
             config = self._config_registry.get_agent(agent_id)
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, "操作异常 in monologue_engine.py", exception=exc)
@@ -140,8 +141,7 @@ class MonologueEngine:
                 session.add(row)
                 session.commit()
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.ERROR, "内心独白持久化失败", exception=e)
@@ -183,8 +183,7 @@ class MonologueEngine:
                 if result.success and result.hits:
                     memory_context = result.hits[0].content[:100]
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "操作异常 in monologue_engine.py", exception=exc)
