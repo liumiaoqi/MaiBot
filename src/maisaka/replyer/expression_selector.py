@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import json
+import random
 
 from json_repair import repair_json
 from sqlalchemy import update
@@ -20,12 +21,70 @@ from src.learners.expression_style_utils import (
     is_prompt_example_expression_style,
     normalize_expression_style_for_learning,
 )
-from src.learners.learner_utils_old import weighted_sample
+
 from src.maisaka.context.messages import LLMContextMessage
 
 logger = get_logger("maisaka_expression_selector")
 
 SubAgentRunner = Callable[[str], Awaitable[str]]
+
+
+def _compute_weights(population: List[Dict]) -> List[float]:
+    """根据表达的 count 计算权重，范围限定在 1~5 之间。"""
+    if not population:
+        return []
+
+    counts = []
+    for item in population:
+        count = item.get("count", 1)
+        try:
+            count_value = float(count)
+        except (TypeError, ValueError):
+            count_value = 1.0
+        counts.append(max(count_value, 0.0))
+
+    min_count = min(counts)
+    max_count = max(counts)
+
+    if max_count == min_count:
+        return [1.0 for _ in counts]
+
+    weights = []
+    for count_value in counts:
+        normalized = (count_value - min_count) / (max_count - min_count)
+        weights.append(1.0 + normalized * 4.0)
+
+    return weights
+
+
+def weighted_sample(population: List[Dict], k: int) -> List[Dict]:
+    """按权重随机抽样。"""
+    if not population or k <= 0:
+        return []
+
+    if len(population) <= k:
+        return population.copy()
+
+    selected: List[Dict] = []
+    population_copy = population.copy()
+
+    for _ in range(min(k, len(population_copy))):
+        weights = _compute_weights(population_copy)
+        total_weight = sum(weights)
+        if total_weight <= 0:
+            idx = random.randint(0, len(population_copy) - 1)
+            selected.append(population_copy.pop(idx))
+            continue
+
+        threshold = random.uniform(0, total_weight)
+        cumulative = 0.0
+        for idx, weight in enumerate(weights):
+            cumulative += weight
+            if threshold <= cumulative:
+                selected.append(population_copy.pop(idx))
+                break
+
+    return selected
 
 
 @dataclass
