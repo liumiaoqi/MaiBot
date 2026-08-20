@@ -11,6 +11,7 @@
 
 import inspect
 
+import pytest
 
 from src.core.startup.declaration import _registry
 
@@ -110,3 +111,28 @@ class TestProductionWiring:
         assert callable(get_mid_term_summary_queue)
         assert callable(init_mid_term_summary_queue)
         assert callable(close_mid_term_summary_queue)
+
+
+@pytest.mark.asyncio
+async def test_production_init_mid_term_summary_queue_executes() -> None:
+    """P0-7 生产路径执行测试：main.py @startup_item 启动项可完整执行。
+
+    直接调用生产启动链函数 MaiBotApplication._init_mid_term_summary_queue()，
+    覆盖「main.py 壳 + 壳内 init_mid_term_summary_queue(maxsize=1000) 字面量调用」两层。
+    修复前该测试因 TypeError 失败（真负例）；修复后启动项成功、队列与消费者可用。
+    """
+    from src.main import MainSystem
+    from src.maisaka.memory.mid_term_summary_queue import (
+        close_mid_term_summary_queue,
+        get_mid_term_summary_queue,
+    )
+
+    await MainSystem._init_mid_term_summary_queue()
+    try:
+        queue = get_mid_term_summary_queue()
+        assert queue is not None, "生产启动项后全局摘要队列应为非 None"
+        assert queue._consumer_task is not None, "消费者 task 应已创建"
+        assert queue._consumer_task.get_name() == "mid_term_summary_consumer"
+        assert queue._queue.maxsize == 1000, "生产调用传 maxsize=1000 应生效"
+    finally:
+        await close_mid_term_summary_queue()

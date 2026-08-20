@@ -62,6 +62,10 @@ class DeepSeekAdapter:
         # think 模式 temperature 无效：移除，避免"配置了温度但没生效"的隐性陷阱
         if "temperature" in translated:
             del translated["temperature"]
+        # 统一语义 thinking 翻译为 DeepSeek API 参数 enable_thinking
+        # （声明支持 thinking 即必须翻译——P0-5：声明与实现一致性）
+        if "thinking" in translated:
+            translated["enable_thinking"] = bool(translated.pop("thinking"))
         # max_tokens 原样（deepseek 声明 maxTokensField=max_tokens）
         return translated
 

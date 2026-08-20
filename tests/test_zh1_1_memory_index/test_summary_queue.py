@@ -14,7 +14,9 @@ import pytest
 from src.maisaka.memory.mid_term_summary_queue import (
     MidTermSummaryQueue,
     SummaryBuildSnapshot,
+    close_mid_term_summary_queue,
     get_mid_term_summary_queue,
+    init_mid_term_summary_queue,
 )
 
 
@@ -145,3 +147,34 @@ class TestMidTermSummaryQueue:
         assert snapshot.session_id == "sess_fields"
         assert len(snapshot.messages) == 1
         assert snapshot.enqueued_at is not None
+
+
+class TestInitMidTermSummaryQueue:
+    """init_mid_term_summary_queue 参数测试（P0-7：签名 maxsize 默认参 + 透传）。"""
+
+    @pytest.mark.asyncio
+    async def test_init_default_maxsize(self) -> None:
+        """无参调用：默认 maxsize=1000（与构造函数默认一致）。"""
+        try:
+            queue = init_mid_term_summary_queue()
+            assert queue._queue.maxsize == 1000
+        finally:
+            await close_mid_term_summary_queue()
+
+    @pytest.mark.asyncio
+    async def test_init_explicit_maxsize(self) -> None:
+        """显式 maxsize=500 → 队列容量 500。"""
+        try:
+            queue = init_mid_term_summary_queue(maxsize=500)
+            assert queue._queue.maxsize == 500
+        finally:
+            await close_mid_term_summary_queue()
+
+    @pytest.mark.asyncio
+    async def test_init_singleton_visible(self) -> None:
+        """init 后全局单例可见（get_mid_term_summary_queue 非 None）。"""
+        try:
+            init_mid_term_summary_queue(maxsize=100)
+            assert get_mid_term_summary_queue() is not None
+        finally:
+            await close_mid_term_summary_queue()

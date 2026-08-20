@@ -10,6 +10,7 @@ from src.common.logger import get_logger
 import asyncio
 
 from src.core.adapters.agent_config_port import get_agent_config_provider
+from src.maisaka.agent_interaction.monologue_engine import MonologueEngine
 from src.maisaka.agent_interaction.trigger_scheduler import InteractionTrigger
 logger = get_logger("auto.scheduler")
 
@@ -28,10 +29,12 @@ class InteractionScheduler:
         self,
         trigger: InteractionTrigger,
         evaluation_interval_seconds: int = _DEFAULT_EVALUATION_INTERVAL,
+        monologue_engine: MonologueEngine | None = None,
     ) -> None:
         self._trigger = trigger
         self._interval = evaluation_interval_seconds
         self._config_registry = get_agent_config_provider()
+        self._monologue_engine = monologue_engine
         self._task: asyncio.Task | None = None
         self._running = False
 
@@ -86,6 +89,20 @@ class InteractionScheduler:
                         "[agent_interaction] 触发成功: event_id=%s",
                         result.event_id,
                     )
+                    # P0-2: 交互成功路径接线 MonologueEngine
+                    # 1) 记录活跃重置独白空闲计时
+                    # 2) 尝试触发内心独白（失败不影响主流程）
+                    if self._monologue_engine is not None:
+                        self._monologue_engine.record_activity(agent.agent_id)
+                        try:
+                            await self._monologue_engine.execute(agent.agent_id)
+                        except Exception as me:
+                            logger.warning(
+                                "[agent_interaction] 内心独白执行异常，跳过: agent=%s err=%s",
+                                agent.agent_id,
+                                me,
+                                exc_info=True,
+                            )
             except Exception as exc:
                 from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port

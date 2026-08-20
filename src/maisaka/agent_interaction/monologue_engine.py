@@ -85,6 +85,13 @@ class MonologueEngine:
         self._memory_adapter = memory_adapter
         self._config_registry = get_agent_config_provider()
 
+    def record_activity(self, agent_id: str) -> None:
+        """记录智能体活跃（交互触发成功），重置独白空闲计时。
+
+        P0-2: 薄透传到 MonologueTrigger，由 scheduler 在交互成功路径调用。
+        """
+        self._monologue_trigger.record_activity(agent_id)
+
     async def execute(self, agent_id: str) -> MonologueResult:
         """执行内心独白。"""
         # 获取情绪状态

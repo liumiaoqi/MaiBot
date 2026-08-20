@@ -118,7 +118,7 @@ class RelationshipManager:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '加载关系记录失败:  <->', exception=exc)
+                port.report(ErrorLevel.WARNING, f"加载关系记录失败: {agent_id} <-> {user_id}", exception=exc)
             logger.warning(f"加载关系记录失败: {agent_id} <-> {user_id}")
             return None
 
@@ -179,7 +179,7 @@ class RelationshipManager:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '保存关系记录失败:  <->', exception=exc)
+                port.report(ErrorLevel.WARNING, f"保存关系记录失败: {agent_id} <-> {user_id}", exception=exc)
             logger.warning(f"保存关系记录失败: {agent_id} <-> {user_id}")
 
     @staticmethod
@@ -236,7 +236,11 @@ class RelationshipManager:
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, '操作异常 in manager.py', exception=exc)
+                    port.report(
+                        ErrorLevel.WARNING,
+                        f"关系升级回调异常: {snapshot.agent_id} <-> {snapshot.user_id}",
+                        exception=exc,
+                    )
                 logger.warning("操作异常 in manager.py", exc_info=True)
 
     @staticmethod
@@ -253,6 +257,6 @@ class RelationshipManager:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '操作异常 in manager.py', exception=exc)
+                port.report(ErrorLevel.WARNING, f"获取关系增长率异常: agent={agent_id}", exception=exc)
             logger.warning("操作异常 in manager.py", exc_info=True)
         return 1.0

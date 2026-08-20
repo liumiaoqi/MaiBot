@@ -237,7 +237,10 @@ class DeepSeekOptimizer:
             if port is not None:
                 port.report(ErrorLevel.WARNING, "操作异常 in optimizer.py", exception=exc)
             logger.warning("操作异常 in optimizer.py", exc_info=True)
-        return ["identity", "anti_mechanization", "profile", "mid_term", "heuristic"]
+        # P0-6: fallback 必须覆盖全部 5 个核心段（identity/anti_mechanization/
+        # emotion_state/relationship/history），否则 lean 交集（:207）会静默丢段；
+        # 非核心 3 段（profile/mid_term/heuristic）保留尾部供 adaptive 兜底。
+        return ["identity", "anti_mechanization", "emotion_state", "relationship", "history", "profile", "mid_term", "heuristic"]
 
     @staticmethod
     def _truncate_segment(segment: ContextSegment, max_tokens: int) -> ContextSegment:

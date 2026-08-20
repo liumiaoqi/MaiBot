@@ -9,6 +9,7 @@ from src.common.logger import get_logger
 import json
 from dataclasses import dataclass, field
 
+
 from src.maisaka.agent_interaction.effect_calculator import EffectCalculator
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
@@ -59,6 +60,18 @@ class InteractionEngine:
         self._effect_calculator = EffectCalculator(echo_decay_ratio=echo_decay_ratio)
         self._echo_max_depth = echo_max_depth
         self._echo_decay_ratio = echo_decay_ratio
+        # P0-1: 构造时装配 EchoDetector，注入主引擎共享组件（回声路径读取真实状态）
+        # 延迟 import 避免与 echo_detector 顶层 `from ...engine import InteractionResult` 循环
+        from src.maisaka.agent_interaction.echo_detector import EchoDetector
+
+        self._echo_detector = EchoDetector(
+            echo_max_depth=echo_max_depth,
+            echo_decay_ratio=echo_decay_ratio,
+            emotion_registry=emotion_registry,
+            relationship_manager=relationship_manager,
+            event_store=event_store,
+            memory_adapter=memory_adapter,
+        )
 
     async def execute(self, evaluation: TriggerEvaluation) -> InteractionResult:
         """执行交互触发决策。"""
@@ -144,14 +157,9 @@ class InteractionEngine:
                 memory_write_status=memory_status,
             )
 
-            # 非阻塞：回声检测
+            # 非阻塞：回声检测（P0-1: 复用共享组件，不新建空组件）
             try:
-                from src.maisaka.agent_interaction.echo_detector import EchoDetector
-                detector = EchoDetector(
-                    echo_max_depth=self._echo_max_depth,
-                    echo_decay_ratio=self._echo_decay_ratio,
-                )
-                await detector.check_and_propagate(result, evaluation)
+                await self._echo_detector.check_and_propagate(result, evaluation)
             except Exception as e:
                 from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port

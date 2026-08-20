@@ -35,10 +35,7 @@ B_CLASS = [
     "consolidation/distill.py",
     "consolidation/knowledge_store.py",
     "consolidation/scheduler.py",
-    "cross_chat/injector.py",
-    "cross_chat/service.py",
-    "cross_chat/sharing.py",
-    "cross_chat/summarizer.py",
+
     "event_sensor/priority.py",
     "event_sensor/reaction.py",
     "event_sensor/sensor.py",

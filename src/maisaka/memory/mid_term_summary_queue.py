@@ -173,10 +173,14 @@ class MidTermSummaryQueue:
 _mid_term_summary_queue: MidTermSummaryQueue | None = None
 
 
-def init_mid_term_summary_queue() -> MidTermSummaryQueue:
-    """初始化全局摘要队列 + 启动消费者（@startup_item 触发）。"""
+def init_mid_term_summary_queue(maxsize: int = 1000) -> MidTermSummaryQueue:
+    """初始化全局摘要队列 + 启动消费者（@startup_item 触发）。
+
+    maxsize: 队列容量上限，默认 1000（与 MidTermSummaryQueue 构造默认一致），
+    队列满时丢弃最老条目（见 enqueue_summary_build）。
+    """
     global _mid_term_summary_queue
-    queue = MidTermSummaryQueue()
+    queue = MidTermSummaryQueue(maxsize=maxsize)
     queue.start()
     _mid_term_summary_queue = queue
     logger.info("MidTermSummaryQueue 已初始化（消费者已启动）")

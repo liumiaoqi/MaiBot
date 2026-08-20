@@ -240,7 +240,8 @@ class TestCooldownManager:
             mock_ctx = MagicMock()
             mock_ctx.__enter__ = MagicMock(return_value=mock_ctx)
             mock_ctx.__exit__ = MagicMock(return_value=False)
-            mock_ctx.execute = MagicMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_row)))
+            # P0-3: 单 session 模式改用主键直查 session.get
+            mock_ctx.get = MagicMock(return_value=mock_row)
             mock_session.return_value = mock_ctx
 
             manager = InteractionCooldownManager()

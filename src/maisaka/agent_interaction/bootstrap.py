@@ -91,10 +91,18 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
         trigger_registry=trigger_registry,
     )
 
+    # P0-2: 装配 MonologueEngine（复用已构建的 emotion_registry/memory_adapter）
+    monologue_engine = build_monologue_engine(
+        memory_port,
+        emotion_registry=emotion_registry,
+        memory_adapter=memory_adapter,
+    )
+
     # 定时调度器
     scheduler = InteractionScheduler(
         trigger=interaction_trigger,
         evaluation_interval_seconds=cfg.evaluation_interval_seconds,
+        monologue_engine=monologue_engine,
     )
 
     logger.info(
@@ -107,23 +115,33 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
     return scheduler
 
 
-def build_monologue_engine(memory_port: MemoryServicePort) -> MonologueEngine | None:
+def build_monologue_engine(
+    memory_port: MemoryServicePort,
+    emotion_registry: AgentEmotionManagerRegistry | None = None,
+    memory_adapter: AgentMemoryAdapter | None = None,
+) -> MonologueEngine | None:
     """根据配置组装并返回 MonologueEngine 实例。
 
     若 agent_interaction.monologue_enabled 为 False，返回 None。
+
+    P0-2: 增可选注入参数，允许 bootstrap 复用已构建的组件
+    （避免 scheduler 与 monologue_engine 各持一份 emotion_registry 导致状态分裂）。
     """
     cfg = get_app_config_port().get_agent_interaction_config()
 
     if not cfg.enabled or not cfg.monologue_enabled:
         return None
 
-    emotion_registry = AgentEmotionManagerRegistry()
+    # 复用注入的组件，否则新建（独立调用场景兼容）
+    if emotion_registry is None:
+        emotion_registry = AgentEmotionManagerRegistry()
     monologue_trigger = MonologueTrigger(
         idle_threshold_minutes=cfg.monologue_idle_threshold_minutes,
         emotion_intensity_threshold=cfg.monologue_emotion_intensity_threshold,
         min_interval_minutes=cfg.monologue_min_interval_minutes,
     )
-    memory_adapter = AgentMemoryAdapter(memory_port)
+    if memory_adapter is None:
+        memory_adapter = AgentMemoryAdapter(memory_port)
 
     return MonologueEngine(
         emotion_registry=emotion_registry,

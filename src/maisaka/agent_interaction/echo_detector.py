@@ -9,7 +9,10 @@ import asyncio
 
 from src.common.logger import get_logger
 
-
+from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+from src.maisaka.agent_interaction.event_store import InteractionEventStore
+from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
+from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 from src.maisaka.agent_interaction.engine import InteractionResult
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
 
@@ -33,9 +36,18 @@ class EchoDetector:
         self,
         echo_max_depth: int = 3,
         echo_decay_ratio: float = 0.5,
+        emotion_registry: AgentEmotionManagerRegistry | None = None,
+        relationship_manager: AgentRelationshipManager | None = None,
+        event_store: InteractionEventStore | None = None,
+        memory_adapter: AgentMemoryAdapter | None = None,
     ) -> None:
         self._max_depth = echo_max_depth
         self._decay_ratio = echo_decay_ratio
+        # P0-1: 共享主引擎组件（可空——缺省时回声不执行并出声，禁止静默降级为新建空组件）
+        self._emotion_registry = emotion_registry
+        self._relationship_manager = relationship_manager
+        self._event_store = event_store
+        self._memory_adapter = memory_adapter
 
     async def check_and_propagate(
         self,
@@ -121,19 +133,28 @@ class EchoDetector:
             logger.warning("[agent_interaction] 回声传播异常，静默截断: %s", e)
 
     async def _propagate_echo(self, evaluation: TriggerEvaluation) -> None:
-        """传播回声信号（延迟导入避免循环依赖）。"""
-        from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
-        from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
-        from src.maisaka.agent_interaction.event_store import InteractionEventStore
+        """传播回声信号：复用主引擎共享组件，引擎新建（延迟导入避免循环依赖）。
+
+        P0-1: 组件缺省时回声不执行并打 error（静默失效禁令——空组件正是本次缺陷，
+        禁止降级为新建空组件）。
+        """
+        if (
+            self._emotion_registry is None
+            or self._relationship_manager is None
+            or self._event_store is None
+        ):
+            logger.error(
+                "[agent_interaction] 回声传播组件缺失"
+                "（emotion_registry/relationship_manager/event_store），静默失效禁令：回声不执行"
+            )
+            return
         from src.maisaka.agent_interaction.engine import InteractionEngine
 
-        emotion_registry = AgentEmotionManagerRegistry()
-        relationship_manager = AgentRelationshipManager()
-        event_store = InteractionEventStore()
         engine = InteractionEngine(
-            emotion_registry=emotion_registry,
-            relationship_manager=relationship_manager,
-            event_store=event_store,
+            emotion_registry=self._emotion_registry,
+            relationship_manager=self._relationship_manager,
+            event_store=self._event_store,
+            memory_adapter=self._memory_adapter,
         )
 
         echo_result = await engine.execute(evaluation)
