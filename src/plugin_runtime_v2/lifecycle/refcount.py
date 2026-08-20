@@ -39,6 +39,7 @@ class PluginState(str, Enum):
     COMING = "coming"
     GOING = "going"
     UNFORMED = "unformed"
+    ERROR = "error"
 
 
 @dataclass
@@ -165,8 +166,8 @@ class PluginRefcount:
         return self._mark_going_locked()
 
     def _mark_going_locked(self) -> bool:
-        # CX 审查 P1：UNFORMED 是终态——禁止 UNFORMED→GOING 回退
-        if self._state == PluginState.UNFORMED:
+        # CX 审查 P1：UNFORMED/ERROR 是终态——禁止回退
+        if self._state in (PluginState.UNFORMED, PluginState.ERROR):
             return False
         if self._state == PluginState.GOING:
             return self._refcount == 0
@@ -197,6 +198,14 @@ class PluginRefcount:
     def mark_unformed(self) -> None:
         """卸载完成后设 UNFORMED（对标 free_module 的 state 转换）。"""
         self._state = PluginState.UNFORMED
+
+    def mark_error(self) -> None:
+        """on_load 失败时设 ERROR——终态，try_acquire 拒新，不可恢复。"""
+        self._state = PluginState.ERROR
+        logger.warning(
+            "PluginRefcount mark_error: plugin=%s refcount=%d",
+            self._plugin_id, self._refcount,
+        )
 
     # ── 只读属性 ────────────────────────────────────────────────
 

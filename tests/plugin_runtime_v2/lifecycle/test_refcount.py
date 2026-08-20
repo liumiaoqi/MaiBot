@@ -166,3 +166,23 @@ async def test_handle_acquire_going_yields_none() -> None:
     async with handle.acquire() as h:
         assert h is None
     assert rc.refcount == 0
+
+
+@pytest.mark.asyncio
+async def test_mark_error_sets_error_state() -> None:
+    """mark_error 设 ERROR 终态，try_acquire 拒新。"""
+    rc = PluginRefcount("test-plugin")
+    assert rc.state == PluginState.LIVE
+    rc.mark_error()
+    assert rc.state == PluginState.ERROR
+    assert rc.try_acquire() is False
+    assert rc.refcount == 0
+
+
+@pytest.mark.asyncio
+async def test_mark_error_is_terminal() -> None:
+    """ERROR 是终态——mark_going 后仍可检测 ERROR。"""
+    rc = PluginRefcount("test-plugin")
+    rc.mark_error()
+    rc.mark_going()
+    assert rc.state == PluginState.ERROR

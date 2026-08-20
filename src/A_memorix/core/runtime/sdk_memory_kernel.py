@@ -5,7 +5,7 @@ import asyncio
 import time
 
 from src.common.logger import get_logger
-from src.llm_models.model_requirement import model_requirement
+from ..llm_compat import model_requirement
 from ...paths import default_data_dir, resolve_repo_path
 from ..retrieval import SparseBM25Index
 from ..storage import GraphStore, MetadataStore, VectorStore

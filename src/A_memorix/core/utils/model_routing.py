@@ -2,18 +2,45 @@
 
 旧任务名路由（NON_TEXT_GENERATION_TASK_NAMES / A_MEMORIX_TEXT_TASK_PRIORITY /
 pick_text_generation_task）已废弃——统一走 ModelConfigPort.resolve_by_capability。
+
+隔离说明：ResolutionOptions / TaskConfig 的字段通过 getattr 访问（见
+model_config_port.py:_merge_options），故本地定义等价 dataclass 即可，
+无需导入 src.llm_models / src.config。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from src.common.logger import get_logger
 from src.common.data_models.llm_service_data_models import LLMServiceResult
 from src.core.model_config_port_registry import get_model_config_port
-from src.llm_models.model_requirement import ResolutionOptions
 
 
 logger = get_logger("A_Memorix.ModelRouting")
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolutionOptions:
+    """本地等价 ResolutionOptions——字段通过 getattr 访问，无需导入 src.llm_models。"""
+
+    prefer: tuple[tuple[str, str], ...] = ()
+    temperature: float | None = None
+    max_tokens: int | None = None
+    selection_strategy: str = "balance"
+    hard_timeout: float = 240.0
+    slow_threshold: float = 15.0
+
+
+@dataclass
+class _CompatTaskConfig:
+    """本地等价 TaskConfig——A_memorix 内部通过 getattr 访问字段。"""
+
+    model_list: list[str] = field(default_factory=list)
+    max_tokens: int = 0
+    temperature: float = 0.0
+    slow_threshold: float = 15.0
+    selection_strategy: str = "balance"
+    hard_timeout: float = 240.0
 
 
 @dataclass(frozen=True)
@@ -52,7 +79,7 @@ def resolve_text_generation_task(
     port = get_model_config_port()
     if port is None:
         raise RuntimeError("ModelConfigPort 未注册，无法解析文本生成模型")
-    options = ResolutionOptions(
+    options = _ResolutionOptions(
         prefer=prefer,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -68,9 +95,7 @@ def resolve_text_generation_task(
 
 def _to_compat_task_config(resolved: Any) -> Any:
     """ResolvedModel → TaskConfig 兼容格式（旧调用契约过渡期用）。"""
-    from src.config.model_configs import TaskConfig
-
-    return TaskConfig(
+    return _CompatTaskConfig(
         model_list=[resolved.name],
         max_tokens=resolved.max_tokens,
         temperature=resolved.temperature,

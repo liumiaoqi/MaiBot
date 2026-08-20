@@ -8,7 +8,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.common.utils.utils_config import AMemorixConfigUtils
-from src.config.official_configs import AMemorixConfig
+from src.config.official_configs import AMemorixConfig  # noqa: TID251 — host_service 是 A_memorix 唯一适配层（见 core/ports.py）
 from src.webui.utils.toml_utils import _update_toml_doc
 
 from .paths import repo_root, schema_path
@@ -28,7 +28,7 @@ def _get_app_config_port():
 
 
 def _get_bot_config_path() -> Path:
-    from src.config.config import BOT_CONFIG_PATH
+    from src.config.config import BOT_CONFIG_PATH  # noqa: TID251 — host_service 适配层
 
     return BOT_CONFIG_PATH
 
@@ -672,8 +672,8 @@ class AMemorixHostService:
         from src.common.database.database_model import PersonInfo
         from src.common.data_models.llm_service_data_models import LLMServiceResult
         from src.config.config import config_manager  # noqa: TID251 — AMemorixServicePorts 内部端口容器
-        from src.llm_models.exceptions import NetworkConnectionError
-        from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry
+        from src.llm_models.exceptions import NetworkConnectionError  # noqa: TID251 — host_service 适配层
+        from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry  # noqa: TID251 — host_service 适配层
         from src.services import llm_service as llm_api
         from src.services import message_service as message_api
         from src.core.session_port_registry import get_session_info_port

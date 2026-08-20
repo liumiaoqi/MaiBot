@@ -139,6 +139,12 @@ class RunnerEndpoint:
                     if port is not None:
                         port.report(ErrorLevel.ERROR, "插件 on_load 失败", exception=exc)
                     logger.error("插件 on_load 失败: %s", exc)
+                    # rollback：注销已注册的 tool + 状态置 ERROR
+                    for tool_entry in tools:
+                        self._tool_router.unregister(tool_entry["name"])
+                    if self._refcount is not None:
+                        self._refcount.mark_error()
+                    return
 
         while True:
             if self._shutting_down:
