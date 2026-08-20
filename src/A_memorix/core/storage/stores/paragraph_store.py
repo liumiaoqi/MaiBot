@@ -2,7 +2,7 @@
 段落存储 — 从 MetadataStore 提取的段落 CRUD、FTS、N-gram 等全部段落相关操作。
 """
 
-import pickle
+
 import re
 import sqlite3
 import threading
@@ -17,6 +17,7 @@ from ._utils import (
     char_ngrams,
     decode_metadata,
     dedupe_episode_sources,
+    encode_metadata,
     iter_sql_batches,
     merge_paragraph_metadata,
     normalize_episode_source,
@@ -81,7 +82,7 @@ class ParagraphStore:
                     vector_index,
                     now,
                     now,
-                    pickle.dumps(metadata or {}),
+                    encode_metadata(metadata),
                     source,
                     word_count,
                     normalized_time.get("event_time"),
@@ -208,7 +209,7 @@ class ParagraphStore:
         updated = merge_paragraph_metadata(metadata, patch) if merge else dict(patch)
         cursor.execute(
             "UPDATE paragraphs SET metadata = ?, updated_at = ? WHERE hash = ?",
-            (pickle.dumps(updated), datetime.now().timestamp(), hash_token),
+            (encode_metadata(updated), datetime.now().timestamp(), hash_token),
         )
         self._conn.commit()
         return updated
@@ -493,7 +494,7 @@ class ParagraphStore:
             return metadata
         cursor.execute(
             "UPDATE paragraphs SET metadata = ?, updated_at = ? WHERE hash = ?",
-            (pickle.dumps(updated), datetime.now().timestamp(), paragraph_hash),
+            (encode_metadata(updated), datetime.now().timestamp(), paragraph_hash),
         )
         self._conn.commit()
         return updated

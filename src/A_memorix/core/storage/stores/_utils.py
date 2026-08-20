@@ -17,12 +17,32 @@ logger = get_logger("A_Memorix.StoreUtils")
 # 序列化 / 反序列化
 # ---------------------------------------------------------------------------
 
+def encode_metadata(metadata: Any) -> str:
+    """编码 metadata 为 JSON（P2 批3.1 安全修复——替代 pickle.dumps）。
+
+    新数据一律用 JSON 序列化，避免 pickle.loads 任意代码执行风险。
+    """
+    return json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
+
+
 def decode_metadata(value: Any) -> Dict[str, Any]:
-    """解码 pickle 编码的 metadata 字段。"""
+    """解码 metadata 字段（P2 批3.1 安全修复）。
+
+    优先 JSON 解析（新数据）；JSON 失败时 fallback 到 pickle（兼容旧数据，加警告日志）。
+    旧 pickle 数据应在下次写入时自动迁移为 JSON。
+    """
     if value in {None, ""}:
         return {}
     if isinstance(value, dict):
         return dict(value)
+    if isinstance(value, (str, bytes, bytearray)):
+        text = value.decode("utf-8") if isinstance(value, (bytes, bytearray)) else value
+        try:
+            decoded = json.loads(text)
+            if isinstance(decoded, dict):
+                return decoded
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
     decoded = pickle.loads(value)
     if not isinstance(decoded, dict):
         raise TypeError("metadata 字段必须解码为 dict")
@@ -156,7 +176,7 @@ def iter_sql_batches(items: Sequence[str], batch_size: int = 900) -> List[List[s
 # ---------------------------------------------------------------------------
 
 def row_to_dict(row: Any, _row_type: str = "") -> Dict[str, Any]:
-    """将 sqlite3.Row 转换为字典，自动解码 pickle 字段。"""
+    """将 sqlite3.Row 转换为字典，自动解码 metadata 字段（JSON 优先，pickle 兼容旧数据）。"""
     import sqlite3
 
     if isinstance(row, sqlite3.Row):
@@ -167,7 +187,7 @@ def row_to_dict(row: Any, _row_type: str = "") -> Dict[str, Any]:
         d = dict(row)
     if "metadata" in d and d["metadata"]:
         try:
-            d["metadata"] = pickle.loads(d["metadata"])
+            d["metadata"] = decode_metadata(d["metadata"])
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port

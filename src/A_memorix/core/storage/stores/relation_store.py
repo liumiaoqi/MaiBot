@@ -2,7 +2,7 @@
 关系存储 — 从 MetadataStore 提取的关系 CRUD、V5 状态管理、保护/修剪、FTS。
 """
 
-import pickle
+
 import sqlite3
 import threading
 from datetime import datetime
@@ -15,6 +15,7 @@ from ._utils import (
     canonicalize_name,
     decode_metadata,
     deep_merge_dict,
+    encode_metadata,
     iter_sql_batches,
     normalize_hash_sequence,
     row_to_dict,
@@ -74,7 +75,7 @@ class RelationStore:
                         confidence,
                         now,
                         source_paragraph,
-                        pickle.dumps(metadata or {}),
+                        encode_metadata(metadata),
                     ),
                 )
                 self._conn.commit()
@@ -313,7 +314,7 @@ class RelationStore:
                     updated = deep_merge_dict(metadata, patch) if merge else dict(patch)
                     cursor.execute(
                         "UPDATE relations SET metadata = ? WHERE hash = ?",
-                        (pickle.dumps(updated), hash_token),
+                        (encode_metadata(updated), hash_token),
                     )
                     cursor.execute("COMMIT")
                 return updated
@@ -871,7 +872,7 @@ class RelationStore:
             d = dict(row)
             if "metadata" in d and d["metadata"]:
                 try:
-                    d["metadata"] = pickle.loads(d["metadata"])
+                    d["metadata"] = decode_metadata(d["metadata"])
                 except Exception as exc:
                     from src.core.error_escalation.types import ErrorLevel
                     from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -892,7 +893,7 @@ class RelationStore:
         d = dict(row)
         if "metadata" in d and d["metadata"]:
             try:
-                d["metadata"] = pickle.loads(d["metadata"])
+                d["metadata"] = decode_metadata(d["metadata"])
             except Exception as exc:
                 from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port

@@ -2,7 +2,7 @@
 实体存储 — 从 MetadataStore 提取的实体 CRUD 与关联操作。
 """
 
-import pickle
+
 import sqlite3
 import threading
 from datetime import datetime
@@ -12,6 +12,7 @@ from src.common.logger import get_logger
 from ...utils.hash import compute_hash
 from ._utils import (
     canonicalize_name,
+    encode_metadata,
     normalize_hash_sequence,
     iter_sql_batches,
     row_to_dict,
@@ -59,7 +60,7 @@ class EntityStore:
                     name,
                     vector_index,
                     now,
-                    pickle.dumps(metadata or {}),
+                    encode_metadata(metadata),
                 ),
             )
             logger.debug(f"添加实体: {name} ({hash_value[:8]})")

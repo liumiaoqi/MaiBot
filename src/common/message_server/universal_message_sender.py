@@ -216,7 +216,7 @@ class UniversalMessageSender:
             if any(results.values()):
                 if show_log:
                     logger.info(
-                        f"已通过 API Server Fallback 将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key})"
+                        f"已通过 API Server Fallback 将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key[:8]}...)"
                     )
                 return True
             else:

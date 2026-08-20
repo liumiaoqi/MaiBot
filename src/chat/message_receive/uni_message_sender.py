@@ -231,7 +231,7 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 if any(results.values()):
                     if show_log:
                         logger.info(
-                            f"已通过API Server Fallback将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key})"
+                            f"已通过API Server Fallback将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key[:8]}...)"
                         )
                     return True
                 else:

@@ -654,7 +654,14 @@ class ChatSummaryWritebackService:
         metadata = paragraph.get("metadata")
         if isinstance(metadata, dict):
             return metadata
-        if isinstance(metadata, (bytes, bytearray)):
+        if isinstance(metadata, (str, bytes, bytearray)):
+            text = metadata.decode("utf-8") if isinstance(metadata, (bytes, bytearray)) else metadata
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
             try:
                 parsed = pickle.loads(metadata)
             except Exception as exc:
