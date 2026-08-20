@@ -241,7 +241,7 @@ class RelationshipManager:
                         f"关系升级回调异常: {snapshot.agent_id} <-> {snapshot.user_id}",
                         exception=exc,
                     )
-                logger.warning("操作异常 in manager.py", exc_info=True)
+                logger.warning("关系升级回调异常: %s <-> %s", snapshot.agent_id, snapshot.user_id, exc_info=True)
 
     @staticmethod
     def _get_growth_rate(agent_id: str) -> float:
@@ -258,5 +258,5 @@ class RelationshipManager:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, f"获取关系增长率异常: agent={agent_id}", exception=exc)
-            logger.warning("操作异常 in manager.py", exc_info=True)
+            logger.warning("获取关系增长率异常: agent=%s", agent_id, exc_info=True)
         return 1.0

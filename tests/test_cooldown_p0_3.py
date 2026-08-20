@@ -125,7 +125,12 @@ class TestCooldownConcurrency:
 
     @pytest.mark.asyncio
     async def test_concurrent_record_no_negative(self) -> None:
-        """并发 2 任务同 key → 无重复记录（主键约束）、计数非负。"""
+        """并发 2 任务同 key → 无重复记录（主键约束）、计数非负。
+
+        P2-R2-9: asyncio.gather 真实并发触发 2 个 record_interaction，
+        SQLite WAL + busy_timeout=1000ms 串行化写入——验证并发边界下
+        无重复记录（主键约束）且计数非负（不产生负值）。
+        """
         manager = InteractionCooldownManager()
         key = _key("concurrent")
         await asyncio.gather(manager.record_interaction(key), manager.record_interaction(key))

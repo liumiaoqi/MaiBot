@@ -105,3 +105,87 @@ def test_get_growth_rate_failure_reports_agent_context(mock_error_port) -> None:
     call_args = mock_error_port.report.call_args
     msg = call_args.args[1]
     assert "agent-g" in msg, f"上报消息应含 agent_id: {msg}"
+
+
+def test_logger_report_consistency_load_failure(
+    mock_error_port, caplog: object
+) -> None:
+    """_load_row 异常 → logger 与 error_escalation 上报均含 agent_id <-> user_id。"""
+    from src.maisaka.relationship.manager import RelationshipManager
+
+    with caplog.at_level("WARNING", logger="maisaka_relationship"):
+        with patch("src.maisaka.relationship.manager.get_db_session") as mock_session:
+            mock_session.side_effect = RuntimeError("db down")
+            RelationshipManager._load_row("agent-lc", "user-lc")
+
+    assert any("agent-lc" in r.message for r in caplog.records), "logger 应含 agent_id"
+    assert any("user-lc" in r.message for r in caplog.records), "logger 应含 user_id"
+    report_msg = mock_error_port.report.call_args.args[1]
+    assert "agent-lc" in report_msg and "user-lc" in report_msg
+
+
+def test_logger_report_consistency_save_failure(
+    mock_error_port, caplog: object
+) -> None:
+    """_save_snapshot 异常 → logger 与 error_escalation 上报均含 agent_id <-> user_id。"""
+    from src.maisaka.relationship.level import RelationshipLevel, RelationshipSnapshot
+    from src.maisaka.relationship.manager import RelationshipManager
+
+    snapshot = RelationshipSnapshot(
+        agent_id="agent-sv",
+        user_id="user-sv",
+        score=100.0,
+        level=RelationshipLevel.ACQUAINTANCE,
+    )
+    with caplog.at_level("WARNING", logger="maisaka_relationship"):
+        with patch("src.maisaka.relationship.manager.get_db_session") as mock_session:
+            mock_session.side_effect = RuntimeError("db down")
+            RelationshipManager._save_snapshot("agent-sv", "user-sv", snapshot)
+
+    assert any("agent-sv" in r.message for r in caplog.records), "logger 应含 agent_id"
+    assert any("user-sv" in r.message for r in caplog.records), "logger 应含 user_id"
+    report_msg = mock_error_port.report.call_args.args[1]
+    assert "agent-sv" in report_msg and "user-sv" in report_msg
+
+
+def test_logger_report_consistency_upgrade_callback(
+    mock_error_port, caplog: object
+) -> None:
+    """_on_relationship_upgrade 回调异常 → logger 与上报均含 snapshot 上下文。"""
+    from src.maisaka.relationship.level import RelationshipLevel, RelationshipSnapshot
+    from src.maisaka.relationship.manager import RelationshipManager
+
+    snapshot = RelationshipSnapshot(
+        agent_id="agent-uc",
+        user_id="user-uc",
+        score=500.0,
+        level=RelationshipLevel.FAMILIAR,
+    )
+    manager = RelationshipManager()
+    manager.set_emotion_trigger_callback(MagicMock(side_effect=RuntimeError("cb boom")))
+
+    with caplog.at_level("WARNING", logger="maisaka_relationship"):
+        manager._on_relationship_upgrade(snapshot, RelationshipLevel.ACQUAINTANCE)
+
+    assert any("agent-uc" in r.message for r in caplog.records), "logger 应含 agent_id"
+    assert any("user-uc" in r.message for r in caplog.records), "logger 应含 user_id"
+    report_msg = mock_error_port.report.call_args.args[1]
+    assert "agent-uc" in report_msg and "user-uc" in report_msg
+
+
+def test_logger_report_consistency_growth_rate(
+    mock_error_port, caplog: object
+) -> None:
+    """_get_growth_rate 异常 → logger 与上报均含 agent_id。"""
+    from src.maisaka.relationship.manager import RelationshipManager
+
+    with caplog.at_level("WARNING", logger="maisaka_relationship"):
+        with patch(
+            "src.core.adapters.agent_config_port.get_agent_config_provider"
+        ) as mock_provider:
+            mock_provider.side_effect = RuntimeError("provider down")
+            RelationshipManager._get_growth_rate("agent-gr")
+
+    assert any("agent-gr" in r.message for r in caplog.records), "logger 应含 agent_id"
+    report_msg = mock_error_port.report.call_args.args[1]
+    assert "agent-gr" in report_msg

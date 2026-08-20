@@ -121,12 +121,10 @@ class TestEchoSharedState:
     @pytest.mark.asyncio
     async def test_none_components_log_error_and_skip(self, caplog: object) -> None:
         """组件缺省（None）→ 回声不执行（不建空引擎）且打 error 日志。"""
-        import logging
-
         detector = EchoDetector(echo_max_depth=3, echo_decay_ratio=0.5)
         result = _big_echo_result()
         evaluation = _evaluation()
-        with caplog.at_level(logging.ERROR, logger="src.maisaka.agent_interaction.echo_detector"):
+        with caplog.at_level("ERROR", logger="src.maisaka.agent_interaction.echo_detector"):
             await detector.check_and_propagate(result, evaluation)
         assert any("回声传播组件缺失" in rec.message for rec in caplog.records), \
             "组件缺失时必须打 error 日志（静默失效禁令）"

@@ -89,18 +89,15 @@ class InteractionScheduler:
                         "[agent_interaction] 触发成功: event_id=%s",
                         result.event_id,
                     )
-                    # P0-2: 交互成功路径接线 MonologueEngine
-                    # 1) 记录活跃重置独白空闲计时
-                    # 2) 尝试触发内心独白（失败不影响主流程）
+                    # P2-R2-8: record_activity 仅成功时调用，异常隔离
                     if self._monologue_engine is not None:
-                        self._monologue_engine.record_activity(agent.agent_id)
                         try:
-                            await self._monologue_engine.execute(agent.agent_id)
-                        except Exception as me:
+                            self._monologue_engine.record_activity(agent.agent_id)
+                        except Exception as ra_exc:
                             logger.warning(
-                                "[agent_interaction] 内心独白执行异常，跳过: agent=%s err=%s",
+                                "[agent_interaction] record_activity 异常，跳过: agent=%s err=%s",
                                 agent.agent_id,
-                                me,
+                                ra_exc,
                                 exc_info=True,
                             )
             except Exception as exc:
@@ -114,3 +111,15 @@ class InteractionScheduler:
                     agent.agent_id,
                     exc_info=True,
                 )
+
+            # P0-R2-1: execute 移出成功分支，每周期无条件执行（对齐 round 1 design 2.6.2）
+            if self._monologue_engine is not None:
+                try:
+                    await self._monologue_engine.execute(agent.agent_id)
+                except Exception as me:
+                    logger.warning(
+                        "[agent_interaction] 内心独白执行异常，跳过: agent=%s err=%s",
+                        agent.agent_id,
+                        me,
+                        exc_info=True,
+                    )

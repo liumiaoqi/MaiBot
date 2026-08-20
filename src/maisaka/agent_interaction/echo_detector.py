@@ -9,11 +9,11 @@ import asyncio
 
 from src.common.logger import get_logger
 
+from src.maisaka.agent_interaction.engine import InteractionResult
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
-from src.maisaka.agent_interaction.engine import InteractionResult
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
 
 logger = get_logger(__name__)
@@ -138,6 +138,8 @@ class EchoDetector:
         P0-1: 组件缺省时回声不执行并打 error（静默失效禁令——空组件正是本次缺陷，
         禁止降级为新建空组件）。
         """
+        # memory_adapter 可空（InteractionEngine.memory_adapter 可空，回声记忆写入降级为 skipped）
+        # 但须显式标注 None 语义——对齐 round 1 tasks 4.1 字面要求覆盖 4 组件
         if (
             self._emotion_registry is None
             or self._relationship_manager is None
@@ -148,6 +150,7 @@ class EchoDetector:
                 "（emotion_registry/relationship_manager/event_store），静默失效禁令：回声不执行"
             )
             return
+        # memory_adapter 为 None 时回声记忆写入降级（engine.py memory_status="skipped"），不阻断回声
         from src.maisaka.agent_interaction.engine import InteractionEngine
 
         engine = InteractionEngine(
@@ -155,6 +158,8 @@ class EchoDetector:
             relationship_manager=self._relationship_manager,
             event_store=self._event_store,
             memory_adapter=self._memory_adapter,
+            echo_max_depth=self._max_depth,
+            echo_decay_ratio=self._decay_ratio,
         )
 
         echo_result = await engine.execute(evaluation)

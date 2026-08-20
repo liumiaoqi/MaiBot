@@ -3,13 +3,10 @@
 执行交互触发决策，原子化写入情绪变化、关系更新、记忆写入和事件持久化。
 """
 
-from src.common.logger import get_logger
-
-
 import json
 from dataclasses import dataclass, field
 
-
+from src.common.logger import get_logger
 from src.maisaka.agent_interaction.effect_calculator import EffectCalculator
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
@@ -17,8 +14,8 @@ from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.models import InteractionEventCreate
 from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
-logger = get_logger("auto.engine")
 
+logger = get_logger("auto.engine")
 
 
 @dataclass
