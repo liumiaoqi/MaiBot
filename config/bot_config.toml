@@ -462,7 +462,7 @@ warn_error_threshold = 0 # WARN 累计达阈升级 ERROR（0=禁用；>0 按计�
 critical_on_error = false # True 时 ERROR 上报升级 CRITICAL（对标 panic_on_oops）。
 error_critical_threshold = 0 # ERROR 累计达阈升级 CRITICAL（0=禁用）。
 critical_fatal_threshold = 0 # CRITICAL 累计达阈升级 FATAL（0=禁用）。
-level_actions = null # 按等级覆盖默认动作集（如 {"warn": ["log"]}；null=用默认动作集）。
+# level_actions 按等级覆盖默认动作集（如 {"warn": ["log"]}）——缺省=None 用默认动作集；TOML 无 null，需自定义时写合法值
 count_window_sec = 0.0 # 计数窗口（秒；0=全局累计不归零，>0 按窗口归零）。
 crash_dump_min_level = "critical" # 主动快照最低触发等级（warn/error/critical/fatal）。
 storm_min_threshold = 100 # 风暴检测独立下限阈值（计数阈值=0 时风暴检测仍用此值）。
