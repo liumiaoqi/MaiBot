@@ -15,18 +15,18 @@
 
 ### 一、你写 SSD/调研/审查时优先参考的 skill
 
-| 场景 | 参考 skill | 位置 |
-|------|-----------|------|
-| SSD spec 编写 | spec-driven-development / to-spec | agent-skills/、skills/ |
-| 双轴审核（Standards+Spec） | code-review | skills/ |
-| 关键决策对抗审查 | **doubt-driven-development**（biased to disprove） | agent-skills/ |
-| 安全相关代码/配置 | security-and-hardening | agent-skills/ |
-| 废弃/迁移流程 | deprecation-and-migration | agent-skills/ |
-| 交接文档 | handoff（带 suggested-skills 节） | skills/ |
-| 排障 | diagnosing-bugs | skills/ |
-| 科学实验/统计 | experimental-design / statistical-analysis | scientific-agent-skills/ |
-| 文献综述/调研 | literature-review / research-lookup | scientific-agent-skills/ |
-| 代码审计/安全逆向 | code-audit / llm-security | reverse-skill/ |
+| 场景　　　　　　　　　　　 | 参考 skill　　　　　　　　　　　　　　　　　　　　 | 位置　　　　　　　　　　 |
+| ----------------------------| ----------------------------------------------------| --------------------------|
+| SSD spec 编写　　　　　　　| spec-driven-development / to-spec　　　　　　　　　| agent-skills/、skills/　 |
+| 双轴审核（Standards+Spec） | code-review　　　　　　　　　　　　　　　　　　　　| skills/　　　　　　　　　|
+| 关键决策对抗审查　　　　　 | **doubt-driven-development**（biased to disprove） | agent-skills/　　　　　　|
+| 安全相关代码/配置　　　　　| security-and-hardening　　　　　　　　　　　　　　 | agent-skills/　　　　　　|
+| 废弃/迁移流程　　　　　　　| deprecation-and-migration　　　　　　　　　　　　　| agent-skills/　　　　　　|
+| 交接文档　　　　　　　　　 | handoff（带 suggested-skills 节）　　　　　　　　　| skills/　　　　　　　　　|
+| 排障　　　　　　　　　　　 | diagnosing-bugs　　　　　　　　　　　　　　　　　　| skills/　　　　　　　　　|
+| 科学实验/统计　　　　　　　| experimental-design / statistical-analysis　　　　 | scientific-agent-skills/ |
+| 文献综述/调研　　　　　　　| literature-review / research-lookup　　　　　　　　| scientific-agent-skills/ |
+| 代码审计/安全逆向　　　　　| code-audit / llm-security　　　　　　　　　　　　　| reverse-skill/　　　　　 |
 
 ### 二、dsh 团队 11 个内置 skill（工作流即插件——harness 作者日常用）
 
