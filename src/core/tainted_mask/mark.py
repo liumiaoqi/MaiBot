@@ -41,7 +41,5 @@ def mark_taint(flag: TaintFlag) -> None:
 def mark_exception_swallowed(context: str = "") -> None:
     """快捷标记：异常吞没（except Exception: pass 路径）。"""
     if context:
-        from src.common.logger import get_logger
-
-        get_logger("taint_mask").debug("标记 TAINT_EXCEPTION_SWALLOWED: %s", context)
+        logger.debug("标记 TAINT_EXCEPTION_SWALLOWED: %s", context)
     mark_taint(TaintFlag.TAINT_EXCEPTION_SWALLOWED)

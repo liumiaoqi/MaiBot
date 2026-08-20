@@ -604,5 +604,5 @@ class ErrorEscalator:
     @staticmethod
     def _fingerprint(component_id: str | None, message: str) -> str:
         """源指纹 = component_id + message 哈希（spec §5.4.1 规则 1）。"""
-        raw = f"{component_id or ''}|{message or ''}"
+        raw = f"{component_id or ''}|{message}"  # component_id or '': None 豁免（外部传入可能 None）
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]

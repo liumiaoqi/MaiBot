@@ -214,12 +214,7 @@ class OOMHandler:
             if port is not None:
                 port.report(level, message, component_id=component_id)
         except Exception as e:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, 'ZG-14 上报失败，OOM 处置继续', exception=e)
-            logger.warning("ZG-14 上报失败，OOM 处置继续: %s", e)
+            logger.warning("ZG-14 上报失败，OOM 处置继续: %s", e, exc_info=True)
 
     def _select_victim(self, dimension: ResourceDimension) -> Optional[Any]:
         """选受害者：跳过 usage < min 的硬保护插件，选资源消耗最大者。"""

@@ -189,6 +189,7 @@ class ControlMessagePending:
                     self.kind_bitmap &= ~(1 << (target_kind - 1))
                 return node
 
+        logger.error("位图声明有 kind=%s 但链表未找到（一致性异常）", target_kind)
         return None  # 位图有但链表无（一致性异常，降级处理）
 
     def has_pending(self, kind: ControlMessageKind) -> bool:

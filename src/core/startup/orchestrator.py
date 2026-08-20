@@ -366,7 +366,10 @@ class StartupOrchestrator:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.ERROR, '启动组件失败', exception=exc)
+                try:
+                    port.report(ErrorLevel.ERROR, '启动组件失败', exception=exc)
+                except Exception:
+                    logger.warning("启动失败上报异常，不掩盖原始异常: %s", exc, exc_info=True)
             state.status = ComponentStatus.FAILED
             state.error = exc
             if self._items[name].critical:

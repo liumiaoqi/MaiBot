@@ -182,6 +182,7 @@ class RunnerHealthBridge:
                 "V1 Runner 已注册，忽略重复注册（runner_id=%s）", runner_id
             )
             return
+        # V1 supervisor 契约：须持有 _runner_process / _restart_count（见 protocols.py 文档化声明）
         if not hasattr(supervisor, "_runner_process") or not hasattr(
             supervisor, "_restart_count"
         ):

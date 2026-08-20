@@ -86,6 +86,7 @@ class Butler:
         self._resident_ids: list[str] = []
         self._primary_display_name: str = ""
         self._last_interjection: dict[str, float] = {}
+        self._coactivation_cache: dict[str, float] = {}
         self._interjection_cooldown = 30.0
 
         # 发言权转移状态追踪
@@ -286,7 +287,7 @@ class Butler:
 
     def _get_coactivation_map(self) -> dict[str, float]:
         """LS-4: 返回预加载的共激活映射。由 _load_coactivation_map 填充。"""
-        return getattr(self, "_coactivation_cache", {})
+        return self._coactivation_cache
 
     async def _llm_filter(
         self,

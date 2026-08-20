@@ -36,7 +36,7 @@ class FourTierLimit:
     high_val: int = 0
     max_val: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not (self.min_val <= self.low_val <= self.high_val <= self.max_val):
             raise ValueError(
                 f"四档偏序违反: min({self.min_val}) <= low({self.low_val}) "
@@ -137,18 +137,10 @@ class ResourceLimitConfigManager:
         Returns:
             True 加载成功，False 偏序违反已拒绝
         """
-        try:
-            # FourTierLimit 在构造时已校验偏序，到这里说明合法
-            self._configs[plugin_id] = config
-            logger.debug("加载插件 %s 资源配置", plugin_id)
-            return True
-        except ValueError as e:
-            logger.warning(
-                "插件 %s 配置偏序违反，保持上一配置: %s",
-                plugin_id,
-                e,
-            )
-            return False
+        # FourTierLimit 在 __post_init__ 时已校验偏序，到这里说明合法
+        self._configs[plugin_id] = config
+        logger.debug("加载插件 %s 资源配置", plugin_id)
+        return True
 
     def reload_config(self, configs: dict[str, ResourceLimitConfig]) -> None:
         """热更新全部配置，≤5s 生效。

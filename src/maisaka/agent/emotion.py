@@ -7,7 +7,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from src.common.logger import get_logger
 from .config import AgentConfig, EmotionBehaviorRule
+
+logger = get_logger("agent.emotion")
 
 EMOTION_TYPES = ("happy", "sad", "anxious", "angry", "calm", "excited", "lonely")
 
@@ -139,12 +142,7 @@ class EmotionManager:
         门控1：情绪强度 ≥ 80 才写入
         门控2：同类型情绪冷却 600s（10分钟）
         """
-        import time as _time
-
-        from src.common.logger import get_logger
-
-        _logger = get_logger("agent.emotion")
-        now = _time.time()
+        now = time.time()
         for etype, intensity in self._state.emotions.items():
             if intensity < 80.0:
                 continue
@@ -169,7 +167,7 @@ class EmotionManager:
                     )
                     await port.observe_experience(request)
                     self._imprint_cooldowns[etype] = now
-                    _logger.info(
+                    logger.info(
                         f"情绪印记写入: agent={agent_id} emotion={etype} "
                         f"intensity={intensity:.0f} reason={trigger_reason}"
                     )
@@ -179,7 +177,7 @@ class EmotionManager:
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "情绪印记写入失败", exception=exc)
-                _logger.warning(f"情绪印记写入失败: agent={agent_id} emotion={etype} error={exc}")
+                logger.warning(f"情绪印记写入失败: agent={agent_id} emotion={etype} error={exc}")
 
     @staticmethod
     def _emotion_to_valence(emotion_type: str) -> str:

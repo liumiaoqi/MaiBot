@@ -8,7 +8,7 @@
 """
 
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 from src.common.logger import get_logger
 from src.core.control_message.kind_registry import ControlMessageKindRegistry
@@ -83,7 +83,7 @@ class TwoLevelPendingManager:
         self._shared_lock = asyncio.Lock()
 
     async def send_to_session(
-        self, session_id: str, kind: ControlMessageKind, info: dict
+        self, session_id: str, kind: ControlMessageKind, info: dict[str, Any]
     ) -> EnqueueResult:
         """定向控制消息入会话私有队列（spec §5.8.1 规则 1）。
 
@@ -95,7 +95,7 @@ class TwoLevelPendingManager:
         return private.enqueue(kind, info)
 
     async def send_to_system(
-        self, kind: ControlMessageKind, info: dict
+        self, kind: ControlMessageKind, info: dict[str, Any]
     ) -> EnqueueResult:
         """全局控制消息入系统共享队列（spec §5.8.1 规则 2）。"""
         return self._shared_pending.enqueue(kind, info)
