@@ -469,7 +469,14 @@ class VectorStore:
             self.rebuild_index()
 
     def rebuild_index(self):
-        """GC: 重建索引，压缩 bin 文件"""
+        """GC: 重建索引，压缩 bin 文件。
+
+        持锁设计（P2 批5.1 文档说明）：
+        - compaction 是低频 GC 操作（ratio > 0.3 且 deleted > 1000 触发），非热路径
+        - 步骤 1（文件 compact）+ 步骤 2（原子交换）+ 步骤 3（索引重建）需持锁保证一致性
+        - 锁持有时间 = compaction 全程（几秒级），对低频 GC 可接受
+        - 如需进一步优化，可将步骤 1 移到锁外（临时文件读写），但需保证与 save 不并发
+        """
         with self._lock:
             self._rebuild_index_locked()
 

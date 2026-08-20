@@ -76,6 +76,10 @@ class MetadataStore:
         # 对标 dsh defensive-patterns "Contain callback exceptions in the dispatcher"
         # 并发写冲突异常在 dispatcher 层捕获重试而非上抛污染核心生命周期
         # RLock：子 Store 方法可能调用其他子 Store 写方法（如 add_relation→link_paragraph_relation），可重入避免死锁
+        # 读写锁设计（P2 批5.2 文档说明）：
+        # - 仅写操作持锁（Python 层互斥）；读操作不加锁——SQLite WAL 模式支持读写并发
+        # - GIL 保证单线程执行，WAL 保证读不阻塞写、写不阻塞读
+        # - 如需读写分离（RWLock），收益有限：读操作已是无锁 + WAL，加读锁反而降低吞吐
         self._write_lock = threading.RLock()
 
         # 子 Store（connect() 时注入连接）

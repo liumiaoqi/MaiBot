@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Dict, Iterable, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
+
+import threading
 
 from sqlmodel import select
 
@@ -15,10 +17,16 @@ logger = get_logger("session_store")
 
 
 class SessionStore:
-    """会话存储 — 管理 sessions 字典的 CRUD + 单条持久化。"""
+    """会话存储 — 管理 sessions 字典的 CRUD + 单条持久化。
+
+    并发保护（P2 批5.3）：sessions dict 用 RLock 保护复合操作（get+set 竞态）。
+    单次 dict 操作（get/set/pop/contains/len）在 CPython GIL 下原子，但复合操作
+    （如 get_existing 的 get→miss→set）需加锁防止并发重复加载。
+    """
 
     def __init__(self) -> None:
         self.sessions: Dict[str, "BotChatSession"] = {}
+        self._lock = threading.RLock()
         self._message_registry: Optional["MessageRegistry"] = None
 
     def set_message_registry(self, registry: "MessageRegistry") -> None:
@@ -27,7 +35,8 @@ class SessionStore:
 
     def get(self, session_id: str) -> Optional["BotChatSession"]:
         """查询会话，自动设置 context（从 last_messages）。"""
-        session = self.sessions.get(session_id)
+        with self._lock:
+            session = self.sessions.get(session_id)
         if session and self._message_registry:
             last_msg = self._message_registry.get_last(session_id)
             if last_msg:
@@ -40,8 +49,17 @@ class SessionStore:
         if not normalized_session_id:
             return None
 
-        if session := self.get(normalized_session_id):
-            return session
+        with self._lock:
+            if session := self.sessions.get(normalized_session_id):
+                result = session
+            else:
+                result = None
+        if result:
+            if self._message_registry:
+                last_msg = self._message_registry.get_last(normalized_session_id)
+                if last_msg:
+                    result.set_context(last_msg)
+            return result
 
         try:
             with get_db_session() as db_session:
@@ -50,7 +68,8 @@ class SessionStore:
                 if db_instance is None:
                     return None
                 session = BotChatSession.from_db_instance(db_instance)
-                self.sessions[session.session_id] = session
+                with self._lock:
+                    self.sessions[session.session_id] = session
                 if session.session_id in self._message_registry.last_messages if self._message_registry else False:
                     session.set_context(self._message_registry.last_messages[session.session_id])
                 return session
@@ -65,20 +84,26 @@ class SessionStore:
 
     def add(self, session: "BotChatSession") -> None:
         """添加会话到存储。"""
-        self.sessions[session.session_id] = session
+        with self._lock:
+            self.sessions[session.session_id] = session
 
     def remove(self, session_id: str) -> Optional["BotChatSession"]:
         """移除并返回会话，不存在则返回 None。"""
-        return self.sessions.pop(session_id, None)
+        with self._lock:
+            return self.sessions.pop(session_id, None)
 
-    def values(self) -> Iterable["BotChatSession"]:
-        return self.sessions.values()
+    def values(self) -> List["BotChatSession"]:
+        """返回会话列表副本（避免迭代时并发修改）。"""
+        with self._lock:
+            return list(self.sessions.values())
 
     def __len__(self) -> int:
-        return len(self.sessions)
+        with self._lock:
+            return len(self.sessions)
 
     def __contains__(self, session_id: str) -> bool:
-        return session_id in self.sessions
+        with self._lock:
+            return session_id in self.sessions
 
     def save(self, session: "BotChatSession") -> None:
         """单条会话持久化（原 _save_session）。"""
@@ -106,7 +131,8 @@ class SessionStore:
             statements = select(ChatSession)
             for model_instance in db_session.exec(statements).all():
                 bot_chat_session = BotChatSession.from_db_instance(model_instance)
-                self.sessions[bot_chat_session.session_id] = bot_chat_session
+                with self._lock:
+                    self.sessions[bot_chat_session.session_id] = bot_chat_session
                 if (
                     self._message_registry
                     and bot_chat_session.session_id in self._message_registry.last_messages
