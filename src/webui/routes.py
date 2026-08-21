@@ -19,6 +19,7 @@ from src.webui.routers.deepseek import router as deepseek_router
 from src.webui.routers.config import router as config_router
 from src.webui.routers.emoji import router as emoji_router
 from src.webui.routers.expression import router as expression_router
+from src.webui.routers.health import router as health_router
 from src.webui.routers.jargon import router as jargon_router
 from src.webui.routers.memory import router as memory_router
 from src.webui.routers.model import router as model_router
@@ -68,6 +69,8 @@ router.include_router(avatar_router)
 router.include_router(plugin_router)
 # 注册系统控制路由
 router.include_router(system_router)
+# 注册健康检查路由（/proc/health）
+router.include_router(health_router)
 router.include_router(reasoning_process_router)
 # 注册模型列表获取路由
 router.include_router(model_router)

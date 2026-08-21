@@ -1501,6 +1501,51 @@ class MainSystem:
                 port.report(ErrorLevel.WARNING, "启动交互调度器失败", exception=e)
             logger.warning(t("startup.agent_interaction_failed", error=e))
 
+    @staticmethod
+    @startup_item(
+        name="invariant_registry",
+        phase=StartupPhase.READY,
+        order=5,
+        critical=False,
+    )
+    async def _start_invariant_registry() -> None:
+        """ZG-N2：启动运行时不变量注册表 + 定时巡检。"""
+        from src.core.invariant_registry import get_invariant_registry
+        from src.core.invariants import emotion  # noqa: F401 — 触发 @invariant 注册
+
+        registry = get_invariant_registry()
+        await registry.start_periodic_check(interval=300.0)
+        # 启动时立即验一次
+        violations = registry.verify_all()
+        if violations:
+            logger.warning("不变量启动检查发现 %d 个违反", len(violations))
+        else:
+            logger.info("不变量注册表已启动，已注册 %d 个不变量", len(registry.registered_names))
+
+    @staticmethod
+    @startup_item(
+        name="health_service",
+        phase=StartupPhase.READY,
+        order=6,
+        critical=False,
+    )
+    async def _start_health_service() -> None:
+        """ZG-N3：启动健康检查服务 + 定时巡检 + 注册 db.main 检查器。"""
+        from src.core.health_check import get_health_service
+        from src.core.health_checks.db_main import MainDbHealthCheck
+        from src.core.health_checks.db_memorix import MemorixDbHealthCheck
+
+        service = get_health_service()
+        service.register(MainDbHealthCheck())
+        service.register(MemorixDbHealthCheck())
+        await service.start_periodic_check()
+        health = await service.get_health()
+        logger.info(
+            "健康检查服务已启动，状态=%s，已注册 %d 个检查器",
+            health.status.name,
+            len(service.registered_names),
+        )
+
     async def schedule_tasks(self) -> None:
 
         """调度定时任务"""

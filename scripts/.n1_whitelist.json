@@ -1,0 +1,53 @@
+{
+  "_comment": "N1 接线检查器白名单 — 已人工复核确认安全的豁免项",
+  "whitelist": [
+    {
+      "path": "src/core/protocols.py",
+      "checks": ["1", "5"],
+      "names": [],
+      "_reason": "Protocol/TypedDict 定义集合，本就不实例化；字符串联合是 Protocol 契约表达"
+    },
+    {
+      "path": "src/core/adapters/",
+      "checks": ["1"],
+      "names": [],
+      "_reason": "适配器层 Protocol 实现类，由 main.py 注入，单文件零创建点检查误报"
+    },
+    {
+      "path": "src/plugin_runtime_v2/scope/scope_audit.py",
+      "checks": ["2", "3"],
+      "names": ["init_scope_audit_recorder", "get_scope_audit_recorder"],
+      "_reason": "反向接线：main.py:1555 显式调用，非 @startup_item 模式但属合法生产接线（已记入债务待 v2 改装饰器）"
+    },
+    {
+      "path": "src/maisaka/memory/mid_term_summary_queue.py",
+      "checks": ["2", "3"],
+      "names": ["init_mid_term_summary_queue"],
+      "_reason": "装饰器在 main.py:1334 的 _init_mid_term_summary_queue 上（name=mid_term_summary_queue），合法接线"
+    },
+    {
+      "path": "src/common/logger.py",
+      "checks": ["2", "3"],
+      "names": ["init_log_pipeline"],
+      "_reason": "内部子步骤：被同文件 _immediate_setup() (line 1138) 调用，属 import-time 配置链，不该单独挂 @startup_item"
+    },
+    {
+      "path": "src/plugin_runtime_v2/bootstrap.py",
+      "checks": ["2", "3"],
+      "names": ["init_plugin_config_manager"],
+      "_reason": "内部子步骤：被同文件 line 139 上游 async 函数调用（ZG16-6a 生产接线点），是上游入口内部的子步骤"
+    },
+    {
+      "path": "tests/",
+      "checks": ["1", "2", "3", "7", "8"],
+      "names": [],
+      "_reason": "测试文件豁免：测试本就只调不接装饰器；print 是断言辅助"
+    },
+    {
+      "path": "scripts/",
+      "checks": ["1", "2", "3", "7", "8"],
+      "names": [],
+      "_reason": "脚本豁免：脚本入口不需 @startup_item；print 是 CLI 输出"
+    }
+  ]
+}

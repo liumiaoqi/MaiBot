@@ -1,0 +1,43 @@
+# .github/workflows/n1-wiring-check.yml
+# ZG-N1 反射接线检查器 — 静态 AST 接线门禁
+# v1：非阻断模式（continue-on-error），只开精确检查 2/4/5/6，等 v2 增强后阻断
+name: N1 Wiring Check
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/n1_wiring_checker.py'
+      - 'scripts/.n1_whitelist.json'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/n1_wiring_checker.py'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  n1-check:
+    runs-on: ubuntu-24.04
+    continue-on-error: true  # v1 非阻断，v2 改为阻断
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run N1 Wiring Checker
+        run: |
+          python scripts/n1_wiring_checker.py \
+            --scan src \
+            --whitelist scripts/.n1_whitelist.json \
+            --json > n1_report.json
+          cat n1_report.json
+      - name: Upload N1 Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n1-wiring-report
+          path: n1_report.json
