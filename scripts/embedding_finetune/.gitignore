@@ -11,3 +11,7 @@ __pycache__/
 # 训练产物（可重训再生，不入库）
 checkpoints/
 engines/
+
+# 实验数据与探针（2026-08-21 补——曾误提交）
+worm_data/
+_probe*.py
