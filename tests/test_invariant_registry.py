@@ -195,3 +195,215 @@ class TestRealInvariantEmotion:
             check_emotion_range(lambda msg: violations.append(msg))
             assert len(violations) == 1
             assert "超出 [0,100]" in violations[0]
+
+
+class TestRealInvariantReplyer:
+    """v2：replyer 不变量测试。"""
+
+    def test_passes_when_port_registered(self):
+        from unittest.mock import patch
+        from src.core.invariants.replyer import check_replyer
+
+        with patch("src.core.invariants.replyer.get_replyer_service_port", return_value=object()):
+            violations: list[str] = []
+            check_replyer(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.invariants.replyer import check_replyer
+
+        with patch("src.core.invariants.replyer.get_replyer_service_port", return_value=None):
+            violations: list[str] = []
+            check_replyer(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+
+class TestRealInvariantSession:
+    """v2：session 不变量测试。"""
+
+    def test_passes_when_port_registered(self):
+        from unittest.mock import patch
+        from src.core.invariants.session import check_session
+
+        with patch("src.core.invariants.session.get_session_info_port", return_value=object()):
+            violations: list[str] = []
+            check_session(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.invariants.session import check_session
+
+        with patch("src.core.invariants.session.get_session_info_port", return_value=None):
+            violations: list[str] = []
+            check_session(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+
+class TestRealInvariantOrchestrator:
+    """v2：orchestrator 不变量测试。"""
+
+    def test_passes_when_core_ready(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.orchestrator import check_orchestrator
+
+        mock_port = MagicMock()
+        mock_port.is_core_ready.return_value = True
+        with patch("src.core.invariants.orchestrator.get_core_readiness_port", return_value=mock_port):
+            violations: list[str] = []
+            check_orchestrator(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.invariants.orchestrator import check_orchestrator
+
+        with patch("src.core.invariants.orchestrator.get_core_readiness_port", return_value=None):
+            violations: list[str] = []
+            check_orchestrator(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+    def test_fails_when_core_not_ready(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.orchestrator import check_orchestrator
+
+        mock_port = MagicMock()
+        mock_port.is_core_ready.return_value = False
+        mock_port.get_core_readiness.return_value = "flags snapshot"
+        with patch("src.core.invariants.orchestrator.get_core_readiness_port", return_value=mock_port):
+            violations: list[str] = []
+            check_orchestrator(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未就绪" in violations[0]
+
+
+class TestRealInvariantMemorix:
+    """v2：A_memorix 不变量测试。"""
+
+    def test_passes_when_port_available(self):
+        from unittest.mock import patch
+        from src.core.invariants.memorix import check_memorix
+
+        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=object()):
+            violations: list[str] = []
+            check_memorix(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_raises_runtime_error(self):
+        from unittest.mock import patch
+        from src.core.invariants.memorix import check_memorix
+
+        def raise_runtime():
+            raise RuntimeError("port 未初始化")
+
+        with patch("src.core.adapters.memory_service.get_memory_service_port", side_effect=raise_runtime):
+            violations: list[str] = []
+            check_memorix(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+
+class TestRealInvariantControlMessage:
+    """v2：control_message 不变量测试。"""
+
+    def test_passes_when_port_available(self):
+        from unittest.mock import patch
+        from src.core.invariants.control_message import check_control_message
+
+        with patch("src.core.control_message_port_registry.get_control_message_port", return_value=object()):
+            violations: list[str] = []
+            check_control_message(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_raises_runtime_error(self):
+        from unittest.mock import patch
+        from src.core.invariants.control_message import check_control_message
+
+        def raise_runtime():
+            raise RuntimeError("port 未初始化")
+
+        with patch("src.core.control_message_port_registry.get_control_message_port", side_effect=raise_runtime):
+            violations: list[str] = []
+            check_control_message(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+
+class TestRealInvariantPluginRuntime:
+    """v2：plugin_runtime 不变量测试。"""
+
+    def test_passes_when_running(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+
+        mock_port = MagicMock()
+        mock_port.is_running = True
+        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+
+        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=None):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+    def test_fails_when_not_running(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+
+        mock_port = MagicMock()
+        mock_port.is_running = False
+        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未启动" in violations[0]
+
+
+class TestRealInvariantServiceManager:
+    """v2：service_manager 不变量测试。"""
+
+    def test_passes_when_states_valid(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.service_manager import check_service_manager
+
+        mock_port = MagicMock()
+        mock_snapshot = MagicMock()
+        mock_snapshot.state = "running"
+        mock_port.list_states.return_value = [mock_snapshot]
+        with patch("src.core.invariants.service_manager.get_service_manager_port", return_value=mock_port):
+            violations: list[str] = []
+            check_service_manager(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_fails_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.invariants.service_manager import check_service_manager
+
+        with patch("src.core.invariants.service_manager.get_service_manager_port", return_value=None):
+            violations: list[str] = []
+            check_service_manager(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未注册" in violations[0]
+
+    def test_fails_when_state_none(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.service_manager import check_service_manager
+
+        mock_port = MagicMock()
+        mock_port.list_states.return_value = [None]
+        with patch("src.core.invariants.service_manager.get_service_manager_port", return_value=mock_port):
+            violations: list[str] = []
+            check_service_manager(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "None" in violations[0]

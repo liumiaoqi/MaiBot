@@ -213,3 +213,228 @@ class TestRealCheckDbMain:
         result = await check.check()
         # sqlite3.connect 会自动创建文件，所以 SELECT 1 应该成功
         assert result.status == HealthStatus.UP
+
+
+class TestRealCheckLlmPrimary:
+    """v2：llm.primary 检查器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_up_when_port_registered(self):
+        from unittest.mock import patch
+        from src.core.health_checks.llm_primary import LlmPrimaryHealthCheck
+
+        with patch("src.core.health_checks.llm_primary.get_model_config_port", return_value=object()):
+            check = LlmPrimaryHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.health_checks.llm_primary import LlmPrimaryHealthCheck
+
+        with patch("src.core.health_checks.llm_primary.get_model_config_port", return_value=None):
+            check = LlmPrimaryHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
+
+
+class TestRealCheckMemoryVectorStore:
+    """v2：memory.vector_store 检查器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_up_when_port_available(self):
+        from unittest.mock import patch
+        from src.core.health_checks.memory_vector_store import MemoryVectorStoreHealthCheck
+
+        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=object()):
+            check = MemoryVectorStoreHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_port_raises(self):
+        from unittest.mock import patch
+        from src.core.health_checks.memory_vector_store import MemoryVectorStoreHealthCheck
+
+        def raise_runtime():
+            raise RuntimeError("not initialized")
+
+        with patch("src.core.adapters.memory_service.get_memory_service_port", side_effect=raise_runtime):
+            check = MemoryVectorStoreHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
+
+
+class TestRealCheckPluginRuntime:
+    """v2：plugin.runtime 检查器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_up_when_running(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.is_running = True
+        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=None):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
+
+    @pytest.mark.asyncio
+    async def test_degraded_when_not_running(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.is_running = False
+        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+
+
+class TestRealCheckCoreOrchestrator:
+    """v2：core.orchestrator 检查器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_up_when_core_ready(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.core_orchestrator import CoreOrchestratorHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.is_core_ready.return_value = True
+        with patch("src.core.health_checks.core_orchestrator.get_core_readiness_port", return_value=mock_port):
+            check = CoreOrchestratorHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.health_checks.core_orchestrator import CoreOrchestratorHealthCheck
+
+        with patch("src.core.health_checks.core_orchestrator.get_core_readiness_port", return_value=None):
+            check = CoreOrchestratorHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
+
+    @pytest.mark.asyncio
+    async def test_degraded_when_not_ready(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.core_orchestrator import CoreOrchestratorHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.is_core_ready.return_value = False
+        mock_port.get_core_readiness.return_value = "snapshot"
+        with patch("src.core.health_checks.core_orchestrator.get_core_readiness_port", return_value=mock_port):
+            check = CoreOrchestratorHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+
+
+class TestRealCheckChatSessionStore:
+    """v2：chat.session_store 检查器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_up_when_port_registered(self):
+        from unittest.mock import patch
+        from src.core.health_checks.chat_session_store import ChatSessionStoreHealthCheck
+
+        with patch("src.core.health_checks.chat_session_store.get_session_info_port", return_value=object()):
+            check = ChatSessionStoreHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+
+    @pytest.mark.asyncio
+    async def test_down_when_port_missing(self):
+        from unittest.mock import patch
+        from src.core.health_checks.chat_session_store import ChatSessionStoreHealthCheck
+
+        with patch("src.core.health_checks.chat_session_store.get_session_info_port", return_value=None):
+            check = ChatSessionStoreHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DOWN
+
+
+class TestRealCheckWatchdogRunnerHealth:
+    """v2：watchdog.runner_health 检查器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_port_raises(self):
+        from unittest.mock import patch
+        from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
+
+        def raise_runtime():
+            raise RuntimeError("not registered")
+
+        with patch("src.core.watchdog_port_registry.get_watchdog_port", side_effect=raise_runtime):
+            check = WatchdogRunnerHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_no_runners(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.list_runner_bridge_status.return_value = []
+        with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
+            check = WatchdogRunnerHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
+
+    @pytest.mark.asyncio
+    async def test_up_when_all_healthy(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
+
+        mock_port = MagicMock()
+        mock_status = MagicMock()
+        mock_status.is_healthy = True
+        mock_port.list_runner_bridge_status.return_value = [mock_status, mock_status]
+        with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
+            check = WatchdogRunnerHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+
+    @pytest.mark.asyncio
+    async def test_down_when_all_unhealthy(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
+
+        mock_port = MagicMock()
+        mock_status = MagicMock()
+        mock_status.is_healthy = False
+        mock_port.list_runner_bridge_status.return_value = [mock_status, mock_status]
+        with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
+            check = WatchdogRunnerHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DOWN
+
+    @pytest.mark.asyncio
+    async def test_degraded_when_mixed(self):
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
+
+        mock_port = MagicMock()
+        healthy = MagicMock()
+        healthy.is_healthy = True
+        unhealthy = MagicMock()
+        unhealthy.is_healthy = False
+        mock_port.list_runner_bridge_status.return_value = [healthy, unhealthy]
+        with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
+            check = WatchdogRunnerHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED

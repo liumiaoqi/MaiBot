@@ -1511,7 +1511,16 @@ class MainSystem:
     async def _start_invariant_registry() -> None:
         """ZG-N2：启动运行时不变量注册表 + 定时巡检。"""
         from src.core.invariant_registry import get_invariant_registry
-        from src.core.invariants import emotion  # noqa: F401 — 触发 @invariant 注册
+        from src.core.invariants import (  # noqa: F401 — 触发 @invariant 注册
+            emotion,
+            replyer,
+            session,
+            orchestrator,
+            memorix,
+            control_message,
+            plugin_runtime,
+            service_manager,
+        )
 
         registry = get_invariant_registry()
         await registry.start_periodic_check(interval=300.0)
@@ -1530,14 +1539,26 @@ class MainSystem:
         critical=False,
     )
     async def _start_health_service() -> None:
-        """ZG-N3：启动健康检查服务 + 定时巡检 + 注册 db.main 检查器。"""
+        """ZG-N3：启动健康检查服务 + 定时巡检 + 注册检查器。"""
         from src.core.health_check import get_health_service
+        from src.core.health_checks.chat_session_store import ChatSessionStoreHealthCheck
+        from src.core.health_checks.core_orchestrator import CoreOrchestratorHealthCheck
         from src.core.health_checks.db_main import MainDbHealthCheck
         from src.core.health_checks.db_memorix import MemorixDbHealthCheck
+        from src.core.health_checks.llm_primary import LlmPrimaryHealthCheck
+        from src.core.health_checks.memory_vector_store import MemoryVectorStoreHealthCheck
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+        from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
 
         service = get_health_service()
         service.register(MainDbHealthCheck())
         service.register(MemorixDbHealthCheck())
+        service.register(LlmPrimaryHealthCheck())
+        service.register(MemoryVectorStoreHealthCheck())
+        service.register(PluginRuntimeHealthCheck())
+        service.register(CoreOrchestratorHealthCheck())
+        service.register(ChatSessionStoreHealthCheck())
+        service.register(WatchdogRunnerHealthCheck())
         await service.start_periodic_check()
         health = await service.get_health()
         logger.info(
