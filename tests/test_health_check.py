@@ -216,14 +216,17 @@ class TestRealCheckDbMain:
 
 
 class TestRealCheckLlmPrimary:
-    """v2：llm.primary 检查器测试。"""
+    """v2：llm.primary 检查器测试。v3 增强：last_success_time。"""
 
     @pytest.mark.asyncio
     async def test_up_when_port_registered(self):
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
+        import time
         from src.core.health_checks.llm_primary import LlmPrimaryHealthCheck
 
-        with patch("src.core.health_checks.llm_primary.get_model_config_port", return_value=object()):
+        mock_port = MagicMock()
+        mock_port.get_last_success_time.return_value = time.time()
+        with patch("src.core.health_checks.llm_primary.get_model_config_port", return_value=mock_port):
             check = LlmPrimaryHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.UP
@@ -238,16 +241,45 @@ class TestRealCheckLlmPrimary:
             result = await check.check()
             assert result.status == HealthStatus.UNKNOWN
 
+    @pytest.mark.asyncio
+    async def test_degraded_when_no_success(self):
+        """v3：无成功调用记录 → DEGRADED。"""
+        from unittest.mock import MagicMock, patch
+        from src.core.health_checks.llm_primary import LlmPrimaryHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.get_last_success_time.return_value = None
+        with patch("src.core.health_checks.llm_primary.get_model_config_port", return_value=mock_port):
+            check = LlmPrimaryHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+
+    @pytest.mark.asyncio
+    async def test_degraded_when_stale(self):
+        """v3：最近 5 分钟无成功调用 → DEGRADED。"""
+        from unittest.mock import MagicMock, patch
+        import time
+        from src.core.health_checks.llm_primary import LlmPrimaryHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.get_last_success_time.return_value = time.time() - 600  # 10 分钟前
+        with patch("src.core.health_checks.llm_primary.get_model_config_port", return_value=mock_port):
+            check = LlmPrimaryHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+
 
 class TestRealCheckMemoryVectorStore:
-    """v2：memory.vector_store 检查器测试。"""
+    """v2：memory.vector_store 检查器测试。v3 增强：索引一致性。"""
 
     @pytest.mark.asyncio
     async def test_up_when_port_available(self):
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
         from src.core.health_checks.memory_vector_store import MemoryVectorStoreHealthCheck
 
-        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=object()):
+        mock_port = MagicMock()
+        mock_port.get_vector_store_stats.return_value = {"index_size": 0, "active_count": 0}
+        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
             check = MemoryVectorStoreHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.UP
@@ -265,17 +297,32 @@ class TestRealCheckMemoryVectorStore:
             result = await check.check()
             assert result.status == HealthStatus.UNKNOWN
 
+    @pytest.mark.asyncio
+    async def test_degraded_when_inconsistent(self):
+        """v3：索引不一致 → DEGRADED。"""
+        from unittest.mock import MagicMock, patch
+        from src.core.health_checks.memory_vector_store import MemoryVectorStoreHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.get_vector_store_stats.return_value = {"index_size": 100, "active_count": 99}
+        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
+            check = MemoryVectorStoreHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+
 
 class TestRealCheckPluginRuntime:
-    """v2：plugin.runtime 检查器测试。"""
+    """v2：plugin.runtime 检查器测试。v3 增强：状态机检查。"""
 
     @pytest.mark.asyncio
     async def test_up_when_running(self):
         from unittest.mock import patch, MagicMock
+        from src.core.protocols import PluginStateSnapshot
         from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
 
         mock_port = MagicMock()
         mock_port.is_running = True
+        mock_port.list_plugin_states.return_value = [PluginStateSnapshot("p1", "running")]
         with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
             check = PluginRuntimeHealthCheck()
             result = await check.check()
@@ -294,14 +341,48 @@ class TestRealCheckPluginRuntime:
     @pytest.mark.asyncio
     async def test_degraded_when_not_running(self):
         from unittest.mock import patch, MagicMock
+        from src.core.protocols import PluginStateSnapshot
         from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
 
         mock_port = MagicMock()
         mock_port.is_running = False
+        mock_port.list_plugin_states.return_value = [PluginStateSnapshot("p1", "loaded")]
         with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
             check = PluginRuntimeHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.DEGRADED
+
+    @pytest.mark.asyncio
+    async def test_down_when_plugin_errored(self):
+        """v3：有 error 状态插件 → DOWN。"""
+        from unittest.mock import patch, MagicMock
+        from src.core.protocols import PluginStateSnapshot
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.is_running = True
+        mock_port.list_plugin_states.return_value = [
+            PluginStateSnapshot("good", "running"),
+            PluginStateSnapshot("bad", "error"),
+        ]
+        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DOWN
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_no_plugins(self):
+        """v3：无插件注册 → UNKNOWN。"""
+        from unittest.mock import patch, MagicMock
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        mock_port = MagicMock()
+        mock_port.is_running = True
+        mock_port.list_plugin_states.return_value = []
+        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UNKNOWN
 
 
 class TestRealCheckCoreOrchestrator:
@@ -438,3 +519,58 @@ class TestRealCheckWatchdogRunnerHealth:
             check = WatchdogRunnerHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.DEGRADED
+
+
+class TestZGIntegration:
+    """v3 P2：ZG 体系衔接测试——health DOWN → error_escalation 上报。"""
+
+    @pytest.mark.asyncio
+    async def test_down_triggers_error_escalation(self):
+        from unittest.mock import patch, MagicMock
+
+        mock_escalation = MagicMock()
+        service = HealthService()
+
+        class DownCheck(BaseHealthCheck):
+            async def _do_check(self):
+                return HealthResult(HealthStatus.DOWN, {"reason": "test"})
+
+        service.register(DownCheck("test.down"))
+        with patch("src.core.error_escalation_port_registry.get_error_escalation_port", return_value=mock_escalation):
+            await service.check_all()
+            await service._on_health_change()
+            mock_escalation.report.assert_called_once()
+            call_args = mock_escalation.report.call_args
+            assert call_args.args[1] == "健康检查 DOWN"
+
+    @pytest.mark.asyncio
+    async def test_up_does_not_trigger_escalation(self):
+        from unittest.mock import patch, MagicMock
+
+        mock_escalation = MagicMock()
+        service = HealthService()
+
+        class UpCheck(BaseHealthCheck):
+            async def _do_check(self):
+                return HealthResult(HealthStatus.UP)
+
+        service.register(UpCheck("test.up"))
+        with patch("src.core.error_escalation_port_registry.get_error_escalation_port", return_value=mock_escalation):
+            await service.check_all()
+            await service._on_health_change()
+            mock_escalation.report.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_down_without_escalation_port_logs_warning(self):
+        from unittest.mock import patch
+
+        service = HealthService()
+
+        class DownCheck(BaseHealthCheck):
+            async def _do_check(self):
+                return HealthResult(HealthStatus.DOWN, {"reason": "test"})
+
+        service.register(DownCheck("test.down"))
+        with patch("src.core.error_escalation_port_registry.get_error_escalation_port", return_value=None):
+            await service.check_all()
+            await service._on_health_change()  # 不抛异常

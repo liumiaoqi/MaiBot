@@ -9,11 +9,15 @@ from src.core.invariant_registry import invariant
 
 @invariant("A_memorix")
 def check_memorix(fail) -> None:
-    """检查 memory service port 可获取。"""
+    """检查 memory service port 可获取 + vector_store 索引一致性。"""
     try:
         from src.core.adapters.memory_service import get_memory_service_port
 
-        get_memory_service_port()
+        port = get_memory_service_port()
+        # v3：vector_store 索引一致性
+        stats = port.get_vector_store_stats()
+        if stats["index_size"] != stats["active_count"]:
+            fail(f"vector_store 不一致: index={stats['index_size']} active={stats['active_count']}")
     except RuntimeError as exc:
         fail(f"memory service port 未注册: {exc}")
     except Exception as exc:

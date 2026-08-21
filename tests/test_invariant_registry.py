@@ -285,13 +285,28 @@ class TestRealInvariantMemorix:
     """v2：A_memorix 不变量测试。"""
 
     def test_passes_when_port_available(self):
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.memorix import check_memorix
 
-        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=object()):
+        mock_port = MagicMock()
+        mock_port.get_vector_store_stats.return_value = {"index_size": 0, "active_count": 0}
+        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
             violations: list[str] = []
             check_memorix(lambda msg: violations.append(msg))
             assert violations == []
+
+    def test_fails_when_vector_store_inconsistent(self):
+        """v3：vector_store 索引不一致时报违反。"""
+        from unittest.mock import MagicMock, patch
+        from src.core.invariants.memorix import check_memorix
+
+        mock_port = MagicMock()
+        mock_port.get_vector_store_stats.return_value = {"index_size": 100, "active_count": 99}
+        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
+            violations: list[str] = []
+            check_memorix(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "vector_store 不一致" in violations[0]
 
     def test_fails_when_port_raises_runtime_error(self):
         from unittest.mock import patch
@@ -342,10 +357,29 @@ class TestRealInvariantPluginRuntime:
 
         mock_port = MagicMock()
         mock_port.is_running = True
+        mock_port.list_plugin_states.return_value = []
         with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
             violations: list[str] = []
             check_plugin_runtime(lambda msg: violations.append(msg))
             assert violations == []
+
+    def test_fails_when_plugin_state_invalid(self):
+        """v3：插件状态非法时报违反。"""
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+        from src.core.protocols import PluginStateSnapshot
+
+        mock_port = MagicMock()
+        mock_port.is_running = True
+        mock_port.list_plugin_states.return_value = [
+            PluginStateSnapshot("good", "running"),
+            PluginStateSnapshot("bad", "invalid_state"),
+        ]
+        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "状态非法" in violations[0]
 
     def test_fails_when_port_missing(self):
         from unittest.mock import patch

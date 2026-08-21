@@ -135,7 +135,33 @@ def _load_whitelist(path: Path) -> list[WhitelistRule]:
     return rules
 
 
-def _scan_file(path: Path, checks: set[str], whitelist: list[WhitelistRule]) -> list[WiringViolation]:
+def _build_call_index(root: Path) -> dict[str, set[str]]:
+    """全仓库调用索引：函数/类名 → 调用文件集合。
+
+    扫描所有 .py 文件的 AST Call 节点，构建跨文件调用索引。
+    供检查 1（类构造）/检查 2/3（入口函数）跨文件比对。
+    """
+    index: dict[str, set[str]] = {}
+    for path in sorted(root.rglob("*.py")):
+        if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts:
+            continue
+        try:
+            source = path.read_text(encoding="utf-8", errors="replace")
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                index.setdefault(node.func.id, set()).add(str(path))
+    return index
+
+
+def _scan_file(
+    path: Path,
+    checks: set[str],
+    whitelist: list[WhitelistRule],
+    call_index: dict[str, set[str]] | None = None,
+) -> list[WiringViolation]:
     """扫描单文件，返回违反列表。"""
     violations = []
     source = path.read_text(encoding="utf-8", errors="replace")
@@ -145,15 +171,15 @@ def _scan_file(path: Path, checks: set[str], whitelist: list[WhitelistRule]) -> 
 
     # ── 检查 1：零创建点（类定义 vs 构造调用） ──────
     if "1" in checks:
-        _scan_class_check(source, path, violations, _whitelisted)
+        _scan_class_check(source, path, violations, _whitelisted, call_index)
 
     # ── 检查 2：@startup_item 装饰器反向验证 ──────
     if "2" in checks:
-        _check_startup_decorator(source, path, violations, _whitelisted)
+        _check_startup_decorator(source, path, violations, _whitelisted, call_index)
 
     # ── 检查 3：入口零调用（init_*/get_*/start_*） ──────
     if "3" in checks:
-        _check_entry_zero_calls(source, path, violations, _whitelisted)
+        _check_entry_zero_calls(source, path, violations, _whitelisted, call_index)
 
     # ── 检查 4：裸 except pass ──────────
     if "4" in checks:
@@ -178,9 +204,10 @@ def _scan_file(path: Path, checks: set[str], whitelist: list[WhitelistRule]) -> 
     return violations
 
 
-def _check_startup_decorator(source: str, path: Path, violations: list, whitelisted) -> None:
+def _check_startup_decorator(source: str, path: Path, violations: list, whitelisted, call_index=None) -> None:
     """检查 2：反向验证 — 入口函数有生产调用点但缺 @startup_item 装饰器 = 接线违规。
 
+    v3 增强：跨文件调用搜索——跨文件有调用视为有生产接线，不报。
     正向（装饰器存在但无调用点）由检查 3 覆盖。
     """
     try:
@@ -205,6 +232,9 @@ def _check_startup_decorator(source: str, path: Path, violations: list, whitelis
         if not name.startswith(("init_", "start_")):
             continue
         if name not in called_names:
+            continue
+        # v3：跨文件有调用 → 有生产接线 → 不报
+        if call_index and name in call_index:
             continue
         if whitelisted("2", name, 0):
             continue
@@ -254,8 +284,11 @@ def _check_private_access(source: str, path: Path, violations: list, whitelisted
             break  # 每行只报一次
 
 
-def _scan_class_check(source, path, violations, whitelisted):
-    """检查 1/3：类定义 vs 构造调用（零创建点）。"""
+def _scan_class_check(source, path, violations, whitelisted, call_index=None):
+    """检查 1/3：类定义 vs 构造调用（零创建点）。
+
+    v3 增强：跨文件构造调用检查——类名在 call_index 中（全仓库有构造调用）则不报。
+    """
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
@@ -267,8 +300,9 @@ def _scan_class_check(source, path, violations, whitelisted):
                 continue
         if any(b.id in _NON_INSTANTIABLE_BASES for b in node.bases if isinstance(b, ast.Name)):
             continue
-        # 全仓库维度构造调用检查由调用方验证
-        # v1 输出候选类供人工复核
+        # v3：跨文件构造调用检查——有调用则不报
+        if call_index and class_name in call_index:
+            continue
         if not whitelisted("1", None, 0):
             violations.append(WiringViolation("1", str(path), node.lineno, f"零创建候选类: {class_name}"))
 
@@ -288,8 +322,11 @@ def _check_except_pass(source: str, path: Path, violations: list, whitelisted) -
                         # except Exception: pass 带异常类型但吞掉 —— 降级不报（B29 10 处为裸 except 已单独计）
                         pass
 
-def _check_entry_zero_calls(source: str, path: Path, violations: list, whitelisted) -> None:
-    """检查 3：入口函数零调用（init_*/get_*/start_* 无生产调用）。"""
+def _check_entry_zero_calls(source: str, path: Path, violations: list, whitelisted, call_index=None) -> None:
+    """检查 3：入口函数零调用（init_*/get_*/start_* 无生产调用）。
+
+    v3 增强：跨文件调用搜索——跨文件有调用则不报（有生产调用点）。
+    """
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -299,6 +336,9 @@ def _check_entry_zero_calls(source: str, path: Path, violations: list, whitelist
             else:
                 name = node.name
                 if name.startswith(("init_", "start_")):
+                    # v3：跨文件有调用 → 有生产调用点 → 不报
+                    if call_index and name in call_index:
+                        continue
                     if not whitelisted("3", name, 0):
                         violations.append(WiringViolation("3", str(path), node.lineno, f"入口零调用候选: {name}"))
 
@@ -319,12 +359,14 @@ def _check_api_key(source: str, path: Path, violations: list, whitelisted) -> No
 
 def _scan_dir(root: Path, checks: set[str], whitelist: list) -> list[WiringViolation]:
     """扫描目录，聚合所有违反项。"""
+    # v3：构建跨文件调用索引（检查 1/2/3 增强用）
+    call_index = _build_call_index(root) if (checks & {"1", "2", "3"}) else None
     all_violations = []
     for path in sorted(root.rglob("*.py")):
         if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts:
             continue
         try:
-            all_violations.extend(_scan_file(path, checks, whitelist))
+            all_violations.extend(_scan_file(path, checks, whitelist, call_index))
         except (SyntaxError, UnicodeDecodeError) as exc:
             print(f"[n1] 分析跳过 {path}: {exc}", file=sys.stderr)
     return all_violations
@@ -346,12 +388,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="N1 反射接线检查器")
     parser.add_argument("--scan", nargs="+", default=["src"], help="扫描目录")
     parser.add_argument("--engine", choices=("auto", "rg", "py"), default="auto")
-    parser.add_argument("--whitelist")
+    parser.add_argument("--whitelist", default="scripts/.n1_whitelist.json", help="白名单文件路径")
     parser.add_argument("--ci", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    whitelist = _load_whitelist(Path(args.whitelist)) if args.whitelist else []
+    whitelist = _load_whitelist(Path(args.whitelist))
 
     checks = {"1", "2", "3", "4", "5", "6", "7", "8"}
     # 默认检查项：可用性稳定的静态检查项（后续版本扩展全量项）

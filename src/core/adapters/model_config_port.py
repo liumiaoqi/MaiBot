@@ -480,3 +480,11 @@ class ConfigManagerModelConfigPort:
         from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
         model_cfg = config_manager.get_model_config()
         return [model.name for model in model_cfg.models]
+
+    def get_last_success_time(self) -> float | None:
+        """查询最近一次成功调用时间戳（v3 新增）。
+
+        简化实现：ConfigManager 未跟踪调用时间，返回 None。
+        后续可接 LLM 调用统计真实时间戳。
+        """
+        return None

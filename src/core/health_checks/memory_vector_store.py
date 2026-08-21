@@ -18,7 +18,11 @@ class MemoryVectorStoreHealthCheck(BaseHealthCheck):
             from src.core.adapters.memory_service import get_memory_service_port
 
             port = get_memory_service_port()
-            return HealthResult(HealthStatus.UP, {"port": type(port).__name__})
+            # v3：向量索引计数对比
+            stats = port.get_vector_store_stats()
+            if stats["index_size"] == stats["active_count"]:
+                return HealthResult(HealthStatus.UP, stats)
+            return HealthResult(HealthStatus.DEGRADED, {"reason": "索引不一致", **stats})
         except RuntimeError as exc:
             return HealthResult(
                 HealthStatus.UNKNOWN,

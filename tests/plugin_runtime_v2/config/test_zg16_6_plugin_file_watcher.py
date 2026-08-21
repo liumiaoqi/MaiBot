@@ -4,9 +4,27 @@
 """
 
 import asyncio
+import os
+from pathlib import Path
 
+import pytest
 
 from src.plugin_runtime_v2.config.plugin_file_watcher import PluginFileWatcher
+
+
+def _is_container_env() -> bool:
+    """检测容器环境——inotify 在 9p/overlay 文件系统不触发事件。"""
+    if Path("/.dockerenv").exists():
+        return True
+    if os.environ.get("CONTAINER"):
+        return True
+    return False
+
+
+_skipif_container = pytest.mark.skipif(
+    _is_container_env(),
+    reason="容器环境 inotify 不触发（watchfiles 依赖 inotify）",
+)
 
 
 async def test_watcher_start_stop(tmp_path):
@@ -19,10 +37,12 @@ async def test_watcher_start_stop(tmp_path):
     await watcher.stop()
 
 
+@_skipif_container
 async def test_debounce(tmp_path):
     """debounce 合并多次变更（spec 5.3.3 场景 5）。
 
     P1 修复（dsh review2）：固定 sleep 改轮询等待——flaky 测试标准修法。
+    P1-4 修复（v3）：容器环境 inotify 不触发，跳过（watchfiles 依赖 inotify）。
     """
     calls = []
 

@@ -9,6 +9,7 @@
 
 import asyncio
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from typing import Protocol, runtime_checkable
@@ -528,6 +529,16 @@ class MemoryServicePort(Protocol):
     ) -> dict[str, Any]:
         """完整心跳维护——granular_decay + advance_lifecycle + process_cognitive_decay。"""
 
+    def get_vector_store_stats(self) -> dict[str, int]:
+        """查询向量存储统计（内存，无 I/O）。
+
+        v3 新增：供 A_memorix 不变量 + memory.vector_store 检查器使用。
+
+        Returns:
+            {"index_size": int, "active_count": int}
+            index_size: 索引总量；active_count: 活跃向量数
+        """
+
 
 @runtime_checkable
 class SessionInfoPort(Protocol):
@@ -937,6 +948,15 @@ class ModelConfigPort(Protocol):
 
         Args:
             callback: 先前注册过的回调对象
+        """
+
+    def get_last_success_time(self) -> float | None:
+        """查询最近一次成功调用时间戳（内存）。
+
+        v3 新增：供 llm.primary 检查器判断模型可用性。
+
+        Returns:
+            Unix 时间戳（秒），无成功调用记录时返回 None
         """
 
 @runtime_checkable
@@ -2160,6 +2180,14 @@ class TaintedMaskPort(Protocol):
         """查询当前掩码级降级触发掩码值（只读，0=禁用）。"""
 
 
+@dataclass
+class PluginStateSnapshot:
+    """插件状态快照（v3 新增）— 供 plugin_runtime 不变量/检查器使用。"""
+
+    plugin_id: str
+    state: str  # loaded/initialized/running/stopped/error
+
+
 @runtime_checkable
 class IpcBridgePort(Protocol):
     """IPC 桥接端口接口 — 核心事件总线通过此接口桥接到插件运行时。
@@ -2187,6 +2215,15 @@ class IpcBridgePort(Protocol):
             (continue_flag, modified_message_dict) 元组：
             - continue_flag: False 时请求中断事件链
             - modified_message_dict: 插件修改后的消息字典，None 表示未修改
+        """
+
+    def list_plugin_states(self) -> List[PluginStateSnapshot]:
+        """查询全部插件状态快照（内存，无 I/O）。
+
+        v3 新增：供 plugin_runtime 不变量/检查器使用。
+
+        Returns:
+            PluginStateSnapshot 列表，无插件时返回空列表
         """
 
 

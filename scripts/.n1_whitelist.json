@@ -15,27 +15,27 @@
     },
     {
       "path": "src/plugin_runtime_v2/scope/scope_audit.py",
-      "checks": ["2", "3"],
-      "names": ["init_scope_audit_recorder", "get_scope_audit_recorder"],
-      "_reason": "反向接线：main.py:1555 显式调用，非 @startup_item 模式但属合法生产接线（已记入债务待 v2 改装饰器）"
+      "checks": ["2"],
+      "names": ["init_scope_audit_recorder"],
+      "_reason": "v3 跨文件索引已覆盖检查 3（main.py:1555 显式调用被识别）；检查 2 保留（有调用但缺 @startup_item，合法显式接线模式）"
     },
     {
       "path": "src/maisaka/memory/mid_term_summary_queue.py",
-      "checks": ["2", "3"],
+      "checks": ["2"],
       "names": ["init_mid_term_summary_queue"],
-      "_reason": "装饰器在 main.py:1334 的 _init_mid_term_summary_queue 上（name=mid_term_summary_queue），合法接线"
+      "_reason": "v3 跨文件索引已覆盖检查 3（main.py:1334 调用被识别）；检查 2 保留（装饰器在 _init_mid_term_summary_queue 上，合法接线）"
     },
     {
       "path": "src/common/logger.py",
-      "checks": ["2", "3"],
+      "checks": ["2"],
       "names": ["init_log_pipeline"],
-      "_reason": "内部子步骤：被同文件 _immediate_setup() (line 1138) 调用，属 import-time 配置链，不该单独挂 @startup_item"
+      "_reason": "v3 跨文件索引已覆盖检查 3（_immediate_setup 调用被识别）；检查 2 保留（import-time 配置链子步骤，不该单独挂 @startup_item）"
     },
     {
       "path": "src/plugin_runtime_v2/bootstrap.py",
-      "checks": ["2", "3"],
+      "checks": ["2"],
       "names": ["init_plugin_config_manager"],
-      "_reason": "内部子步骤：被同文件 line 139 上游 async 函数调用（ZG16-6a 生产接线点），是上游入口内部的子步骤"
+      "_reason": "v3 跨文件索引已覆盖检查 3（上游 async 函数调用被识别）；检查 2 保留（ZG16-6a 生产接线点内部子步骤）"
     },
     {
       "path": "tests/",

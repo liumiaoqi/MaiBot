@@ -5,9 +5,9 @@
 """
 
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from src.core.protocols import IpcBridgePort
+from src.core.protocols import IpcBridgePort, PluginStateSnapshot
 from src.plugin_runtime.integration import PluginRuntimeManager
 
 
@@ -43,3 +43,11 @@ class IpcBridgePortAdapter(IpcBridgePort):
             event_type_value=event_type_value,
             message_dict=message_dict,
         )
+
+    def list_plugin_states(self) -> List[PluginStateSnapshot]:
+        """查询全部插件状态快照（v3 新增）。
+
+        简化实现：PluginRuntimeManager 未暴露插件状态枚举接口，返回空列表。
+        后续可接 prm 真实插件状态查询。
+        """
+        return []

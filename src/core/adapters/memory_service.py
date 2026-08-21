@@ -287,6 +287,14 @@ class AMemorixMemoryServicePort:
             logger.warning(f"心跳维护失败: agent={agent_id}, error={exc}")
             raise _classify_memory_error(f"心跳维护失败: agent={agent_id}", original=exc) from exc
 
+    def get_vector_store_stats(self) -> dict[str, int]:
+        """查询向量存储统计（v3 新增）。
+
+        简化实现：A_memorix 未暴露直接统计接口，返回默认值。
+        后续可接 A_memorix vector_pool 真实统计。
+        """
+        return {"index_size": 0, "active_count": 0}
+
 
 # ── 模块级单例 ──────────────────────────────────
 

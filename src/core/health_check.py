@@ -185,14 +185,44 @@ class HealthService:
 
         # 启动时立即全量自检一次
         await self.check_all()
+        await self._on_health_change()
 
         async def _loop() -> None:
             while True:
                 await asyncio.sleep(self._check_interval)
                 await self.check_all()
+                await self._on_health_change()
 
         self._periodic_task = asyncio.create_task(_loop())
         logger.info("健康巡检已启动，间隔 %.0fs", self._check_interval)
+
+    async def _on_health_change(self) -> None:
+        """ZG 体系衔接——消费 health 结果触发 error_escalation 上报。
+
+        DOWN → ErrorLevel.WARNING（不报 ERROR 防循环）。
+        port 缺失时走兜底（logger.warning），不静默。
+        """
+        if not self._cache:
+            return
+        agg = aggregate_pessimistic(self._cache)
+        if agg.status != HealthStatus.DOWN:
+            return
+        # error_escalation 衔接：DOWN → 上报 WARNING
+        try:
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            from src.core.error_escalation.types import ErrorLevel
+
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(
+                    ErrorLevel.WARNING,
+                    "健康检查 DOWN",
+                    component_id="health_service",
+                )
+            else:
+                logger.warning("健康检查 DOWN（error_escalation port 未注册，走兜底）")
+        except Exception as exc:
+            logger.warning("health 衔接 error_escalation 异常: %s", exc)
 
     async def stop_periodic_check(self) -> None:
         """停止定时巡检。"""

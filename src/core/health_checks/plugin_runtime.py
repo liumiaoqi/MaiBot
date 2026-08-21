@@ -22,6 +22,13 @@ class PluginRuntimeHealthCheck(BaseHealthCheck):
                 HealthStatus.UNKNOWN,
                 {"reason": "ipc_bridge port 未注册"},
             )
-        if port.is_running:
-            return HealthResult(HealthStatus.UP, {"is_running": True})
-        return HealthResult(HealthStatus.DEGRADED, {"is_running": False, "reason": "插件运行时未启动"})
+        # v3：插件状态机检查
+        states = port.list_plugin_states()
+        if not states:
+            return HealthResult(HealthStatus.UNKNOWN, {"reason": "无插件注册"})
+        errored = [s for s in states if s.state == "error"]
+        if errored:
+            return HealthResult(HealthStatus.DOWN, {"errored": len(errored)})
+        if not port.is_running:
+            return HealthResult(HealthStatus.DEGRADED, {"is_running": False, "reason": "插件运行时未启动"})
+        return HealthResult(HealthStatus.UP, {"plugins": len(states)})
