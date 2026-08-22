@@ -20,9 +20,9 @@ def _is_butler_agent(ctx: BuiltinToolRuntimeContext) -> bool:
             return False
         from src.core.adapters.agent_config_port import get_agent_config_provider
         registry = get_agent_config_provider()
-        if not registry.has_agent(ctx.agent_id):
+        if not registry.has_agent(ctx.current_agent_id):
             return False
-        agent_cfg = registry.get_agent(ctx.agent_id)
+        agent_cfg = registry.get_agent(ctx.current_agent_id)
         return bool(getattr(agent_cfg, "is_butler", False))
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
@@ -63,11 +63,11 @@ async def handle_switch_primary(
     try:
         tool_ctx = BuiltinToolRuntimeContext.from_context(ctx)
         if not _is_butler_agent(tool_ctx):
-            return ToolExecutionResult(error="switch_primary 仅供管家丽塔使用")
+            return BuiltinToolRuntimeContext.build_failure_result("switch_primary", "switch_primary 仅供管家丽塔使用")
 
-        agent_id = str(invocation.params.get("agent_id", "")).strip()
+        agent_id = str(invocation.arguments.get("agent_id", "")).strip()
         if not agent_id:
-            return ToolExecutionResult(error="需要指定 agent_id")
+            return BuiltinToolRuntimeContext.build_failure_result("switch_primary", "需要指定 agent_id")
 
         orch = tool_ctx.runtime._agent_orchestrator
         await orch.switch_primary_speaker(
@@ -76,7 +76,7 @@ async def handle_switch_primary(
             decision_source="butler",
         )
         logger.info(f"管家工具: switch_primary agent={agent_id}")
-        return ToolExecutionResult(content=f"已将主发言权切换给 {agent_id}")
+        return BuiltinToolRuntimeContext.build_success_result("switch_primary", content=f"已将主发言权切换给 {agent_id}")
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -84,7 +84,7 @@ async def handle_switch_primary(
         if port is not None:
             port.report(ErrorLevel.ERROR, "switch_primary 异常", exception=exc)
         logger.error(f"switch_primary 异常: {traceback.format_exc()}")
-        return ToolExecutionResult(error=str(exc))
+        return BuiltinToolRuntimeContext.build_failure_result("switch_primary", str(exc))
 
 
 # ── activate_agent ──────────────────────────────────
@@ -116,16 +116,16 @@ async def handle_activate_agent(
     try:
         tool_ctx = BuiltinToolRuntimeContext.from_context(ctx)
         if not _is_butler_agent(tool_ctx):
-            return ToolExecutionResult(error="activate_agent 仅供管家丽塔使用")
+            return BuiltinToolRuntimeContext.build_failure_result("activate_agent", "activate_agent 仅供管家丽塔使用")
 
-        agent_id = str(invocation.params.get("agent_id", "")).strip()
+        agent_id = str(invocation.arguments.get("agent_id", "")).strip()
         if not agent_id:
-            return ToolExecutionResult(error="需要指定 agent_id")
+            return BuiltinToolRuntimeContext.build_failure_result("activate_agent", "需要指定 agent_id")
 
         orch = tool_ctx.runtime._agent_orchestrator
         await orch.activate_agent(agent_id, reason="butler_activation")
         logger.info(f"管家工具: activate_agent agent={agent_id}")
-        return ToolExecutionResult(content=f"已激活智能体 {agent_id}")
+        return BuiltinToolRuntimeContext.build_success_result("activate_agent", content=f"已激活智能体 {agent_id}")
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -133,4 +133,4 @@ async def handle_activate_agent(
         if port is not None:
             port.report(ErrorLevel.ERROR, "activate_agent 异常", exception=exc)
         logger.error(f"activate_agent 异常: {traceback.format_exc()}")
-        return ToolExecutionResult(error=str(exc))
+        return BuiltinToolRuntimeContext.build_failure_result("activate_agent", str(exc))

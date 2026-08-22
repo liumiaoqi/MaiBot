@@ -20,7 +20,7 @@ from src.common.logger import get_logger
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.protocols import MemoryServicePort
-from src.core.tooling import ToolExecutionResult
+from src.core.tooling import ToolExecutionContext, ToolExecutionResult
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 
 from src.maisaka.context.messages import SessionBackedMessage
@@ -56,6 +56,26 @@ class BuiltinToolRuntimeContext:
         self.current_agent_id: str = ""
         self.is_multi_agent_active: bool = False
         self._memory_port: Optional[MemoryServicePort] = None
+
+    @classmethod
+    def from_context(cls, ctx: Optional[ToolExecutionContext]) -> "BuiltinToolRuntimeContext":
+        """从 ToolExecutionContext 构造 BuiltinToolRuntimeContext。
+
+        从 ctx.metadata 提取 runtime 引用和 agent_id（由 thinking_organ.py 注入）。
+        runtime 为 None 时仍构造实例（部分工具不依赖 runtime），但 agent_id 缺失时记 warning。
+        """
+
+        if ctx is None:
+            raise ValueError("ToolExecutionContext 为 None，无法构造 BuiltinToolRuntimeContext")
+
+        runtime = ctx.metadata.get("runtime")
+        agent_id = str(ctx.metadata.get("agent_id", ""))
+
+        instance = cls(runtime=runtime)
+        instance.current_agent_id = agent_id
+        if not agent_id:
+            logger.debug("from_context: metadata 中未提供 agent_id，current_agent_id 为空")
+        return instance
 
     def resolve_speaker_context(self) -> tuple[str, bool]:
         """动态解析当前发言智能体 ID 和多智能体活跃状态。
