@@ -163,16 +163,7 @@
       "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 4 个，需人工复核"
     },
     {
-      "path": "src/chat/message_receive/chat_manager.py",
-      "checks": [
-        "1"
-      ],
-      "names": [
-        "ChatManager"
-      ],
-      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 10 个，需人工复核"
-    },
-    {
+
       "path": "src/chat/message_receive/uni_message_sender.py",
       "checks": [
         "1"

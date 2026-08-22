@@ -226,6 +226,7 @@ def _load_person_module(monkeypatch: pytest.MonkeyPatch, session: _DummySession)
 
     database_model_module = ModuleType("src.common.database.database_model")
     database_model_module.PersonInfo = _DummyPersonInfoRecord
+    database_model_module.Messages = type("Messages", (), {})
     monkeypatch.setitem(sys.modules, "src.common.database.database_model", database_model_module)
 
     llm_module = ModuleType("src.llm_models.utils_model")
@@ -251,9 +252,6 @@ def _load_person_module(monkeypatch: pytest.MonkeyPatch, session: _DummySession)
     config_module.model_config = SimpleNamespace(model_task_config=SimpleNamespace(tool_use="tool_use", utils="utils"))
     monkeypatch.setitem(sys.modules, "src.config.config", config_module)
 
-    chat_manager_module = ModuleType("src.chat.message_receive.chat_manager")
-    chat_manager_module.chat_manager = SimpleNamespace()
-    monkeypatch.setitem(sys.modules, "src.chat.message_receive.chat_manager", chat_manager_module)
 
     module_path = Path(__file__).resolve().parents[2] / "src" / "person_info" / "person_info.py"
     spec = spec_from_file_location("person_info_group_cardname_test_module", module_path)
