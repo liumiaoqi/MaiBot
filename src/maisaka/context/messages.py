@@ -123,6 +123,12 @@ def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) 
                     content = content or (db_msg.processed_plain_text or "")
                     sender = sender or db_msg.user_cardname or db_msg.user_nickname or db_msg.user_id
         except Exception as exc:
+            # P1: 补 port.report 双通道上报
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.WARNING, "回复组件查询原消息失败", exception=exc)
             logger.warning("回复组件查询原消息失败: %s", exc, exc_info=True)
     sender = sender or "未知用户"
     content = content or "(原消息未找到)"
@@ -187,6 +193,12 @@ async def prefetch_forward_nodes(forward_ids: List[str]) -> None:
             nodes = await port.fetch_forward_nodes(fid)
             _forward_cache[fid] = nodes
         except Exception as exc:
+            # P1: 补 port.report 双通道上报
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.WARNING, f"forward 预取失败 id={fid}", exception=exc)
             logger.warning("forward 预取失败 id=%s: %s", fid, exc, exc_info=True)
             _forward_cache[fid] = None
 
@@ -251,6 +263,12 @@ def _build_forward_node_component_from_nodes(nodes: List[dict]) -> Optional[Forw
         if forward_components:
             return ForwardNodeComponent(forward_components=forward_components)
     except Exception as exc:
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.WARNING, "构建 ForwardNodeComponent 失败", exception=exc)
         logger.warning("构建 ForwardNodeComponent 失败: %s", exc, exc_info=True)
     return None
 

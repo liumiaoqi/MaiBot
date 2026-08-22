@@ -198,7 +198,17 @@ class FileWatcher:
                 )
                 state.consecutive_failures = 0
                 self._stats.callbacks_succeeded += 1
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as exc:
+                # P1: 补 port.report 双通道上报
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(
+                        ErrorLevel.WARNING,
+                        f"文件变更回调执行超时（subscription_id={subscription.subscription_id}, timeout={self._callback_timeout_s}s）",
+                        exception=exc,
+                    )
                 self._stats.callbacks_timed_out += 1
                 self._stats.callbacks_failed += 1
                 self._mark_callback_failure(subscription.subscription_id)
@@ -210,7 +220,7 @@ class FileWatcher:
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, '文件变更回调执行失败（subscription_id=）', exception=exc)
+                    port.report(ErrorLevel.WARNING, f'文件变更回调执行失败（subscription_id={subscription.subscription_id}）', exception=exc)
                 self._stats.callbacks_failed += 1
                 self._mark_callback_failure(subscription.subscription_id)
                 logger.warning(f"文件变更回调执行失败（subscription_id={subscription.subscription_id}）: {exc}")

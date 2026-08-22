@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import importlib.util
 import json
+import os
 import signal
 import sys
 from pathlib import Path
@@ -26,8 +27,9 @@ def main() -> None:
     parser.add_argument("--host-address", required=True, help="Host gRPC 地址")
     parser.add_argument("--plugin-dir", required=True, help="插件目录路径")
     parser.add_argument("--runner-id", required=True, help="Runner ID")
-    parser.add_argument("--session-token", default="", help="Session token")
     args = parser.parse_args()
+    # session_token 从环境变量读取，避免 ps/proc 可见（A23a P1-2 安全）
+    args.session_token = os.environ.get("_SESSION_TOKEN", "")
     asyncio.run(_run(args))
 
 

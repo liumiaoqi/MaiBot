@@ -705,3 +705,9 @@ class GlobalConfigAppConfigPort:
 
     def is_cache_prefix_stability_enabled(self) -> bool:
         return bool(self._get_cfg().cache_prefix_stability.enable_cache_prefix_stability)
+
+    def freeze(self) -> None:
+        """冻结配置（委托 config_manager.freeze）。"""
+        from src.config.config import config_manager
+
+        config_manager.freeze()

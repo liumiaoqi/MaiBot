@@ -86,6 +86,7 @@ class EchoDetector:
         # 构建传播链
         chain = evaluation.metadata.get("echo_chain", [])
         if isinstance(chain, str):
+            logger.warning("[agent_interaction] echo_chain 类型异常（str），重置为空链")
             chain = []
         chain = list(chain)
         chain.append(evaluation.initiator_agent_id)
@@ -124,7 +125,11 @@ class EchoDetector:
                 self._propagate_echo(echo_evaluation),
                 timeout=_ECHO_TIMEOUT_SECONDS,
             )
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
+            # P1: 补 port.report 双通道上报
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.WARNING, "[agent_interaction] 回声传播超时，强制截断", exception=exc)
             logger.warning("[agent_interaction] 回声传播超时，强制截断")
         except Exception as e:
 

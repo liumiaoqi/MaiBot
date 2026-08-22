@@ -260,7 +260,7 @@ class MessageUtils:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '补充消息回复频率失败: session_id= error=', exception=exc)
+                port.report(ErrorLevel.WARNING, f'补充消息回复频率失败: session_id={session_id} error={exc}', exception=exc)
             logger.warning(f"补充消息回复频率失败: session_id={session_id} error={exc}")
 
     @staticmethod

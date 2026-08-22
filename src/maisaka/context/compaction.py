@@ -96,6 +96,12 @@ async def compact_selected_history(
         )
         return compacted
     except Exception as exc:
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.WARNING, f"B 层 compaction 失败，降级返回原 history: {exc}", exception=exc)
         logger.warning(f"B 层 compaction 失败，降级返回原 history: {exc}")
         return selected_history
 
@@ -229,10 +235,22 @@ async def _summarize_segment(
         if not summary.strip():
             return None
         return summary.strip()
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.WARNING, f"B 层 compaction 摘要生成超时: session={session_id}", exception=exc)
         logger.warning(f"B 层 compaction 摘要生成超时: session={session_id}")
         return None
     except Exception as exc:
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.WARNING, f"B 层 compaction 摘要生成失败: session={session_id} error={exc}", exception=exc)
         logger.warning(f"B 层 compaction 摘要生成失败: session={session_id} error={exc}")
         return None
 

@@ -275,7 +275,7 @@ class AgentMemoryAdapter:
 
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆衰减失败: %s', exception=e)
+                port.report(ErrorLevel.WARNING, f'[agent_interaction] 记忆衰减失败: {e}', exception=e)
             logger.warning("[agent_interaction] 记忆衰减失败: %s", e)
 
     async def reinforce_memory(
@@ -292,7 +292,7 @@ class AgentMemoryAdapter:
 
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆强化失败: %s', exception=e)
+                port.report(ErrorLevel.WARNING, f'[agent_interaction] 记忆强化失败: {e}', exception=e)
             logger.warning("[agent_interaction] 记忆强化失败: %s", e)
 
     async def check_frequent_interaction(

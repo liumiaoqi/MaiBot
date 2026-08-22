@@ -153,6 +153,12 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
 
     except ImportError as exc:
         # P0-7: zhdate 导入失败出声（功能降级，节气计算不可用）（ZG-31）
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.WARNING, f"zhdate 导入失败，节气计算功能降级: {exc}", exception=exc)
         logger.warning("zhdate 导入失败，节气计算功能降级: %s", exc)
     except Exception as e:
         from src.core.error_escalation.types import ErrorLevel
@@ -206,7 +212,13 @@ def get_solar_terms_near(target_date: date | None = None, days: int = 7) -> list
                 logger.warning(f"计算节气失败，跳过该节气: {exc}")
                 continue
 
-    except ImportError:
+    except ImportError as exc:
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.WARNING, "lunarcalendar 库未安装，节气计算不可用", exception=exc)
         logger.warning("lunarcalendar 库未安装，节气计算不可用")
     except Exception as e:
         from src.core.error_escalation.types import ErrorLevel

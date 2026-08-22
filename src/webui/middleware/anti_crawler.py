@@ -257,6 +257,16 @@ TRUSTED_PROXIES = _config["trusted_proxies"]
 TRUST_XFF = _config["trust_xff"]
 
 
+def reload_anti_crawler_config() -> None:
+    """热重载防爬虫配置（A24b P1-7 模块级配置不支持热重载）"""
+    global ANTI_CRAWLER_MODE, ALLOWED_IPS, TRUSTED_PROXIES, TRUST_XFF
+    _new = _get_anti_crawler_config()
+    ANTI_CRAWLER_MODE = _new["mode"]
+    ALLOWED_IPS = _new["allowed_ips"]
+    TRUSTED_PROXIES = _new["trusted_proxies"]
+    TRUST_XFF = _new["trust_xff"]
+
+
 def _get_mode_config(mode: str) -> Dict:
     """
     根据模式获取配置参数

@@ -14,6 +14,7 @@ from src.common.logger import get_logger
 logger = get_logger("webui.rate_limiter")
 
 
+
 class RateLimiter:
     """
     简单的内存请求频率限制器
@@ -28,28 +29,82 @@ class RateLimiter:
         self._blocked: Dict[str, float] = {}
 
     def _get_client_ip(self, request: Request) -> str:
-        """获取客户端 IP 地址"""
-        # 检查代理头
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            # 取第一个 IP（最原始的客户端）
-            return forwarded.split(",")[0].strip()
+        """获取客户端 IP 地址（带信任代理校验，防 XFF 伪造——A24b P1-1）"""
+        # 延迟导入避免循环依赖
+        try:
+            from src.webui.middleware.anti_crawler import TRUSTED_PROXIES, TRUST_XFF
+        except ImportError:
+            TRUSTED_PROXIES = ()
+            TRUST_XFF = False
 
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-
-        # 直接连接的客户端
+        # 获取直接连接的客户端 IP（用于验证代理）
+        direct_client_ip = None
         if request.client:
-            return request.client.host
+            direct_client_ip = request.client.host
+
+        # 仅当启用 TRUST_XFF 且直连 IP 在 TRUSTED_PROXIES 时才信任 XFF
+        use_xff = False
+        if TRUST_XFF and TRUSTED_PROXIES and direct_client_ip:
+            use_xff = self._is_trusted_proxy(direct_client_ip, TRUSTED_PROXIES)
+
+        if use_xff:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
+
+            real_ip = request.headers.get("X-Real-IP")
+            if real_ip:
+                return real_ip
+
+        # 不信任代理或无代理头：用直连 IP
+        if direct_client_ip:
+            return direct_client_ip
 
         return "unknown"
+
+    def _is_trusted_proxy(self, ip: str, trusted_proxies) -> bool:
+        """检查 IP 是否在信任代理列表中（复用 anti_crawler 配置）"""
+        if not trusted_proxies or ip == "unknown":
+            return False
+        import ipaddress as _ipaddress
+
+        for trusted_entry in trusted_proxies:
+            try:
+                if isinstance(trusted_entry, str):
+                    import re
+
+                    if re.match(trusted_entry, ip):
+                        return True
+                elif isinstance(trusted_entry, (_ipaddress.IPv4Network, _ipaddress.IPv6Network)):
+                    if _ipaddress.ip_address(ip) in trusted_entry:
+                        return True
+                elif isinstance(trusted_entry, (_ipaddress.IPv4Address, _ipaddress.IPv6Address)):
+                    if _ipaddress.ip_address(ip) == trusted_entry:
+                        return True
+            except (ValueError, AttributeError, TypeError):
+                continue
+        return False
 
     def _cleanup_old_requests(self, key: str, window_seconds: int):
         """清理过期的请求记录"""
         now = time.time()
         cutoff = now - window_seconds
         self._requests[key] = [(ts, count) for ts, count in self._requests[key] if ts > cutoff]
+        # 清理空 key 防止 _requests 字典无限增长（A24b P1-2 内存泄漏）
+        if not self._requests[key]:
+            del self._requests[key]
+
+    def _cleanup_all_expired_keys(self, window_seconds: int = 600):
+        """全局清理所有过期 key，防止 _requests 字典无限增长（A24b P1-2）"""
+        now = time.time()
+        cutoff = now - window_seconds
+        expired_keys = []
+        for key, records in self._requests.items():
+            self._requests[key] = [(ts, count) for ts, count in records if ts > cutoff]
+            if not self._requests[key]:
+                expired_keys.append(key)
+        for key in expired_keys:
+            del self._requests[key]
 
     def _cleanup_expired_blocks(self):
         """清理过期的封禁"""
@@ -58,6 +113,8 @@ class RateLimiter:
         for ip in expired:
             del self._blocked[ip]
             logger.info(f"🔓 IP {ip} 封禁已解除")
+        # 顺带全局清理过期 _requests key，防止内存泄漏（A24b P1-2）
+        self._cleanup_all_expired_keys()
 
     def is_blocked(self, request: Request) -> Tuple[bool, Optional[int]]:
         """

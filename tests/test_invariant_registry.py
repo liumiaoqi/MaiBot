@@ -174,23 +174,23 @@ class TestRealInvariantEmotion:
     """验证 emotion 不变量逻辑（直接调 installer，不走注册表导入副作用）。"""
 
     def test_emotion_invariant_passes_when_in_range(self):
-        from unittest.mock import patch
-        from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.emotion import check_emotion_range
 
-        fake_mgr = type("M", (), {"_state": type("S", (), {"emotions": {"happy": 50.0, "sad": 30.0}})()})()
-        with patch.object(AgentEmotionManagerRegistry, "_shared_managers", {"agent_1": fake_mgr}):
+        mock_port = MagicMock()
+        mock_port.get_all_emotion_values.return_value = {"agent_1": {"happy": 50.0, "sad": 30.0}}
+        with patch("src.core.emotion_port_registry.get_emotion_port", return_value=mock_port):
             violations: list[str] = []
             check_emotion_range(lambda msg: violations.append(msg))
             assert violations == []
 
     def test_emotion_invariant_fails_when_out_of_range(self):
-        from unittest.mock import patch
-        from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.emotion import check_emotion_range
 
-        fake_mgr = type("M", (), {"_state": type("S", (), {"emotions": {"happy": 150.0}})()})()
-        with patch.object(AgentEmotionManagerRegistry, "_shared_managers", {"agent_1": fake_mgr}):
+        mock_port = MagicMock()
+        mock_port.get_all_emotion_values.return_value = {"agent_1": {"happy": 150.0}}
+        with patch("src.core.emotion_port_registry.get_emotion_port", return_value=mock_port):
             violations: list[str] = []
             check_emotion_range(lambda msg: violations.append(msg))
             assert len(violations) == 1
@@ -290,7 +290,7 @@ class TestRealInvariantMemorix:
 
         mock_port = MagicMock()
         mock_port.get_vector_store_stats.return_value = {"index_size": 0, "active_count": 0}
-        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
+        with patch("src.core.memory_service_port_registry.get_memory_service_port", return_value=mock_port):
             violations: list[str] = []
             check_memorix(lambda msg: violations.append(msg))
             assert violations == []
@@ -302,7 +302,7 @@ class TestRealInvariantMemorix:
 
         mock_port = MagicMock()
         mock_port.get_vector_store_stats.return_value = {"index_size": 100, "active_count": 99}
-        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
+        with patch("src.core.memory_service_port_registry.get_memory_service_port", return_value=mock_port):
             violations: list[str] = []
             check_memorix(lambda msg: violations.append(msg))
             assert len(violations) == 1
@@ -312,10 +312,7 @@ class TestRealInvariantMemorix:
         from unittest.mock import patch
         from src.core.invariants.memorix import check_memorix
 
-        def raise_runtime():
-            raise RuntimeError("port 未初始化")
-
-        with patch("src.core.adapters.memory_service.get_memory_service_port", side_effect=raise_runtime):
+        with patch("src.core.memory_service_port_registry.get_memory_service_port", return_value=None):
             violations: list[str] = []
             check_memorix(lambda msg: violations.append(msg))
             assert len(violations) == 1

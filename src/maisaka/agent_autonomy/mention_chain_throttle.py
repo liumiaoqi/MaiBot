@@ -197,7 +197,4 @@ class MentionChainThrottle:
             expires_at, chain_id = heapq.heappop(self._chain_expire_heap)
             # 链条可能已被 reset 或更新，只清理过期的
             if chain_id in self._chain_depths:
-                # 检查是否确实过期（堆中可能有旧节点）
-                # 由于深度状态不存 expires_at，这里简单清理
-                # 实际过期由 chain_id 不再被引用保证
-                pass
+                del self._chain_depths[chain_id]

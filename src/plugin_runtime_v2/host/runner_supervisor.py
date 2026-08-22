@@ -193,6 +193,15 @@ class RunnerSupervisor:
             # P0-2: 后台循环异常出声 + 触发 shutdown（ZG-31）
             # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
             logger.exception("health check loop failed: %s", exc, exc_info=True)
+            # P1: 补 port.report 双通道上报（A23a P1-4）
+            try:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.ERROR, "health check loop failed", exception=exc)
+            except Exception:
+                pass
             self._shutdown_event.set()
 
     async def _on_runner_failed(self, runner_id: str, reason: str) -> None:
@@ -226,8 +235,11 @@ class RunnerSupervisor:
         self._health_status[runner_id].last_restart_at = time.monotonic()
         self._health_status[runner_id].last_failure_reason = reason
 
-        # 重启（需要 plugin_dir 信息 — 从 Spawner 的 proc 记录中获取）
-        await self._spawner.restart_failed()
+        # 重启——复用 supervisor.spawn（建 LogForwarder，A23a P1-3 重启丢日志转发）
+        plugin_dir = self._spawner._plugin_dirs.get(runner_id)
+        if plugin_dir is not None:
+            await self._spawner.kill_runner(runner_id)
+            await self.spawn(runner_id, plugin_dir)
 
     def _should_restart(self, runner_id: str) -> bool:
         """检查是否应该重启（计数器 + 风暴检测）。"""

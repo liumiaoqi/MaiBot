@@ -235,6 +235,10 @@ class AgentOrchestrator:
             )
             self._drift_manager = drift_manager
 
+            logger.info(
+                "[ZH-1] 漂移管理器已初始化 | NarrativePushBias/ReflectionBeat 未接线（分期 M4，待事件系统集成）"
+            )
+
             def _drift_tick() -> None:
                 for agent_id, agent in self._active_agents.items():
                     agent_config = agent.agent_config
@@ -253,6 +257,12 @@ class AgentOrchestrator:
 
             return _drift_tick
         except Exception as exc:
+            # P1: 补 port.report 双通道上报
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.WARNING, "[ZH-1] 漂移管理器初始化失败，漂移回调禁用", exception=exc)
             logger.warning("[ZH-1] 漂移管理器初始化失败，漂移回调禁用: %s", exc)
             return lambda: None
 
@@ -1776,7 +1786,13 @@ class AgentOrchestrator:
                         user_name = getattr(cls, "_current_user_name", "") or ""
                         owner_ids = get_bot_config_port().get_bot_owner_user_ids()
                         is_owner = getattr(cls, "_current_user_id", "") in owner_ids
-                    except Exception:
+                    except Exception as exc:
+                        # P1: 补 port.report 双通道上报
+                        from src.core.error_escalation.types import ErrorLevel
+                        from src.core.error_escalation_port_registry import get_error_escalation_port
+                        _port = get_error_escalation_port()
+                        if _port is not None:
+                            _port.report(ErrorLevel.WARNING, "favor_injection user_name/is_owner 获取失败", exception=exc)
                         logger.warning("favor_injection user_name/is_owner 获取失败", exc_info=True)
                     favor_injection_text = ac.get_favor_injection(user_name=user_name, is_owner=is_owner)
         except Exception as exc:

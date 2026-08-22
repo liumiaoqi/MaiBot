@@ -73,7 +73,14 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
     memory_driven_cfg = MemoryDrivenTriggerConfig()
     trigger_registry.register(
         "memory_driven",
-        MemoryDrivenTrigger(memory_adapter, recall_rate_limit_rpm=memory_driven_cfg.recall_rate_limit_rpm),
+        MemoryDrivenTrigger(
+            memory_adapter,
+            positive_bonus=memory_driven_cfg.positive_memory_trigger_bonus,
+            negative_penalty=memory_driven_cfg.negative_memory_trigger_penalty,
+            reunion_probability=memory_driven_cfg.reunion_trigger_probability,
+            reunion_threshold_hours=memory_driven_cfg.reunion_threshold_hours,
+            recall_rate_limit_rpm=memory_driven_cfg.recall_rate_limit_rpm,
+        ),
     )
 
     # 交互引擎
@@ -141,6 +148,7 @@ def build_monologue_engine(
     cfg = get_app_config_port().get_agent_interaction_config()
 
     if not cfg.enabled or not cfg.monologue_enabled:
+        logger.info("[agent_interaction] 独白未启用，跳过 MonologueEngine 构建")
         return None
 
     # 复用注入的组件，否则新建（独立调用场景兼容）

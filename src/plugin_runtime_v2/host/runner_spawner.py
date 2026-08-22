@@ -48,13 +48,16 @@ class RunnerSpawner:
             "--host-address", self._host_addr,
             "--plugin-dir", plugin_dir,
             "--runner-id", runner_id,
-            "--session-token", session_token,
         ]
+        # session_token 通过环境变量传递，避免 ps/proc 可见（A23a P1-2 安全）
+        child_env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        if session_token:
+            child_env["_SESSION_TOKEN"] = session_token
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env=child_env,
         )
         self._processes[runner_id] = process
         self._plugin_dirs[runner_id] = plugin_dir
@@ -134,5 +137,6 @@ def _read_plugin_id(plugin_dir: str, fallback: str) -> str:
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.WARNING, "读取插件 ID 失败", exception=exc)
-                pass
+                # P1: 补 logger 双通道上报（A23a P1-4）
+                logger.warning("读取插件 ID 失败: %s", exc)
     return fallback

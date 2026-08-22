@@ -56,7 +56,8 @@ def _resolve_has_vision_model() -> bool:
             return False
         port.resolve_by_capability(["vision"])
         return True
-    except Exception:
+    except Exception as e:
+        logger.debug("解析 vision 模型能力失败，降级为不可用: %s", e)
         return False
 
 

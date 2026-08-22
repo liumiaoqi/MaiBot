@@ -34,6 +34,7 @@ def _is_forbidden_ip_address(address: ipaddress.IPv4Address | ipaddress.IPv6Addr
             address.is_multicast,
             address.is_reserved,
             address.is_unspecified,
+            address.is_private,
         )
     )
 

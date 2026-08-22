@@ -20,6 +20,7 @@ BuildHistoryMessage = Callable[[SessionMessage, str], Awaitable[Optional[LLMCont
 BuildVisibleText = Callable[[SessionMessage, str], str]
 
 _PLANNER_PENDING_IMAGE_HASHES: set[str] = set()
+_PLANNER_PENDING_IMAGE_HASHES_LIMIT = 10000
 _MONITOR_PENDING_IMAGE_REFRESHERS: dict[str, list[Callable[[str], None]]] = {}
 
 
@@ -117,6 +118,8 @@ def log_pending_image_recognition_before_text_planner(
         return 0
 
     _PLANNER_PENDING_IMAGE_HASHES.update(pending_image_hashes)
+    if len(_PLANNER_PENDING_IMAGE_HASHES) > _PLANNER_PENDING_IMAGE_HASHES_LIMIT:
+        _PLANNER_PENDING_IMAGE_HASHES.clear()
     logger.info(f"{log_prefix} 非多模态 planner 开始前仍有 {pending_count} 张图片正在等待识别")
     return pending_count
 

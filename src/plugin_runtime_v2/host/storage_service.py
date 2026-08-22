@@ -49,6 +49,15 @@ class PerPluginStorage:
                     self._data[plugin_id] = json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("加载插件存储失败: %s: %s", plugin_id, e)
+                # P1: 补 port.report 双通道上报（A23a P1-4）
+                try:
+                    from src.core.error_escalation.types import ErrorLevel
+                    from src.core.error_escalation_port_registry import get_error_escalation_port
+                    _port = get_error_escalation_port()
+                    if _port is not None:
+                        _port.report(ErrorLevel.WARN, f"加载插件存储失败: {plugin_id}", exception=e)
+                except Exception:
+                    pass
 
     def _save(self, plugin_id: str) -> None:
         fpath = Path(self._base_dir) / f"{plugin_id}.json"
@@ -57,3 +66,12 @@ class PerPluginStorage:
                 json.dump(self._data.get(plugin_id, {}), f, ensure_ascii=False, indent=2)
         except OSError as e:
             logger.error("保存插件存储失败: %s: %s", plugin_id, e)
+            # P1: 补 port.report 双通道上报（A23a P1-4）
+            try:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.ERROR, f"保存插件存储失败: {plugin_id}", exception=e)
+            except Exception:
+                pass

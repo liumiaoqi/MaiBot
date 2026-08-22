@@ -148,7 +148,7 @@ class TokenManager:
             config["setup_completed_at"] = existing_config["setup_completed_at"]
 
         self._save_config(config)
-        logger.info(f"新的 WebUI Token 已生成: {token[:8]}...")
+        logger.info("新的 WebUI Token 已生成")
 
         return token
 
@@ -209,14 +209,14 @@ class TokenManager:
 
         try:
             config = self._load_config()
-            old_token = config.get("access_token", "")[:8]
+
 
             config["access_token"] = new_token
             config["updated_at"] = self._get_current_timestamp()
             config["token_source"] = TOKEN_SOURCE_CONFIGURED
 
             self._save_config(config)
-            logger.info(f"Token 已更新: {old_token}... -> {new_token[:8]}...")
+            logger.info("Token 已更新")
 
             return True, "Token 更新成功"
         except Exception as e:
@@ -242,7 +242,7 @@ class TokenManager:
 
         # 加载现有配置，保留 first_setup_completed 状态
         config = self._load_config()
-        old_token = config.get("access_token", "")[:8] if config.get("access_token") else "无"
+
         first_setup_completed = config.get("first_setup_completed", True)  # 默认为 True，表示已完成配置
 
         config["access_token"] = new_token
@@ -251,7 +251,7 @@ class TokenManager:
         config["token_source"] = TOKEN_SOURCE_CONFIGURED
 
         self._save_config(config)
-        logger.info(f"WebUI Token 已重新生成: {old_token}... -> {new_token[:8]}...")
+        logger.info("WebUI Token 已重新生成")
 
         return new_token
 

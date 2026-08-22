@@ -370,7 +370,13 @@ class Butler:
                     extra=f"candidates={len(candidates)} selected={len(result)} → {names}",
                 ))
             return result
-        except (json.JSONDecodeError, Exception) as e:
+        except Exception as e:
+            # P1: 补 port.report 双通道上报
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.WARNING, f"[butler] LLM筛选失败: {e}", exception=e)
             logger.warning(f"[butler] LLM筛选失败: {e}")
             return []
 

@@ -380,6 +380,12 @@ def _format_prompt_template(name: str, template: str, **kwargs: object) -> str:
         error = KeyError(t("prompt.missing_placeholder", name=name, placeholder=missing_placeholder))
         if is_strict_prompt_i18n_mode():
             raise error from exc
+        # P1: 补 port.report 双通道上报
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        _port = get_error_escalation_port()
+        if _port is not None:
+            _port.report(ErrorLevel.ERROR, f"Prompt 模板 KeyError: {error}", exception=exc)
         logger.error(f"{error}")
         return template
     except Exception as exc:

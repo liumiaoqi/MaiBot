@@ -65,3 +65,12 @@ class LogForwarder:
                 "[runner:%s:%s] read loop failed: %s", self._runner_id, label, exc,
                 exc_info=True,
             )
+            # P1: 补 port.report 双通道上报（A23a P1-4）
+            try:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.ERROR, f"[runner:{self._runner_id}:{label}] read loop failed", exception=exc)
+            except Exception:
+                pass

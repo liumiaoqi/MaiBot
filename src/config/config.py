@@ -619,7 +619,13 @@ class ConfigManager:
                 self.reload_config(changed_scopes=changed_scopes),
                 timeout=self._hot_reload_timeout_s,
             )
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
+            # P1: 补 port.report 双通道上报
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.ERROR, "配置热重载超时", exception=exc)
             logger.error(t("config.reload_timeout", timeout_seconds=self._hot_reload_timeout_s))
 
 

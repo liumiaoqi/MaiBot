@@ -279,7 +279,7 @@ class TestRealCheckMemoryVectorStore:
 
         mock_port = MagicMock()
         mock_port.get_vector_store_stats.return_value = {"index_size": 0, "active_count": 0}
-        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
+        with patch("src.core.memory_service_port_registry.get_memory_service_port", return_value=mock_port):
             check = MemoryVectorStoreHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.UP
@@ -289,10 +289,7 @@ class TestRealCheckMemoryVectorStore:
         from unittest.mock import patch
         from src.core.health_checks.memory_vector_store import MemoryVectorStoreHealthCheck
 
-        def raise_runtime():
-            raise RuntimeError("not initialized")
-
-        with patch("src.core.adapters.memory_service.get_memory_service_port", side_effect=raise_runtime):
+        with patch("src.core.memory_service_port_registry.get_memory_service_port", return_value=None):
             check = MemoryVectorStoreHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.UNKNOWN
@@ -305,7 +302,7 @@ class TestRealCheckMemoryVectorStore:
 
         mock_port = MagicMock()
         mock_port.get_vector_store_stats.return_value = {"index_size": 100, "active_count": 99}
-        with patch("src.core.adapters.memory_service.get_memory_service_port", return_value=mock_port):
+        with patch("src.core.memory_service_port_registry.get_memory_service_port", return_value=mock_port):
             check = MemoryVectorStoreHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.DEGRADED

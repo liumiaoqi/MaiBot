@@ -988,9 +988,33 @@ class MainSystem:
 
     @staticmethod
     @startup_item(
-        name="event_bus_port",
+        name="memory_service_port",
         phase=StartupPhase.CORE_SERVICES,
         order=13,
+        critical=False,
+    )
+    async def _init_memory_service_port() -> None:
+        from src.core.adapters.memory_service import get_memory_service_port as _get_adapter
+        from src.core.memory_service_port_registry import set_memory_service_port
+        set_memory_service_port(_get_adapter())
+
+    @staticmethod
+    @startup_item(
+        name="emotion_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=14,
+        critical=False,
+    )
+    async def _init_emotion_port() -> None:
+        from src.core.adapters.emotion_port import EmotionPortAdapter
+        from src.core.emotion_port_registry import set_emotion_port
+        set_emotion_port(EmotionPortAdapter())
+
+    @staticmethod
+    @startup_item(
+        name="event_bus_port",
+        phase=StartupPhase.CORE_SERVICES,
+        order=15,
         critical=True,
     )
     async def _init_event_bus_port() -> None:

@@ -62,6 +62,10 @@ class InteractionScheduler:
                 pass
             except Exception as exc:
                 # P0-4: 关闭路径非预期异常出声（ZG-31）
+                # P1: 补 port.report 双通道上报
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.WARNING, "agent_interaction scheduler 关闭异常", exception=exc)
                 logger.warning("agent_interaction scheduler 关闭异常: %s", exc, exc_info=True)
             self._task = None
         logger.info("[agent_interaction] 调度器已停止")
@@ -95,6 +99,14 @@ class InteractionScheduler:
                         try:
                             self._monologue_engine.record_activity(agent.agent_id)
                         except Exception as ra_exc:
+                            # P1: 补 port.report 双通道上报
+                            _port = get_error_escalation_port()
+                            if _port is not None:
+                                _port.report(
+                                    ErrorLevel.WARNING,
+                                    f"record_activity 异常，跳过: agent={agent.agent_id}",
+                                    exception=ra_exc,
+                                )
                             logger.warning(
                                 "[agent_interaction] record_activity 异常，跳过: agent=%s err=%s",
                                 agent.agent_id,
@@ -117,6 +129,14 @@ class InteractionScheduler:
                 try:
                     await self._monologue_engine.execute(agent.agent_id)
                 except Exception as me:
+                    # P1: 补 port.report 双通道上报
+                    _port = get_error_escalation_port()
+                    if _port is not None:
+                        _port.report(
+                            ErrorLevel.WARNING,
+                            f"内心独白执行异常，跳过: agent={agent.agent_id}",
+                            exception=me,
+                        )
                     logger.warning(
                         "[agent_interaction] 内心独白执行异常，跳过: agent=%s err=%s",
                         agent.agent_id,

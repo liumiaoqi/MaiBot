@@ -461,11 +461,11 @@ class StartupOrchestrator:
     def _freeze_config(self) -> None:
         """配置冻结（标记只读，对标 __init 内存回收前的同步点）。"""
         try:
-            from src.config.config import config_manager  # noqa: TID251 — 启动编排负责配置生命周期冻结
+            from src.core.app_config_port_registry import get_app_config_port
 
-            freeze = getattr(config_manager, "freeze", None)
-            if callable(freeze):
-                freeze()
+            port = get_app_config_port()
+            if port is not None:
+                port.freeze()
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port

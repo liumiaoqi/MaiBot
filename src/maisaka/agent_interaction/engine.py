@@ -165,7 +165,7 @@ class InteractionEngine:
 
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, '[agent_interaction] 回声检测异常，静默截断: %s', exception=e)
+                    port.report(ErrorLevel.WARNING, f'[agent_interaction] 回声检测异常，静默截断: {e}', exception=e)
                 logger.warning("[agent_interaction] 回声检测异常，静默截断: %s", e)
 
             # 非阻塞：发布交互信号到自主性架构
@@ -195,7 +195,7 @@ class InteractionEngine:
 
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.ERROR, '[agent_interaction] 交互执行失败: %s', exception=e)
+                port.report(ErrorLevel.ERROR, f'[agent_interaction] 交互执行失败: {e}', exception=e)
             logger.error("[agent_interaction] 交互执行失败: %s", e)
             return InteractionResult(error=str(e))
 
@@ -228,7 +228,7 @@ class InteractionEngine:
 
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '[agent_interaction] 记忆写入异常，降级为日志: %s', exception=e)
+                port.report(ErrorLevel.WARNING, f'[agent_interaction] 记忆写入异常，降级为日志: {e}', exception=e)
             logger.warning("[agent_interaction] 记忆写入异常，降级为日志: %s", e)
             return "failed"
 

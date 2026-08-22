@@ -1531,6 +1531,31 @@ class AppConfigPort(Protocol):
         """事件传播最大深度（默认 32）。"""
         ...
 
+    def freeze(self) -> None:
+        """冻结配置（启动完成后调用，对标 Linux __init 内存回收前只读化）。
+
+        冻结后 reload_config 抛 ConfigFrozenError。
+        """
+        ...
+
+
+@runtime_checkable
+class EmotionPort(Protocol):
+    """情绪不变量检查接口 — 核心通过此接口读取情绪值，不直接导入 maisaka 组件。
+
+    适配器层（EmotionPortAdapter）是唯一允许访问 AgentEmotionManagerRegistry
+    私有属性的地方。
+    """
+
+    def get_all_emotion_values(self) -> dict[str, dict[str, float]]:
+        """返回所有活跃 agent 的 emotion 值。
+
+        Returns:
+            {agent_id: {emotion_type: value}}；无活跃 agent 时返回空 dict。
+            只读不触发 decay 副作用。
+        """
+        ...
+
 
 @runtime_checkable
 class AutonomyEventBusPort(Protocol):

@@ -67,7 +67,7 @@ class VitalityTickScheduler:
                 from src.core.error_escalation_port_registry import get_error_escalation_port
                 port = get_error_escalation_port()
                 if port is not None:
-                    port.report(ErrorLevel.WARNING, '[vitality_tick] 心跳评估异常: error=', exception=exc)
+                    port.report(ErrorLevel.WARNING, f'[vitality_tick] 心跳评估异常: error={exc}', exception=exc)
                 logger.warning(f"[vitality_tick] 心跳评估异常: error={exc}")
 
     def _tick_emotion_decay(self) -> None:

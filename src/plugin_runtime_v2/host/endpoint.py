@@ -169,6 +169,15 @@ class HostEndpoint:
             # P0-2: 后台循环异常出声（ZG-31）
             # 对标 Linux kernel/panic.c:77-92 OOPS + dsh defensive-patterns: Contain callback exceptions in the dispatcher
             logger.exception("token cleanup loop failed: %s", exc, exc_info=True)
+            # P1: 补 port.report 双通道上报（A23a P1-4）
+            try:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.ERROR, "token cleanup loop failed", exception=exc)
+            except Exception:
+                pass
 
     def get_status(self) -> dict[str, RunnerConnectionSnapshot]:
         """返回所有 Runner 连接状态快照，供 WebUI 调试页使用。"""

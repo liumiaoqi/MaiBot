@@ -185,6 +185,8 @@ def _setup_anti_crawler(app: FastAPI):
         if port is not None:
             port.report(ErrorLevel.ERROR, t("startup.webui_anti_crawler_config_failed", error=e), exception=e)
         logger.error(t("startup.webui_anti_crawler_config_failed", error=e), exc_info=True)
+        # anti_crawler 是安全防护，配置失败必须阻止 app 启动（A24b P1-9 静默启动）
+        raise
 
 
 def _setup_robots_txt(app: FastAPI):

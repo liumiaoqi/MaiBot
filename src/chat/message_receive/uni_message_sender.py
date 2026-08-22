@@ -201,7 +201,8 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 # Fallback: 使用极其简单的 Platform -> API Key 映射
                 # 只有收到过该平台的消息，我们才知道该平台的 API Key，才能回传消息
                 platform_map = getattr(global_api, "platform_map", {})
-                logger.debug(f"[API Server Fallback] platform_map: {platform_map}, 目标平台: '{platform}'")
+                # 脱敏：只打印平台名称，不打印 API Key 全量（A19 P1-2 安全）
+                logger.debug(f"[API Server Fallback] 已知平台: {list(platform_map.keys())}, 目标平台: '{platform}'")
                 target_api_key = platform_map.get(platform)
 
                 if not target_api_key:
@@ -231,7 +232,7 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 if any(results.values()):
                     if show_log:
                         logger.info(
-                            f"已通过API Server Fallback将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key[:8]}...)"
+                            f"已通过API Server Fallback将消息 '{message_preview}' 发往平台'{platform}'"
                         )
                     return True
                 else:

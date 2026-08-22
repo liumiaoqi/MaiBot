@@ -15,19 +15,19 @@ class MemoryVectorStoreHealthCheck(BaseHealthCheck):
 
     async def _do_check(self) -> HealthResult:
         try:
-            from src.core.adapters.memory_service import get_memory_service_port
+            from src.core.memory_service_port_registry import get_memory_service_port
 
             port = get_memory_service_port()
+            if port is None:
+                return HealthResult(
+                    HealthStatus.UNKNOWN,
+                    {"reason": "memory service port 未注册（A_memorix 可能未启用）"},
+                )
             # v3：向量索引计数对比
             stats = port.get_vector_store_stats()
             if stats["index_size"] == stats["active_count"]:
                 return HealthResult(HealthStatus.UP, stats)
             return HealthResult(HealthStatus.DEGRADED, {"reason": "索引不一致", **stats})
-        except RuntimeError as exc:
-            return HealthResult(
-                HealthStatus.UNKNOWN,
-                {"reason": "memory service port 未注册（A_memorix 可能未启用）", "error": str(exc)},
-            )
         except Exception as exc:
             return HealthResult(
                 HealthStatus.UNKNOWN,

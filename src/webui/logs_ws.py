@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import json
+from collections import deque
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
@@ -84,9 +85,10 @@ def load_recent_logs(limit: int = 100) -> List[Dict]:
 
         try:
             with open(log_file, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+                # 流式读取最后 limit 行，避免大日志文件 OOM（A24b P1-6）
+                recent_lines = deque(f, maxlen=limit)
                 # 从文件末尾开始读取
-                for line in reversed(lines):
+                for line in reversed(recent_lines):
                     if len(logs) >= limit:
                         break
                     try:

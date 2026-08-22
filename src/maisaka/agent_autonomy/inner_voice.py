@@ -128,7 +128,13 @@ class InnerVoiceGenerator:
                     content = response.content.strip()
                     if content:
                         return content[:200]
-            except (asyncio.TimeoutError, Exception):
+            except Exception as exc:
+                # P1: 补 port.report 双通道上报
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.WARNING, "LLM 内言语生成失败，回退到规则引擎", exception=exc)
                 logger.debug("LLM 内言语生成失败，回退到规则引擎")
 
         # 回退到纯规则路径

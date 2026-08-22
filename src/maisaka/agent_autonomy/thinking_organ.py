@@ -131,7 +131,13 @@ class ThinkingOrgan:
                 registry = get_agent_config_provider()
                 if registry.has_agent(self._agent_id):
                     personality = registry.get_agent(self._agent_id).identity_prompt.strip()
-            except Exception:
+            except Exception as exc:
+                # P1: 补 port.report 双通道上报
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                _port = get_error_escalation_port()
+                if _port is not None:
+                    _port.report(ErrorLevel.WARNING, "thinking_organ identity_prompt 获取失败，fallback 到 get_personality", exception=exc)
                 logger.warning("thinking_organ identity_prompt 获取失败，fallback 到 get_personality", exc_info=True)
             # fallback 到 deprecated get_personality
             if not personality:
@@ -334,6 +340,12 @@ class ThinkingOrgan:
                     f"remaining={result.remaining_context_count}"
                 )
         except Exception as exc:
+            # P1: 补 port.report 双通道上报
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            _port = get_error_escalation_port()
+            if _port is not None:
+                _port.report(ErrorLevel.WARNING, f"[thinking_organ] 裁切+入队失败，不阻塞回复: {exc}", exception=exc)
             logger.warning(f"[thinking_organ] 裁切+入队失败，不阻塞回复: {exc}")
 
     async def _think_with_tools(
