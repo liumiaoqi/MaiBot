@@ -1,6 +1,9 @@
 
 from src.maisaka.agent.emotion import EmotionManager
 from src.core.adapters.agent_config_port import get_agent_config_provider
+from src.common.logger import get_logger
+
+logger = get_logger("agent_interaction.emotion_registry")
 
 
 class AgentEmotionManagerRegistry:
@@ -22,6 +25,7 @@ class AgentEmotionManagerRegistry:
         if agent_id not in self._managers:
             config = self._registry.get_agent(agent_id)
             self._managers[agent_id] = EmotionManager(config)
+            logger.debug("新建 EmotionManager: agent_id=%s", agent_id)
         return self._managers[agent_id]
 
     def get_emotion_state(self, agent_id: str):

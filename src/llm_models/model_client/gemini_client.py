@@ -582,6 +582,8 @@ async def _default_stream_response_handler(
             _process_stream_chunk(chunk, content_buffer, tool_calls_buffer, api_response)
             usage_record = _extract_usage_record(chunk) or usage_record
         return _build_stream_api_response(content_buffer, tool_calls_buffer, last_response, api_response), usage_record
+    except ReqAbortException:
+        raise
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -969,6 +971,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
         except ReqAbortException:
             raise
         except (ClientError, ServerError) as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             status_code = int(getattr(exc, "code", 500) or 500)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
@@ -1070,6 +1073,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
                 config=embed_config,
             )
         except (ClientError, ServerError) as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             status_code = int(getattr(exc, "code", 500) or 500)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
@@ -1206,6 +1210,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
             )
             response, usage_record = _default_normal_response_parser(raw_response)
         except (ClientError, ServerError) as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             status_code = int(getattr(exc, "code", 500) or 500)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,

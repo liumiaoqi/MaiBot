@@ -49,7 +49,10 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
 
     若 agent_interaction.enabled 为 False，返回 None。
     """
-    cfg = get_app_config_port().get_agent_interaction_config()
+    cfg_port = get_app_config_port()
+    if cfg_port is None:
+        raise RuntimeError("AppConfigPort 未注册，无法构建交互调度器")
+    cfg = cfg_port.get_agent_interaction_config()
 
     if not cfg.enabled:
         logger.info("[agent_interaction] 智能体交互未启用，跳过调度器构建")

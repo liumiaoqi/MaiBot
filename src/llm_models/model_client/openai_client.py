@@ -1517,6 +1517,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(exc, snapshot_path)
             raise
         except APIConnectionError as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
                 client_type="openai",
@@ -1530,6 +1531,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except APIStatusError as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
                 client_type="openai",
@@ -1607,6 +1609,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
                 extra_body=request_overrides.extra_body or None,
             )
         except APIConnectionError as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
                 client_type="openai",
@@ -1620,6 +1623,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except APIStatusError as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
                 client_type="openai",
@@ -1719,6 +1723,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
                 extra_body=request_overrides.extra_body or None,
             )
         except APIConnectionError as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
                 client_type="openai",
@@ -1732,6 +1737,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except APIStatusError as exc:
+            logger.warning(f"API 请求失败 ({type(exc).__name__}): {exc}", exc_info=True)
             snapshot_path = save_failed_request_snapshot(
                 api_provider=self.api_provider,
                 client_type="openai",

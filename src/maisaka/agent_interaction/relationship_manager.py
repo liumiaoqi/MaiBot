@@ -173,6 +173,7 @@ class AgentRelationshipManager:
             )
             row = result.scalar_one_or_none()
             if row is None:
+                logger.debug("共激活更新跳过：关系不存在 agent=%s target=%s", agent_id, target_agent_id)
                 return
 
             # 先衰减
