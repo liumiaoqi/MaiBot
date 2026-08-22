@@ -1,0 +1,34 @@
+{
+  "whitelist": [
+    {
+      "path": "src/webui/routers/emoji/routes.py",
+      "checks": ["n4-no-auth"],
+      "names": ["get_emoji_thumbnail"],
+      "_reason": "表情包缩略图端点公开返回图片资源，无需认证（与静态资源同性质）"
+    },
+    {
+      "path": "src/webui/routers/plugin/catalog.py",
+      "checks": ["n4-no-auth"],
+      "names": ["get_maimai_version", "check_git_status"],
+      "_reason": "版本号/git 状态为只读公开信息，不涉及敏感数据或状态变更"
+    },
+    {
+      "path": "src/webui/routers/plugin/progress.py",
+      "checks": ["n4-no-auth"],
+      "names": ["websocket_plugin_progress"],
+      "_reason": "本 SSD（ZG-N4）范围外——websocket 进度推送认证待后续 SSD 处理（A24a 14 项 P0 不含此项）"
+    },
+    {
+      "path": "src/webui/routers/websocket/auth.py",
+      "checks": ["n4-no-auth"],
+      "names": ["get_ws_token"],
+      "_reason": "本 SSD（ZG-N4）范围外——websocket token 签发端点认证待后续 SSD 处理（A24a 14 项 P0 不含此项）"
+    },
+    {
+      "path": "src/webui/routers/websocket/unified.py",
+      "checks": ["n4-no-auth"],
+      "names": ["websocket_endpoint"],
+      "_reason": "本 SSD（ZG-N4）范围外——websocket 统一端点认证待后续 SSD 处理（A24a 14 项 P0 不含此项）"
+    }
+  ]
+}
