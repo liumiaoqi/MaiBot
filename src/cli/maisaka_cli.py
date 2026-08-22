@@ -94,22 +94,30 @@ class BufferCLI:
 
     async def _dispatch_input(self, user_text: str) -> None:
         """将 CLI 输入转发到 heartflow 路径。"""
-        message = self._build_cli_session_message(
-            user_text=user_text,
-            timestamp=datetime.now(),
-        )
-        from src.core.session_port_registry import get_session_lifecycle_port, get_message_registry_port
-
-        registry_port = get_message_registry_port()
-        if registry_port is not None:
-            registry_port.register_message(message)
-        lifecycle_port = get_session_lifecycle_port()
-        if lifecycle_port is not None:
-            self._session_id = await lifecycle_port.get_or_create_session_id(
-                platform=self._CLI_PLATFORM,
-                user_id=self._CLI_USER_ID,
+        try:
+            message = self._build_cli_session_message(
+                user_text=user_text,
+                timestamp=datetime.now(),
             )
-        await self._message_receiver.process_message(message)
+            from src.core.session_port_registry import get_session_lifecycle_port, get_message_registry_port
+
+            registry_port = get_message_registry_port()
+            if registry_port is not None:
+                registry_port.register_message(message)
+            lifecycle_port = get_session_lifecycle_port()
+            if lifecycle_port is not None:
+                self._session_id = await lifecycle_port.get_or_create_session_id(
+                    platform=self._CLI_PLATFORM,
+                    user_id=self._CLI_USER_ID,
+                )
+            await self._message_receiver.process_message(message)
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"CLI 消息处理异常: {exc}", exception=exc)
+            logger.error("CLI 消息处理异常: %s", exc, exc_info=True)
 
     async def run(self) -> None:
         """主交互循环。"""
@@ -131,6 +139,8 @@ class BufferCLI:
                 await self._dispatch_input(user_text)
         finally:
             if self._session_id is not None:
-                runtime = get_chat_runtime_registry().remove_runtime(self._session_id)
-                if runtime is not None:
-                    await runtime.stop()
+                registry = get_chat_runtime_registry()
+                if registry is not None:
+                    runtime = registry.remove_runtime(self._session_id)
+                    if runtime is not None:
+                        await runtime.stop()

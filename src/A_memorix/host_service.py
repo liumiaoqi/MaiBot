@@ -9,10 +9,10 @@ import tomlkit
 from src.common.logger import get_logger
 from src.common.utils.utils_config import AMemorixConfigUtils
 from src.config.official_configs import AMemorixConfig  # noqa: TID251 — host_service 是 A_memorix 唯一适配层（见 core/ports.py）
-from src.webui.utils.toml_utils import _update_toml_doc
+from src.common.utils.toml_utils import _update_toml_doc
 
 from .paths import repo_root, schema_path
-from .runtime_registry import set_runtime_kernel
+
 
 if TYPE_CHECKING:
     from .core.runtime.sdk_memory_kernel import SDKMemoryKernel
@@ -557,7 +557,7 @@ class AMemorixHostService:
                 return [dict(row) for row in rows] if rows else []
     
             handler_key = self._ADMIN_HANDLER_MAP.get(component_name)
-            if handler_key is not None:
+            if handler_key is not None and handler_key in kernel._admin_handlers:
                 kwargs = dict(payload)
                 action = kwargs.pop("action", "")
                 return await kernel._admin_handlers[handler_key].handle(action, **kwargs)
@@ -588,7 +588,7 @@ class AMemorixHostService:
                     logger.error("记忆内核初始化失败: %s", exc, exc_info=True)
                     raise
                 self._kernel = kernel
-                set_runtime_kernel(kernel)
+
                 self._register_agents_from_config(kernel)
             return self._kernel
 
@@ -619,6 +619,7 @@ class AMemorixHostService:
 
         for agent_id, p_cfg in personality_config.items():
             if not isinstance(p_cfg, dict):
+                logger.warning("智能体 %s 记忆性格配置非 dict，跳过: %r", agent_id, type(p_cfg))
                 continue
             try:
                 personality = MemoryPersonalityV2(
@@ -645,6 +646,7 @@ class AMemorixHostService:
             if isinstance(voice_list, list):
                 for v_cfg in voice_list:
                     if not isinstance(v_cfg, dict):
+                        logger.warning("智能体 %s 的 inner_voice 配置非 dict，跳过: %r", agent_id, type(v_cfg))
                         continue
                     style_str = str(v_cfg.get("style", "preserve")).strip()
                     try:
@@ -876,7 +878,7 @@ class AMemorixHostService:
                 port.report(ErrorLevel.WARNING, 'A_Memorix 关闭流程异常', exception=exc)
             logger.warning("操作异常: %s", exc)
         self._kernel = None
-        set_runtime_kernel(None)
+
 
     @staticmethod
     def build_profile_injection_text(raw_text: str) -> str:

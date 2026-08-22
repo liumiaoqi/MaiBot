@@ -17,10 +17,12 @@ logger = get_logger("maisaka_cli_sender")
 def render_cli_message(content: str, *, title: str = "") -> None:
     """将 CLI 私聊实例的消息展示到终端。"""
     preview_text = content.strip() or "..."
+    bot_config_port = get_bot_config_port()
+    bot_name = bot_config_port.get_bot_nickname().strip() if bot_config_port is not None else ""
     console.print(
         Panel(
             Markdown(preview_text),
-            title=title or get_bot_config_port().get_bot_nickname().strip() or "MaiSaka",
+            title=title or bot_name or "MaiSaka",
             border_style="magenta",
             padding=(1, 2),
         )

@@ -8,9 +8,12 @@ from typing import Any, Iterable, Optional
 import time
 
 from src.common.utils.utils_config import ChatConfigUtils
+from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.session_port_registry import get_session_info
 from src.core.types import SessionInfo
+
+logger = get_logger("maisaka.focus.manager")
 
 FOCUS_SLOT_LIMIT = 1
 FOCUS_GLOBAL_SCOPE_KEY = "__global__"
@@ -62,7 +65,8 @@ class FocusModeManager:
 
         try:
             return get_app_config_port().get_experimental_focus_cool_time()
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.warning("focus_cool_time 配置异常，降级到 120.0: %s", exc)
             return 120.0
 
     def _resolve_is_group_chat(self, session_id: str, is_group_chat: Optional[bool] = None) -> Optional[bool]:

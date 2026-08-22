@@ -567,14 +567,23 @@ class MaisakaExpressionSelector:
                 reply_tool_args,
                 use_expression_intent=self._use_expression_intent(),
             )
-            vector_candidates = await expression_vector_index.select_candidates(
-                index_path=            get_app_config_port().get_expression_vector_index_path(),
-                session_id=session_id,
-                query_text=expression_query_text,
-                scoped_candidates=all_candidates,
-                candidate_pool_size=            get_app_config_port().get_expression_vector_candidate_pool_size(),
-                cluster_pool_size=self._VECTOR_CLUSTER_POOL_SIZE,
-            )
+            try:
+                vector_candidates = await expression_vector_index.select_candidates(
+                    index_path=            get_app_config_port().get_expression_vector_index_path(),
+                    session_id=session_id,
+                    query_text=expression_query_text,
+                    scoped_candidates=all_candidates,
+                    candidate_pool_size=            get_app_config_port().get_expression_vector_candidate_pool_size(),
+                    cluster_pool_size=self._VECTOR_CLUSTER_POOL_SIZE,
+                )
+            except ValueError as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f'表达向量索引数据损坏，降级到随手候选: {exc}', exception=exc)
+                logger.warning("表达向量索引数据损坏，降级到随手候选：session_id=%s error=%s", session_id, exc)
+                return self._sample_legacy_expression_candidates(all_candidates)
             if vector_candidates:
                 logger.debug(
                     f"表达方式向量候选池完成：session_id={session_id} "

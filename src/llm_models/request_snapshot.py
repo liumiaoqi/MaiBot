@@ -366,6 +366,20 @@ def serialize_audio_request_snapshot(request: AudioTranscriptionRequest) -> dict
     }
 
 
+_SENSITIVE_KEYS = {"authorization", "api_key", "apikey", "token", "secret", "password", "bearer"}
+
+
+def _redact_sensitive(data: dict[str, Any]) -> dict[str, Any]:
+    """脱敏字典中的敏感字段（Authorization/api_key/token 等）。"""
+    redacted: dict[str, Any] = {}
+    for key, value in data.items():
+        if key.lower() in _SENSITIVE_KEYS:
+            redacted[key] = "***REDACTED***"
+        else:
+            redacted[key] = value
+    return redacted
+
+
 def serialize_api_provider_snapshot(api_provider: APIProvider) -> dict[str, Any]:
     """序列化 API Provider 配置，排除敏感认证信息。"""
     return {
@@ -375,8 +389,8 @@ def serialize_api_provider_snapshot(api_provider: APIProvider) -> dict[str, Any]
         "auth_type": api_provider.auth_type,
         "base_url": api_provider.base_url,
         "client_type": api_provider.client_type,
-        "default_headers": _json_friendly(dict(api_provider.default_headers)),
-        "default_query": _json_friendly(dict(api_provider.default_query)),
+        "default_headers": _json_friendly(_redact_sensitive(dict(api_provider.default_headers))),
+        "default_query": _json_friendly(_redact_sensitive(dict(api_provider.default_query))),
         "model_list_endpoint": api_provider.model_list_endpoint,
         "name": api_provider.name,
         "organization": api_provider.organization,
@@ -483,7 +497,7 @@ def save_failed_request_snapshot(
         port = get_error_escalation_port()
         if port is not None:
             port.report(ErrorLevel.ERROR, "保存 LLM 请求快照时发生异常", exception=exc)
-        logger.exception("淇濆瓨 LLM 澶辫触璇锋眰蹇収鏃跺彂鐢熷紓甯?")
+        logger.exception("保存 LLM 请求快照时发生异常")
         return None
 
 
@@ -498,7 +512,7 @@ def attach_request_snapshot(exception: Exception, snapshot_path: Path | None) ->
 
 
 def has_request_snapshot(exception: Exception) -> bool:
-    """鍒ゆ柇寮傚父鏄惁宸插叧鑱斾簡璇锋眰蹇収銆?"""
+    """判断异常是否已关联了请求快照。"""
     for candidate in (exception, getattr(exception, "__cause__", None)):
         if candidate is None:
             continue

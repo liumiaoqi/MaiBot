@@ -3,11 +3,14 @@
 from collections import deque
 from typing import Optional
 
+from src.common.logger import get_logger
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.core.types import ObserveRequest
 from src.maisaka.agent.config import PersonalityLayer
 
 from .context import BuiltinToolRuntimeContext
+
+logger = get_logger("maisaka.builtin_tool.reflect_on_self")
 
 # 近期反思缓存（进程内，重启清空）
 _recent_reflections: dict[str, deque[float]] = {}
@@ -168,6 +171,7 @@ async def handle_tool(
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, "统计交互次数失败，按 0 处理", exception=exc)
+            logger.warning("统计交互次数失败，按 0 处理: %s", exc)
             interaction_count = 0
 
         plasticity = plasticity_calc.compute(interaction_count)

@@ -2,10 +2,13 @@
 
 from typing import Optional
 
+from src.common.logger import get_logger
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.agent.config import PersonalityLayer
 
 from .context import BuiltinToolRuntimeContext
+
+logger = get_logger("maisaka.builtin_tool.adjust_expression")
 
 
 def get_tool_spec() -> ToolSpec:
@@ -109,6 +112,7 @@ async def handle_tool(
         port = get_error_escalation_port()
         if port is not None:
             port.report(ErrorLevel.WARNING, "获取交互次数失败，使用 0", exception=exc)
+        logger.warning("获取交互次数失败，使用 0: %s", exc)
         interaction_count = 0
 
     # 计算可塑性

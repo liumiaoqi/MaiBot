@@ -425,7 +425,7 @@ class EventBus:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.ERROR, '事件回滚异常（handler %s），回滚继续', exception=exc)
+                port.report(ErrorLevel.ERROR, f'事件回滚异常（handler {entry.name}），回滚继续', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.exception("事件回滚异常（handler %s），回滚继续", entry.name)

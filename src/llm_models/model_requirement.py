@@ -124,6 +124,9 @@ class DeclarationError(Exception):
     category: str = ""
     name: str = ""
 
+    def __post_init__(self) -> None:
+        super().__init__(self.message)
+
     def __str__(self) -> str:
         parts = []
         if self.component_name:

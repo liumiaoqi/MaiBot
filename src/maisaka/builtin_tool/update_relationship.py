@@ -2,10 +2,13 @@
 
 from typing import Optional
 
+from src.common.logger import get_logger
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.agent.config import PersonalityLayer
 
 from .context import BuiltinToolRuntimeContext
+
+logger = get_logger("maisaka.builtin_tool.update_relationship")
 
 
 def get_tool_spec() -> ToolSpec:
@@ -75,7 +78,7 @@ async def handle_tool(
         port = get_error_escalation_port()
         if port is not None:
             port.report(ErrorLevel.WARNING, "检查关系权限失败，已放行", exception=exc)
-        pass  # 无法检查权限时放行（非多智能体场景）
+        logger.warning("检查关系权限失败，已放行: %s", exc)
 
     if target == agent_id:
         return tool_ctx.build_failure_result(
@@ -129,7 +132,7 @@ async def handle_tool(
         port = get_error_escalation_port()
         if port is not None:
             port.report(ErrorLevel.WARNING, "共激活更新失败，不阻断主流程", exception=exc)
-        pass  # 共激活更新失败不阻断主流程
+        logger.warning("共激活更新失败，不阻断主流程: %s", exc)
 
     # 持久化修改记录
     from src.maisaka.agent_autonomy.personality_persistence import PersonalityPersistence

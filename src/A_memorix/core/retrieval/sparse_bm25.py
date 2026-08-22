@@ -33,6 +33,7 @@ except Exception as exc:
     if port is not None:
         port.report(ErrorLevel.WARNING, "导入 jieba 失败", exception=exc)
     logger.warning("操作异常: %s", exc)
+    HAS_JIEBA = False
 @dataclass
 class SparseBM25Config:
     """BM25 稀疏检索配置。"""

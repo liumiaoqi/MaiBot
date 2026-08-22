@@ -174,10 +174,9 @@ class HTMLRenderService:
             PluginRuntimeRenderSnapshot: 当前生效的浏览器渲染配置快照。
         """
         port = get_app_config_port()
-        if port is not None:
-            return port.get_plugin_runtime_render_config()
-        from src.config.config import config_manager  # noqa: TID251 — Port 未注册时 fallback
-        return config_manager.get_global_config().plugin_runtime.render
+        if port is None:
+            raise RuntimeError("config_manager Port 未接线，无法获取渲染配置")
+        return port.get_plugin_runtime_render_config()
 
     def _get_render_semaphore(self) -> asyncio.Semaphore:
         """根据当前配置返回渲染并发信号量。
@@ -357,6 +356,7 @@ class HTMLRenderService:
             if port is not None:
                 port.report(ErrorLevel.WARNING, '检查浏览器连接状态失败', exception=exc)
             logger.warning("操作异常 in html_render_service.py", exc_info=True)
+            return False
 
     async def _connect_to_existing_browser(self, playwright: Any, config: PluginRuntimeRenderConfig) -> Any:
         """优先连接外部已有的 Chromium 浏览器。

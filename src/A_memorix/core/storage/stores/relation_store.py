@@ -369,7 +369,8 @@ class RelationStore:
                     })
                     if len(pending) >= limit:
                         break
-            except Exception:
+            except Exception as exc:
+                logger.warning("解码 relation metadata 失败（hash=%s），跳过该行: %s", row.get("hash", "?"), exc)
                 continue
         return pending
 

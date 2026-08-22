@@ -36,7 +36,7 @@ from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.runtime_port_registry import get_chat_runtime_registry
-from src.webui.utils.toml_utils import save_toml_with_format
+from src.common.utils.toml_utils import save_toml_with_format
 
 logger = get_logger("webui.chat")
 
@@ -1014,6 +1014,7 @@ def release_deleted_chat_runtime(session_id: str) -> None:
     from src.core.session_port_registry import get_session_info_port
     port = get_session_info_port()
     if port is not None:
+        # SessionInfoPort 未提供公共 remove 接口，暂通过 _session_store 清理运行期缓存。
         port._session_store.remove(session_id)
     _registry = get_chat_runtime_registry()
     if _registry is not None:

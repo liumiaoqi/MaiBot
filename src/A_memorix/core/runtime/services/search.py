@@ -48,9 +48,12 @@ class SearchService:
         retriever = self._get_retriever()
         episode_retriever = self._get_episode_retriever()
         aggregate_query_service = self._get_aggregate_query_service()
-        assert retriever is not None
-        assert episode_retriever is not None
-        assert aggregate_query_service is not None
+        if retriever is None:
+            raise RuntimeError("retriever 未初始化")
+        if episode_retriever is None:
+            raise RuntimeError("episode_retriever 未初始化")
+        if aggregate_query_service is None:
+            raise RuntimeError("aggregate_query_service 未初始化")
 
         mode = str(request.mode or "search").strip().lower() or "search"
         query = str(request.query or "").strip()
@@ -332,7 +335,8 @@ class SearchService:
         shared_chat_ids: Sequence[str] = (),
     ) -> List[Any]:
         episode_retriever = self._get_episode_retriever()
-        assert episode_retriever is not None
+        if episode_retriever is None:
+            raise RuntimeError("episode_retriever 未初始化")
         allowed_chat_ids = self._resolve_allowed_chat_ids(chat_id, shared_chat_ids)
         if len(allowed_chat_ids) <= 1:
             return await episode_retriever.query(

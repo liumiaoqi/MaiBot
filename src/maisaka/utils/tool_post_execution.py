@@ -1,4 +1,8 @@
-"""工具执行后的通用后处理工具。"""
+"""[未接线原型] 工具执行后的通用后处理工具。
+
+注意：handle_tool_post_execution_effects 当前零生产调用点且函数体为空（A18 P1-7）。
+计划在工具执行后流程中接线调用，实现非落库副作用处理。保留作为待实现待接线的原型。
+"""
 
 
 from typing import Any, Optional

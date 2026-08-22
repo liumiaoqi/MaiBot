@@ -29,6 +29,7 @@ from src.core.adapters.llm_service_port import get_llm_service
 
 logger = get_logger("emoji")
 
+# 全局副作用：模块导入时安装 rich 增强异常回显（修改 sys.excepthook），历史沿用。
 install(extra_lines=3)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

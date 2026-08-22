@@ -493,6 +493,11 @@ async def build_mid_term_memory_reference_message(
     try:
         query_result = await embedding_client.embed_text(query_text, session_id=session_id)
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"{log_prefix} query embedding 失败，recall 降级", exception=exc)
         logger.warning(f"{log_prefix} query embedding 失败，recall 降级: {exc}")
         _log_recall_observation(
             hit_count=0,
@@ -1027,6 +1032,11 @@ def _collect_mid_term_memory_recall_candidates(
             candidates.extend(_build_candidate_from_record(record))
         return candidates
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "候选源加载失败，降级返回空列表", exception=exc)
         logger.warning(f"候选源加载失败，降级返回空列表: {exc}")
         return []
 
@@ -1242,6 +1252,11 @@ def _fetch_original_messages_for_candidate(
             limit_mode="latest",
         )
     except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"翻原文失败: find_messages 异常, session_id={pointer_session_id}", exception=exc)
         logger.warning(f"翻原文失败: find_messages 异常, session_id={pointer_session_id}: {exc}")
         return ""
     if not messages:

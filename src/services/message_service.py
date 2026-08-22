@@ -10,11 +10,14 @@ from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.data_models.tool_record_data_model import MaiToolRecord
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType, ToolRecord
+from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.common.utils.math_utils import translate_timestamp_to_human_readable
 from src.common.utils.utils_action import ActionUtils
 
 from src.core.bot_config_port_registry import get_bot_config_port
+
+logger = get_logger("message_service")
 
 
 def _build_readable_line(
@@ -256,17 +259,21 @@ def get_actions_by_timestamp_with_chat(
     timestamp_end: float,
     limit: Optional[int] = None,
 ) -> List[MaiToolRecord]:
-    with get_db_session() as session:
-        statement = (
-            select(ToolRecord)
-            .where(col(ToolRecord.session_id) == chat_id)
-            .where(col(ToolRecord.timestamp) >= datetime.fromtimestamp(timestamp_start))
-            .where(col(ToolRecord.timestamp) <= datetime.fromtimestamp(timestamp_end))
-            .order_by(col(ToolRecord.timestamp))
-        )
-        if limit is not None:
-            statement = statement.limit(limit)
-        return [MaiToolRecord.from_db_instance(item) for item in session.exec(statement).all()]
+    try:
+        with get_db_session() as session:
+            statement = (
+                select(ToolRecord)
+                .where(col(ToolRecord.session_id) == chat_id)
+                .where(col(ToolRecord.timestamp) >= datetime.fromtimestamp(timestamp_start))
+                .where(col(ToolRecord.timestamp) <= datetime.fromtimestamp(timestamp_end))
+                .order_by(col(ToolRecord.timestamp))
+            )
+            if limit is not None:
+                statement = statement.limit(limit)
+            return [MaiToolRecord.from_db_instance(item) for item in session.exec(statement).all()]
+    except Exception:
+        logger.error("按时间范围查询动作记录失败", exc_info=True)
+        raise
 
 
 def replace_user_references(text: str, platform: str, replace_bot_name: bool = False) -> str:
@@ -286,11 +293,15 @@ def replace_user_references(text: str, platform: str, replace_bot_name: bool = F
 
 
 def translate_pid_to_description(pid: str) -> str:
-    with get_db_session() as session:
-        statement = (
-            select(Images).where((col(Images.id) == int(pid)) & (col(Images.image_type) == ImageType.IMAGE))
-            if pid.isdigit()
-            else None
-        )
-        image = session.exec(statement).first() if statement is not None else None
-    return image.description.strip() if image and image.description and image.description.strip() else "[图片]"
+    try:
+        with get_db_session() as session:
+            statement = (
+                select(Images).where((col(Images.id) == int(pid)) & (col(Images.image_type) == ImageType.IMAGE))
+                if pid.isdigit()
+                else None
+            )
+            image = session.exec(statement).first() if statement is not None else None
+        return image.description.strip() if image and image.description and image.description.strip() else "[图片]"
+    except Exception:
+        logger.error("按 pid 查询图片描述失败", exc_info=True)
+        raise

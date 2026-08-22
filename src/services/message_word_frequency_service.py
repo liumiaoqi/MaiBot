@@ -11,8 +11,11 @@ import re
 from src.common.database.database import get_db_session
 from src.common.database.database_model import HighFrequencyTerm
 from src.common.data_models.message_component_data_model import TextComponent
+from src.common.logger import get_logger
 
 from src.maisaka.context.messages import SessionBackedMessage
+
+logger = get_logger("message_word_frequency_service")
 
 _URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 _CQ_CODE_RE = re.compile(r"\[CQ:[^\]]+\]")
@@ -247,29 +250,33 @@ def update_high_frequency_terms_from_context_messages(
 ) -> int:
     """从 Maisaka 裁切上下文消息批次中提取格式化用户消息，并增量更新高频词词库。"""
 
-    texts_by_chat_id = _extract_user_texts_by_chat_id_from_context(context_messages)
-    if not texts_by_chat_id:
-        return 0
+    try:
+        texts_by_chat_id = _extract_user_texts_by_chat_id_from_context(context_messages)
+        if not texts_by_chat_id:
+            return 0
 
-    updated_count = 0
-    generated_at = datetime.now()
-    for chat_id, texts in texts_by_chat_id.items():
-        terms = _build_message_word_frequency_terms(
-            texts,
-            limit=limit,
-            min_count=min_count,
-        )
-        if not terms:
-            continue
+        updated_count = 0
+        generated_at = datetime.now()
+        for chat_id, texts in texts_by_chat_id.items():
+            terms = _build_message_word_frequency_terms(
+                texts,
+                limit=limit,
+                min_count=min_count,
+            )
+            if not terms:
+                continue
 
-        updated_count += _merge_high_frequency_terms(
-            chat_id=chat_id,
-            terms=terms,
-            generated_at=generated_at,
-            max_terms=max_terms,
-        )
+            updated_count += _merge_high_frequency_terms(
+                chat_id=chat_id,
+                terms=terms,
+                generated_at=generated_at,
+                max_terms=max_terms,
+            )
 
-    return updated_count
+        return updated_count
+    except Exception:
+        logger.error("从上下文消息更新高频词词库失败", exc_info=True)
+        raise
 
 
 def _build_message_word_frequency_terms(

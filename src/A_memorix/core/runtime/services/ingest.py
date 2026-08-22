@@ -90,7 +90,8 @@ class IngestService:
             if not paragraph_hash:
                 raise RuntimeError("聊天摘要导入成功但未返回 paragraph_hash，无法执行 Episode 增量入队")
             metadata_store = self._get_metadata_store()
-            assert metadata_store is not None
+            if metadata_store is None:
+                raise RuntimeError("metadata_store 未初始化")
             if self._should_auto_enqueue_episode(source_type="chat_summary"):
                 metadata_store.enqueue_episode_pending(paragraph_hash, source=source)
                 episode_pending_ids.append(paragraph_hash)
@@ -210,11 +211,16 @@ class IngestService:
         graph_store = self._get_graph_store()
         embedding_manager = self._get_embedding_manager()
         relation_write_service = self._get_relation_write_service()
-        assert metadata_store is not None
-        assert vector_store is not None
-        assert graph_store is not None
-        assert embedding_manager is not None
-        assert relation_write_service is not None
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
+        if vector_store is None:
+            raise RuntimeError("vector_store 未初始化")
+        if graph_store is None:
+            raise RuntimeError("graph_store 未初始化")
+        if embedding_manager is None:
+            raise RuntimeError("embedding_manager 未初始化")
+        if relation_write_service is None:
+            raise RuntimeError("relation_write_service 未初始化")
 
         if not content:
             return {"stored_ids": [], "skipped_ids": [external_token], "reason": "empty_text"}
@@ -304,8 +310,10 @@ class IngestService:
     async def process_episode_pending_batch(self, *, limit: int = 20, max_retry: int = 3) -> Dict[str, Any]:
         metadata_store = self._get_metadata_store()
         episode_service = self._get_episode_service()
-        assert metadata_store is not None
-        assert episode_service is not None
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
+        if episode_service is None:
+            raise RuntimeError("episode_service 未初始化")
 
         pending_rows = metadata_store.fetch_episode_pending_batch(limit=max(1, int(limit)), max_retry=max(1, int(max_retry)))
         if not pending_rows:

@@ -56,7 +56,8 @@ class PersonProfileFacade:
         limit: int,
     ) -> Dict[str, Any]:
         metadata_store = self._get_metadata_store()
-        assert metadata_store is not None
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
         if not bool(profile.get("success")):
             return self.empty_person_profile_response(
                 person_id=str(profile.get("person_id", "") or requested_person_id),
@@ -115,8 +116,10 @@ class PersonProfileFacade:
     async def get_person_profile(self, *, person_id: str, chat_id: str = "", limit: int = 10) -> Dict[str, Any]:
         del chat_id
         await self._initialize()
-        assert self._get_metadata_store() is not None
-        assert self._get_person_profile_service() is not None
+        if self._get_metadata_store() is None:
+            raise RuntimeError("metadata_store 未初始化")
+        if self._get_person_profile_service() is None:
+            raise RuntimeError("person_profile_service 未初始化")
         self.mark_person_active(person_id)
         pps = self._get_person_profile_service()
         profile = await pps.query_person_profile(

@@ -1,7 +1,11 @@
-"""性格迁移脚本 — 将扁平 personality 文本迁移为四层模型。
+"""[未接线原型] 性格迁移脚本 — 将扁平 personality 文本迁移为四层模型。
 
 幂等：layered_personality 已存在时跳过迁移。
 输出新格式到单独文件，不修改原 YAML。
+
+注意：migrate_personality_to_layers 当前零生产调用点（A18 P1-1）。
+计划在 AgentConfigLoader 初始化流程中接线，但需先确认迁移策略与
+layered_personality 配置的兼容性。保留作为已实现待接线的原型。
 """
 
 import re

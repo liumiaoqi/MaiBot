@@ -72,7 +72,7 @@ from src.webui.schemas.config import (
     PromptVersionInfo,
     PromptVersionListResponse,
 )
-from src.webui.utils.toml_utils import _update_toml_doc, save_toml_with_format
+from src.common.utils.toml_utils import _update_toml_doc, save_toml_with_format
 
 logger = get_logger("webui")
 

@@ -12,11 +12,15 @@ logger = get_logger("statistics_aggregation_service")
 def refresh_statistics_aggregates() -> None:
     """增量刷新统计汇总表。"""
 
-    with get_db_session(auto_commit=False) as session:
-        _aggregate_messages(session)
-        _aggregate_tool_records(session)
-        _aggregate_model_usage(session)
-        session.commit()
+    try:
+        with get_db_session(auto_commit=False) as session:
+            _aggregate_messages(session)
+            _aggregate_tool_records(session)
+            _aggregate_model_usage(session)
+            session.commit()
+    except Exception:
+        logger.error("刷新统计汇总表失败", exc_info=True)
+        raise
 
 
 def fetch_message_hourly_summary(start_time: datetime, end_time: datetime) -> list[dict[str, Any]]:

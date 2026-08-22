@@ -1,4 +1,8 @@
-"""工具调用记录落库数据构造工具。"""
+"""[未接线原型] 工具调用记录落库数据构造工具。
+
+注意：build_tool_record_payload 当前零生产调用点（A18 P1-6）。
+计划在工具执行后记录落库流程中接线调用。保留作为已实现待接线的原型。
+"""
 
 from src.common.logger import get_logger
 

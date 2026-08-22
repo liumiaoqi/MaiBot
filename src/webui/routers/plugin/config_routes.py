@@ -9,7 +9,7 @@ import tomlkit
 from src.common.logger import get_logger
 from src.common.runtime_loop import run_on_main_loop
 from src.plugin_runtime.protocol.envelope import InspectPluginConfigResultPayload
-from src.webui.utils.toml_utils import save_toml_with_format
+from src.common.utils.toml_utils import save_toml_with_format
 
 from .schemas import UpdatePluginConfigRequest, UpdatePluginRawConfigRequest
 from .support import (

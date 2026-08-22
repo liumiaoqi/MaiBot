@@ -222,7 +222,8 @@ class ModelScanner:
         try:
             with open(file_path, "rb") as fh:
                 hasher.update(fh.read(1024 * 1024))
-        except OSError:
+        except OSError as exc:
+            logger.debug("计算文件校验和失败: %s: %s", file_path, exc)
             return ""
         hasher.update(str(os.path.getsize(file_path)).encode())
         return hasher.hexdigest()[:16]

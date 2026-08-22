@@ -121,8 +121,11 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
     # 获取当前平台对应的账号
     current_account = get_bot_account(platform)
 
-    nickname = get_bot_config_port().get_bot_nickname()
-    alias_names = get_bot_config_port().get_bot_alias_names()
+    bot_config_port = get_bot_config_port()
+    if bot_config_port is None:
+        raise RuntimeError("bot_config_port 未接线，无法获取机器人昵称/别名")
+    nickname = bot_config_port.get_bot_nickname()
+    alias_names = bot_config_port.get_bot_alias_names()
     keywords = [nickname] + alias_names
 
     reply_probability = 0.0
@@ -165,7 +168,7 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '核心消息@检测异常: %s', exception=exc)
+                port.report(ErrorLevel.WARNING, f'核心消息@检测异常: {exc}', exception=exc)
             from src.core.tainted_mask.mark import mark_exception_swallowed
             mark_exception_swallowed()
             logger.debug("核心消息@检测异常: %s", exc)
@@ -221,7 +224,10 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
                 break
 
     # 8) 概率设置
-    reply_timing_config = get_chat_config_port().get_reply_timing_config()
+    chat_config_port = get_chat_config_port()
+    if chat_config_port is None:
+        raise RuntimeError("chat_config_port 未接线，无法获取回复时机配置")
+    reply_timing_config = chat_config_port.get_reply_timing_config()
     if is_at and reply_timing_config.inevitable_at_reply:
         reply_probability = 1.0
         logger.debug("被@，回复概率设置为100%")
@@ -289,7 +295,7 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
                     from src.core.error_escalation_port_registry import get_error_escalation_port
                     port = get_error_escalation_port()
                     if port is not None:
-                        port.report(ErrorLevel.WARNING, '获取 person_id 或 person_name 时出错 for : in utils', exception=person_e)
+                        port.report(ErrorLevel.WARNING, f'获取 person_id 或 person_name 时出错 for {platform}:{user_id} in utils', exception=person_e)
                     from src.core.tainted_mask.mark import mark_exception_swallowed
                     mark_exception_swallowed()
                     logger.warning(
@@ -304,7 +310,7 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
         from src.core.error_escalation_port_registry import get_error_escalation_port
         port = get_error_escalation_port()
         if port is not None:
-            port.report(ErrorLevel.ERROR, '获取聊天类型和目标信息时出错 for', exception=e)
+            port.report(ErrorLevel.ERROR, f'获取聊天类型和目标信息时出错 for {chat_id}', exception=e)
         from src.core.tainted_mask.mark import mark_exception_swallowed
         mark_exception_swallowed()
         logger.error(f"获取聊天类型和目标信息时出错 for {chat_id}: {e}", exc_info=True)

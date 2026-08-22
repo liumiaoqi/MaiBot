@@ -80,8 +80,8 @@ class DataMigrationTool:
             from src.core.error_escalation_port_registry import get_error_escalation_port
             port = get_error_escalation_port()
             if port is not None:
-                port.report(ErrorLevel.WARNING, '解析默认智能体失败', exception=exc)
-            logger.warning("操作异常 in data_migration", exc_info=True)
+                port.report(ErrorLevel.WARNING, '解析默认智能体失败，降级到 silver_wolf', exception=exc)
+            logger.warning("无法解析默认智能体，降级到 silver_wolf: %s", exc)
 
     def backup_database(self) -> Path:
         """备份数据库文件。

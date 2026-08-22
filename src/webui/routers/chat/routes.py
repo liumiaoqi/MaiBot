@@ -78,7 +78,7 @@ async def get_available_platforms() -> Dict[str, object]:
         if port is not None:
             port.report(ErrorLevel.ERROR, '获取平台列表失败', exception=e)
         logger.error(f"获取平台列表失败: {e}")
-        return {"success": False, "error": str(e), "platforms": []}
+        return {"success": False, "error": "获取平台列表失败", "platforms": []}
 
 
 @router.get("/persons")
@@ -100,7 +100,7 @@ async def get_persons_by_platform(
         if port is not None:
             port.report(ErrorLevel.ERROR, '获取用户列表失败', exception=e)
         logger.error(f"获取用户列表失败: {e}")
-        return {"success": False, "error": str(e), "persons": []}
+        return {"success": False, "error": "获取用户列表失败", "persons": []}
 
 
 @router.get("/sessions")

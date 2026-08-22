@@ -1,7 +1,11 @@
-"""Legacy compatibility entry for upstream/plugin-style integrations.
+"""[DEPRECATED] Legacy compatibility entry for upstream/plugin-style integrations.
 
 MaiBot 主线当前通过 `src.A_memorix.host_service` 直接接入 A_Memorix，
 不再通过插件运行时发现或加载本模块。
+
+废弃原因：无 manifest/yaml/toml 引用，plugin_runtime 不引用本模块，
+全仓无 `from src.A_memorix.plugin import` 调用点。
+保留仅为兼容性参考，计划在 A_memorix FUSION_FULL 验收后删除。
 """
 
 

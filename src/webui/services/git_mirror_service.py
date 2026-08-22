@@ -208,6 +208,7 @@ class GitMirrorConfig:
             if port is not None:
                 port.report(ErrorLevel.ERROR, '保存配置文件失败', exception=e)
             logger.error(f"保存配置文件失败: {e}")
+            raise
 
     def get_all_mirrors(self) -> List[Dict[str, Any]]:
         """获取所有镜像源"""
@@ -626,8 +627,10 @@ class GitMirrorService:
             try:
                 process = await loop.run_in_executor(None, run_git_command)
             except subprocess.TimeoutExpired:
+                logger.warning("Git 命令超时: %s", " ".join(cmd))
                 return {"success": False, "error": f"Git 命令超时: {' '.join(cmd)}", "commands": executed}
             except FileNotFoundError:
+                logger.warning("Git 未安装或不在 PATH 中")
                 return {"success": False, "error": "Git 未安装或不在 PATH 中", "commands": executed}
 
             if process.returncode != 0:

@@ -13,6 +13,9 @@ from sqlalchemy import case
 from sqlmodel import col, delete, select
 
 from src.common.database.database_model import PersonInfo
+from src.common.logger import get_logger
+
+logger = get_logger("webui.person")
 
 
 # ── Pydantic 响应模型 ──────────────────────────────────────────────
@@ -109,7 +112,8 @@ def parse_group_nick_name(group_nick_name_str: Optional[str]) -> Optional[List[D
         return None
     try:
         return json.loads(group_nick_name_str)
-    except (json.JSONDecodeError, TypeError):
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning("解析群昵称 JSON 失败: %s", exc)
         return None
 
 

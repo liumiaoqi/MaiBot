@@ -205,3 +205,4 @@ def _get_person_name_for_person_id(session: Any, person_id: str) -> str:
         if port is not None:
             port.report(ErrorLevel.WARNING, '获取人物名称失败', exception=exc)
         logger.warning("操作异常 in memory", exc_info=True)
+        return ""

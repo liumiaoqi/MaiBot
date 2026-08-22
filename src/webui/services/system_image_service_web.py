@@ -89,7 +89,8 @@ _DATABASE_CLEANUP_TABLES: dict[str, dict[str, str]] = {
 def paths_equal(left: str, right: Path) -> bool:
     try:
         return stored_image_paths_equal(left, right)
-    except (OSError, RuntimeError, StoredImagePathError):
+    except (OSError, RuntimeError, StoredImagePathError) as exc:
+        logger.warning("比较图片路径失败: %s", exc)
         return False
 
 

@@ -725,7 +725,12 @@ class JargonMiner:
                 # 已存在记录，更新 count 和证据消息引用
                 self._update_jargon(matched_jargon, evidence_messages)
                 if self._should_infer_meaning(matched_jargon):
-                    asyncio.create_task(self._infer_meaning_by_id(matched_jargon.id))  # type: ignore
+                    infer_task = asyncio.create_task(self._infer_meaning_by_id(matched_jargon.id))  # type: ignore
+                    infer_task.add_done_callback(
+                        lambda t: logger.warning("推断黑话含义失败: %s", t.exception())
+                        if not t.cancelled() and t.exception() is not None
+                        else None
+                    )
                 updated += 1
             else:
                 # 没找到匹配记录，创建新记录

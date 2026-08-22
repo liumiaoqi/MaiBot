@@ -119,7 +119,8 @@ class ProfileEvidenceService:
         }
 
     def _build_profile_evidence_items(self, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
-        assert self.metadata_store is not None
+        if self.metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
         evidence: List[Dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
 

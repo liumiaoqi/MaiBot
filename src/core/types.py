@@ -1100,4 +1100,4 @@ class MaimMessageConfigSnapshot:
     api_server_allowed_api_keys: tuple[str, ...] = ()
     ws_server_host: str = ""
     ws_server_port: int = 0
-    auth_token: str = ""
+    auth_token: tuple[str, ...] = ()

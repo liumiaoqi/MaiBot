@@ -1316,7 +1316,13 @@ class PluginRuntimeManager(
 
         try:
             registered_supervisor = self._get_supervisor_for_plugin(normalized_plugin_id)
-        except RuntimeError:
+        except RuntimeError as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, f"获取插件 supervisor 失败: {exc}", exception=exc)
+            logger.warning("获取插件 %s supervisor 失败: %s", normalized_plugin_id, exc)
             return False
 
         if registered_supervisor is not None:

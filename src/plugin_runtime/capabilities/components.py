@@ -5,7 +5,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.plugin_runtime.host.component_timeout import resolve_component_rpc_timeout_ms
-from src.webui.utils.toml_utils import save_toml_with_format
+from src.common.utils.toml_utils import save_toml_with_format
 
 logger = get_logger("plugin_runtime.integration")
 

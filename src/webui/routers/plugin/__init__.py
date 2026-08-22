@@ -6,7 +6,7 @@ from .catalog import router as catalog_router
 from .config_routes import router as config_router
 from .icon_routes import router as icon_router
 from .management import router as management_router
-from .progress import get_progress_router, update_progress
+from .progress import update_progress
 from .runtime_routes import router as runtime_router
 from .scope_routes import router as scope_router
 from .stats_proxy import router as stats_proxy_router
@@ -22,4 +22,4 @@ router.include_router(stats_proxy_router)
 
 set_update_progress_callback(update_progress)
 
-__all__ = ["get_progress_router", "router"]
+__all__ = ["router"]

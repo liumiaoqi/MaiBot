@@ -88,6 +88,7 @@ class MidTermSummaryQueue:
             self._queue.put_nowait(snapshot)
         except Exception as exc:
             logger.warning(f"摘要入队失败: {exc}")
+            self._report_escalation(str(exc))
 
     async def _consumer_loop(self) -> None:
         """异步消费者：出队 → build → persist → 异常捕获 + 继续。

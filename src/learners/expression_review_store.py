@@ -138,6 +138,7 @@ def _parse_created_at(value: Any) -> datetime:
         try:
             return datetime.fromisoformat(value)
         except ValueError:
+            logger.warning("解析审核日志时间戳失败，回退到 epoch: %s", value)
             return datetime.fromtimestamp(0)
     return datetime.fromtimestamp(0)
 

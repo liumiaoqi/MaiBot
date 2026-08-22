@@ -34,6 +34,7 @@ class PersonProfileResult:
 
 class MemoryService:
     def _get_host_service(self) -> Any:
+        # 已知层级违反：services 层直接导入 A_memorix 内部模块，待 Protocol 重构后改为通过 Port 访问
         from src.A_memorix.host_service import a_memorix_host_service
         return a_memorix_host_service
 
@@ -306,6 +307,7 @@ class MemoryService:
 
     @staticmethod
     def build_profile_injection_text(raw_text: str) -> str:
+        # 已知层级违反：services 层直接导入 A_memorix 内部模块，待 Protocol 重构后改为通过 Port 访问
         from src.A_memorix.host_service import a_memorix_host_service
 
         return a_memorix_host_service.build_profile_injection_text(raw_text)

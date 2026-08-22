@@ -196,6 +196,7 @@ def _is_llm_cache_stats_enabled() -> bool:
         if port is not None:
             port.report(ErrorLevel.WARNING, "操作异常 in llm_cache_stats.py", exception=exc)
         logger.warning("操作异常 in llm_cache_stats.py", exc_info=True)
+        return False
 
 
 def _normalize_request_type(request_type: str) -> str:

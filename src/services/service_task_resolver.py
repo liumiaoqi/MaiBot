@@ -7,14 +7,11 @@
 
 from typing import Any, Dict
 
-from src.common.logger import get_logger
 from src.config.model_configs import TaskConfig
 from src.core.model_config_port_registry import get_model_config_port
 from src.core.model_config_port_registry import register_model_config_port
 from src.llm_models.model_requirement import ResolvedModel
 from src.llm_models.task_name_mapping import resolve_legacy_task_name
-
-logger = get_logger("service_task_resolver")
 
 
 def set_model_config_port(port: Any) -> None:

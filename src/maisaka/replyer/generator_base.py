@@ -105,7 +105,7 @@ class BaseMaisakaReplyGenerator:
         self._load_prompt = load_prompt_func
         self._enable_visual_message = enable_visual_message
         self._replyer_mode = replyer_mode
-        self._replyer_session_id = chat_stream.session_id if chat_stream is not None else "" 
+
 
     def _build_personality_prompt(self) -> str:
         """构建 replyer 使用的人设提示。"""
@@ -122,7 +122,12 @@ class BaseMaisakaReplyGenerator:
                 registry = get_agent_config_provider()
                 agent_config = registry.get_default_agent()
                 prompt_personality = agent_config.identity_prompt.strip()
-            except Exception:
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, 'replyer identity_prompt 获取失败，fallback 到 get_personality', exception=exc)
                 logger.warning("replyer identity_prompt 获取失败，fallback 到 get_personality", exc_info=True)
             # fallback 到 deprecated get_personality
             if not prompt_personality:

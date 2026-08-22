@@ -102,8 +102,10 @@ class MaintenanceService:
         import time
         graph_store = self._get_graph_store()
         metadata_store = self._get_metadata_store()
-        assert graph_store is not None
-        assert metadata_store is not None
+        if graph_store is None:
+            raise RuntimeError("graph_store 未初始化")
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
         half_life = float(self._cfg("memory.half_life_hours", 24.0) or 24.0)
         if half_life > 0:
             factor = 0.5 ** (float(interval_hours) / half_life)
@@ -127,7 +129,8 @@ class MaintenanceService:
         """
         import time
         metadata_store = self._get_metadata_store()
-        assert metadata_store is not None
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
         retention_days = max(1.0, float(self._cfg("memory.deleted_relations_retention_days", 30.0) or 30.0))
         batch_size = max(1, int(self._cfg("memory.purge_batch_size", 500) or 500))
         cutoff = time.time() - retention_days * 86400.0
@@ -224,8 +227,10 @@ class MaintenanceService:
         import time
         metadata_store = self._get_metadata_store()
         graph_store = self._get_graph_store()
-        assert metadata_store is not None
-        assert graph_store is not None
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
+        if graph_store is None:
+            raise RuntimeError("graph_store 未初始化")
         prune_threshold = max(0.0, float(self._cfg("memory.prune_threshold", 0.1) or 0.1))
         freeze_duration = max(0.0, float(self._cfg("memory.freeze_duration_hours", 24.0) or 24.0)) * 3600.0
         now = time.time()
@@ -270,8 +275,10 @@ class MaintenanceService:
     async def _orphan_gc_phase(self) -> None:
         metadata_store = self._get_metadata_store()
         graph_store = self._get_graph_store()
-        assert metadata_store is not None
-        assert graph_store is not None
+        if metadata_store is None:
+            raise RuntimeError("metadata_store 未初始化")
+        if graph_store is None:
+            raise RuntimeError("graph_store 未初始化")
         orphan_cfg = self._cfg("memory.orphan", {}) or {}
         if not bool(orphan_cfg.get("enable_soft_delete", True)):
             return

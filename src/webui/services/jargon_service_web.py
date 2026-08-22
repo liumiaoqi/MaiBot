@@ -44,8 +44,9 @@ def parse_session_id_candidates(session_id_str: str) -> List[str]:
 
         # 其他格式，返回原始字符串
         return [session_id_str]
-    except (json.JSONDecodeError, TypeError):
+    except (json.JSONDecodeError, TypeError) as exc:
         # 不是有效的 JSON，可能是直接的 session_id
+        logger.warning("解析会话 ID 候选失败，回退为原始字符串: %s", exc)
         return [session_id_str]
 
 
@@ -293,7 +294,8 @@ def parse_session_id_dict(session_id_dict_str: Optional[str]) -> Dict[str, int]:
 
     try:
         parsed = json.loads(session_id_dict_str)
-    except (json.JSONDecodeError, TypeError):
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning("解析会话计数字典失败，返回空字典: %s", exc)
         return {}
 
     if not isinstance(parsed, dict):
