@@ -4,8 +4,10 @@
 """
 
 
+import sqlite3
 import time
 from collections import defaultdict
+from pathlib import Path
 
 
 from pydantic import BaseModel, Field
@@ -13,6 +15,8 @@ from pydantic import BaseModel, Field
 from src.common.logger import get_logger
 
 logger = get_logger("maisaka_deepseek_cost_tracker")
+
+_DB_PATH = Path("data/deepseek_cost.db")
 
 
 class CostRecord(BaseModel):
@@ -31,9 +35,65 @@ class CostRecord(BaseModel):
 class CostTracker:
     """DeepSeek 成本追踪器。"""
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: Path | str | None = None) -> None:
         self._records: list[CostRecord] = []
         self._max_records = 10000
+        self._db_path = Path(db_path) if db_path is not None else _DB_PATH
+        self._init_db()
+        self._load_from_db()
+
+    def _init_db(self) -> None:
+        """初始化 SQLite 持久化表。"""
+        try:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(str(self._db_path)) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS deepseek_cost_record (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        agent_id TEXT NOT NULL,
+                        task_type TEXT NOT NULL,
+                        model_tier TEXT NOT NULL,
+                        input_tokens INTEGER NOT NULL,
+                        output_tokens INTEGER NOT NULL,
+                        cache_hit_tokens INTEGER NOT NULL,
+                        cost REAL NOT NULL,
+                        timestamp REAL NOT NULL
+                    )
+                    """
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.warning("成本追踪 SQLite 初始化失败: %s", exc)
+
+    def _load_from_db(self) -> None:
+        """从 SQLite 加载最近 N 条记录到内存（重启不丢数据）。"""
+        try:
+            with sqlite3.connect(str(self._db_path)) as conn:
+                rows = conn.execute(
+                    """
+                    SELECT agent_id, task_type, model_tier, input_tokens,
+                           output_tokens, cache_hit_tokens, cost, timestamp
+                    FROM deepseek_cost_record
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                    """,
+                    (self._max_records,),
+                ).fetchall()
+            self._records = [
+                CostRecord(
+                    agent_id=r[0], task_type=r[1], model_tier=r[2],
+                    input_tokens=r[3], output_tokens=r[4], cache_hit_tokens=r[5],
+                    cost=r[6], timestamp=r[7],
+                )
+                for r in reversed(rows)
+            ]
+        except Exception as exc:
+            logger.warning("成本追踪 SQLite 加载失败: %s", exc)
+
+    def reset(self) -> None:
+        """清空累积状态（测试隔离用）。"""
+        self._records.clear()
 
     def record(
         self,
@@ -60,6 +120,24 @@ class CostTracker:
 
         if len(self._records) > self._max_records:
             self._records = self._records[-self._max_records:]
+
+        try:
+            with sqlite3.connect(str(self._db_path)) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO deepseek_cost_record
+                    (agent_id, task_type, model_tier, input_tokens,
+                     output_tokens, cache_hit_tokens, cost, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        agent_id, task_type, model_tier, input_tokens,
+                        output_tokens, cache_hit_tokens, cost, record.timestamp,
+                    ),
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.warning("成本记录持久化失败: %s", exc)
 
     def get_agent_cost(self, agent_id: str, period_days: int = 30) -> dict[str, float]:
         """获取指定智能体在指定时间段内的成本汇总。"""

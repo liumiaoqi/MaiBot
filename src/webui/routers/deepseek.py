@@ -7,6 +7,12 @@ from pydantic import BaseModel, Field
 
 from src.common.logger import get_logger
 from src.core.adapters.agent_config_port import get_agent_config_provider
+from src.maisaka.deepseek import (
+    _budget_manager,
+    _prefix_cache_manager,
+    _batch_scheduler,
+    _cost_tracker,
+)
 from src.maisaka.deepseek.batch_scheduler import BatchScheduler
 from src.maisaka.deepseek.budget import TokenBudgetManager
 from src.maisaka.deepseek.cost_tracker import CostTracker
@@ -25,19 +31,19 @@ def _get_registry() -> Any:
 
 
 def _get_budget_manager() -> TokenBudgetManager:
-    return TokenBudgetManager()
+    return _budget_manager
 
 
 def _get_prefix_cache_manager() -> PrefixCacheManager:
-    return PrefixCacheManager()
+    return _prefix_cache_manager
 
 
 def _get_batch_scheduler() -> BatchScheduler:
-    return BatchScheduler()
+    return _batch_scheduler
 
 
 def _get_cost_tracker() -> CostTracker:
-    return CostTracker()
+    return _cost_tracker
 
 
 class TokenBudgetSegment(BaseModel):

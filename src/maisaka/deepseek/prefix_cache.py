@@ -76,6 +76,12 @@ class PrefixCacheManager:
         self._last_stable_hash: dict[str, str] = {}
         self._last_update_time: dict[str, float] = {}
 
+    def reset(self) -> None:
+        """清空累积状态（测试隔离用）。"""
+        self._stats = PrefixCacheStats()
+        self._last_stable_hash.clear()
+        self._last_update_time.clear()
+
     def build_prefix_layers(
         self,
         agent_id: str,

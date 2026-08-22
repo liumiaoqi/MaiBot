@@ -262,3 +262,32 @@ class ParameterEvolutionEngine:
         self._audit_logs.append(log)
         if len(self._audit_logs) > self._max_audit_logs:
             self._audit_logs = self._audit_logs[-self._max_audit_logs:]
+
+
+_parameter_evolution_engine: ParameterEvolutionEngine | None = None
+
+
+def init_parameter_evolution() -> None:
+    """初始化参数演变引擎（@startup_item 注册）。
+
+    从 deepseek 域级单例注入三依赖（cost_tracker/prefix_cache_manager/budget_manager）。
+    幂等：已初始化时跳过。
+    """
+
+    global _parameter_evolution_engine
+    if _parameter_evolution_engine is not None:
+        return
+    from src.maisaka.deepseek import _cost_tracker, _prefix_cache_manager, _budget_manager
+
+    _parameter_evolution_engine = ParameterEvolutionEngine(
+        cost_tracker=_cost_tracker,
+        prefix_cache_manager=_prefix_cache_manager,
+        budget_manager=_budget_manager,
+    )
+    logger.info("ParameterEvolutionEngine 已初始化（三依赖注入完成）")
+
+
+def get_parameter_evolution_engine() -> ParameterEvolutionEngine | None:
+    """获取参数演变引擎单例。"""
+
+    return _parameter_evolution_engine

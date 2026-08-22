@@ -80,6 +80,10 @@ class TokenBudgetManager:
     def __init__(self) -> None:
         self._cache: dict[str, TokenBudgetAllocation] = {}
 
+    def reset(self) -> None:
+        """清空累积状态（测试隔离用）。"""
+        self._cache.clear()
+
     def get_budget(self, agent_id: str, model_context_window: int = 128000) -> TokenBudgetAllocation:
         """获取指定智能体的 Token 预算分配。"""
         if agent_id in self._cache:

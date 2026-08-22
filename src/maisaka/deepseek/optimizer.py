@@ -251,3 +251,11 @@ class DeepSeekOptimizer:
         char_limit = int(max_tokens * 1.5)
         truncated_content = segment.content[:char_limit]
         return ContextSegment(name=segment.name, content=truncated_content, estimated_tokens=max_tokens)
+
+
+_deepseek_optimizer = DeepSeekOptimizer()
+
+
+def get_deepseek_optimizer() -> DeepSeekOptimizer:
+    """获取 DeepSeek 优化器模块级单例。"""
+    return _deepseek_optimizer

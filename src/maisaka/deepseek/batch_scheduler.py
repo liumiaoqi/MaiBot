@@ -74,6 +74,12 @@ class BatchScheduler:
         self._completed_tasks: list[BatchTask] = []
         self._batch_api_available: bool = True
 
+    def reset(self) -> None:
+        """清空累积状态（测试隔离用）。"""
+        self._pending_tasks.clear()
+        self._completed_tasks.clear()
+        self._batch_api_available = True
+
     def submit_task(self, task: BatchTask) -> BatchTaskStatus:
         """提交批处理任务。"""
         if task.task_type in _REALTIME_ONLY_TASKS:

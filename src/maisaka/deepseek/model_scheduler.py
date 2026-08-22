@@ -86,3 +86,11 @@ class ModelScheduler:
                 port.report(ErrorLevel.WARNING, "获取智能体模型偏好失败", exception=exc)
             logger.warning("操作异常 in model_scheduler.py", exc_info=True)
         return "auto"
+
+
+_model_scheduler = ModelScheduler()
+
+
+def get_model_scheduler() -> ModelScheduler:
+    """获取模型调度器模块级单例。"""
+    return _model_scheduler
