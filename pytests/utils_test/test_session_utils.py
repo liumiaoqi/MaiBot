@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
-from src.chat.message_receive.chat_manager import ChatManager
+from src.chat.message_receive.message_registry import MessageRegistry
+from src.chat.message_receive.session_store import SessionStore
 from src.common.utils.utils_session import SessionUtils
 
 
@@ -15,8 +16,12 @@ def test_calculate_session_id_distinguishes_account_and_scope() -> None:
     assert route_scoped_session_id != account_scoped_session_id
 
 
-def test_chat_manager_register_message_uses_route_metadata() -> None:
-    chat_manager = ChatManager()
+def test_register_message_uses_route_metadata() -> None:
+    """ChatManager 已删除（C 类零创建点），直接测试 MessageRegistry.register 的路由元数据提取。"""
+    session_store = SessionStore()
+    message_registry = MessageRegistry(session_store)
+    session_store.set_message_registry(message_registry)
+
     message = SimpleNamespace(
         platform="qq",
         session_id="",
@@ -30,7 +35,7 @@ def test_chat_manager_register_message_uses_route_metadata() -> None:
         ),
     )
 
-    chat_manager.register_message(message)
+    message_registry.register(message)
 
     assert message.session_id == SessionUtils.calculate_session_id(
         "qq",
@@ -39,4 +44,4 @@ def test_chat_manager_register_message_uses_route_metadata() -> None:
         account_id="123",
         scope="main",
     )
-    assert chat_manager.last_messages[message.session_id] is message
+    assert message_registry.last_messages[message.session_id] is message

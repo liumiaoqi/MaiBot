@@ -1,19 +1,6 @@
 from pydantic import BaseModel, Field
 
 
-class InteractionTriggerConfig(BaseModel):
-    enabled: bool = True
-    cooldown_minutes: int = Field(default=30, ge=5)
-    max_interactions_per_hour: int = Field(default=2, ge=1, le=10)
-    max_interactions_per_day: int = Field(default=8, ge=1, le=20)
-    echo_enabled: bool = True
-    echo_max_depth: int = Field(default=3, ge=1, le=5)
-    echo_decay_ratio: float = Field(default=0.5, ge=0.1, le=1.0)
-    monologue_enabled: bool = True
-    monologue_min_interval_minutes: int = Field(default=15, ge=5)
-    monologue_idle_threshold_minutes: int = Field(default=30, ge=10)
-    monologue_emotion_intensity_threshold: int = Field(default=40, ge=0, le=100)
-
 
 class MemoryDrivenTriggerConfig(BaseModel):
     enabled: bool = True

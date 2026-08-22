@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     # 获取 PluginConfigManager 实例（通过生产接线点）
     import asyncio
 
-    from src.plugin_runtime_v2.config.host_config_manager import get_plugin_config_manager
+    from src.plugin_runtime_v2.bootstrap import get_plugin_config_manager
     manager = get_plugin_config_manager()
     return asyncio.run(dump_plugin_config_main(args.plugin_id, manager, args.stream, args.fmt))
 

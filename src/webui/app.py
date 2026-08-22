@@ -183,7 +183,7 @@ def _setup_anti_crawler(app: FastAPI):
         from src.core.error_escalation_port_registry import get_error_escalation_port
         port = get_error_escalation_port()
         if port is not None:
-            port.report(ErrorLevel.ERROR, "t('startup.webui_anti_crawler_config_failed', error=e)", exception=e)
+            port.report(ErrorLevel.ERROR, t("startup.webui_anti_crawler_config_failed", error=e), exception=e)
         logger.error(t("startup.webui_anti_crawler_config_failed", error=e), exc_info=True)
 
 
@@ -201,7 +201,7 @@ def _setup_robots_txt(app: FastAPI):
         from src.core.error_escalation_port_registry import get_error_escalation_port
         port = get_error_escalation_port()
         if port is not None:
-            port.report(ErrorLevel.ERROR, "t('startup.webui_robots_route_register_failed', error=e)", exception=e)
+            port.report(ErrorLevel.ERROR, t("startup.webui_robots_route_register_failed", error=e), exception=e)
         logger.error(t("startup.webui_robots_route_register_failed", error=e), exc_info=True)
 
 
@@ -218,7 +218,7 @@ def _register_api_routes(app: FastAPI):
         from src.core.error_escalation_port_registry import get_error_escalation_port
         port = get_error_escalation_port()
         if port is not None:
-            port.report(ErrorLevel.ERROR, "t('startup.webui_api_routes_register_failed', error=e)", exception=e)
+            port.report(ErrorLevel.ERROR, t("startup.webui_api_routes_register_failed", error=e), exception=e)
         logger.error(t("startup.webui_api_routes_register_failed", error=e), exc_info=True)
 
 
@@ -334,5 +334,5 @@ def show_access_token():
         from src.core.error_escalation_port_registry import get_error_escalation_port
         port = get_error_escalation_port()
         if port is not None:
-            port.report(ErrorLevel.ERROR, "t('startup.webui_access_token_failed', error=e)", exception=e)
+            port.report(ErrorLevel.ERROR, t("startup.webui_access_token_failed", error=e), exception=e)
         logger.error(t("startup.webui_access_token_failed", error=e))

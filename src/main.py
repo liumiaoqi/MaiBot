@@ -1153,6 +1153,12 @@ class MainSystem:
     async def _load_emoji() -> None:
         from src.emoji_system.emoji_manager import emoji_manager
 
+        system = _require_main_system()
+        from src.core.app_config_port_registry import get_app_config_port
+
+        emoji_manager.set_ports(system._model_config_port, get_app_config_port())
+        emoji_manager._register_reload_callback(emoji_manager.reload_runtime_config)
+        emoji_manager._reload_callback_registered = True
         await asyncio.to_thread(emoji_manager.load_emojis_from_db)
 
     @staticmethod
@@ -1566,6 +1572,19 @@ class MainSystem:
             health.status.name,
             len(service.registered_names),
         )
+
+    @staticmethod
+    @startup_item(
+        name="parameter_evolution",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=20,
+        critical=False,
+    )
+    async def _init_parameter_evolution_engine() -> None:
+        """初始化 DeepSeek 参数演变引擎（灰度——默认不启用自动调整）。"""
+        from src.maisaka.deepseek.evolution import init_parameter_evolution
+
+        init_parameter_evolution()
 
     async def schedule_tasks(self) -> None:
 

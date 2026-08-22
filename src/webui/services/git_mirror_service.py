@@ -41,17 +41,6 @@ def set_update_progress_callback(callback):
     _update_progress = callback
 
 
-class MirrorType(str, Enum):
-    """镜像源类型"""
-
-    GITPROXY_MRHJX = "gitproxy-mrhjx"  # gitproxy.mrhjx.cn 镜像
-    GHPROXY_VIP = "ghproxy-vip"  # ghproxy.vip 镜像
-    GITHUB = "github"  # GitHub 官方源
-    GH_PROXY_COM = "gh-proxy-com"  # gh-proxy.com 镜像
-    V6_GH_PROXY = "v6-gh-proxy"  # v6.gh-proxy.org 镜像
-    CDN_GH_PROXY_COM = "cdn-gh-proxy-com"  # cdn.gh-proxy.com 镜像
-    CUSTOM = "custom"  # 自定义镜像源
-
 
 class GitMirrorConfig:
     """Git 镜像源配置管理"""

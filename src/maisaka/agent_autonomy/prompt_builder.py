@@ -56,14 +56,14 @@ class EmbodiedPlannerPromptBuilder:
         """
         self._identity_providers.append(provider)
 
-    def build_system_prompt(self, tools_section: str = "") -> str:
+    async def build_system_prompt(self, tools_section: str = "") -> str:
         """构建角色化系统提示词。
 
         优先使用 maisaka_chat_embodied 模板，
         构建失败时降级为 maisaka_chat 旁观者模板。
         """
         try:
-            context = self._build_embodied_context(tools_section)
+            context = await self._build_embodied_context(tools_section)
             return load_prompt("maisaka_chat_embodied", **context)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
@@ -76,7 +76,7 @@ class EmbodiedPlannerPromptBuilder:
                 f"agent={self._agent_id} error={exc}"
             )
             self._degraded = True
-            return self._build_fallback_prompt(tools_section)
+            return await self._build_fallback_prompt(tools_section)
 
     def build_personality_prompt(self) -> str:
         """构建角色化人格提示词。
@@ -93,15 +93,15 @@ class EmbodiedPlannerPromptBuilder:
             return "maisaka_chat"
         return "maisaka_chat_embodied"
 
-    def build_embodied_context(self, tools_section: str = "") -> dict[str, str]:
+    async def build_embodied_context(self, tools_section: str = "") -> dict[str, str]:
         """构建角色化提示词渲染上下文（公共接口）。
 
         对外暴露的封装方法，供 AutonomousAgent 等外部调用方使用，
         避免直接访问私有 _build_embodied_context 破坏封装。
         """
-        return self._build_embodied_context(tools_section)
+        return await self._build_embodied_context(tools_section)
 
-    def _build_embodied_context(self, tools_section: str) -> dict[str, str]:
+    async def _build_embodied_context(self, tools_section: str) -> dict[str, str]:
         """构建角色化提示词渲染上下文。
 
         复用 MaisakaChatLoopService.build_prompt_template_context() 的 slot 结构，
@@ -129,7 +129,7 @@ class EmbodiedPlannerPromptBuilder:
             user_name="",
             is_owner=False,
         )
-        agent_interaction_memory = self._build_agent_interaction_memory(
+        agent_interaction_memory = await self._build_agent_interaction_memory(
             self._agent_id, agent_config
         )
 
@@ -219,10 +219,10 @@ class EmbodiedPlannerPromptBuilder:
 
         return "- query_memory()：当对方提到\"之前\"\"上次\"\"最近\"\"还记得吗\"\"我喜欢\"\"我说过\"等信号，或回复依赖长期偏好、先前承诺、共同经历、人物长期信息时，可以更积极检索。"
 
-    def _build_fallback_prompt(self, tools_section: str) -> str:
+    async def _build_fallback_prompt(self, tools_section: str) -> str:
         """降级为旁观者模式的提示词。"""
         try:
-            context = self._build_embodied_context(tools_section)
+            context = await self._build_embodied_context(tools_section)
             context["bot_name"] = get_bot_config_port().get_bot_nickname()
             return load_prompt("maisaka_chat", **context)
         except Exception as exc:
@@ -235,14 +235,13 @@ class EmbodiedPlannerPromptBuilder:
             return f"你是一个有用的AI助手。\n\n{tools_section}"
 
     @staticmethod
-    def _build_agent_interaction_memory(agent_id: str, agent_config: object) -> str:
+    async def _build_agent_interaction_memory(agent_id: str, agent_config: object) -> str:
         """构建智能体交互动态记忆提示词。"""
         try:
             from src.maisaka.agent_interaction.memory.profile import AgentProfileService
             from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
             from src.maisaka.agent_interaction.event_store import InteractionEventStore
             from src.core.adapters import get_memory_service_port
-            import asyncio
 
             if not agent_config.internal_relationships:
                 return ""
@@ -251,18 +250,9 @@ class EmbodiedPlannerPromptBuilder:
             store = InteractionEventStore()
             service = AgentProfileService(adapter, store)
 
-            loop = None
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop is not None and loop.is_running():
-                return ""
-
             results: list[str] = []
             for rel in agent_config.internal_relationships:
-                profile = asyncio.run(service.get_profile(agent_id, rel.target_agent_id))
+                profile = await service.get_profile(agent_id, rel.target_agent_id)
                 text = profile.to_prompt_text()
                 if text:
                     display_name = rel.target_agent_id

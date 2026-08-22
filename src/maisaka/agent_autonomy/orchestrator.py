@@ -77,6 +77,7 @@ class AgentOrchestrator:
         notice_classifier: NoticeClassifier | None = None,
         thinking_organ_factory: ThinkingOrganFactory | None = None,
         is_group_chat: bool = False,
+        interaction_engine: Any | None = None,
     ) -> None:
         self._session_id = session_id
         self._session_name = session_name
@@ -159,8 +160,8 @@ class AgentOrchestrator:
         # LS-1: 欲求驱动主动发言心跳
         self._desire_tick_task: asyncio.Task | None = None
 
-        # 交互引擎（插话反哺用）
-        self._interaction_engine: InteractionEngine | None = None
+        # 交互引擎（插话反哺用，由 bootstrap 装配注入）
+        self._interaction_engine = interaction_engine
 
         # 体验写入器
         from src.core.adapters import get_memory_service_port
@@ -323,24 +324,11 @@ class AgentOrchestrator:
 
         try:
             if self._interaction_engine is None:
-                from src.maisaka.agent_interaction.engine import InteractionEngine
-                from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
-                from src.maisaka.agent_interaction.event_store import InteractionEventStore
-                from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
-
-                emotion_registry = AgentEmotionManagerRegistry()
-                relationship_manager = AgentRelationshipManager()
-                event_store = InteractionEventStore()
-                from src.core.adapters import get_memory_service_port
-                from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
-
-                memory_adapter = AgentMemoryAdapter(memory_port=get_memory_service_port())
-                self._interaction_engine = InteractionEngine(
-                    emotion_registry=emotion_registry,
-                    relationship_manager=relationship_manager,
-                    event_store=event_store,
-                    memory_adapter=memory_adapter,
+                logger.warning(
+                    f"[agent_autonomy] 交互引擎未注入，跳过插话反哺: "
+                    f"session={self._session_id}"
                 )
+                return
 
             from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
 

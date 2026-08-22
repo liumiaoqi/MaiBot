@@ -14,10 +14,7 @@ from src.webui.routers.websocket.auth import verify_ws_token
 from src.webui.routers.websocket.manager import websocket_manager
 
 logger = get_logger("webui.logs_ws")
-router = APIRouter()
 
-# 全局 WebSocket 连接池
-active_connections: Set[WebSocket] = set()
 
 
 def _resolve_module_style(module_name: str) -> Dict:
@@ -118,84 +115,6 @@ def load_recent_logs(limit: int = 100) -> List[Dict]:
     # 反转列表，使其按时间顺序排列（旧到新）
     return list(reversed(logs))
 
-
-@router.websocket("/ws/logs")
-async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None)):
-    """WebSocket 日志推送端点
-
-    ⚠️ 已废弃：请使用统一 WebSocket 端点 /api/webui/ws?domain=logs
-
-    客户端连接后会持续接收服务器端的日志消息
-    支持三种认证方式（按优先级）：
-    1. query 参数 token（推荐，通过 /api/webui/ws-token 获取临时 token）
-    2. Cookie 中的 maibot_session
-
-    示例：ws://host/ws/logs?token=xxx
-    """
-    logger.warning("⚠️ 旧版 WebSocket 端点 /ws/logs 已废弃，请迁移到 /api/webui/ws?domain=logs")
-    is_authenticated = False
-
-    # 方式 1: 尝试验证临时 WebSocket token（推荐方式）
-    if token and verify_ws_token(token):
-        is_authenticated = True
-        logger.debug("WebSocket 使用临时 token 认证成功")
-
-    # 方式 2: 尝试从 Cookie 获取 session token
-    if not is_authenticated:
-        cookie_token = websocket.cookies.get("maibot_session")
-        if cookie_token:
-            token_manager = get_token_manager()
-            if token_manager.verify_token(cookie_token):
-                is_authenticated = True
-                logger.debug("WebSocket 使用 Cookie 认证成功")
-
-    if not is_authenticated:
-        logger.warning("WebSocket 连接被拒绝：认证失败")
-        await websocket.close(code=4001, reason="认证失败，请重新登录")
-        return
-
-    await websocket.accept()
-    active_connections.add(websocket)
-    logger.info(f"📡 WebSocket 客户端已连接（已认证），当前连接数: {len(active_connections)}")
-
-    # 连接建立后，立即发送历史日志
-    try:
-        recent_logs = load_recent_logs(limit=100)
-        logger.info(f"发送 {len(recent_logs)} 条历史日志到客户端")
-
-        for log_entry in recent_logs:
-            await websocket.send_text(json.dumps(log_entry, ensure_ascii=False))
-    except Exception as e:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.ERROR, "发送历史日志失败", exception=e)
-        logger.error(f"发送历史日志失败: {e}")
-
-    try:
-        # 保持连接，等待客户端消息或断开
-        while True:
-            # 接收客户端消息（用于心跳或控制指令）
-            data = await websocket.receive_text()
-
-            # 可以处理客户端的控制消息，例如：
-            # - "ping" -> 心跳检测
-            # - {"filter": "ERROR"} -> 设置日志级别过滤
-            if data == "ping":
-                await websocket.send_text("pong")
-
-    except WebSocketDisconnect:
-        active_connections.discard(websocket)
-        logger.info(f"📡 WebSocket 客户端已断开，当前连接数: {len(active_connections)}")
-    except Exception as e:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.ERROR, "WebSocket 错误", exception=e)
-        logger.error(f"❌ WebSocket 错误: {e}")
-        active_connections.discard(websocket)
 
 
 async def broadcast_log(log_data: Dict):

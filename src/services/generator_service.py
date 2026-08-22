@@ -2,6 +2,8 @@
 回复器服务模块
 
 提供回复器相关的核心功能。
+
+⚠️ 未接线服务——generate_reply/rewrite_reply 零外部调用，暂未接入生产路径。
 """
 
 import traceback

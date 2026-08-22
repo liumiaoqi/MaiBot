@@ -532,5 +532,3 @@ class HeuristicMemoryInjector:
             return reference
         return reference[:max_chars].rstrip() + "..."
 
-
-heuristic_memory_injector = HeuristicMemoryInjector()

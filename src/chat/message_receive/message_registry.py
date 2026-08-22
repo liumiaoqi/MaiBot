@@ -5,9 +5,10 @@ from src.common.utils.utils_session import SessionUtils
 from src.platform_io.route_key_factory import RouteKeyFactory
 
 if TYPE_CHECKING:
-    from .chat_manager import BotChatSession
     from .message import SessionMessage
     from .session_store import SessionStore
+
+    from .session_types import BotChatSession
 
 logger = get_logger("message_registry")
 

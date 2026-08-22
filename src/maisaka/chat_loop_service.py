@@ -1050,6 +1050,14 @@ class MaisakaChatLoopService:
 
         enable_visual_message = self._resolve_enable_visual_message(request_kind)
 
+        # DeepSeek 优化接线（灰度——is_deepseek_enabled 默认 false，不影响现有行为）
+        from src.maisaka.deepseek.optimizer import DeepSeekOptimizer
+        if DeepSeekOptimizer.is_deepseek_enabled(self.agent_id):
+            from src.maisaka.deepseek import get_deepseek_optimizer, get_model_scheduler
+            _ds_strategy = get_deepseek_optimizer().select_strategy(self.agent_id, 128000)
+            _ds_tier = get_model_scheduler().select_model(self.agent_id, request_kind)
+            logger.debug("DeepSeek 优化启用: agent=%s strategy=%s tier=%s", self.agent_id, _ds_strategy, _ds_tier)
+
         all_tools: List[ToolDefinitionInput]
         if tool_definitions is not None:
             all_tools = list(tool_definitions)

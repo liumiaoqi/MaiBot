@@ -944,16 +944,15 @@ async def query_interaction_history(
 @router.post("/interactions/trigger", response_model=ApiResponse[ManualTriggerResponse])
 async def manual_trigger_interaction(req: ManualTriggerRequest):
     """管理员手动触发交互。"""
-    from src.maisaka.agent_interaction.engine import InteractionEngine
-    from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
-    from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
-    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+    from src.maisaka.agent_interaction.bootstrap import get_interaction_engine
 
-    engine = InteractionEngine(
-        emotion_registry=AgentEmotionManagerRegistry(),
-        relationship_manager=AgentRelationshipManager(),
-        event_store=InteractionEventStore(),
-    )
+    engine = get_interaction_engine()
+    if engine is None:
+        return ApiResponse(data=ManualTriggerResponse(
+            success=False,
+            event_id="",
+            error="交互引擎未装配，请确认 agent_interaction.enabled=true",
+        ))
     result = await engine.execute_manual(
         initiator_id=req.initiator_id,
         target_id=req.target_id,

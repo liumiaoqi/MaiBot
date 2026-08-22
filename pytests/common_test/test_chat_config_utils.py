@@ -4,7 +4,7 @@ from src.common.utils import utils_config
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
-from src.chat.message_receive.chat_manager import ChatManager
+
 
 import pytest
 
@@ -24,9 +24,6 @@ def _init_config():
     )
     yield
 
-
-# 全局单例已移除（SSD-3），测试用裸实例（仅 monkeypatch 方法，不触发 __init__）
-chat_manager = ChatManager.__new__(ChatManager)
 
 
 def test_get_chat_prompt_for_chat_merges_multiple_matching_prompts(monkeypatch):

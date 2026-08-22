@@ -549,15 +549,6 @@ def apply_valid_expression_session_scope(statement: Any, valid_chat_ids: set[str
     return statement.where(col(Expression.session_id).is_(None))
 
 
-def get_chat_name_from_session_record(chat_session: ChatSession) -> str:
-    """从会话记录推断兜底显示名称。"""
-
-    if chat_session.group_id:
-        return f"群聊{chat_session.group_id}"
-    if chat_session.user_id:
-        return f"用户{chat_session.user_id}的私聊"
-    return chat_session.session_id
-
 
 def parse_review_log_datetime(value: Any) -> float:
     """将审核日志中的 ISO 时间转换为前端使用的 Unix 时间戳。"""
@@ -928,28 +919,6 @@ def review_log_to_response(entry: Dict[str, Any], db_session: Optional[Any] = No
         rescued_at=parse_review_log_datetime(entry.get("rescued_at")) if entry.get("rescued_at") else None,
     )
 
-
-def get_chat_names_batch(chat_ids: List[str]) -> Dict[str, str]:
-    """批量获取聊天名称。
-
-    Args:
-        chat_ids: 需要查询的聊天会话 ID 列表。
-
-    Returns:
-        Dict[str, str]: 以聊天 ID 为键、显示名称为值的映射。
-    """
-    result = {cid: cid for cid in chat_ids}  # 默认值为原始ID
-    try:
-        for chat_id in chat_ids:
-            result[chat_id] = get_chat_name(chat_id)
-    except Exception as e:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '批量获取聊天名称失败', exception=e)
-        logger.warning(f"批量获取聊天名称失败: {e}")
-    return result
 
 
 def build_chat_info(chat_id: str, db_session: Any, chat_session: Optional[ChatSession] = None) -> ChatInfo:

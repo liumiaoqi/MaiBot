@@ -40,6 +40,9 @@ from src.maisaka.agent_interaction.triggers import (
 
 logger = get_logger(__name__)
 
+# 模块级缓存：由 build_interaction_scheduler 装配，供 orchestrator/webui 复用同一实例
+_engine_instance: InteractionEngine | None = None
+
 
 def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionScheduler | None:
     """根据配置组装并返回 InteractionScheduler 实例。
@@ -83,13 +86,20 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
         echo_max_depth=cfg.echo_max_depth,
     )
 
-    # 交互触发器调度器
+    # 缓存到模块级变量，供 orchestrator/webui 复用同一实例
+    global _engine_instance
+    _engine_instance = engine
+
+    # 交互触发器调度器（P0-A11b-2: 冷却配置透传，不再硬编码 30/2/8）
     interaction_trigger = InteractionTrigger(
         emotion_registry=emotion_registry,
         relationship_manager=relationship_manager,
         engine=engine,
         cooldown_manager=cooldown_manager,
         trigger_registry=trigger_registry,
+        cooldown_minutes=cfg.cooldown_minutes,
+        max_interactions_per_hour=cfg.max_interactions_per_hour,
+        max_interactions_per_day=cfg.max_interactions_per_day,
     )
 
     # P0-2: 装配 MonologueEngine（复用已构建的 emotion_registry/memory_adapter）
@@ -149,3 +159,12 @@ def build_monologue_engine(
         monologue_trigger=monologue_trigger,
         memory_adapter=memory_adapter,
     )
+
+
+def get_interaction_engine() -> InteractionEngine | None:
+    """获取已装配的全局 InteractionEngine 实例。
+
+    由 build_interaction_scheduler 在启动时装配，
+    供 AgentOrchestrator 和 webui 手动触发端点复用同一实例（避免状态分裂）。
+    """
+    return _engine_instance

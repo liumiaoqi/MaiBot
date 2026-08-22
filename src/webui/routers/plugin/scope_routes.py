@@ -9,16 +9,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from src.common.logger import get_logger
 from src.plugin_runtime_v2.scope.vocabulary import ScopeVocabulary
+from src.webui.dependencies import require_auth
 
 logger = get_logger("plugin_runtime_v2.scope.webui")
 
-router = APIRouter(prefix="/plugins", tags=["plugin-scopes"])
+router = APIRouter(prefix="/plugins", tags=["plugin-scopes"], dependencies=[Depends(require_auth)])
 
 _PLUGINS_DIR = Path("plugins")
 

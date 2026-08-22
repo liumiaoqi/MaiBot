@@ -308,10 +308,6 @@ class EmojiManager:
             raise RuntimeError("AppConfigPort 未注册")
         self._app_config_port.unregister_reload_callback(cb)
 
-        self._register_reload_callback(self.reload_runtime_config)
-        self._reload_callback_registered = True
-
-        logger.info("启动表情包管理器")
 
     def reload_runtime_config(self) -> None:
         """响应配置热重载，重置维护循环等待时间以应用最新配置。"""

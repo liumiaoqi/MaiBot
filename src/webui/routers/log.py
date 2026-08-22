@@ -8,11 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.common.logger import get_logger
+from src.webui.dependencies import require_auth
 
-router = APIRouter(prefix="/api/webui/log", tags=["log"])
+router = APIRouter(prefix="/api/webui/log", tags=["log"], dependencies=[Depends(require_auth)])
 
 logger = get_logger("webui.routers.log")
 

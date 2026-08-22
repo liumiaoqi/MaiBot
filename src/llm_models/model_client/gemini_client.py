@@ -1,4 +1,3 @@
-# ruff: noqa: B025
 
 from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, Optional, Tuple, cast
 
@@ -1033,18 +1032,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
             if wrapped_error is exc:
                 raise
             raise wrapped_error from exc
-        except (UnknownFunctionCallArgumentError, UnsupportedFunctionError, FunctionInvocationError) as exc:
-            raise RespParseException(None, f"Gemini 工具调用参数错误: {exc}") from exc
-        except EmptyResponseException:
-            raise
-        except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
-            port = get_error_escalation_port()
-            if port is not None:
-                port.report(ErrorLevel.WARNING, 'Gemini 响应请求执行失败，转换为网络错误', exception=exc)
-            logger.warning("操作异常 in gemini_client.py", exc_info=True)
-            raise NetworkConnectionError(str(exc)) from exc
+
 
     async def _execute_embedding_request(
         self,

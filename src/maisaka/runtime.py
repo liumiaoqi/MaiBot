@@ -1552,7 +1552,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if not agent_id:
                 return
 
-            from src.maisaka.agent_autonomy.agent import AutonomousAgent
+
             from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
             from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
@@ -1570,16 +1570,18 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 chat_loop_adapter=self._chat_loop_adapter,
             )
 
-            self._autonomous_agent = AutonomousAgent(agent_id, thinking_organ_factory=thinking_organ_factory)
 
             # 创建 Orchestrator
             session_name = self.session_name
+            from src.maisaka.agent_interaction.bootstrap import get_interaction_engine
+
             self._agent_orchestrator = AgentOrchestrator(
                 session_id=self.session_id,
                 session_name=session_name,
                 chat_loop_adapter=self._chat_loop_adapter,
                 is_group_chat=self._session_info.is_group_session,
                 thinking_organ_factory=thinking_organ_factory,
+                interaction_engine=get_interaction_engine(),
             )
 
             logger.info(

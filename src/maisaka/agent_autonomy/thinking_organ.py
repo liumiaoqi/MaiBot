@@ -102,7 +102,7 @@ class ThinkingOrgan:
     _REPLY_STYLE_SECTION_MAX_CHARS = 1500
     """回复风格段最大长度（超长截断风格指令末尾，保留核心人格）"""
 
-    def build_system_prompt(self, tools_section: str = "") -> str:
+    async def build_system_prompt(self, tools_section: str = "") -> str:
         """构建角色化系统提示词（含回复风格段，T20 思考即回复迁移）。"""
         self._autonomy_logger.log(
             self._agent_id,
@@ -110,7 +110,7 @@ class ThinkingOrgan:
             "构建角色化系统提示词",
             level="debug",
         )
-        base_prompt = self._prompt_builder.build_system_prompt(tools_section)
+        base_prompt = await self._prompt_builder.build_system_prompt(tools_section)
         style_section = self._build_reply_style_section()
         if style_section:
             return f"{base_prompt}\n\n{style_section}"
@@ -377,7 +377,7 @@ class ThinkingOrgan:
                     injected_user_messages=injected_messages or None,
                     request_kind=request_kind,
                     tool_definitions=tool_definitions if tool_definitions else None,
-                    system_prompt=self.build_system_prompt(),
+                    system_prompt=await self.build_system_prompt(),
                     capabilities=PLANNER_CAPABILITIES,
                 )
             except Exception as exc:
@@ -680,12 +680,19 @@ class ThinkingOrgan:
                 reasoning=latest_thought,
             )
 
+            _tool_metadata: dict[str, Any] = {}
+            if self._retry_idempotency_key:
+                _tool_metadata["idempotency_key"] = self._retry_idempotency_key
+            if self._chat_loop_adapter is not None:
+                _tool_metadata["runtime"] = getattr(self._chat_loop_adapter, "_runtime", None)
+                _tool_metadata["agent_id"] = self._chat_loop_adapter.current_agent_id
+
             execution_context = ToolExecutionContext(
                 session_id=context.session_id,
                 stream_id=context.session_id,
                 reasoning=latest_thought,
                 is_group_chat=context.is_group_chat,
-                metadata={"idempotency_key": self._retry_idempotency_key} if self._retry_idempotency_key else {},
+                metadata=_tool_metadata,
             )
 
             tool_started_at = time.time()

@@ -49,6 +49,9 @@ class InteractionTrigger:
         cooldown_manager: InteractionCooldownManager,
         trigger_registry: TriggerRegistry | None = None,
         trigger_threshold: float = _DEFAULT_TRIGGER_THRESHOLD,
+        cooldown_minutes: int = 30,
+        max_interactions_per_hour: int = 2,
+        max_interactions_per_day: int = 8,
     ) -> None:
         self._emotion_registry = emotion_registry
         self._relationship_manager = relationship_manager
@@ -56,6 +59,9 @@ class InteractionTrigger:
         self._cooldown_manager = cooldown_manager
         self._trigger_registry = trigger_registry or TriggerRegistry()
         self._trigger_threshold = trigger_threshold
+        self._cooldown_minutes = cooldown_minutes
+        self._max_interactions_per_hour = max_interactions_per_hour
+        self._max_interactions_per_day = max_interactions_per_day
         self._config_registry = get_agent_config_provider()
         self._time_service = TimeAwarenessService()
 
@@ -121,9 +127,14 @@ class InteractionTrigger:
         if best_evaluation is None or best_combined < self._trigger_threshold:
             return None
 
-        # 检查冷却
+        # 检查冷却（P0-A11b-2: 配置透传，不再使用硬编码默认值）
         pair_key = build_agent_pair_key(agent_id, best_evaluation.target_agent_id)
-        can_trigger = await self._cooldown_manager.can_trigger(pair_key)
+        can_trigger = await self._cooldown_manager.can_trigger(
+            pair_key,
+            cooldown_minutes=self._cooldown_minutes,
+            max_per_hour=self._max_interactions_per_hour,
+            max_per_day=self._max_interactions_per_day,
+        )
         if not can_trigger:
             logger.debug(
                 "[agent_interaction] %s→%s 冷却中，跳过触发",

@@ -270,9 +270,9 @@ class AutonomousAgent:
             intent_threshold=intent_threshold,
         )
 
-    def build_embodied_prompt_context(self, tools_section: str = "") -> dict[str, str]:
+    async def build_embodied_prompt_context(self, tools_section: str = "") -> dict[str, str]:
         """构建角色化 Planner 的提示词上下文。"""
-        return self._prompt_builder.build_embodied_context(tools_section)
+        return await self._prompt_builder.build_embodied_context(tools_section)
 
     def build_embodied_personality_prompt(self) -> str:
         """构建角色化人格提示词。"""
