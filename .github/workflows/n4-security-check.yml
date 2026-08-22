@@ -1,0 +1,43 @@
+# .github/workflows/n4-security-check.yml
+# ZG-N4 安全门禁检查器 — WebUI 路由安全静态 AST 扫描
+# v1：非阻断模式（continue-on-error），等 P0 认证缺失修复后改为阻断
+name: N4 Security Check
+
+on:
+  pull_request:
+    paths:
+      - 'src/webui/routers/**'
+      - 'scripts/n4_security_checker.py'
+      - 'scripts/.n4_whitelist.json'
+  push:
+    branches: [main]
+    paths:
+      - 'src/webui/routers/**'
+      - 'scripts/n4_security_checker.py'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  n4-check:
+    runs-on: ubuntu-24.04
+    continue-on-error: true  # v1 非阻断，P0 修复后改为阻断
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run N4 Security Checker
+        run: |
+          python scripts/n4_security_checker.py \
+            --scan src/webui/routers \
+            --whitelist scripts/.n4_whitelist.json \
+            --json > n4_report.json
+          cat n4_report.json
+      - name: Upload N4 Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n4-security-report
+          path: n4_report.json

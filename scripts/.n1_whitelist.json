@@ -3,51 +3,874 @@
   "whitelist": [
     {
       "path": "src/core/protocols.py",
-      "checks": ["1", "5"],
+      "checks": [
+        "1",
+        "5"
+      ],
       "names": [],
       "_reason": "Protocol/TypedDict 定义集合，本就不实例化；字符串联合是 Protocol 契约表达"
     },
     {
       "path": "src/core/adapters/",
-      "checks": ["1"],
+      "checks": [
+        "1"
+      ],
       "names": [],
       "_reason": "适配器层 Protocol 实现类，由 main.py 注入，单文件零创建点检查误报"
     },
     {
       "path": "src/plugin_runtime_v2/scope/scope_audit.py",
-      "checks": ["2"],
-      "names": ["init_scope_audit_recorder"],
+      "checks": [
+        "2"
+      ],
+      "names": [
+        "init_scope_audit_recorder"
+      ],
       "_reason": "v3 跨文件索引已覆盖检查 3（main.py:1555 显式调用被识别）；检查 2 保留（有调用但缺 @startup_item，合法显式接线模式）"
     },
     {
       "path": "src/maisaka/memory/mid_term_summary_queue.py",
-      "checks": ["2"],
-      "names": ["init_mid_term_summary_queue"],
+      "checks": [
+        "2"
+      ],
+      "names": [
+        "init_mid_term_summary_queue"
+      ],
       "_reason": "v3 跨文件索引已覆盖检查 3（main.py:1334 调用被识别）；检查 2 保留（装饰器在 _init_mid_term_summary_queue 上，合法接线）"
     },
     {
       "path": "src/common/logger.py",
-      "checks": ["2"],
-      "names": ["init_log_pipeline"],
+      "checks": [
+        "2"
+      ],
+      "names": [
+        "init_log_pipeline"
+      ],
       "_reason": "v3 跨文件索引已覆盖检查 3（_immediate_setup 调用被识别）；检查 2 保留（import-time 配置链子步骤，不该单独挂 @startup_item）"
     },
     {
       "path": "src/plugin_runtime_v2/bootstrap.py",
-      "checks": ["2"],
-      "names": ["init_plugin_config_manager"],
+      "checks": [
+        "2"
+      ],
+      "names": [
+        "init_plugin_config_manager"
+      ],
       "_reason": "v3 跨文件索引已覆盖检查 3（上游 async 函数调用被识别）；检查 2 保留（ZG16-6a 生产接线点内部子步骤）"
     },
     {
       "path": "tests/",
-      "checks": ["1", "2", "3", "7", "8"],
+      "checks": [
+        "1",
+        "2",
+        "3",
+        "7",
+        "8"
+      ],
       "names": [],
       "_reason": "测试文件豁免：测试本就只调不接装饰器；print 是断言辅助"
     },
     {
       "path": "scripts/",
-      "checks": ["1", "2", "3", "7", "8"],
+      "checks": [
+        "1",
+        "2",
+        "3",
+        "7",
+        "8"
+      ],
       "names": [],
       "_reason": "脚本豁免：脚本入口不需 @startup_item；print 是 CLI 输出"
+    },
+    {
+      "path": "src/A_memorix/core/runtime/search_runtime_initializer.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "SearchRuntimeInitializer"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/A_memorix/core/runtime/services/kernel_initializer.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "KernelInitializer"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/A_memorix/core/runtime/shrinkers/cognitive.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "CognitiveStateShrinker"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/A_memorix/core/runtime/shrinkers/profile.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ProfileSnapshotShrinker"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/A_memorix/core/storage/graph_store.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "_SparseMatrixPlaceholder"
+      ],
+      "_reason": "误报-常量类：无 __init__ 和公开方法，仅类变量赋值"
+    },
+    {
+      "path": "src/A_memorix/core/utils/monitor.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MemoryMonitor"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/A_memorix/core/utils/plugin_id_policy.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginIdPolicy"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/A_memorix/core/utils/search_execution_service.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "SearchExecutionService"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，A_memorix 域，有引用但无构造调用，引用文件 4 个，需人工复核"
+    },
+    {
+      "path": "src/chat/message_receive/chat_manager.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ChatManager"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 10 个，需人工复核"
+    },
+    {
+      "path": "src/chat/message_receive/uni_message_sender.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "UniversalMessageSender"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/chat/utils/statistic.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AsyncStatisticOutputTask"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 1 个，需人工复核"
+    },
+    {
+      "path": "src/cli/maisaka_cli.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "BufferCLI"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/common/data_models/__init__.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "BaseDataModel"
+      ],
+      "_reason": "误报-抽象基类：Base 前缀类为抽象基类，由子类实例化"
+    },
+    {
+      "path": "src/common/data_models/message_component_data_model.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "UnknownUser"
+      ],
+      "_reason": "误报-str子类：str 子类，通常用作类型标记不实例化"
+    },
+    {
+      "path": "src/common/data_models/message_component_data_model.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ByteComponent"
+      ],
+      "_reason": "误报-基类被继承：被 3 个子类继承，由子类实例化"
+    },
+    {
+      "path": "src/common/message_server/universal_message_sender.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "UniversalMessageSender"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/common/utils/utils_action.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ActionUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_config.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ExpressionConfigUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_config.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "JargonConfigUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_config.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ChatConfigUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_config.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AMemorixConfigUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_file.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "FileUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_image.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ImageUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_message.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MessageUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_person.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PersonUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_session.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "SessionUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/common/utils/utils_voice.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "VoiceAsr"
+      ],
+      "_reason": "误报-常量类：无 __init__ 和公开方法，仅类变量赋值"
+    },
+    {
+      "path": "src/config/config_base.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AttrDocBase"
+      ],
+      "_reason": "误报-基类被继承：被 1 个子类继承，由子类实例化"
+    },
+    {
+      "path": "src/core/health_check.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "BaseHealthCheck"
+      ],
+      "_reason": "误报-抽象基类：Base 前缀类为抽象基类，由子类实例化"
+    },
+    {
+      "path": "src/core/resource_limit/resource_limit_config.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ResourceLimitConfig"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，core 域，有引用但无构造调用，引用文件 9 个，需人工复核"
+    },
+    {
+      "path": "src/core/startup/validator.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "StartupValidator"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，core 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/core/tainted_mask/taint_action_mapper.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "TaintActionMapper"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，core 域，有引用但无构造调用，引用文件 5 个，需人工复核"
+    },
+    {
+      "path": "src/llm_models/model_client/gemini_client.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "GeminiClient"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 1 个，需人工复核"
+    },
+    {
+      "path": "src/llm_models/model_client/openai_client.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "OpenaiClient"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 1 个，需人工复核"
+    },
+    {
+      "path": "src/llm_models/model_scanner.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ModelScanner"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 1 个，需人工复核"
+    },
+    {
+      "path": "src/llm_models/payload_content/tool_option.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ToolOptionBuilder"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 1 个，需人工复核"
+    },
+    {
+      "path": "src/llm_models/provider_adapter.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ProviderAdapterFactory"
+      ],
+      "_reason": "误报-工厂类：工厂类通过类方法创建实例，不直接构造"
+    },
+    {
+      "path": "src/llm_models/utils_model.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "TempMethodsLLMUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/llm_models/utils_model.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "LLMRequest"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/agent/registry.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AgentConfigRegistry"
+      ],
+      "_reason": "误报-间接构造：注册表赋值: E:/Users/lmq/MaiBot/src/maisaka/agent/registry.py"
+    },
+    {
+      "path": "src/maisaka/agent_autonomy/autonomy_logger.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AutonomyEventType"
+      ],
+      "_reason": "误报-常量类：无 __init__ 和公开方法，仅类变量赋值"
+    },
+    {
+      "path": "src/maisaka/agent_autonomy/autonomy_logger.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AutonomyLogger"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 9 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/agent_autonomy/bridge/reply_context_extender.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ReplyToolContextExtender"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 5 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/agent_autonomy/personality_drift/narrative_push_bias.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "NarrativePushBias"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/agent_autonomy/personality_drift/reflection_beat.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ReflectionBeat"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/builtin_tool/send_emoji.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "SendEmojiSelector"
+      ],
+      "_reason": "误报-常量类：无 __init__ 和公开方法，仅类变量赋值"
+    },
+    {
+      "path": "src/maisaka/deepseek/evolution.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ParameterEvolutionEngine"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/deepseek/model_scheduler.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ModelScheduler"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/deepseek/optimizer.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "DeepSeekOptimizer"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/display/prompt_cli_renderer.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PromptCLIVisualizer"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 11 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/display/prompt_preview_logger.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PromptPreviewLogger"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，maisaka 域，有引用但无构造调用，引用文件 4 个，需人工复核"
+    },
+    {
+      "path": "src/maisaka/display/runtime_mixin.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MaisakaRuntimeDisplayMixin"
+      ],
+      "_reason": "误报-Mixin类：Mixin 类通过多继承混入，不直接实例化"
+    },
+    {
+      "path": "src/maisaka/focus/runtime_mixin.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MaisakaFocusRuntimeMixin"
+      ],
+      "_reason": "误报-Mixin类：Mixin 类通过多继承混入，不直接实例化"
+    },
+    {
+      "path": "src/maisaka/memory/mid_term.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MidTermMemory"
+      ],
+      "_reason": "误报-常量类：无 __init__ 和公开方法，仅类变量赋值"
+    },
+    {
+      "path": "src/maisaka/replyer/generator_base.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "BaseMaisakaReplyGenerator"
+      ],
+      "_reason": "误报-抽象基类：Base 前缀类为抽象基类，由子类实例化"
+    },
+    {
+      "path": "src/manager/async_task_manager.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "AsyncTask"
+      ],
+      "_reason": "误报-基类被继承：被 3 个子类继承，由子类实例化"
+    },
+    {
+      "path": "src/mcp_module/manager.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MCPManager"
+      ],
+      "_reason": "误报-间接构造：注册表赋值: E:/Users/lmq/MaiBot/src/maisaka/runtime.py"
+    },
+    {
+      "path": "src/platform_io/route_key_factory.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "RouteKeyFactory"
+      ],
+      "_reason": "误报-工厂类：工厂类通过类方法创建实例，不直接构造"
+    },
+    {
+      "path": "src/plugin_runtime/capabilities/components.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "RuntimeComponentCapabilityMixin"
+      ],
+      "_reason": "误报-Mixin类：Mixin 类通过多继承混入，不直接实例化"
+    },
+    {
+      "path": "src/plugin_runtime/capabilities/core.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "RuntimeCoreCapabilityMixin"
+      ],
+      "_reason": "误报-Mixin类：Mixin 类通过多继承混入，不直接实例化"
+    },
+    {
+      "path": "src/plugin_runtime/capabilities/data.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "RuntimeDataCapabilityMixin"
+      ],
+      "_reason": "误报-Mixin类：Mixin 类通过多继承混入，不直接实例化"
+    },
+    {
+      "path": "src/plugin_runtime/capabilities/render.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "RuntimeRenderCapabilityMixin"
+      ],
+      "_reason": "误报-Mixin类：Mixin 类通过多继承混入，不直接实例化"
+    },
+    {
+      "path": "src/plugin_runtime/host/component_registry.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ComponentEntry"
+      ],
+      "_reason": "误报-基类被继承：被 7 个子类继承，由子类实例化"
+    },
+    {
+      "path": "src/plugin_runtime/host/component_registry.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ActionEntry"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime/host/message_utils.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginMessageUtils"
+      ],
+      "_reason": "误报-工具类：工具类通常只有静态/类方法，不实例化"
+    },
+    {
+      "path": "src/plugin_runtime/host/supervisor.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginRunnerSupervisor"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 7 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime/runner/manifest_validator.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "VersionComparator"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 1 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime/transport/base.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "Connection"
+      ],
+      "_reason": "误报-间接构造：注册表赋值: E:/Users/lmq/MaiBot/src/A_memorix/core/retrieval/sparse_bm25.py"
+    },
+    {
+      "path": "src/plugin_runtime/transport/tcp.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "TCPTransportServer"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 2 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime_v2/config/schema_drift.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "SchemaDriftDetector"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime_v2/lifecycle/refcount.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginHandle"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 3 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime_v2/proto/plugin_config_pb2_grpc.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginConfigServiceServicer"
+      ],
+      "_reason": "误报-gRPC生成：gRPC/proto 生成类，由框架实例化"
+    },
+    {
+      "path": "src/plugin_runtime_v2/proto/plugin_config_pb2_grpc.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginConfigService"
+      ],
+      "_reason": "误报-gRPC生成：gRPC/proto 生成类，由框架实例化"
+    },
+    {
+      "path": "src/plugin_runtime_v2/proto/plugin_host_pb2_grpc.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginHostServicer"
+      ],
+      "_reason": "误报-gRPC生成：gRPC/proto 生成类，由框架实例化"
+    },
+    {
+      "path": "src/plugin_runtime_v2/proto/plugin_host_pb2_grpc.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginHost"
+      ],
+      "_reason": "误报-gRPC生成：gRPC/proto 生成类，由框架实例化"
+    },
+    {
+      "path": "src/plugin_runtime_v2/proto/plugin_runner_pb2_grpc.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "PluginRunnerServicer"
+      ],
+      "_reason": "误报-gRPC生成：gRPC/proto 生成类，由框架实例化"
+    },
+    {
+      "path": "src/plugin_runtime_v2/scope/vocabulary.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ScopeVocabulary"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，other 域，有引用但无构造调用，引用文件 8 个，需人工复核"
+    },
+    {
+      "path": "src/plugin_runtime_v2/sdk/plugin.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "MaiBotPlugin"
+      ],
+      "_reason": "误报-基类被继承：被 22 个子类继承，由子类实例化"
+    },
+    {
+      "path": "src/webui/config_schema.py",
+      "checks": [
+        "1"
+      ],
+      "names": [
+        "ConfigSchemaGenerator"
+      ],
+      "_reason": "待人工复核：有引用但无构造调用，webui 域，有引用但无构造调用，引用文件 5 个，需人工复核"
     }
   ]
 }

@@ -52,10 +52,25 @@ _NON_INSTANTIABLE_BASES = {
     "Iterator",
     "Generic",
     "TypeVar",
+    # 项目特定框架/数据类基类
+    "ConfigBase",
+    "SQLModel",
+    "_StrictManifestModel",
+    "BaseDatabaseDataModel",
+    "BaseMigrationProgressReporter",
+    "MemoryServiceError",
+    "BaseOrchestratorStrategy",
+    "BaseHTTPMiddleware",
 }
 
 # 需要基于启发式排除的构造模式（类装饰器调用 vs 简单 xx() 调用）
 _INSTANTIATION_RE = re.compile(r"(\w+)\s*\(")
+
+# 间接构造识别：注册函数白名单（register(ClassName) → ClassName 被索引）
+_REGISTRY_FUNCTIONS = {"register"}
+
+# 插件目录整体排除（插件内部构造由插件运行时管理，不由主程序直接构造）
+_PLUGIN_DIRS = ("plugins",)
 
 
 # 检查 2：@startup_item 装饰器 — 装饰器签名 vs 调用点参数
@@ -135,24 +150,48 @@ def _load_whitelist(path: Path) -> list[WhitelistRule]:
     return rules
 
 
-def _build_call_index(root: Path) -> dict[str, set[str]]:
+def _build_call_index(
+    root: Path,
+    extra_roots: list[Path] | None = None,
+) -> dict[str, set[str]]:
     """全仓库调用索引：函数/类名 → 调用文件集合。
 
     扫描所有 .py 文件的 AST Call 节点，构建跨文件调用索引。
     供检查 1（类构造）/检查 2/3（入口函数）跨文件比对。
+
+    v3 精化：extra_roots 支持扫描 src/ 外的目录（如 scripts/）。
     """
     index: dict[str, set[str]] = {}
-    for path in sorted(root.rglob("*.py")):
-        if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts:
-            continue
-        try:
-            source = path.read_text(encoding="utf-8", errors="replace")
-            tree = ast.parse(source)
-        except (SyntaxError, UnicodeDecodeError):
-            continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                index.setdefault(node.func.id, set()).add(str(path))
+    scan_roots = [root]
+    if extra_roots:
+        scan_roots.extend(extra_roots)
+    for scan_root in scan_roots:
+        for path in sorted(scan_root.rglob("*.py")):
+            if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts or "node_modules" in path.parts:
+                continue
+            try:
+                source = path.read_text(encoding="utf-8", errors="replace")
+                tree = ast.parse(source)
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                # 直接调用：ClassName() 或 func()
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    index.setdefault(node.func.id, set()).add(str(path))
+                    # 注册函数：register(ClassName) → 索引 ClassName
+                    if node.func.id in _REGISTRY_FUNCTIONS and node.args:
+                        first_arg = node.args[0]
+                        if isinstance(first_arg, ast.Name) and first_arg.id not in ("self", "cls"):
+                            index.setdefault(first_arg.id, set()).add(str(path))
+                # 属性调用：obj.method() → 索引 method（供检查 9 set_* 跨文件调用检测）
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    index.setdefault(node.func.attr, set()).add(str(path))
+                # 注册表赋值：_REGISTRY['foo'] = ClassName → 索引 ClassName
+                if isinstance(node, ast.Assign):
+                    for t in node.targets:
+                        if isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name):
+                            if isinstance(node.value, ast.Name) and node.value.id not in ("self", "cls"):
+                                index.setdefault(node.value.id, set()).add(str(path))
     return index
 
 
@@ -200,6 +239,10 @@ def _scan_file(
     # ── 检查 8：私有属性类外访问 ──────
     if "8" in checks:
         _check_private_access(source, path, violations, _whitelisted)
+
+    # ── 检查 9：set_* 配置注入点零调用（功能静默禁用） ──────
+    if "9" in checks:
+        _check_setter_zero_call(source, path, violations, _whitelisted, call_index)
 
     return violations
 
@@ -288,7 +331,12 @@ def _scan_class_check(source, path, violations, whitelisted, call_index=None):
     """检查 1/3：类定义 vs 构造调用（零创建点）。
 
     v3 增强：跨文件构造调用检查——类名在 call_index 中（全仓库有构造调用）则不报。
+    v3 精化：plugins/ 目录整体排除（插件内部构造由插件运行时管理）。
     """
+    # plugins/ 目录整体排除
+    path_norm = str(path).replace("\\", "/")
+    if any(f"/{d}/" in path_norm for d in _PLUGIN_DIRS):
+        return
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
@@ -298,7 +346,20 @@ def _scan_class_check(source, path, violations, whitelisted, call_index=None):
             deco_names = {ast.unparse(d).split("(")[0] for d in node.decorator_list}
             if deco_names & _NON_INSTANTIABLE_DECORATORS:
                 continue
-        if any(b.id in _NON_INSTANTIABLE_BASES for b in node.bases if isinstance(b, ast.Name)):
+        # v3 精化：基类检查扩展为同时解析 ast.Attribute 末段（如 pydantic.BaseModel → "BaseModel"）
+        # v3 精化：ast.Subscript 泛型基类（如 BaseDatabaseDataModel[T] → "BaseDatabaseDataModel"）
+        base_names: set[str] = set()
+        for b in node.bases:
+            if isinstance(b, ast.Name):
+                base_names.add(b.id)
+            elif isinstance(b, ast.Attribute):
+                base_names.add(b.attr)
+            elif isinstance(b, ast.Subscript):
+                if isinstance(b.value, ast.Name):
+                    base_names.add(b.value.id)
+                elif isinstance(b.value, ast.Attribute):
+                    base_names.add(b.value.attr)
+        if base_names & _NON_INSTANTIABLE_BASES:
             continue
         # v3：跨文件构造调用检查——有调用则不报
         if call_index and class_name in call_index:
@@ -357,10 +418,44 @@ def _check_api_key(source: str, path: Path, violations: list, whitelisted) -> No
             violations.append(WiringViolation("6", str(path), line_no, f"api_key 泄漏: {m.group(1)!r}"))
 
 
+# 检查项 9：set_* 配置注入点零调用 — docstring 声明注入但零生产调用点
+_SETTER_INJECTION_KEYWORDS = ("由 main.py 调用", "注入", "配置注入", "inject", "inject by main.py")
+
+
+def _check_setter_zero_call(source: str, path: Path, violations: list, whitelisted, call_index=None) -> None:
+    """检查 9：set_* 配置注入点零调用（功能静默禁用）。
+
+    扫描 set_* 前缀方法定义，检查 docstring 是否含注入声明（"由 main.py 调用"/"注入"/"配置"），
+    复用 call_index 查跨文件调用，排除测试文件引用，零生产调用则报。
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        name = node.name
+        if not name.startswith("set_"):
+            continue
+        docstring = ast.get_docstring(node) or ""
+        if not any(kw in docstring for kw in _SETTER_INJECTION_KEYWORDS):
+            continue
+        if call_index and name in call_index:
+            non_test_callers = {f for f in call_index[name] if "test_" not in Path(f).name}
+            if non_test_callers:
+                continue
+        if whitelisted("9", name, 0):
+            continue
+        violations.append(
+            WiringViolation("9", str(path), node.lineno, f"set_* 配置注入点零调用: {name}（docstring 声明注入但零生产调用点）")
+        )
+
+
 def _scan_dir(root: Path, checks: set[str], whitelist: list) -> list[WiringViolation]:
     """扫描目录，聚合所有违反项。"""
-    # v3：构建跨文件调用索引（检查 1/2/3 增强用）
-    call_index = _build_call_index(root) if (checks & {"1", "2", "3"}) else None
+    # v3 精化：构建跨文件调用索引，extra_roots 覆盖 scripts/
+    call_index = _build_call_index(root, extra_roots=[Path("scripts")]) if (checks & {"1", "2", "3", "9"}) else None
     all_violations = []
     for path in sorted(root.rglob("*.py")):
         if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts:
@@ -399,7 +494,7 @@ def main() -> int:
     # 默认检查项：可用性稳定的静态检查项（后续版本扩展全量项）
     # 非 CI：只开精确度高的检查 2/4/5/6（装饰器反向/裸except/字符串联合/api_key）
     # CI：开全部 8 项（含启发式检查 1/3/7/8，需人工复核）
-    checks = {"2", "4", "5", "6"} if not args.ci else {"1", "2", "3", "4", "5", "6", "7", "8"}
+    checks = {"2", "4", "5", "6"} if not args.ci else {"1", "2", "3", "4", "5", "6", "7", "8", "9"}
 
     violations = []
     for scan in args.scan:

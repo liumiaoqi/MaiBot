@@ -1,5 +1,5 @@
 [inner]
-version = "8.28.1"
+version = "8.29.0"
 
 [bot]
 platform = "qq" # 麦麦主账号所在的平台，例如 qq。
@@ -18,20 +18,24 @@ multiple_probability = 0.0 # 随机启用备用风格的概率；0 表示不随�
 [chat]
 max_context_size = 40 # 群聊回复时参考的最近消息数量；越大越懂上下文，也更耗模型。
 max_private_context_size = 60 # 私聊回复时参考的最近消息数量。
+enable_token_budget = false # 灰度开关——true 启用 token 预算选择，false 保持条数模式 + 统计日志。
+token_threshold_ratio = 0.8 # 触发裁切阈值比例——预算上限 = context_window × ratio，留 20% 余量给输出。
+token_retain_ratio = 0.16 # 尾部保留比例——尾部 context_window × ratio 逐字保留，确保最近对话不丢。
 enable_context_optimization = true # 压缩部分上下文，减少模型消耗；一般建议开启。
 mid_term_memory = true # 打开后会主动召回最近聊天发生的事情。
 mid_term_memory_lenth = 10 # 最多保留多少条聊天回想；设为 0 表示不保留。
 self_message_special_mark = true # 加强标记麦麦自己的消息，减少把自己当成别人的情况。
-# token 预算配置（ZG16-2）
-enable_token_budget = false # 灰度开关——true 启用 token 预算选择，false 保持条数模式 + 统计日志（灰度阶段 1 观察模式）。
-token_threshold_ratio = 0.8 # 触发裁切阈值比例——预算上限 = context_window × ratio，留 20% 余量给输出。
-token_retain_ratio = 0.16 # 尾部保留比例——尾部 context_window × ratio 逐字保留，确保最近对话不丢。
-# ZG16-4 ASCII 看图（无 vision 降级）
-enable_ascii_image = false              # 是否启用 ASCII 降级看图（默认关闭，向后兼容）
-ascii_column_width = 48                 # ASCII 文本列宽（范围 32-80）
-ascii_main_color_count = 2              # 主色块标注数量（0=不标注，范围 0-3）
-ascii_cache_max_size = 256              # 预渲染缓存 LRU 上限（范围 32-2048）
-ascii_charset = "@%#*+=-:."             # 亮度字符集（暗→亮，长度 8-10）
+enable_ascii_image = false # 无 vision 模型时用 ASCII 灰度文本替代图片（默认关闭，向后兼容）。
+ascii_column_width = 48 # ASCII 文本列宽（范围 32-80）。
+ascii_main_color_count = 2 # 主色块标注数量（0=不标注，范围 0-3）。
+ascii_cache_max_size = 256 # 预渲染缓存 LRU 上限（范围 32-2048）。
+ascii_charset = "@%#*+=-:." # 亮度字符集（暗→亮，长度 8-10）。
+recall_threshold = 0.65 # 聊天回想 recall 语义匹配阈值（分数 > 阈值才命中，默认 0.65）。
+recall_top_k = 3 # recall 取分数最高的 Top-K 条（默认 3，K=1 退化为旧 Top-1）。
+recall_candidate_limit = 100 # recall 候选源从持久化表加载的条数上限（默认 100）。
+recall_original_message_limit = 20 # 翻原文时 find_messages 拉取的条数上限（默认 20）。
+recall_original_token_limit = 2000 # 翻原文 token 硬上限（超限截断保留首尾，默认 2000）。
+recall_timeout_ms = 1000 # recall 总耗时超限 warning 降级（默认 1000ms）。
 
 [chat.reply_timing] # 什么时候回复、回复频率与等待退避配置。
 talk_value = 1.0 # 群聊里麦麦主动说话的频率；越小越安静。
@@ -112,7 +116,6 @@ enabled = false # 是否启用长期记忆系统
 [a_memorix.integration] # 控制麦麦在聊天中如何使用长期记忆
 enable_memory_query_tool = true # 是否允许麦麦在聊天时查询长期记忆
 memory_query_default_limit = 5 # 每次默认从长期记忆中取回多少条结果
-enable_person_profile_query_tool = true # 是否允许麦麦查询人物画像记忆
 enable_person_profile_injection = true # 是否在 Maisaka Planner 调用前自动注入当前对象相关的人物画像
 person_profile_injection_max_profiles = 3 # 每轮自动注入的人物画像数量上限
 heuristic_memory_recall_enabled = false # 是否根据当前聊天印象自然拉起长期记忆
@@ -122,6 +125,7 @@ heuristic_memory_recall_limit = 3 # 每轮自然拉起的长期记忆数量上�
 heuristic_memory_recall_max_chars = 900 # 自然拉起记忆注入文本的最大字符数
 heuristic_memory_recall_min_interval_seconds = 180 # 同一聊天流两次自然拉起的最小间隔秒数
 heuristic_memory_recall_min_new_messages = 60 # 两次自然拉起之间至少需要新增的当前聊天流消息数
+heuristic_memory_recall_rate_limit_rpm = 10 # 每分钟最大记忆检索次数（防止检索过频）
 heuristic_memory_recall_cache_ttl_seconds = 300 # 同一聊天流自然拉起结果的运行时缓存时间
 heuristic_memory_group_to_private_enabled = false # 私聊中是否允许自然拉起群聊记忆
 heuristic_memory_private_to_group_enabled = false # 群聊中是否允许自然拉起私聊记忆
@@ -153,6 +157,12 @@ feedback_correction_reconcile_batch_size = 20 # 反馈纠错二阶段一致性�
 
 [a_memorix.storage] # 存储位置
 data_dir = "data/a-memorix" # 数据目录
+
+[a_memorix.memory_fusion] # 记忆融合（连接主义 × 分类学）渐进启用
+stage = "fusion_off" # 融合阶段：FUSION_OFF 走原路径；FUSION_WRITE 启用写入融合；FUSION_FULL 全融合
+spread_depth = 3 # 激活扩散最大深度（沿 TraceEdge 扩散跳数）
+score_alpha = 0.5 # 检索评分归一化 alpha（扩散分权重，向量分权重 = 1 - alpha）
+write_lock_timeout = 5.0 # 概念图写入锁获取超时（秒）
 
 [a_memorix.embedding] # 把记忆内容转换为向量时使用的基础设置
 model_name = "auto" # 用于把记忆内容转换成向量的模型，auto 表示自动选择
@@ -227,6 +237,19 @@ tokenizer_mode = "jieba" # 分词模式
 candidate_k = 80 # 段落候选数
 relation_candidate_k = 60 # 关系候选数
 
+[a_memorix.retrieval.cache] # ZG-28 检索缓存配置（embedding/BM25/profile/node，开关默认 False 灰度安全）
+enable_embedding_cache = false # embedding 缓存开关
+embedding_cache_max_entries = 256 # embedding 缓存容量上限
+embedding_cache_ttl_seconds = 300.0 # embedding 缓存 TTL
+enable_bm25_cache = false # BM25 缓存开关
+bm25_cache_max_entries = 256 # BM25 缓存容量上限
+bm25_cache_ttl_seconds = 60.0 # BM25 缓存 TTL
+enable_profile_cache = false # profile 缓存开关
+profile_cache_max_entries = 256 # profile 缓存容量上限
+profile_cache_ttl_seconds = 300.0 # profile 缓存 TTL
+enable_node_cache = false # 节点缓存开关
+node_cache_ttl_seconds = 300.0 # 节点缓存 TTL
+
 [a_memorix.threshold] # 阈值过滤配置
 min_threshold = 0.3 # 最小阈值
 max_threshold = 0.95 # 最大阈值
@@ -281,9 +304,22 @@ evidence_classification_temperature = 0.1 # 人物画像证据分类模型温度
 
 [a_memorix.memory] # 记忆演化配置
 enabled = true # 是否启用记忆演化
+enable_watermark_reclaim = false # ZG-27 水位回收开关——默认 False（灰度安全）
 half_life_hours = 24.0 # 半衰期小时数
-prune_threshold = 0.05 # 裁剪阈值（2026-08-20 用户拍板：记得多——弱关系保留更久，代价是库增长快些；VACUUM 7天周期兜底）
+prune_threshold = 0.05 # 裁剪阈值
 freeze_duration_hours = 24.0 # 冻结时长小时数
+
+[a_memorix.memory.watermark] # 水位分级配置
+min = 100 # 水位 MIN 阈值——usage 低于此值时禁止回收（硬底线）
+low = 200 # 水位 LOW 阈值——usage 低于此值时唤醒 kswapd 回收
+high = 400 # 水位 HIGH 阈值——回收到此值后 kswapd 休眠
+check_interval_sec = 10.0 # kswapd 检查间隔（秒）
+
+[a_memorix.memory.shrinker] # shrinker 回收配置
+batch_size = 128 # 回收批次大小
+def_priority = 12 # 初始 priority
+
+[a_memorix.memory.eviction] # 驱逐评分配置
 
 [a_memorix.connectionist] # 连接主义记忆系统配置
 enabled = true # 启用连接主义记忆系统（痕迹网络+激活扩散）
@@ -433,13 +469,12 @@ v1_poll_interval_s = 10.0 # V1 旁路轮询间隔（秒）。
 v2_diff_interval_s = 5.0 # V2 状态 diff 轮询间隔（秒）。
 
 [control_message]
-# ZG-8 控制消息优先级 — 对标 Linux 信号机制（带优先级、可屏蔽、有不可捕获特权通道的事件投递系统）。
-version = 1 # 配置版本号（版本化升级：只改模板 + 新增版本号，不改动 legacy_migration）。
+version = 1 # 配置版本号（版本化升级，只改模板 + 新增版本号，不改动 legacy_migration）。
 global_enabled = false # 全局开关（渐进启用；false 时控制消息按原有逻辑处理，ZG-8 透明运行）。
 unmaskable_whitelist = [1, 2, 3] # 不可屏蔽类别白名单（系统级强制编号 1-3，运行时不可修改）。
-private_queue_limit = 256 # 会话私有 pending 队列节点数上限（防控制消息风暴）。
+private_queue_limit = 256 # 会话私有 pending 队列节点数上限。
 shared_queue_limit = 1024 # 系统共享 pending 队列节点数上限。
-unkillable_entities = ["agent:primary", "component:orchestrator", "component:message_port"] # UNKILLABLE 实体清单（Orchestrator 运行时声明的补充）。
+unkillable_entities = ["agent:primary", "component:orchestrator", "component:message_port"] # UNKILLABLE 实体清单（Orchestrator 运行时声明的补充，启动时注册为受保护）。
 system_blocked_kinds = [] # 系统级屏蔽集（默认空；编号 1-3 会被引擎强制剔除）。
 system_ignored_kinds = [] # 系统级忽略集（默认空；编号 1-3 会被引擎强制剔除）。
 delivery_history_limit = 100 # 投递决策历史环形缓冲上限。
@@ -447,26 +482,21 @@ diffuse_timeout_sec = 5.0 # 致命扩散超时（秒）。
 force_caller_whitelist = ["watchdog", "service_manager", "system_state_machine"] # force 通道调用方白名单（系统核心层；插件和 WebUI 普通接口不可调用）。
 
 [tainted_mask]
-# ZG-7 污染标记 — 对标 Linux tainted_mask（不可逆污染位图，只增不减）。
-on_taint = {} # 污染动作映射（key=标志名如 TAINT_PORT_BYPASS，value=动作如 trigger_degrade/warn；缺省仅记录）。
-warn_limit = 0 # WARN 累计阈值（warn_count 达到后触发降级；0=禁用）。
-preset_mask = 0 # 预置位掩码（启动即置位，如测试模式预置 128）。
-degrade_on_taint_mask = 0 # 掩码级降级触发掩码（0=禁用；位在掩码中则自动触发降级，对标 Linux panic_on_taint）。
-
+on_taint = {} # 污染动作映射（如 {"TAINT_PORT_BYPASS": "trigger_degrade"}）。
+warn_limit = 0 # WARN 累计阈值（0=禁用）。
+preset_mask = 0 # 预置位掩码。
+degrade_on_taint_mask = 0 # 掩码级降级触发掩码（0=禁用，对标 Linux panic_on_taint bitmask 语义）。
 
 [error_escalation]
-# ZG-14 错误升级梯 — 对标 Linux panic_on_warn / warn_limit / panic_on_oops。
-# 错误沿 WARN→ERROR→CRITICAL→FATAL 单向递进；最高动作 STOP_CORE 优雅停机，不杀进程（N2 裁决）。
-error_on_warn = false # True 时 WARN 上报升级 ERROR（对标 panic_on_warn）。
+version = 1 # 配置版本号（版本化升级，只改模板 + 新增版本号，不改动 legacy_migration）。
+error_on_warn = false # True 时 WARN 上报升级 ERROR（对标 Linux panic_on_warn）。
 warn_error_threshold = 0 # WARN 累计达阈升级 ERROR（0=禁用；>0 按计数窗口累计）。
-critical_on_error = false # True 时 ERROR 上报升级 CRITICAL（对标 panic_on_oops）。
+critical_on_error = false # True 时 ERROR 上报升级 CRITICAL（对标 Linux panic_on_oops）。
 error_critical_threshold = 0 # ERROR 累计达阈升级 CRITICAL（0=禁用）。
 critical_fatal_threshold = 0 # CRITICAL 累计达阈升级 FATAL（0=禁用）。
-# level_actions 按等级覆盖默认动作集（如 {"warn": ["log"]}）——缺省=None 用默认动作集；TOML 无 null，需自定义时写合法值
 count_window_sec = 0.0 # 计数窗口（秒；0=全局累计不归零，>0 按窗口归零）。
 crash_dump_min_level = "critical" # 主动快照最低触发等级（warn/error/critical/fatal）。
 storm_min_threshold = 100 # 风暴检测独立下限阈值（计数阈值=0 时风暴检测仍用此值）。
-
 
 [system_state]
 history_capacity = 100 # 迁移历史环形缓冲容量（条）。
@@ -534,28 +564,17 @@ health_check_interval_sec = 60.0
 max_restart_attempts = 3
 scope_approval_file = "data/scope_approvals.json"
 default_rpm = 60
-
-# ZG16-5 scopes 强制化审计
-enable_scope_audit = true                                      # 是否启用 Tier 1 运行时审计（默认开启）
-audit_log_path = "data/plugin_runtime_v2/scope_audit.log"      # 审计日志文件路径
-audit_log_max_size_mb = 10                                     # 审计日志轮转大小阈值 MB（范围 1-100）
-audit_log_backup_count = 5                                     # 审计日志历史文件保留数（范围 1-20）
-tier1_scopes = [                                               # Tier 1 高危 scope 列表（可配置扩展）
-    "system:execute:cli",
-    "system:read:screenshot",
-    "system:read:location",
-    "account:execute:operation",
-    "finance:read:qr_code",
-    "network:fetch:url",
-]
-sensitive_param_names = ["token", "password", "secret", "api_key", "apikey", "credential"]  # 敏感参数名表（脱敏用）
-
-# ZG16-6a 插件配置管理
-plugin_config_debounce_ms = 300                                                          # FileWatcher debounce 毫秒（范围 100-5000，默认 300）
-plugin_config_revision_path = "data/plugin_runtime_v2/plugin_config_revisions.json"      # revision 持久化文件路径
-enable_plugin_config_watch = true                                                        # 是否监听插件 config.toml 变更（默认 true）
-enable_dump_plugin_config = true                                                         # 是否开启 dump_plugin_config 端点（默认 true）
-enable_schema_drift_detect = true                                                        # 是否开启 schema 漂移检测（默认 true）
+enable_scope_audit = true
+audit_log_path = "data/plugin_runtime_v2/scope_audit.log"
+audit_log_max_size_mb = 10
+audit_log_backup_count = 5
+tier1_scopes = ["system:execute:cli", "system:read:screenshot", "system:read:location", "account:execute:operation", "finance:read:qr_code", "network:fetch:url"]
+sensitive_param_names = ["token", "password", "secret", "api_key", "apikey", "credential"]
+plugin_config_debounce_ms = 300
+plugin_config_revision_path = "data/plugin_runtime_v2/plugin_config_revisions.json"
+enable_plugin_config_watch = true
+enable_dump_plugin_config = true
+enable_schema_drift_detect = true
 
 [agent]
 default_agent_id = "silver_wolf" # 新会话未绑定智能体时使用的默认智能体 ID。
@@ -610,10 +629,33 @@ standby_visible_to_active = true # 待命智能体对活跃智能体是否可见
 standby_emotion_visible_to_active = false # 待命智能体的情绪是否对活跃智能体可见。
 dormant_visible_to_any = false # 沉睡智能体是否对任何智能体可见。
 state_awareness_enabled = true # 启用后，智能体可感知共居智能体的状态信息。
+outbound_dedup_window_seconds = 3.0 # 出站消息去重窗口时长，同一 message_id 在此时长内重复发送被抑制。推荐范围 2.0-5.0 秒。
+outbound_dedup_max_entries = 5000 # 出站去重窗口缓存条目上限，达上限时淘汰最早过期有效键。推荐范围 100-50000。
+mention_chain_decay_base = 0.6 # 提及传递触发概率按 base ** depth 衰减，base 越小衰减越快。推荐范围 0.5-0.8。
+mention_chain_max_depth = 4 # 连锁深度超过此上限时熔断，不再触发新的提及传递。推荐范围 3-5。
+cohabitation_decay_factor = 0.5 # 多角色共居时每小时插话上限按角色数递减的系数。推荐范围 0.1-1.0。
+cohabitation_min_max = 2 # 共居参数递减后的下限保护，保证角色在超多人群聊中仍有最低插话能力。推荐范围 1-5。
+zh1_role_drift_enabled = false # ZH-1 角色参数漂移灰度开关。启用后智能体性格参数将根据互动反馈自适应漂移。
+zh1_role_drift_drift_period = 500 # 每 N 次互动触发一次漂移评估。推荐范围 200-1000。
+zh1_role_drift_regression_rate = 0.03 # 参数向初始值拉回的回归力强度。推荐范围 0.02-0.05。
+zh1_role_drift_sigma_max = 0.3 # 漂移高斯噪声的最大标准差。推荐范围 0.1-0.5。
+zh1_role_drift_selection_ratio = 0.167 # 进化笼子中淘汰最低适应度参数的比例（2/12≈0.167）。
+zh1_role_drift_w_interaction = 0.4 # 适应度 = w1×互动 + w2×关系 + w3×独特 + w4×情绪。
+zh1_role_drift_w_relation = 0.2 # 关系贡献权重。
+zh1_role_drift_w_uniqueness = 0.3 # 表达独特性权重。
+zh1_role_drift_w_emotion = 0.0 # 情绪匹配权重——V2 开启，V1=0.0 预留。
+zh1_role_drift_reflection_interval = 3600 # M5 反思节拍间隔秒数。推荐范围 1800-7200。
 
-# ZG16-6a 插件配置覆盖节（可选，无该节时退化为仅 base 层）
-# [plugin_override."maibot-team.napcat-adapter"]
-# napcat_server = { port = 3002 }  # 全局覆盖：覆盖插件 config.toml 的 napcat_server.port
+[compaction]
+version = 1 # 配置版本号。
+enable_b_layer_compaction = false # 是否启用 B 层替换式 compaction（select 后摘要替换）。
+compaction_threshold_ratio = 0.72 # selected_history token 占 context_window 比例超此值时触发 compaction。
+compaction_retain_ratio = 0.32 # 尾部保留 token 占总 token 比例（不压缩尾部近期消息）。
+compaction_min_segment_size = 6 # 可压缩段最少消息条数（低于此值不压缩）。
+compaction_min_segment_tokens = 500 # 可压缩段最少 token 数（低于此值不压缩）。
+compaction_timeout_ms = 3000 # 摘要生成 LLM 调用超时（毫秒），超时降级返回原 history。
+compaction_summary_max_tokens = 500 # 摘要生成 max_tokens 上限。
 
-# [plugin_override."maibot-team.napcat-adapter".per_stream."group:123456"]
-# napcat_server = { port = 3003 }  # 聊天流覆盖：仅对 group:123456 生效
+[cache_prefix_stability]
+version = 1 # 配置版本号。
+enable_cache_prefix_stability = false # 是否启用缓存前缀稳定化（emotion/relationship/favor 从 system 后移到 injected）。
