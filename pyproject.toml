@@ -68,6 +68,8 @@ asyncio_mode = "auto"
 # --import-mode 是命令行选项（pytest 9.x 未注册为 ini option），放在 addopts 中
 # 项目根进 sys.path：tests/ 目录独立跑时不依赖 pytests/conftest.py 的 sys.path 副作用
 pythonpath = ["."]
+# 收集类名以 Test 开头（TestX 风格）或以 Test 结尾（XTest 风格）
+python_classes = ["*Test", "Test*"]
 
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
