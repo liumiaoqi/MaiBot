@@ -2218,7 +2218,7 @@ class IpcBridgePort(Protocol):
     """IPC 桥接端口接口 — 核心事件总线通过此接口桥接到插件运行时。
 
     核心通过此接口调用桥接能力，不感知 PluginRuntimeManager 具体类。
-    仅暴露桥接所需的最小接口（bridge_event + is_running）。
+    仅暴露桥接所需的最小接口（bridge_event + is_running + list_plugin_states）。
     """
 
     @property

@@ -42,9 +42,9 @@ def test_ipc_bridge_port_runtime_checkable():
 
 
 def test_ipc_bridge_port_minimal_interface():
-    """Protocol 仅包含 bridge_event 和 is_running 两个成员（CX 审核 P2-2）。"""
+    """Protocol 仅包含 bridge_event、is_running 和 list_plugin_states 三个成员。"""
     members = {name for name in dir(IpcBridgePort) if not name.startswith("_")}
-    assert members == {"bridge_event", "is_running"}
+    assert members == {"bridge_event", "is_running", "list_plugin_states"}
 
 
 # ── T6.2 Registry 测试 ────────────────────────────────────────
