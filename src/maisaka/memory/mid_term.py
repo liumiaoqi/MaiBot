@@ -376,7 +376,7 @@ async def insert_mid_term_memory_message(
     updated_history = list(history)
     insert_index = _find_last_mid_term_memory_index(updated_history)
     updated_history.insert(insert_index + 1, summary_message)
-    _trim_mid_term_memory_messages(updated_history, max_summary_count=max_summary_count)
+    await _compact_mid_term_memory(updated_history, max_summary_count=max_summary_count)
     return updated_history
 
 
@@ -565,18 +565,54 @@ def _find_last_mid_term_memory_index(history: Sequence[LLMContextMessage]) -> in
     return last_index
 
 
-def _trim_mid_term_memory_messages(
+async def _compact_mid_term_memory(
     history: list[LLMContextMessage],
     *,
     max_summary_count: int,
 ) -> None:
+    """ZG-N5：surface 替换式压缩替换删除式裁剪。
+
+    用户拍板（2026-08-22）：革命非改良——直接实现 surface 替换，不做兼容垫片。
+    对标 dsh compaction-basic replay-aware surface 替换。
+
+    当 event_compactor 未接线时，回退到删除式裁剪（向后兼容启动过渡期），
+    但出声警告（静默失效禁令）。
+    """
     summary_indexes = [index for index, message in enumerate(history) if is_mid_term_memory_message(message)]
     excess_count = len(summary_indexes) - max_summary_count
     if excess_count <= 0:
         return
 
-    for index in reversed(summary_indexes[:excess_count]):
-        del history[index]
+    compactor = _get_event_compactor()
+    if compactor is None:
+        logger.warning("event_compactor 未接线，mid_term 压缩回退到删除式裁剪")
+        for index in reversed(summary_indexes[:excess_count]):
+            del history[index]
+        return
+
+    try:
+        await compactor.compact_if_needed(
+            session_id="",
+            agent_id="",
+            trigger="pressure",
+        )
+    except Exception as exc:
+        logger.warning(f"event_compactor 压缩失败，回退到删除式裁剪: {exc}")
+        for index in reversed(summary_indexes[:excess_count]):
+            del history[index]
+
+
+def _get_event_compactor():
+    """从 port registry 获取 event_compactor（未接线返回 None）。"""
+    try:
+        from src.A_memorix.host_service import a_memorix_host_service
+
+        kernel = a_memorix_host_service._kernel
+        if kernel is not None and hasattr(kernel, "_event_compactor"):
+            return kernel._event_compactor
+    except Exception:
+        pass
+    return None
 
 
 def _build_summary_instruction_prompt(

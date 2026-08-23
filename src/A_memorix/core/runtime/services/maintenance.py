@@ -20,6 +20,7 @@ class MaintenanceService:
         delete_vectors_by_type: Callable[..., None],
         background_scheduler: Any,
         trigger_vector_compaction: Optional[Callable[[], int]] = None,
+        trigger_event_compaction: Optional[Callable[[], "int"]] = None,
     ) -> None:
         self._get_metadata_store = get_metadata_store
         self._get_graph_store = get_graph_store
@@ -31,9 +32,14 @@ class MaintenanceService:
         self._delete_vectors_by_type = delete_vectors_by_type
         self._background_scheduler = background_scheduler
         self._trigger_vector_compaction = trigger_vector_compaction
+        self._trigger_event_compaction = trigger_event_compaction
         self._last_maintenance_at: Optional[float] = None
         self._last_vector_compaction_at: float = 0.0
         self._last_vacuum_at: float = 0.0
+
+    def set_event_compaction_trigger(self, fn: Callable[[], "int"]) -> None:
+        """ZG-N5: 注入事件层压缩触发函数（由 kernel_initializer 装配）。"""
+        self._trigger_event_compaction = fn
 
     async def maintain_memory(
         self,
@@ -114,6 +120,7 @@ class MaintenanceService:
         await self._process_freeze_and_prune()
         await self._orphan_gc_phase()
         await self._purge_deleted_relations_phase()
+        await self._event_compaction_phase()
         await self._vector_compaction_phase()
         await self._vacuum_phase()
         await self._compensate_graph_sync(metadata_store, graph_store)
@@ -170,6 +177,32 @@ class MaintenanceService:
             if port is not None:
                 port.report(ErrorLevel.WARNING, "vector compaction 异常", exception=exc)
             logger.warning(f"vector compaction cycle 异常: {exc}")
+
+    async def _event_compaction_phase(self) -> None:
+        """ZG-N5: 事件层压缩阶段（Replay-aware surface 替换）。
+
+        在 _vector_compaction_phase 之前执行——事件层压缩先于向量层。
+        trigger_event_compaction 为 None 时静默失效出声（不静默跳过）。
+        """
+        if self._trigger_event_compaction is None:
+            logger.warning("trigger_event_compaction 未接线，事件层压缩跳过")
+            return
+        try:
+            import asyncio
+            result = self._trigger_event_compaction()
+            if asyncio.iscoroutine(result):
+                compacted = await result
+            else:
+                compacted = result
+            if compacted > 0:
+                logger.info(f"event compaction: 压缩 {compacted} 个会话")
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "event compaction 异常", exception=exc)
+            logger.warning(f"event compaction cycle 异常: {exc}")
 
     async def _vacuum_phase(self) -> None:
         """定期 VACUUM 回收 SQLite 物理空间（P2 批2.4）。

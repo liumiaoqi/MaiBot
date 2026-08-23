@@ -326,6 +326,7 @@ class KernelInitializer:
             delete_vectors_by_type=kernel._delete_vectors_by_type,
             background_scheduler=kernel._background_scheduler,
             trigger_vector_compaction=kernel._trigger_vector_compaction,
+            trigger_event_compaction=kernel._trigger_event_compaction,
         )
 
     @staticmethod

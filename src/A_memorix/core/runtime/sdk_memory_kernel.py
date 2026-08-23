@@ -259,6 +259,33 @@ class SDKMemoryKernel:
                     logger.warning(f"vector store compaction 失败: {e}")
         return compacted
 
+    async def _trigger_event_compaction(self) -> int:
+        """ZG-N5: 触发事件层压缩（Replay-aware surface 替换）。
+
+        委托 ReplayAwareCompactor.compact_if_needed。
+        _event_compactor 为 None 时静默失效出声（不静默跳过）。
+        返回压缩的会话数（0 表示未压缩或未接线）。
+        """
+        compactor = getattr(self, "_event_compactor", None)
+        if compactor is None:
+            logger.warning("event_compactor 未接线，事件层压缩跳过")
+            return 0
+        try:
+            result = await compactor.compact_if_needed(
+                session_id="",
+                agent_id="",
+                trigger="periodic",
+            )
+            return 1 if result is not None else 0
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "事件层压缩异常", exception=exc)
+            logger.warning(f"事件层压缩异常: {exc}")
+            return 0
+
     def delete_entity(self, hash_or_name: str) -> bool:
         """P0-3: 删实体并级联删向量/图（ZG-29）。
 

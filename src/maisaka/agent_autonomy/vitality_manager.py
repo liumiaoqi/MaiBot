@@ -50,6 +50,32 @@ class VitalityManager:
             raise RuntimeError("AgentRoutingService 未注册")
         return service
 
+    def is_agent_idle(self, agent_id: str) -> bool:
+        """ZG-N5：判定 agent 是否空闲（无在途消息处理）。
+
+        结合 _active_agents 与在途消息计数——agent 激活且无在途消息为空闲。
+        管家智能体始终空闲（管家不处理消息，只协调）。
+        """
+        try:
+            from src.core.adapters.agent_config_port import get_agent_config_provider
+
+            agent_cfg = get_agent_config_provider().get_agent(agent_id)
+            if agent_cfg and agent_cfg.is_butler:
+                return True
+
+            if agent_id not in self._orchestrator._active_agents:
+                return False
+
+            agent = self._orchestrator._active_agents[agent_id]
+            processing = getattr(agent, "_is_processing_message", False)
+            if processing:
+                return False
+
+            return True
+        except Exception as exc:
+            logger.warning(f"[vitality] is_agent_idle 查询失败: agent={agent_id} error={exc}")
+            return False
+
     @property
     def registry(self) -> StandbyAgentRegistry:
         return self._registry

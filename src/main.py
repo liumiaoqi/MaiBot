@@ -1167,6 +1167,81 @@ class MainSystem:
 
     @staticmethod
     @startup_item(
+        name="event_compaction",
+        phase=StartupPhase.SUBSYSTEMS,
+        order=6,
+        critical=False,
+        depends_on=["a_memorix"],
+        dependency_kind={"a_memorix": DependencyKind.WEAK},
+    )
+    async def _init_event_compaction() -> None:
+        """ZG-N5：初始化事件层压缩服务并注入 kernel。
+
+        Replay-aware 替换式压缩——对标 dsh compaction-basic。
+        接线四连问：
+        1. 生产创建点：本闭包内 ReplayAwareCompactor(...) 构造
+        2. 参数来源：kernel._cfg + a_memorix_host_service kernel ports
+        3. 组装链闭合：构造后注入 kernel._event_compactor + maintenance_service
+        4. 测试走生产路径：test_wiring.py 验证本启动项执行后 kernel._event_compactor 非 None
+        """
+        from src.A_memorix.host_service import a_memorix_host_service
+        from src.A_memorix.core.runtime.services.compaction import (
+            CompactionEventLogger,
+            DurableLockManager,
+            IdleTaskCoordinator,
+            ReplayAwareCompactor,
+            Summarizer,
+            SurfaceReplacer,
+            ToolPairingBalancer,
+            resolve_compaction_config,
+        )
+        from src.A_memorix.core.runtime.services.compaction.adapters import (
+            InMemoryCompactionStore,
+            LlmServiceAdapter,
+            SimpleTokenMeter,
+        )
+
+        kernel = a_memorix_host_service._kernel
+        if kernel is None:
+            logger.warning("event_compaction: kernel 未初始化，跳过接线")
+            return
+
+        config = resolve_compaction_config(kernel._cfg)
+        memory_store = InMemoryCompactionStore()
+        token_meter = SimpleTokenMeter()
+        llm_port = LlmServiceAdapter()
+
+        vitality_manager = None
+        system = _main_system
+        if system is not None and system._orchestrator is not None:
+            vitality_manager = getattr(system._orchestrator, "_vitality_manager", None)
+
+        lock_manager = DurableLockManager(memory_store)
+        balancer = ToolPairingBalancer()
+        event_logger = CompactionEventLogger(memory_store)
+        surface_replacer = SurfaceReplacer(memory_store)
+        summarizer = Summarizer(llm_port, token_meter, config)
+        idle_coordinator = IdleTaskCoordinator(vitality_manager) if vitality_manager else None
+
+        kernel._event_compactor = ReplayAwareCompactor(
+            config=config,
+            lock_manager=lock_manager,
+            balancer=balancer,
+            event_logger=event_logger,
+            surface_replacer=surface_replacer,
+            summarizer=summarizer,
+            token_meter=token_meter,
+            memory_store=memory_store,
+            idle_coordinator=idle_coordinator,
+        )
+        if hasattr(kernel, "_maintenance_service") and kernel._maintenance_service is not None:
+            kernel._maintenance_service.set_event_compaction_trigger(
+                kernel._trigger_event_compaction
+            )
+        logger.info("event_compaction: ReplayAwareCompactor 已接线")
+
+    @staticmethod
+    @startup_item(
         name="emoji_manager",
         phase=StartupPhase.SUBSYSTEMS,
         order=3,
@@ -1748,6 +1823,16 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
 
         await close_mid_term_summary_queue()
         await close_mid_term_persistence()
+
+        # ZG-N5: 关闭事件层压缩服务（释放 idle 接纳预留、清理 balance 缓存）
+        try:
+            from src.A_memorix.host_service import a_memorix_host_service
+
+            kernel = a_memorix_host_service._kernel
+            if kernel is not None and hasattr(kernel, "_event_compactor") and kernel._event_compactor is not None:
+                await kernel._event_compactor.close()
+        except Exception as exc:
+            logger.warning(f"event_compactor 关闭异常: {exc}")
 
         set_main_loop(None)
 
