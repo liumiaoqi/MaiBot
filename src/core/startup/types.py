@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
 
 class StartupPhase(IntEnum):
@@ -48,7 +48,7 @@ class StartupComponent:
     start_time: float = 0.0
     end_time: float = 0.0
     duration_ms: int = 0
-    error: Any = None
+    error: BaseException | None = None
 
 
 @dataclass

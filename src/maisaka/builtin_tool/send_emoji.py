@@ -15,7 +15,7 @@ from pydantic import Field as PydanticField
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.core.model_config_port_registry import get_model_config_port
+
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.emoji_system.emoji_manager import emoji_manager
 from src.emoji_system.maisaka_tool import send_emoji_for_maisaka
@@ -304,27 +304,6 @@ def _build_send_emoji_monitor_metadata(
         metadata["prompt_html_uri"] = prompt_html_uri
     return metadata
 
-
-    port = get_model_config_port()
-    if port is None:
-        return "emoji"
-    model_config = port.get_model_config()
-    emoji_task_config = getattr(model_config.model_task_config, "emoji", None)
-    emoji_models = [
-        model_name for model_name in getattr(emoji_task_config, "model_list", []) if str(model_name).strip()
-    ]
-    if emoji_models:
-        return "emoji"
-
-    planner_models = [
-        model_name for model_name in model_config.model_task_config.planner.model_list if str(model_name).strip()
-    ]
-    models_by_name = {model.name: model for model in model_config.models}
-    if planner_models and all(
-        model_name in models_by_name and models_by_name[model_name].visual for model_name in planner_models
-    ):
-        return "planner"
-    return "vlm"
 
 
 def _is_missing_visual_model_error(exc: Exception) -> bool:

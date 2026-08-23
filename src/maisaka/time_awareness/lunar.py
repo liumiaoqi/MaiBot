@@ -125,14 +125,8 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
         target_date = date.today()
 
     try:
-        from zhdate import ZhDate
-
-        year = target_date.year
-        for i, term_name in enumerate(_24_SOLAR_TERMS):
+        for term_name in _24_SOLAR_TERMS:
             try:
-                _ = ZhDate(year, 1, 1).to_datetime().date()
-                if i > 0:
-                    pass
 
                 from lunarcalendar import Solar
 

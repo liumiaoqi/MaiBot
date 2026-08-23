@@ -72,7 +72,7 @@ class ChatLoopServiceAdapter:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, "切换智能体上下文失败", exception=exc)
-            pass
+
 
         logger.warning(
             f"[agent_autonomy] 上下文切换: agent {old_agent_id} -> {agent_id}"

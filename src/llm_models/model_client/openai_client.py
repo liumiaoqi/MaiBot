@@ -1671,10 +1671,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             )
             attach_request_snapshot(exc, snapshot_path)
             raise exc
-        if raw_response.data:
-            response.embedding = raw_response.data[0].embedding
-        else:
-            raise RespParseException(raw_response, "响应解析失败，缺失嵌入数据。")
+        response.embedding = raw_response.data[0].embedding
 
         usage_record = _extract_usage_record(getattr(raw_response, "usage", None))
         return response, usage_record
@@ -1786,10 +1783,8 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             )
             attach_request_snapshot(exc, snapshot_path)
             raise exc
-        if isinstance(transcription_text, str):
-            response.content = transcription_text
-            return response, None
-        raise RespParseException(raw_response, "响应解析失败，缺失转录文本。")
+        response.content = transcription_text
+        return response, None
 
     def get_support_image_formats(self) -> List[str]:
         """获取支持的图片格式列表。

@@ -253,8 +253,7 @@ class ClientRegistry:
         """APIProvider.name -> BaseClient的映射表"""
         self._owner_client_types: Dict[str, Set[str]] = {}
         """插件 ID -> 该插件拥有的 client_type 集合。"""
-        if _model_config_port is not None:
-            _model_config_port.register_reload_callback(self.clear_client_instance_cache)
+
 
     def register_client_class(self, client_type: str) -> Callable[[Type[BaseClient]], Type[BaseClient]]:
         """注册主程序内置 API 客户端类。

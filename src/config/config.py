@@ -544,7 +544,7 @@ class ConfigManager:
                 if port is not None:
                     port.report(ErrorLevel.WARNING, '重新加载配置文件失败', exception=exc)
                 logger.warning(f"重新加载配置文件失败: {exc}")
-                pass
+
             logger.info(t("config.hot_reload_completed"))
 
             for callback in list(self._reload_callbacks):
@@ -673,10 +673,7 @@ def load_config_from_file(
     config_data = hook_result.data
     try:
         updated: bool = False
-        try:
-            target_config = config_class.from_dict(attribute_data, config_data)
-        except TypeError as e:
-            raise e
+        target_config = config_class.from_dict(attribute_data, config_data)
         if compare_versions(old_ver, new_ver) or upgrade_hook_applied:
             output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
             write_config_to_file(target_config, config_path, new_ver, override_repr)

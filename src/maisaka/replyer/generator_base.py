@@ -175,6 +175,8 @@ class BaseMaisakaReplyGenerator:
 
     @staticmethod
     def _extract_visible_assistant_reply(message: AssistantMessage) -> str:
+        # 有意存根：基类声明接口契约，具体提取逻辑由子类覆盖。
+        # 保留空实现以稳定类型签名，避免子类遗漏时 AttributeError。
         del message
         return ""
 

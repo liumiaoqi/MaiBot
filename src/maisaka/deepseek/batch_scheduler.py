@@ -61,6 +61,8 @@ class BatchTask(BaseModel):
     degraded_to_realtime: bool = Field(default=False, description="是否降级为实时API")
 
 
+# 有意为空集：当前所有批处理任务类型均允许走批处理路径，
+# 预留为未来标记"仅实时 API"任务类型的扩展点。
 _REALTIME_ONLY_TASKS: set[BatchTaskType] = set()
 
 

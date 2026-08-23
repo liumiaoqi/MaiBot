@@ -754,7 +754,7 @@ class AgentOrchestrator:
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(ErrorLevel.ERROR, "声明智能体不可杀失败", exception=e)
-                pass
+
 
             # 注入共居状态摘要生成器到 PromptBuilder
             if self._config.state_awareness_enabled:
@@ -873,7 +873,7 @@ class AgentOrchestrator:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.ERROR, "清除智能体不可杀声明失败", exception=e)
-            pass
+
 
         self._lifecycle_manager.transition(
             agent_id, self._session_id, AgentLifecycleState.DESTROYED, reason

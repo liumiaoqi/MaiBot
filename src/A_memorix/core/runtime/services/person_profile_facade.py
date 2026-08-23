@@ -15,7 +15,12 @@ logger = get_logger("a_memorix.services.person_profile_facade")
 
 
 class PersonProfileFacade:
-    """人物画像查询、刷新、队列管理。"""
+    """人物画像查询、刷新、队列管理。
+
+    .. deprecated::
+        已废弃，待 FUSION_FULL 验收后删除。融合后由 UnifiedProfileService 替代
+        （.core.concept_graph.unified_profile_service）。当前仅保留兼容 FUSION_OFF 路径。
+    """
 
     def __init__(
         self,

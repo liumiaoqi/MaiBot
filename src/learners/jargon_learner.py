@@ -140,6 +140,7 @@ class JargonLearner:
         if name != session_id:
             return name
 
+        # 触发 session_info 的懒初始化/缓存填充（返回值当前不需要，仅利用副作用）。
         get_existing_session_info(session_id)
         return get_session_name(session_id)
 

@@ -1127,10 +1127,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
             )
             attach_request_snapshot(exc, snapshot_path)
             raise exc
-        if raw_response.embeddings:
-            response.embedding = raw_response.embeddings[0].values
-        else:
-            raise RespParseException(raw_response, "响应解析失败，缺失 embeddings 字段")
+        response.embedding = raw_response.embeddings[0].values
 
         billable_character_count = 0
         if raw_response.metadata is not None:

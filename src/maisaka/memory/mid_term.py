@@ -159,15 +159,7 @@ async def build_mid_term_memory_message(
         logger.debug(f"{log_prefix} 聊天回想跳过: 摘要输入消息为空")
         return None
 
-    # logger.info(
-    #     f"{log_prefix} 聊天回想完整 Prompt Messages: "
-    #     f"裁切消息数={len(summary_source_messages)} "
-    #     f"发送消息数={len(text_prompt_messages)} "
-    #     f"时间范围={time_range} "
-    #     f"参与人物={'、'.join(participants) if participants else '未知'} "
-    #     f"prompt_chars={_count_prompt_message_chars(text_prompt_messages)}\n"
-    #     f"{_render_summary_prompt_messages_for_log(text_prompt_messages)}"
-    # )
+
     from src.core.adapters.llm_service_port import get_llm_service
 
     request_prompt_messages: list[Message] = []

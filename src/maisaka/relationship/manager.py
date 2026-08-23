@@ -116,8 +116,7 @@ class RelationshipManager:
                     .first()
                 )
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, f"加载关系记录失败: {agent_id} <-> {user_id}", exception=exc)
@@ -180,8 +179,7 @@ class RelationshipManager:
                     row.interaction_count = snapshot.interaction_count
                     row.last_interaction_at = now
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, f"保存关系记录失败: {agent_id} <-> {user_id}", exception=exc)
@@ -244,8 +242,7 @@ class RelationshipManager:
             try:
                 self._emotion_trigger_callback("happy", 10.0)
             except Exception as exc:
-                from src.core.error_escalation.types import ErrorLevel
-                from src.core.error_escalation_port_registry import get_error_escalation_port
+
                 port = get_error_escalation_port()
                 if port is not None:
                     port.report(
@@ -265,8 +262,7 @@ class RelationshipManager:
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).relationship_growth_rate
         except Exception as exc:
-            from src.core.error_escalation.types import ErrorLevel
-            from src.core.error_escalation_port_registry import get_error_escalation_port
+
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, f"获取关系增长率异常: agent={agent_id}", exception=exc)
