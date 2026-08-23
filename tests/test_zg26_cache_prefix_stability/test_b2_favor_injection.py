@@ -28,7 +28,7 @@ def _make_mock_config():
     return mock_config
 
 
-def _run_builder(builder, enabled):
+async def _run_builder(builder, enabled):
     """在 patch 环境下运行 _build_embodied_context。"""
     mock_config = _make_mock_config()
     with patch("src.core.adapters.agent_config_port.get_agent_config_provider") as mock_reg:
@@ -41,26 +41,26 @@ def _run_builder(builder, enabled):
                         with patch.object(builder, "_build_butler_context", return_value=""):
                             with patch.object(builder, "_build_cohabitant_states", return_value=""):
                                 with patch.object(builder, "_build_expression_layer_text", return_value=""):
-                                    return builder._build_embodied_context("")
+                                    return await builder._build_embodied_context("")
 
 
-def test_b2_characterized_favor_emptied_when_enabled():
+async def test_b2_characterized_favor_emptied_when_enabled():
     """配置开启时角色化路径 favor 为空字符串。"""
     builder = _make_prompt_builder()
-    result = _run_builder(builder, enabled=True)
+    result = await _run_builder(builder, enabled=True)
     assert result["agent_favor_injection"] == "", f"favor 应为空: {result['agent_favor_injection']}"
 
 
-def test_b2_characterized_favor_preserved_when_disabled():
+async def test_b2_characterized_favor_preserved_when_disabled():
     """配置关闭时角色化路径 favor 保持原值。"""
     builder = _make_prompt_builder()
-    result = _run_builder(builder, enabled=False)
+    result = await _run_builder(builder, enabled=False)
     assert result["agent_favor_injection"] == "好感度文本", f"favor 应保持原值: {result['agent_favor_injection']}"
 
 
-def test_b2_characterized_emotion_relationship_always_empty():
+async def test_b2_characterized_emotion_relationship_always_empty():
     """角色化路径 emotion/relationship 始终为空（既有行为，ZG-26 不改）。"""
     builder = _make_prompt_builder()
-    result = _run_builder(builder, enabled=False)
+    result = await _run_builder(builder, enabled=False)
     assert result["agent_emotion_state"] == ""
     assert result["agent_relationship"] == ""

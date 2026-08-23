@@ -159,7 +159,7 @@ def test_main_cli_success():
     mock_manager = MagicMock()
     mock_manager.dump_config = AsyncMock(return_value="# revision: 1")
     with patch(
-        "src.plugin_runtime_v2.config.host_config_manager.get_plugin_config_manager",
+        "src.plugin_runtime_v2.bootstrap.get_plugin_config_manager",
         create=True, return_value=mock_manager,
     ):
         exit_code = main(["X", "--human"])
@@ -171,7 +171,7 @@ def test_main_cli_json_format():
     mock_manager = MagicMock()
     mock_manager.dump_config = AsyncMock(return_value='{"config": {}}')
     with patch(
-        "src.plugin_runtime_v2.config.host_config_manager.get_plugin_config_manager",
+        "src.plugin_runtime_v2.bootstrap.get_plugin_config_manager",
         create=True, return_value=mock_manager,
     ):
         exit_code = main(["X", "--json"])
@@ -183,7 +183,7 @@ def test_main_cli_plugin_not_found():
     mock_manager = MagicMock()
     mock_manager.dump_config = AsyncMock(side_effect=KeyError("nonexistent"))
     with patch(
-        "src.plugin_runtime_v2.config.host_config_manager.get_plugin_config_manager",
+        "src.plugin_runtime_v2.bootstrap.get_plugin_config_manager",
         create=True, return_value=mock_manager,
     ):
         exit_code = main(["nonexistent"])
@@ -195,7 +195,7 @@ def test_main_cli_with_stream():
     mock_manager = MagicMock()
     mock_manager.dump_config = AsyncMock(return_value="# revision: 1")
     with patch(
-        "src.plugin_runtime_v2.config.host_config_manager.get_plugin_config_manager",
+        "src.plugin_runtime_v2.bootstrap.get_plugin_config_manager",
         create=True, return_value=mock_manager,
     ):
         exit_code = main(["X", "--stream", "group:123", "--human"])

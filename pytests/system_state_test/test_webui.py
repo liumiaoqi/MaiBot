@@ -6,9 +6,14 @@ state 值为 snake_case 四态之一。
 
 import pytest
 from starlette.testclient import TestClient
+from unittest.mock import MagicMock
 
 from src.core.adapters.core_readiness_port import CoreReadinessPortAdapter
 from src.core.adapters.system_lifecycle_adapter import SystemLifecycleAdapter
+from src.core.app_config_port_registry import (
+    reset_app_config_port,
+    set_app_config_port,
+)
 from src.core.service_manager.state_aggregator import StateAggregator
 from src.core.service_manager.types import (
     HealthCheckMode,
@@ -25,6 +30,19 @@ from src.webui.app import create_app
 from src.webui.core import get_token_manager
 
 VALID_STATES = {"booting", "ready", "degrading", "shutting_down"}
+
+
+@pytest.fixture(autouse=True)
+def _mock_app_config_port():
+    """注册 mock AppConfigPort，供 anti_crawler 中间件模块级配置读取。"""
+    mock_port = MagicMock()
+    mock_port.get_webui_anti_crawler_mode.return_value = "off"
+    mock_port.get_webui_allowed_ips.return_value = ""
+    mock_port.get_webui_trusted_proxies.return_value = ""
+    mock_port.get_webui_trust_xff.return_value = False
+    set_app_config_port(mock_port)
+    yield
+    reset_app_config_port()
 
 
 @pytest.fixture
