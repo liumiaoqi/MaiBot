@@ -729,6 +729,21 @@ class MainSystem:
         from src.services.tool_record_cleanup_service import run_startup_tool_record_vacuum_if_needed
         await asyncio.to_thread(run_startup_tool_record_vacuum_if_needed)
 
+    @staticmethod
+    @startup_item(
+        name="token_meter",
+        phase=StartupPhase.INFRASTRUCTURE,
+        order=10,
+        critical=True,
+        depends_on=["config_manager"],
+        dependency_kind={"config_manager": DependencyKind.STRONG},
+    )
+    async def _init_token_meter() -> None:
+        """ZG-N6 统一 Token 计量服务接线——单例创建 + 固定启发式（有意无配置）。"""
+        from src.core.token_meter import TokenMeter, _set_instance
+        _set_instance(TokenMeter())
+        logger.info("ZG-N6 TokenMeter 已接线——统一 Token 计量服务就绪")
+
     # ── 阶段 2 闭包 ───────────────────────────────────────────
 
     @staticmethod
@@ -1198,7 +1213,6 @@ class MainSystem:
         from src.A_memorix.core.runtime.services.compaction.adapters import (
             InMemoryCompactionStore,
             LlmServiceAdapter,
-            SimpleTokenMeter,
         )
 
         kernel = a_memorix_host_service._kernel
@@ -1208,7 +1222,8 @@ class MainSystem:
 
         config = resolve_compaction_config(kernel._cfg)
         memory_store = InMemoryCompactionStore()
-        token_meter = SimpleTokenMeter()
+        from src.core.token_meter import N5TokenMeterAdapter, get_token_meter
+        token_meter = N5TokenMeterAdapter(get_token_meter())
         llm_port = LlmServiceAdapter()
 
         vitality_manager = None

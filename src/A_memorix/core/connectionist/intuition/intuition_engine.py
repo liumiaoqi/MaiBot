@@ -228,9 +228,6 @@ class IntuitionEngine:
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
-        """粗略 token 估算：中文≈1字/token，英文≈0.75词/token"""
-        if not text:
-            return 0
-        chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
-        other_chars = len(text) - chinese_chars
-        return chinese_chars + other_chars // 4
+        """粗略 token 估算——ZG-N6 迁移：对齐 dsh 固定启发式（4 字符/token，CJK 低估已知不修）。"""
+        from src.core.token_meter.estimate import estimate_text
+        return estimate_text(text)

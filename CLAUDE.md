@@ -53,7 +53,7 @@
 
 ## 运行环境
 
-- Docker 容器：`maim-bot-core`，Python 3.14.6
+- Docker 容器：`maim-bot-core`，Python 3.14.7
 - 依赖管理：**uv**，不用 pip
 - Docker 可?用：`docker exec maim-bot-core bash -c "cd /MaiMBot && uv run ..."`
 - 我的验收终点：`ruff check` 通过 + pytest 通过。验证命令直接在 Docker 容器内执行

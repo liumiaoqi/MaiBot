@@ -1,8 +1,10 @@
 """ZG16-2 token 估算器单元测试——纯函数无副作用验证。
 
 覆盖 estimate_text/estimate_system_prompt/estimate_tools_schema/
-estimate_message/estimate_messages 及模块常量，验证 2 字符/token 估算 +
+estimate_message/estimate_messages 及模块常量，验证 4 字符/token 估算 +
 结构开销模型 + 纯函数性（同一输入连续估算结果不变）。
+
+ZG-N6 迁移：CHARS_PER_TOKEN 2→4，对齐 dsh 固定启发式。
 """
 
 
@@ -34,8 +36,8 @@ def _make_mock_message(text: str) -> MagicMock:
 
 
 def test_constants_values():
-    """验证模块常量值符合 design 规格。"""
-    assert CHARS_PER_TOKEN == 2
+    """验证模块常量值符合 design 规格（ZG-N6: CHARS_PER_TOKEN 2→4）。"""
+    assert CHARS_PER_TOKEN == 4
     assert BLOCK_OVERHEAD == 4
     assert ROLE_OVERHEAD == 4
     assert DEFAULT_CONTEXT_WINDOW == 65536
@@ -47,13 +49,13 @@ def test_constants_values():
 
 
 def test_estimate_text_chinese_long():
-    """中文长文：ceil(100/2) == 50。"""
-    assert estimate_text("中" * 100) == 50
+    """中文长文：ceil(100/4) == 25。"""
+    assert estimate_text("中" * 100) == 25
 
 
 def test_estimate_text_english_long():
-    """英文长文：ceil(100/2) == 50。"""
-    assert estimate_text("a" * 100) == 50
+    """英文长文：ceil(100/4) == 25。"""
+    assert estimate_text("a" * 100) == 25
 
 
 def test_estimate_text_empty():
@@ -62,8 +64,8 @@ def test_estimate_text_empty():
 
 
 def test_estimate_text_odd_length():
-    """奇数长度向上取整：ceil(101/2) == 51。"""
-    assert estimate_text("a" * 101) == 51
+    """奇数长度向上取整：ceil(101/4) == 26。"""
+    assert estimate_text("a" * 101) == 26
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -72,8 +74,8 @@ def test_estimate_text_odd_length():
 
 
 def test_estimate_system_prompt_with_overhead():
-    """system prompt 含 BLOCK_OVERHEAD：ceil(200/2) + 4 == 104。"""
-    assert estimate_system_prompt("a" * 200) == 104
+    """system prompt 含 BLOCK_OVERHEAD：ceil(200/4) + 4 == 54。"""
+    assert estimate_system_prompt("a" * 200) == 54
 
 
 def test_estimate_system_prompt_empty():
@@ -87,9 +89,9 @@ def test_estimate_system_prompt_empty():
 
 
 def test_estimate_tools_schema_empty_list():
-    """空 tools schema 含 BLOCK_OVERHEAD：ceil(len('[]')/2) + 4 == 5。"""
+    """空 tools schema 含 BLOCK_OVERHEAD：ceil(len('[]')/4) + 4 == 5。"""
     result = estimate_tools_schema([])
-    # json.dumps([]) = "[]"，len=2，ceil(2/2)=1，1+4=5
+    # json.dumps([]) = "[]"，len=2，ceil(2/4)=1，1+4=5
     assert result == 5
     assert result > BLOCK_OVERHEAD  # 含结构开销
 
@@ -108,10 +110,10 @@ def test_estimate_tools_schema_nonempty():
 
 
 def test_estimate_message_with_text():
-    """单条消息估算：ceil(len/2) + BLOCK_OVERHEAD + ROLE_OVERHEAD。"""
+    """单条消息估算：ceil(len/4) + BLOCK_OVERHEAD + ROLE_OVERHEAD。"""
     msg = _make_mock_message("hello")
-    # ceil(5/2) + 4 + 4 = 3 + 8 = 11
-    assert estimate_message(msg) == 11
+    # ceil(5/4) + 4 + 4 = 2 + 8 = 10
+    assert estimate_message(msg) == 10
 
 
 def test_estimate_message_empty_text():

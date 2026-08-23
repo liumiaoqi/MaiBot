@@ -26,10 +26,10 @@ def _make_mock_message(text: str, *, count_in_context: bool = True) -> MagicMock
     return msg
 
 
-def _make_messages(count: int, text_len: int = 184) -> List[MagicMock]:
-    """构造 count 条等长消息，每条 token = ceil(text_len/2) + 8。
+def _make_messages(count: int, text_len: int = 368) -> List[MagicMock]:
+    """构造 count 条等长消息，每条 token = ceil(text_len/4) + 8。
 
-    text_len=184 → token = 92 + 8 = 100。
+    ZG-N6: CHARS_PER_TOKEN 2→4，text_len=368 → token = 92 + 8 = 100。
     """
     return [_make_mock_message("x" * text_len) for _ in range(count)]
 
@@ -71,8 +71,8 @@ def test_backward_accumulation_triggers_trimming():
     第 4 条超预算 → retain_budget=485>0 → 选中，retain=-9515
     第 3-1 条 → retain_budget≤0 → 丢弃
     """
-    # 每条 token = 10000 → text_len = (10000-8)*2 = 19984
-    msgs = _make_messages(10, text_len=19984)
+    # 每条 token = 10000 → text_len = (10000-8)*4 = 39968
+    msgs = _make_messages(10, text_len=39968)
     selected, total_tokens = select_by_token_budget(
         msgs,
         context_window=65536,
@@ -94,7 +94,7 @@ def test_backward_accumulation_triggers_trimming():
 
 def test_reference_message_always_retained():
     """引用消息在头部 + 预算裁切到尾部 → 引用消息仍选中。"""
-    msgs = _make_messages(10, text_len=19984)
+    msgs = _make_messages(10, text_len=39968)
     # 索引 0 是引用消息
     selected, _ = select_by_token_budget(
         msgs,
@@ -111,7 +111,7 @@ def test_reference_message_always_retained():
 
 def test_reference_message_in_middle_retained():
     """引用消息在中间位置也始终保留。"""
-    msgs = _make_messages(10, text_len=19984)
+    msgs = _make_messages(10, text_len=39968)
     selected, _ = select_by_token_budget(
         msgs,
         context_window=65536,
@@ -151,7 +151,7 @@ def test_all_messages_within_budget():
 def test_budget_smaller_than_single_message():
     """预算上限 < 单条消息 → 仍保留最近一条。"""
     # 1 条超大消息，token = 100000
-    msgs = [_make_mock_message("x" * 199984)]  # token = 99992 + 8 = 100000
+    msgs = [_make_mock_message("x" * 399968)]  # token = 99992 + 8 = 100000
     selected, total_tokens = select_by_token_budget(
         msgs,
         context_window=65536,
@@ -166,7 +166,7 @@ def test_budget_smaller_than_single_message():
 
 def test_multiple_oversized_messages_retain_latest():
     """多条超大消息 → 至少保留最近一条。"""
-    msgs = _make_messages(3, text_len=199984)  # 每条 100000 token
+    msgs = _make_messages(3, text_len=399968)  # 每条 100000 token
     selected, _ = select_by_token_budget(
         msgs,
         context_window=65536,
@@ -188,7 +188,7 @@ def test_all_reference_messages_retained():
     """全部是引用消息 → 全部保留（即使超预算）。"""
     msgs = _make_messages(5, text_len=19984)  # 每条 10000 token，总计 50000 > 52428？不，50000 < 52428
     # 用更大的消息确保超预算
-    msgs = _make_messages(10, text_len=19984)  # 总计 100000 > 52428
+    msgs = _make_messages(10, text_len=39968)  # 总计 100000 > 52428
     selected, _ = select_by_token_budget(
         msgs,
         context_window=65536,
@@ -299,10 +299,10 @@ def test_count_in_context_false_no_accumulation():
     全部选中，因为 False 消息不累加 accumulated。
     """
     msgs = [
-        _make_mock_message("x" * 184, count_in_context=False),
-        _make_mock_message("x" * 184, count_in_context=False),
-        _make_mock_message("x" * 184, count_in_context=True),
-        _make_mock_message("x" * 184, count_in_context=True),
+        _make_mock_message("x" * 368, count_in_context=False),
+        _make_mock_message("x" * 368, count_in_context=False),
+        _make_mock_message("x" * 368, count_in_context=True),
+        _make_mock_message("x" * 368, count_in_context=True),
     ]
     selected, _ = select_by_token_budget(
         msgs,
@@ -348,10 +348,10 @@ def test_count_in_context_false_comparison_with_true():
 
     # 将第 1-2 条改为 False → 不累加 → 全部选中
     msgs_mixed = [
-        _make_mock_message("x" * 184, count_in_context=False),
-        _make_mock_message("x" * 184, count_in_context=False),
-        _make_mock_message("x" * 184, count_in_context=True),
-        _make_mock_message("x" * 184, count_in_context=True),
+        _make_mock_message("x" * 368, count_in_context=False),
+        _make_mock_message("x" * 368, count_in_context=False),
+        _make_mock_message("x" * 368, count_in_context=True),
+        _make_mock_message("x" * 368, count_in_context=True),
     ]
     selected_mixed, _ = select_by_token_budget(
         msgs_mixed,
@@ -399,7 +399,7 @@ def test_all_over_budget_retain_zero_fallback_latest():
     1 条消息 token=100 > 80 → 丢弃 → selected_indices 为空
     → 兜底保留最近一条（索引 0）。
     """
-    msgs = [_make_mock_message("x" * 184)]  # token=100
+    msgs = [_make_mock_message("x" * 368)]  # token=100
     selected, total_tokens = select_by_token_budget(
         msgs,
         context_window=100,

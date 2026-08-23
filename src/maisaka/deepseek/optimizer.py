@@ -27,10 +27,12 @@ class ContextSegment:
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
-        """粗略估算 Token 数（中文约1.5字/token，英文约4字符/token）。"""
-        cn_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
-        en_chars = len(text) - cn_chars
-        return int(cn_chars / 1.5 + en_chars / 4)
+        """粗略估算 Token 数——ZG-N6 迁移：移除 CJK 修正，对齐 dsh 固定启发式。
+
+        统一 4 字符/token（dsh 接受 CJK 低估——已知限制不修复）。
+        """
+        from src.core.token_meter.estimate import estimate_text
+        return estimate_text(text)
 
 
 class DeepSeekOptimizer:

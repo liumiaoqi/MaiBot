@@ -1,10 +1,13 @@
 """token 估算器（纯函数，无副作用）——ZG16-2 design 模块 A。
 
-固定 2 字符/token（dsh 拍板决策 1，中文略高估英文略低估偏安全）+ 结构开销复用 dsh
-（BLOCK_OVERHEAD=4/ROLE_OVERHEAD=4）。计量对象 = ZG16-1 文本投影（占位符语义）。
+ZG-N6 迁移：CHARS_PER_TOKEN 2→4，对齐 dsh 固定启发式（统一会计）。
+结构开销复用 dsh（BLOCK_OVERHEAD=4/ROLE_OVERHEAD=4）。
+计量对象 = ZG16-1 文本投影（占位符语义）。
 
 纯函数约束：无 await/网络/IO/状态变更（ZG16-1 教训延续——select_llm_context_messages
 是同步函数，估算器在同步调用链中不能 await）。
+
+对齐 src.core.token_meter.estimate——同常量同逻辑，统一会计。
 """
 
 
@@ -19,7 +22,7 @@ logger = get_logger("maisaka.context.token_estimator")
 if TYPE_CHECKING:
     from src.maisaka.context.messages import LLMContextMessage
 
-CHARS_PER_TOKEN = 2
+CHARS_PER_TOKEN = 4
 BLOCK_OVERHEAD = 4
 ROLE_OVERHEAD = 4
 DEFAULT_CONTEXT_WINDOW = 65536

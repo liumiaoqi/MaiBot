@@ -24,10 +24,11 @@ def _make_mock_message(text: str) -> MagicMock:
 def _make_real_messages(total_tokens: int, count: int = 1) -> List[AssistantMessage]:
     """构造 count 条真实 AssistantMessage，总 token 约 total_tokens。
 
-    estimate_message = ceil(len/2) + 8，每条 token = total_tokens / count。
+    ZG-N6: CHARS_PER_TOKEN=4，estimate_message = ceil(len/4) + 8，
+    每条 token = total_tokens / count。
     """
     per_msg_tokens = total_tokens // count
-    text_len = (per_msg_tokens - 8) * 2
+    text_len = (per_msg_tokens - 8) * 4
     return [AssistantMessage(content="x" * text_len, timestamp=datetime.now()) for _ in range(count)]
 
 

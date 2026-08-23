@@ -34,7 +34,7 @@
 优先使用 uv，依赖项以 pyproject.toml 为准
 
 # Python 版本
-新代码必须兼容 Python 3.14.6。不使用 `from __future__ import annotations`。
+新代码必须兼容 Python 3.14.7。不使用 `from __future__ import annotations`。
 
 # 语言规范
 首选简体中文（注释、日志、WebUI）

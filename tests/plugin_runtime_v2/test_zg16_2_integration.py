@@ -139,8 +139,8 @@ def test_switch_on_token_budget_mode(mock_get_port, _mock_cw):
         threshold_ratio=0.8,
         retain_ratio=0.16,
     )
-    # 每条 token = 10000 → text_len = (10000-8)*2 = 19984
-    msgs = [_make_assistant_message("x" * 19984) for _ in range(10)]
+    # 每条 token = 10000 → text_len = (10000-8)*4 = 39968
+    msgs = [_make_assistant_message("x" * 39968) for _ in range(10)]
     selected, reason = MaisakaChatLoopService.select_llm_context_messages(
         msgs,
         enable_visual_message=True,
@@ -162,7 +162,7 @@ def test_switch_on_and_off_produce_different_results(mock_get_port, _mock_cw):
         threshold_ratio=0.8,
         retain_ratio=0.16,
     )
-    msgs = [_make_assistant_message("x" * 19984) for _ in range(10)]
+    msgs = [_make_assistant_message("x" * 39968) for _ in range(10)]
     selected_on, _ = MaisakaChatLoopService.select_llm_context_messages(
         msgs,
         enable_visual_message=True,
@@ -306,7 +306,7 @@ def test_reference_message_retained_in_token_budget_mode(mock_get_port, _mock_cw
     )
     ref_msg = _make_reference_message("important context")
     # 构造大量消息使预算裁切
-    msgs = [ref_msg] + [_make_assistant_message("x" * 19984) for _ in range(10)]
+    msgs = [ref_msg] + [_make_assistant_message("x" * 39968) for _ in range(10)]
     selected, _ = MaisakaChatLoopService.select_llm_context_messages(
         msgs,
         enable_visual_message=True,

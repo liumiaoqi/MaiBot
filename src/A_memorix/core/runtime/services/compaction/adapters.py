@@ -123,7 +123,13 @@ class InMemoryCompactionStore:
 
 
 class SimpleTokenMeter:
-    """简单 token 计量器——按字符数估算。"""
+    """简单 token 计量器——按字符数估算。
+
+    @deprecated ZG-N6 统一 Token 计量服务上线后此适配器已退役。
+    保留类定义供渐进迁移参考，新代码必须使用
+    src.core.token_meter.N5TokenMeterAdapter + get_token_meter()。
+    退役原因：缺结构开销 + 硬编码容量 + 无锚点复用。
+    """
 
     def count_tokens(self, text: str) -> int:
         return max(1, len(text) // 4)

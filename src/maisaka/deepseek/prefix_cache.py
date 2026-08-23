@@ -102,11 +102,12 @@ class PrefixCacheManager:
         previous_hash = self._last_stable_hash.get(agent_id)
 
         if previous_hash is not None:
+            from src.core.token_meter.estimate import estimate_text
             if stable_hash == previous_hash:
-                total_tokens = sum(len(layer.content) for layer in layers) // 4
+                total_tokens = sum(estimate_text(layer.content) for layer in layers)
                 self._stats.record_hit(agent_id, total_tokens)
             else:
-                total_tokens = sum(len(layer.content) for layer in layers) // 4
+                total_tokens = sum(estimate_text(layer.content) for layer in layers)
                 self._stats.record_miss(agent_id, total_tokens)
 
         self._last_stable_hash[agent_id] = stable_hash
