@@ -5,7 +5,7 @@ from .auth import (
     get_current_token,
     is_token_valid,
     set_auth_cookie,
-    verify_auth_token_from_cookie_or_header,
+    verify_auth_token_from_cookie,
 )
 from .rate_limiter import (
     RateLimiter,
@@ -28,5 +28,5 @@ __all__ = [
     "is_token_valid",
     "set_auth_cookie",
     "clear_auth_cookie",
-    "verify_auth_token_from_cookie_or_header",
+    "verify_auth_token_from_cookie",
 ]

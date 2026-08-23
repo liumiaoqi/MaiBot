@@ -20,7 +20,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.utils.image_path import StoredImagePathError, resolve_stored_image_path, serialize_stored_image_path
 from src.webui.core import get_token_manager
-from src.webui.core import verify_auth_token_from_cookie_or_header as verify_auth_token
+from src.webui.core import verify_auth_token_from_cookie as verify_auth_token
 
 from .schemas import (
     BatchDeleteRequest,

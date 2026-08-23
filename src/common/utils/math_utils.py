@@ -92,9 +92,9 @@ def calculate_typing_time(
     """
     计算输入字符串所需的时间，中文和英文字符有不同的输入时间
         input_string (str): 输入的字符串
-        chinese_time (float): 中文字符的输入时间，默认为0.3秒
-        english_time (float): 英文字符的输入时间，默认为0.15秒
-        line_break_time (float): 换行符的输入时间，默认为0.1秒
+        chinese_time (float): 中文字符的输入时间，默认为0.2秒
+        english_time (float): 英文字符的输入时间，默认为0.1秒
+        line_break_time (float): 换行符的输入时间，默认为0.05秒
         is_emoji (bool): 是否为emoji，默认为False
 
     特殊情况：

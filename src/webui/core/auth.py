@@ -140,7 +140,7 @@ def clear_auth_cookie(response: Response) -> None:
     logger.debug("已清除认证 Cookie")
 
 
-def verify_auth_token_from_cookie_or_header(
+def verify_auth_token_from_cookie(
     maibot_session: Optional[str] = None,
 ) -> bool:
     """

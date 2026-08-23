@@ -94,7 +94,7 @@ class MCPHostLLMBridge:
                 ),
             )
 
-            # ZG-12 组件自治：capabilities 优先（主路径），否则旧任务名（deprecated）
+            # ZG-12 组件自治：用旧任务名（deprecated），capabilities 通过参数传递
             active_task_name = self._sampling_task_name
             generation_result = await self._llm_service.generate_response_with_messages(
                 active_task_name, message_factory,

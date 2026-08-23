@@ -20,7 +20,7 @@ from pathlib import Path
 # ───────────────────────────── 检查项 N4-1~5 ─────────────────────────────
 
 # 认证函数名（端点函数体内调用即视为有认证）
-_AUTH_CALL_NAMES = {"require_auth", "require_plugin_token", "verify_auth_token", "verify_auth_token_from_cookie_or_header"}
+_AUTH_CALL_NAMES = {"require_auth", "require_plugin_token", "verify_auth_token", "verify_auth_token_from_cookie"}
 
 # 认证依赖名（router 级 dependencies=[Depends(xxx)] 即视为有认证）
 _AUTH_DEPEND_NAMES = {"require_auth", "require_plugin_token", "verify_auth_token"}
