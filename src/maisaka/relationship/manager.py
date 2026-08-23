@@ -145,7 +145,7 @@ class RelationshipManager:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, f"获取最强关系失败: agent={agent_id}", exception=exc)
-            logger.warning("获取最强关系失败: agent=%s error=%s", agent_id, exc)
+            logger.warning(f"获取最强关系失败: agent={agent_id} error={exc}")
             return None
 
     @staticmethod
