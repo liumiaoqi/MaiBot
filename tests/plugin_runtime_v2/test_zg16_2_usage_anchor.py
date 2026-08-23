@@ -10,8 +10,20 @@ from datetime import datetime
 from typing import List
 from unittest.mock import MagicMock
 
+import pytest
+
+import src.core.token_meter.service as svc
+from src.core.token_meter import TokenMeter, _set_instance
 from src.maisaka.context.messages import AssistantMessage
 from src.maisaka.context.usage_anchor import UsageAnchor, usage_anchor
+
+
+@pytest.fixture(autouse=True)
+def _wire_token_meter():
+    original = svc._instance
+    _set_instance(TokenMeter())
+    yield
+    svc._instance = original
 
 
 def _make_mock_message(text: str) -> MagicMock:

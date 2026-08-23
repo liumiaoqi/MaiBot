@@ -4,12 +4,16 @@
 estimate_message/estimate_messages 及模块常量，验证 4 字符/token 估算 +
 结构开销模型 + 纯函数性（同一输入连续估算结果不变）。
 
-ZG-N6 迁移：CHARS_PER_TOKEN 2→4，对齐 dsh 固定启发式。
+ZG-N6 迁移：CHARS_PER_TOKEN 2→4，对齐 dsh 固定启发式。薄委托层委托 get_token_meter()。
 """
 
 
 from unittest.mock import MagicMock
 
+import pytest
+
+import src.core.token_meter.service as svc
+from src.core.token_meter import TokenMeter, _set_instance
 from src.maisaka.context.token_estimator import (
     BLOCK_OVERHEAD,
     CHARS_PER_TOKEN,
@@ -21,6 +25,14 @@ from src.maisaka.context.token_estimator import (
     estimate_text,
     estimate_tools_schema,
 )
+
+
+@pytest.fixture(autouse=True)
+def _wire_token_meter():
+    original = svc._instance
+    _set_instance(TokenMeter())
+    yield
+    svc._instance = original
 
 
 def _make_mock_message(text: str) -> MagicMock:
@@ -131,18 +143,18 @@ def test_estimate_message_pure_function():
 
 
 def test_estimate_message_no_attribute_fallback():
-    """消息无 processed_plain_text 属性时降级为空字符串不崩溃。"""
+    """消息无 processed_plain_text 属性时降级为 str(message) 启发式计价不崩溃。"""
 
     class _BareMessage:
         """无 processed_plain_text 属性的裸对象。"""
 
     msg = _BareMessage()
     result = estimate_message(msg)
-    assert result == BLOCK_OVERHEAD + ROLE_OVERHEAD
+    assert result > BLOCK_OVERHEAD + ROLE_OVERHEAD  # str(msg) 非空
 
 
 def test_estimate_message_attribute_exception_fallback():
-    """processed_plain_text 属性访问抛异常时降级为空字符串不崩溃。"""
+    """processed_plain_text 属性访问抛异常时降级为 str(message) 不崩溃。"""
 
     class _ExceptionMessage:
         """processed_plain_text 属性访问会抛异常的对象。"""
@@ -153,7 +165,7 @@ def test_estimate_message_attribute_exception_fallback():
 
     msg = _ExceptionMessage()
     result = estimate_message(msg)
-    assert result == BLOCK_OVERHEAD + ROLE_OVERHEAD
+    assert result > BLOCK_OVERHEAD + ROLE_OVERHEAD  # 降级到 str(msg)
 
 
 # ════════════════════════════════════════════════════════════════════

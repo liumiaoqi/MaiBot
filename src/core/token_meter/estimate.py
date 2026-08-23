@@ -135,20 +135,23 @@ def estimate_message(message: Any) -> int:
             return estimate_text(str(text)) + BLOCK_OVERHEAD + ROLE_OVERHEAD
         return estimate_text(json.dumps(message, ensure_ascii=False, default=str)) + ROLE_OVERHEAD
 
-    content = getattr(message, "content", None)
-    if content is not None:
-        if isinstance(content, str):
-            return estimate_text(content) + BLOCK_OVERHEAD + ROLE_OVERHEAD
-        if isinstance(content, list):
-            return estimate_content(content) + ROLE_OVERHEAD
+    try:
+        content = getattr(message, "content", None)
+        if content is not None:
+            if isinstance(content, str):
+                return estimate_text(content) + BLOCK_OVERHEAD + ROLE_OVERHEAD
+            if isinstance(content, list):
+                return estimate_content(content) + ROLE_OVERHEAD
 
-    projection = getattr(message, "processed_plain_text", None)
-    if projection is not None:
-        return estimate_text(str(projection)) + BLOCK_OVERHEAD + ROLE_OVERHEAD
+        projection = getattr(message, "processed_plain_text", None)
+        if projection is not None:
+            return estimate_text(str(projection)) + BLOCK_OVERHEAD + ROLE_OVERHEAD
 
-    text = getattr(message, "text", None)
-    if text is not None:
-        return estimate_text(str(text)) + BLOCK_OVERHEAD + ROLE_OVERHEAD
+        text = getattr(message, "text", None)
+        if text is not None:
+            return estimate_text(str(text)) + BLOCK_OVERHEAD + ROLE_OVERHEAD
+    except Exception:
+        pass
 
     return estimate_text(str(message)) + ROLE_OVERHEAD + BLOCK_OVERHEAD
 

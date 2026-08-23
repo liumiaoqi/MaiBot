@@ -9,7 +9,19 @@ count_in_context=False 不累加 token 等场景。
 from typing import List
 from unittest.mock import MagicMock
 
+import pytest
+
+import src.core.token_meter.service as svc
+from src.core.token_meter import TokenMeter, _set_instance
 from src.maisaka.context.token_budget import select_by_token_budget
+
+
+@pytest.fixture(autouse=True)
+def _wire_token_meter():
+    original = svc._instance
+    _set_instance(TokenMeter())
+    yield
+    svc._instance = original
 
 
 

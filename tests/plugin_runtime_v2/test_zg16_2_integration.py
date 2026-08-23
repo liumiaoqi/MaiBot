@@ -9,6 +9,10 @@ token 预算路径异常降级、灰度日志格式、回归测试（条数模�
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+import src.core.token_meter.service as svc
+from src.core.token_meter import TokenMeter, _set_instance
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.maisaka.chat_loop_service import MaisakaChatLoopService
 from src.maisaka.context.grayscale_log import format_grayscale_log
@@ -18,6 +22,14 @@ from src.maisaka.context.messages import (
     ReferenceMessageType,
     ToolResultMessage,
 )
+
+
+@pytest.fixture(autouse=True)
+def _wire_token_meter():
+    original = svc._instance
+    _set_instance(TokenMeter())
+    yield
+    svc._instance = original
 
 
 def _make_assistant_message(text: str, *, tool_calls: list[ToolCall] | None = None) -> AssistantMessage:

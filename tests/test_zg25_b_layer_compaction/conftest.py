@@ -5,6 +5,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import src.core.token_meter.service as svc
+from src.core.token_meter import TokenMeter, _set_instance
+
+
+@pytest.fixture(autouse=True)
+def _wire_token_meter():
+    """ZG-N6：确保 TokenMeter 单例已接线（token_estimator 薄委托层需要）。"""
+    original = svc._instance
+    _set_instance(TokenMeter())
+    yield
+    svc._instance = original
+
 
 def make_assistant_message(content: str, timestamp: datetime | None = None) -> MagicMock:
     """构造轻量 AssistantMessage 替身（避免 dataclass slots 限制）。"""
