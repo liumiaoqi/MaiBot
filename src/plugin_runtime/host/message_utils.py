@@ -534,7 +534,8 @@ class PluginMessageUtils:
         try:
             timestamp_float = float(timestamp_str)
             timestamp = datetime.fromtimestamp(timestamp_float)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as exc:
+            logger.warning(f"时间戳解析失败回退当前时间: timestamp_str={timestamp_str!r}, error={exc}")
             timestamp = datetime.now()  # 如果解析失败，使用当前时间
 
         # 创建 SessionMessage 实例

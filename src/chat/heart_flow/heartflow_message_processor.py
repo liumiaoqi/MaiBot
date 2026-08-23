@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 
-import traceback
 
 from src.chat.heart_flow.heartflow_manager import heartflow_manager
 
@@ -104,5 +103,4 @@ class HeartFCMessageReceiver:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.ERROR, "消息处理失败", exception=e)
-            logger.error(f"消息处理失败: {e}")
-            print(traceback.format_exc())
+            logger.error(f"消息处理失败: {e}", exc_info=True)

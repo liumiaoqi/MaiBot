@@ -104,12 +104,16 @@ class BufferCLI:
             registry_port = get_message_registry_port()
             if registry_port is not None:
                 registry_port.register_message(message)
+            else:
+                logger.warning("CLI 消息处理: message_registry_port 未注入，消息未注册")
             lifecycle_port = get_session_lifecycle_port()
             if lifecycle_port is not None:
                 self._session_id = await lifecycle_port.get_or_create_session_id(
                     platform=self._CLI_PLATFORM,
                     user_id=self._CLI_USER_ID,
                 )
+            else:
+                logger.warning("CLI 消息处理: session_lifecycle_port 未注入，会话 ID 未创建")
             await self._message_receiver.process_message(message)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel

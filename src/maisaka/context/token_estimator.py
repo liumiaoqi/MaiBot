@@ -12,6 +12,10 @@ import json
 import math
 from typing import TYPE_CHECKING, List
 
+from src.common.logger import get_logger
+
+logger = get_logger("maisaka.context.token_estimator")
+
 if TYPE_CHECKING:
     from src.maisaka.context.messages import LLMContextMessage
 
@@ -52,7 +56,8 @@ def _get_lightweight_projection(message: "LLMContextMessage") -> str:
     """
     try:
         return getattr(message, "processed_plain_text", "") or ""
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"_get_lightweight_projection 取属性失败返回空字符串: message={message!r}, error={exc}")
         return ""
 
 

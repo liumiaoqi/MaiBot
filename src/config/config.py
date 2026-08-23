@@ -383,6 +383,7 @@ class ConfigManager:
         try:
             self._reload_callbacks.remove(callback)
         except ValueError:
+            logger.debug(f"unregister_reload_callback 回调未注册静默忽略: callback={callback!r}")
             return
 
     @staticmethod

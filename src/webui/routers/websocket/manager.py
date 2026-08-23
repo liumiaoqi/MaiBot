@@ -237,6 +237,7 @@ class UnifiedWebSocketManager:
         sender_task = connection.sender_task
         target_loop = sender_task.get_loop() if sender_task is not None else None
         if target_loop is None or target_loop.is_closed() or not target_loop.is_running():
+            logger.debug(f"enqueue 跳过：连接发送循环不可用，消息被丢弃: connection={connection_id}")
             return
 
         current_loop = asyncio.get_running_loop()

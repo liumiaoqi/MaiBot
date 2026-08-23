@@ -2,13 +2,17 @@
 
 from threading import Event
 
+from src.common.logger import get_logger
+
+logger = get_logger("common.shutdown")
+
 _shutdown_requested = Event()
 
 
 def request_shutdown(reason: str = "") -> None:
     """标记当前进程正在关停。"""
 
-    del reason
+    logger.warning(f"进程关停请求: reason={reason or '(未提供)'}")
     _shutdown_requested.set()
 
 

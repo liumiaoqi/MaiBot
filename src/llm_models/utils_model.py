@@ -137,6 +137,7 @@ class LLMOrchestrator:
                 "应改用 capabilities 参数", task_name,
             )
         else:
+            logger.warning("LLMOrchestrator capabilities/task_name 均未提供，默认回退 text_generation")
             self._capabilities = frozenset({"text_generation"})
         self.task_name = (task_name or "").strip()
         self.request_type = request_type

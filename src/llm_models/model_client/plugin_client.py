@@ -138,6 +138,8 @@ class PluginLLMClient(BaseClient):
             raise RespParseException(message=str(response.error.get("message", "插件 LLM Provider 调用失败")))
 
         payload = response.payload if isinstance(response.payload, dict) else {}
+        if not isinstance(response.payload, dict):
+            logger.warning(f"插件 LLM Provider 返回 payload 非 dict 静默降级为空: payload={response.payload!r}")
         success = bool(payload.get("success", False))
         result = payload.get("result")
         if not success:
@@ -184,6 +186,8 @@ class PluginLLMClient(BaseClient):
         """
         raw_embedding = result.get("embedding")
         embedding = [float(item) for item in raw_embedding] if isinstance(raw_embedding, list) else None
+        if raw_embedding is not None and not isinstance(raw_embedding, list):
+            logger.warning(f"插件 LLM Provider 返回 embedding 非 list 静默降级为 None: raw_embedding={raw_embedding!r}")
         content = result.get("content")
         if not isinstance(content, str):
             content = result.get("response")

@@ -43,6 +43,7 @@ class InteractionScheduler:
     async def start(self) -> None:
         """启动定时调度。"""
         if self._running:
+            logger.debug("scheduler.start 跳过：调度器已在运行")
             return
         self._running = True
         self._task = asyncio.create_task(self._run_loop())

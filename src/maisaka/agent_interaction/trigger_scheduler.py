@@ -58,6 +58,8 @@ class InteractionTrigger:
         self._engine = engine
         self._cooldown_manager = cooldown_manager
         self._trigger_registry = trigger_registry or TriggerRegistry()
+        if trigger_registry is None:
+            logger.warning("TriggerScheduler trigger_registry 未注入，降级使用默认 TriggerRegistry()")
         self._trigger_threshold = trigger_threshold
         self._cooldown_minutes = cooldown_minutes
         self._max_interactions_per_hour = max_interactions_per_hour

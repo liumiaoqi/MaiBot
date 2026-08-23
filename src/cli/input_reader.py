@@ -8,6 +8,10 @@ import asyncio
 import sys
 import threading
 
+from src.common.logger import get_logger
+
+logger = get_logger("cli.input_reader")
+
 
 class InputReader:
     """后台读取标准输入，并通过 asyncio.Queue 向主循环投递结果。"""
@@ -33,6 +37,7 @@ class InputReader:
         while not self._stop_event.is_set():
             line = sys.stdin.readline()
             if self._loop is None:
+                logger.warning("InputReader._read_loop 事件循环未设置，退出读取循环")
                 return
 
             if line == "":

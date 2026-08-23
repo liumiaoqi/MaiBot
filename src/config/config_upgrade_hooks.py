@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from src.common.logger import get_logger
+
 from .official_configs import ChatConfig
+
+logger = get_logger("config.config_upgrade_hooks")
 
 
 ConfigUpgradeHookCallable = Callable[[dict[str, Any]], list[str]]
@@ -100,6 +104,7 @@ def _migrate_jargon_groups(jargon: dict[str, Any]) -> bool:
 
         parsed = _parse_jargon_group_target(normalized_value)
         if parsed is None:
+            logger.warning(f"_migrate_jargon_groups 解析失败 return False: value={normalized_value!r}")
             return False
 
         jargon["jargon_groups"] = [{"jargon_groups": [parsed]}]
@@ -107,6 +112,7 @@ def _migrate_jargon_groups(jargon: dict[str, Any]) -> bool:
 
     jargon_groups = _as_list(raw_jargon_groups)
     if jargon_groups is None:
+        logger.warning(f"_migrate_jargon_groups jargon_groups 非 list return False: raw={raw_jargon_groups!r}")
         return False
     if jargon_groups and all(isinstance(item, dict) for item in jargon_groups):
         return False
@@ -115,12 +121,14 @@ def _migrate_jargon_groups(jargon: dict[str, Any]) -> bool:
     for group in jargon_groups:
         group_items = _as_list(group)
         if group_items is None:
+            logger.warning(f"_migrate_jargon_groups group 非 list return False: group={group!r}")
             return False
 
         targets: list[dict[str, str]] = []
         for item in group_items:
             parsed = _parse_jargon_group_target(str(item))
             if parsed is None:
+                logger.warning(f"_migrate_jargon_groups item 解析失败 return False: item={item!r}")
                 return False
             targets.append(parsed)
 

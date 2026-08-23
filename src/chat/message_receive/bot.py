@@ -730,8 +730,7 @@ class ChatBot:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.ERROR, "预处理消息失败", exception=e)
-            logger.error(f"预处理消息失败: {e}")
-            traceback.print_exc()
+            logger.error(f"预处理消息失败: {e}", exc_info=True)
 
     async def receive_message(self, message: SessionMessage) -> None:
         """处理单条入站会话消息。

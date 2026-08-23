@@ -440,11 +440,17 @@ class StartupOrchestrator:
 
     def _update_core_readiness(self) -> None:
         """CORE_SERVICES 完成后按 core_readiness_flag 更新核心就绪。"""
+        _valid_flags = {"message_pipeline_ready", "agent_thinking_ready", "reply_capability_ready"}
         for name, desc in self._items.items():
             if (
                 desc.core_readiness_flag
                 and self._runtime_states[name].status == ComponentStatus.SUCCESS
             ):
+                if desc.core_readiness_flag not in _valid_flags:
+                    logger.warning(
+                        f"core_readiness_flag 非法字段名静默失效: component={name}, flag={desc.core_readiness_flag!r}"
+                    )
+                    continue
                 setattr(self._core_readiness, desc.core_readiness_flag, True)
         if self._core_readiness.core_ready and self._core_ready_time == 0.0:
             self._core_ready_time = time.monotonic()

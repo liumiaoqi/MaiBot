@@ -4,6 +4,10 @@ from typing import Awaitable, Optional, TypeVar
 
 import asyncio
 
+from src.common.logger import get_logger
+
+logger = get_logger("common.runtime_loop")
+
 T = TypeVar("T")
 
 _main_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -25,6 +29,10 @@ async def run_on_main_loop(coro: Awaitable[T]) -> T:
     loop = get_main_loop()
     current_loop = asyncio.get_running_loop()
     if loop is None or loop.is_closed() or loop is current_loop:
+        if loop is None:
+            logger.debug("run_on_main_loop 主循环未设置，在当前循环直接执行")
+        elif loop.is_closed():
+            logger.debug("run_on_main_loop 主循环已关闭，在当前循环直接执行")
         return await coro
 
     future = asyncio.run_coroutine_threadsafe(coro, loop)

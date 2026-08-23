@@ -39,7 +39,8 @@ def _parse_additional_config(message: Messages) -> dict[str, Any]:
         return {}
     try:
         parsed = json.loads(message.additional_config)
-    except (json.JSONDecodeError, TypeError):
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning(f"_parse_additional_config 解析失败返回空字典: raw={message.additional_config!r}, error={exc}")
         return {}
     if isinstance(parsed, dict):
         return parsed

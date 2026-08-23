@@ -77,6 +77,7 @@ class InteractionEngine:
     async def execute(self, evaluation: TriggerEvaluation) -> InteractionResult:
         """执行交互触发决策。"""
         if not evaluation.should_trigger:
+            logger.debug(f"execute 跳过：触发评估未通过: initiator={evaluation.initiator_agent_id}")
             return InteractionResult(error="触发评估未通过")
 
         initiator_id = evaluation.initiator_agent_id
@@ -100,6 +101,7 @@ class InteractionEngine:
         )
 
         if effect.is_empty:
+            logger.debug(f"execute 跳过：影响计算结果为空: interaction_type={evaluation.interaction_type}")
             return InteractionResult(error="影响计算结果为空，禁止零影响交互")
 
         # 原子写入
@@ -181,7 +183,11 @@ class InteractionEngine:
                     relationship_effect=effect.relationship_delta,
                     event_id=event_id,
                 )
-                get_event_bus_port().emit_sync("interaction_signal", signal)
+                event_bus_port = get_event_bus_port()
+                if event_bus_port is None:
+                    logger.warning("交互信号发布跳过：event_bus_port 未注入")
+                else:
+                    event_bus_port.emit_sync("interaction_signal", signal)
             except Exception as exc:
 
                 port = get_error_escalation_port()

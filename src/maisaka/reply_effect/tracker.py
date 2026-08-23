@@ -110,6 +110,7 @@ class ReplyEffectTracker:
         """观察一条后续用户消息，并在满足规则时完成相关 pending 记录。"""
 
         if not self._pending_records or message.session_id != self._session_id:
+            logger.debug(f"observe_user_message 跳过：无 pending 记录或会话不匹配: session_id={message.session_id}")
             return
 
         for effect_id, record in list(self._pending_records.items()):
@@ -135,6 +136,7 @@ class ReplyEffectTracker:
 
         record = self._pending_records.pop(effect_id, None)
         if record is None or record.status == ReplyEffectStatus.FINALIZED:
+            logger.debug(f"finalize 跳过：记录不存在或已完成: effect_id={effect_id}")
             return
 
         timeout_task = self._timeout_tasks.pop(effect_id, None)

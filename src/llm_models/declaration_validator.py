@@ -11,8 +11,11 @@
 
 from dataclasses import dataclass, field
 
+from src.common.logger import get_logger
 from src.llm_models.model_requirement import DeclarationError, get_all_declarations
 from src.llm_models.model_registry import ModelRegistry
+
+logger = get_logger("llm_models.declaration_validator")
 
 STATUS_PASSED = "passed"
 STATUS_FAST_FAIL = "fast_fail"
@@ -78,8 +81,10 @@ class DeclarationValidator:
                 )
                 report.items.append(item)
                 if declaration.critical:
+                    logger.warning(f"声明校验 fast_fail: component={component_name}, error={exc}")
                     report.status = STATUS_FAST_FAIL
                 elif report.status != STATUS_FAST_FAIL:
+                    logger.warning(f"声明校验 degraded: component={component_name}, error={exc}")
                     report.status = STATUS_DEGRADED
                 continue
 

@@ -343,6 +343,7 @@ class AMemorixHostService:
             if component_name == "recall":
                 migration_adapter = kernel._migration_adapter
                 if migration_adapter and not migration_adapter.should_recall():
+                    logger.debug("recall 分支跳过：migration_adapter 判定不应 recall")
                     return []
                 seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
                 return kernel._memory_field.recall(
@@ -408,7 +409,8 @@ class AMemorixHostService:
                         style_str = str(v.get("style", "preserve") or "preserve")
                         try:
                             style = VoiceStyle(style_str)
-                        except ValueError:
+                        except ValueError as exc:
+                            logger.warning(f"VoiceStyle 枚举解析失败回退 PRESERVE: style_str={style_str!r}, error={exc}")
                             style = VoiceStyle.PRESERVE
                         voices.append(
                             InnerVoice(
@@ -525,12 +527,15 @@ class AMemorixHostService:
             if component_name == "metadata_get_paragraphs_by_source":
                 source = payload.get("source", "")
                 if not source:
+                    logger.debug("metadata_get_paragraphs_by_source 跳过：source 为空")
                     return []
                 metadata_store = kernel.metadata_store
                 if metadata_store is None:
+                    logger.warning("metadata_get_paragraphs_by_source 跳过：metadata_store 未注入")
                     return []
                 paragraphs = metadata_store.get_paragraphs_by_source(source)
                 if not paragraphs:
+                    logger.debug(f"metadata_get_paragraphs_by_source 返回空: source={source!r}")
                     return []
                 return [
                     {
@@ -651,7 +656,8 @@ class AMemorixHostService:
                     style_str = str(v_cfg.get("style", "preserve")).strip()
                     try:
                         style = VoiceStyle(style_str)
-                    except ValueError:
+                    except ValueError as exc:
+                        logger.warning(f"VoiceStyle 枚举解析失败回退 PRESERVE: style_str={style_str!r}, error={exc}")
                         style = VoiceStyle.PRESERVE
                     voices.append(InnerVoice(
                         name=str(v_cfg.get("name", "")),

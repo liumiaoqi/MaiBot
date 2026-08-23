@@ -1557,7 +1557,8 @@ class RuntimeDataCapabilityMixin:
         limit = args.get("limit", 5)
         try:
             limit_value = max(1, int(limit))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.warning(f"[cap.knowledge.search] limit 参数非法回退默认 5: limit={limit!r}, error={exc}")
             limit_value = 5
 
         mode = str(args.get("mode", "search") or "search").strip() or "search"

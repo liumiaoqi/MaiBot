@@ -226,7 +226,8 @@ def _extract_gemini_thought_signature(tool_call: ToolCall) -> bytes | None:
 
     try:
         return base64.b64decode(normalized_signature.encode("ascii"), validate=True)
-    except (binascii.Error, ValueError):
+    except (binascii.Error, ValueError) as exc:
+        logger.warning(f"base64 解码失败回退原始 UTF-8 字节: signature={normalized_signature!r}, error={exc}")
         return normalized_signature.encode("utf-8")
 
 

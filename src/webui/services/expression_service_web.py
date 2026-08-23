@@ -557,7 +557,8 @@ def parse_review_log_datetime(value: Any) -> float:
         return 0.0
     try:
         return datetime.fromisoformat(str(value)).timestamp()
-    except ValueError:
+    except ValueError as exc:
+        logger.debug(f"parse_review_log_datetime 解析失败回退 0.0: value={value!r}, error={exc}")
         return 0.0
 
 
@@ -568,7 +569,8 @@ def parse_optional_int(value: Any) -> Optional[int]:
         return None
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug(f"parse_optional_int 解析失败返回 None: value={value!r}, error={exc}")
         return None
 
 
@@ -579,7 +581,8 @@ def parse_export_datetime(value: Optional[str]) -> datetime:
         return datetime.now()
     try:
         return datetime.fromisoformat(value)
-    except ValueError:
+    except ValueError as exc:
+        logger.warning(f"parse_export_datetime 解析失败回退当前时间: value={value!r}, error={exc}")
         return datetime.now()
 
 
@@ -599,7 +602,8 @@ def parse_modified_by(value: Optional[str]) -> Optional[ModifiedBy]:
     normalized_value = normalized_value.upper()
     try:
         return ModifiedBy(normalized_value)
-    except ValueError:
+    except ValueError as exc:
+        logger.debug(f"parse_modified_by 解析失败返回 None: value={normalized_value!r}, error={exc}")
         return None
 
 
@@ -627,7 +631,8 @@ def normalize_legacy_int(raw_value: Any, default: int = 0) -> int:
         return default
     try:
         return int(raw_value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug(f"normalize_legacy_int 解析失败回退默认值: raw_value={raw_value!r}, default={default}, error={exc}")
         return default
 
 
@@ -643,10 +648,12 @@ def normalize_legacy_datetime(raw_value: Any, fallback_now: bool = True) -> date
     value = str(raw_value).strip()
     try:
         return datetime.fromtimestamp(float(value))
-    except (TypeError, ValueError, OSError, OverflowError):
+    except (TypeError, ValueError, OSError, OverflowError) as exc:
+        logger.debug(f"normalize_legacy_datetime 时间戳解析失败尝试 ISO: value={value!r}, error={exc}")
         try:
             return datetime.fromisoformat(value)
-        except ValueError:
+        except ValueError as exc2:
+            logger.warning(f"normalize_legacy_datetime ISO 解析也失败回退: value={value!r}, error={exc2}")
             return datetime.now() if fallback_now else datetime.fromtimestamp(0)
 
 
@@ -978,6 +985,7 @@ def get_legacy_upload_path(db_path: str) -> Optional[Path]:
     try:
         path.relative_to(upload_dir)
     except ValueError:
+        logger.debug(f"get_legacy_upload_path 路径不在上传目录返回 None: db_path={db_path!r}")
         return None
     return path
 

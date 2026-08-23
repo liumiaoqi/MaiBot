@@ -6,6 +6,10 @@ import threading
 import time
 from typing import Any
 
+from src.common.logger import get_logger
+
+logger = get_logger("maisaka.display.stage_status_board")
+
 
 class MaisakaStageStatusBoard:
     """维护 Maisaka 阶段状态，并推送给 WebUI 麦麦观察。"""
@@ -70,6 +74,7 @@ class MaisakaStageStatusBoard:
 
             asyncio.get_running_loop().create_task(emit_stage_status(**payload))
         except RuntimeError:
+            logger.debug("_schedule_stage_status_event 无运行事件循环，跳过广播")
             return
 
     @staticmethod
@@ -84,6 +89,7 @@ class MaisakaStageStatusBoard:
                 )
             )
         except RuntimeError:
+            logger.debug("_schedule_stage_removed_event 无运行事件循环，跳过广播")
             return
 
 

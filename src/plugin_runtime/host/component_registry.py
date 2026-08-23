@@ -484,7 +484,8 @@ class HomeCardEntry(ComponentEntry):
 
         try:
             return int(raw_value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.warning(f"order 参数非法回退默认 1000: raw_value={raw_value!r}, error={exc}")
             return 1000
 
 

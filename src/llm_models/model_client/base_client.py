@@ -409,6 +409,7 @@ class ClientRegistry:
         """
         normalized_plugin_id = str(plugin_id or "").strip()
         if not normalized_plugin_id:
+            logger.warning(f"unregister_plugin_providers 空字符串参数静默返回: plugin_id={plugin_id!r}")
             return 0
 
         client_types = self._owner_client_types.pop(normalized_plugin_id, set())
