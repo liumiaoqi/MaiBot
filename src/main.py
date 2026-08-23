@@ -140,6 +140,7 @@ class MainSystem:
         self._service_manager: Any | None = None
         self._watchdog: Any | None = None
         self._watchdog_touch_task: asyncio.Task | None = None
+        self._session_save_task: asyncio.Task | None = None
         self._control_message: Any | None = None
         self._taint_mask: Any | None = None
 
@@ -710,7 +711,7 @@ class MainSystem:
         name="file_watcher",
         phase=StartupPhase.INFRASTRUCTURE,
         order=0,
-        critical=True,
+        critical=False,
         depends_on=["config_manager"],
         dependency_kind={"config_manager": DependencyKind.STRONG},
     )
@@ -848,7 +849,7 @@ class MainSystem:
         name="image_port",
         phase=StartupPhase.CORE_SERVICES,
         order=4,
-        critical=True,
+        critical=False,
     )
     async def _init_image_port() -> None:
         from src.chat.image_system.image_manager import image_manager
@@ -952,7 +953,7 @@ class MainSystem:
         name="person_info_port",
         phase=StartupPhase.CORE_SERVICES,
         order=9,
-        critical=True,
+        critical=False,
     )
     async def _init_person_info_port() -> None:
         from src.core.adapters.person_info_port import PersonInfoPortAdapter
@@ -1280,7 +1281,9 @@ class MainSystem:
         name="model_config_port_inject",
         phase=StartupPhase.SUBSYSTEMS,
         order=4,
-        critical=False,
+        critical=True,
+        depends_on=["model_config_port"],
+        dependency_kind={"model_config_port": DependencyKind.STRONG},
     )
     async def _inject_model_config_port() -> None:
         system = _require_main_system()
@@ -1515,7 +1518,10 @@ class MainSystem:
 
         lifecycle_port = get_session_lifecycle_port()
         await lifecycle_port.initialize()
-        asyncio.create_task(lifecycle_port.regularly_save_sessions())
+        system = _require_main_system()
+        system._session_save_task = asyncio.create_task(
+            lifecycle_port.regularly_save_sessions()
+        )
 
     @staticmethod
     @startup_item(
@@ -1550,7 +1556,7 @@ class MainSystem:
         name="on_start_event",
         phase=StartupPhase.READY,
         order=1,
-        critical=True,
+        critical=False,
     )
     async def _emit_on_start() -> None:
         from src.core.event_bus import event_bus
@@ -1689,6 +1695,28 @@ class MainSystem:
 
     @staticmethod
     @startup_item(
+        name="scope_audit_recorder",
+        phase=StartupPhase.READY,
+        order=7,
+        critical=True,
+        depends_on=["app_config_port"],
+        dependency_kind={"app_config_port": DependencyKind.STRONG},
+    )
+    async def _init_scope_audit_recorder() -> None:
+        """ZG16-5: 初始化 Tier 1 运行时审计记录器（app_config_port 已就绪）。"""
+        from src.core.app_config_port_registry import get_app_config_port
+        from src.plugin_runtime_v2.scope.scope_audit import init_scope_audit_recorder
+
+        _app_port = get_app_config_port()
+        init_scope_audit_recorder(
+            log_path=_app_port.get_audit_log_path(),
+            max_size_mb=_app_port.get_audit_log_max_size_mb(),
+            backup_count=_app_port.get_audit_log_backup_count(),
+            sensitive_param_names=_app_port.get_sensitive_param_names(),
+        )
+
+    @staticmethod
+    @startup_item(
         name="parameter_evolution",
         phase=StartupPhase.SUBSYSTEMS,
         order=20,
@@ -1749,17 +1777,6 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
     try:
         await system.initialize()
 
-        # ZG16-5: 初始化 Tier 1 运行时审计记录器（app_config_port 已就绪，事件循环已运行）
-        from src.core.app_config_port_registry import get_app_config_port
-        from src.plugin_runtime_v2.scope.scope_audit import init_scope_audit_recorder
-
-        _app_port = get_app_config_port()
-        init_scope_audit_recorder(
-            log_path=_app_port.get_audit_log_path(),
-            max_size_mb=_app_port.get_audit_log_max_size_mb(),
-            backup_count=_app_port.get_audit_log_backup_count(),
-            sensitive_param_names=_app_port.get_sensitive_param_names(),
-        )
 
         # ZG-6 W2: SIGTERM/SIGINT → SHUTTING_DOWN（幂等）+ 联动主循环退出。
         # 后注册覆盖 ZG-2 crash_dump / ZG-6 适配器的 signal handler，生产走优雅关闭链：
@@ -1792,6 +1809,15 @@ async def main(debug_startup: bool = False, skip_startup_items: set[str] | None 
             except Exception as exc:
                 # P0-4: 关闭路径非预期异常出声（ZG-31）
                 logger.warning("watchdog_touch_task 关闭异常: %s", exc, exc_info=True)
+        # P1-1: 取消 session_lifecycle 周期保存 Task（防止关闭时写入不完整）
+        if system._session_save_task is not None:
+            system._session_save_task.cancel()
+            try:
+                await system._session_save_task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                logger.warning("session_save_task 关闭异常: %s", exc, exc_info=True)
         if system._watchdog is not None:
             await system._watchdog.stop()
         if system._service_manager is not None:
