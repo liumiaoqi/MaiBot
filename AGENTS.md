@@ -140,6 +140,8 @@
 8. **docstring 承诺但未实现**："由 main.py 调用"但 main.py 没调——**文档与接线脱节**。检查：docstring 里的调用承诺 vs 实际调用点
 9. **无认证端点**（webui 安全）：router 无 `dependencies=[Depends(require_auth)]`——全端点认证（N4 门禁会查）
 10. **结构体必填字段缺失**：构造时缺 `tool_name`/`success` 等必填字段——用统一辅助方法（如 build_success_result）而非逐处手写
+11. **str(Enum) 比较失效**（2026-08-25 立——Python 3.11+ 行为变更）：`str(ServiceState.RUNNING)` 返回 `"ServiceState.RUNNING"` 而非 `"running"`——禁止用 `str(enum).lower()` 做字符串比较，改为直接枚举成员比较或 `.value`。检查：`rg "str\(.*state.*\)\.lower" src/`
+12. **Port 注册零调用**（2026-08-25 立——ZH-1 第四代同款）：`set_*_port()` 有定义有 reset 但全仓零生产调用——适配器创建了但忘记注册到全局 port registry。检查：`rg "def set_\w+_port" src/` 逐个确认有非测试调用点。接线四连问第 1 问扩展：不只查类创建点，还要查 set_*_port 调用点
 
 **完整参考**：`.shared/reports/2026-08/megasurvey/`（A 组 31 份审查——每项 P0/P1 有证据和修复方向）
 
