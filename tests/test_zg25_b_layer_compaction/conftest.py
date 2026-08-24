@@ -18,6 +18,18 @@ def _wire_token_meter():
     svc._instance = original
 
 
+@pytest.fixture(autouse=True)
+def _reset_session_generations():
+    """ZG-25 升级：清理适配层 session generation 计数器，避免测试间污染。"""
+    from src.maisaka.context import compaction_adapter
+
+    original = dict(compaction_adapter._session_generations)
+    compaction_adapter._session_generations.clear()
+    yield
+    compaction_adapter._session_generations.clear()
+    compaction_adapter._session_generations.update(original)
+
+
 def make_assistant_message(content: str, timestamp: datetime | None = None) -> MagicMock:
     """构造轻量 AssistantMessage 替身（避免 dataclass slots 限制）。"""
     msg = MagicMock()

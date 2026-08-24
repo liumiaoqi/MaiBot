@@ -31,6 +31,9 @@ class TestCompactionTriggers:
 
         assert isinstance(result[0], CompactionSummaryMessage)
         assert result[0].summary_text == "摘要内容"
+        # ZG-25 升级：N5 surface 替换事务身份 + 代数递增
+        assert result[0].tx_id != ""
+        assert result[0].replace_generation >= 1
 
     async def test_compaction_preserves_tail(self, compaction_config) -> None:
         """超阈值 → compacted 尾部 = 原 history 尾部。"""

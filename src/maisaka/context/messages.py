@@ -709,6 +709,8 @@ class CompactionSummaryMessage(LLMContextMessage):
     original_segment_count: int = 0
     original_time_range: str = ""
     message_id: Optional[str] = None
+    tx_id: str = ""
+    replace_generation: int = 0
 
     @property
     def role(self) -> str:

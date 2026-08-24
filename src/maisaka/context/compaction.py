@@ -4,6 +4,8 @@
 prepareCompaction → summarizeCompaction → commitCompactionBody 三阶段。
 
 作用于临时列表 selected_history，不写回 _chat_history，不污染共享历史。
+
+0824 升级：对接 N5 surface 替换（SurfaceReplacer）+ tool-pairing（ToolPairingBalancer）+ N6 token meter 统一会计。
 """
 
 import asyncio
@@ -13,16 +15,19 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
+from src.core.token_meter.service import get_token_meter
 from src.llm_models.payload_content.message import Message, RoleType, TextMessagePart
+from src.maisaka.context.compaction_adapter import (
+    get_surface_replacer,
+    get_tool_pairing_balancer,
+    to_n5_events,
+)
 from src.maisaka.context.messages import (
-    AssistantMessage,
     CompactionSummaryMessage,
     LLMContextMessage,
     ReferenceMessage,
     ReferenceMessageType,
-    ToolResultMessage,
 )
-from src.maisaka.context.token_estimator import estimate_messages
 
 if TYPE_CHECKING:
     from src.core.protocols import LLMService
@@ -62,12 +67,17 @@ async def compact_selected_history(
     try:
         if not _should_trigger_compaction(selected_history, context_window=context_window, config=config):
             return selected_history
-        segment = _select_compactable_range(selected_history, config=config)
+        segment = _select_compactable_range(selected_history, session_id=session_id, config=config)
         if segment is None:
             logger.debug(f"B 层 compaction 跳过: session={session_id} 无满足条件的可压缩段")
             return selected_history
         segment_start, segment_end = segment
         segment_messages = selected_history[segment_start:segment_end]
+
+        # N5 稳定性校验：摘要生成前记录 expected_generation
+        surface_replacer = get_surface_replacer(selected_history, session_id)
+        expected_generation = await surface_replacer.current_generation(session_id)
+
         summary_text = await _summarize_segment(
             segment_messages,
             llm_service=llm_service,
@@ -76,23 +86,38 @@ async def compact_selected_history(
         )
         if summary_text is None:
             return selected_history
-        before_tokens = estimate_messages(segment_messages)
-        summary_tokens = estimate_messages([CompactionSummaryMessage(
-            summary_text=summary_text,
-            timestamp=datetime.now(),
-        )])
+
+        # N5 稳定性校验：摘要生成后确认 surface 未变
+        surface_unchanged = await surface_replacer.assert_surface_unchanged(session_id, expected_generation)
+        if not surface_unchanged:
+            logger.warning(f"B 层 compaction 降级: session={session_id} surface 在摘要期间已变")
+            return selected_history
+
+        meter = get_token_meter()
+        before_tokens = sum(meter.estimate(msg) for msg in segment_messages)
+        summary_msg_preview = CompactionSummaryMessage(summary_text=summary_text, timestamp=datetime.now())
+        summary_tokens = meter.estimate(summary_msg_preview)
         if summary_tokens >= before_tokens:
             logger.debug(f"B 层 compaction 跳过: session={session_id} 摘要 token={summary_tokens} >= 原段 token={before_tokens}（无收益）")
             return selected_history
-        compacted = _commit_compaction(selected_history, segment_start, segment_end, summary_text)
-        after_tokens = estimate_messages(compacted)
+
+        compacted, tx_id, replace_generation = await _commit_compaction(
+            selected_history, segment_start, segment_end, summary_text, session_id
+        )
+        after_tokens = sum(meter.estimate(msg) for msg in compacted)
+
+        # N5 缓存失效：压缩替换完成后使 balancer cache 失效
+        get_tool_pairing_balancer().invalidate_cache(session_id)
+
         logger.info(
             f"B 层 compaction: session={session_id} "
             f"before_tokens={before_tokens} "
             f"after_tokens={after_tokens} "
             f"segment_count={segment_end - segment_start} "
             f"summary_tokens={summary_tokens} "
-            f"net_release={before_tokens - after_tokens}"
+            f"net_release={before_tokens - after_tokens} "
+            f"tx_id={tx_id} "
+            f"replace_generation={replace_generation}"
         )
         return compacted
     except Exception as exc:
@@ -112,9 +137,10 @@ def _should_trigger_compaction(
     context_window: int,
     config: CompactionConfig,
 ) -> bool:
-    """判断是否应触发 compaction（token 估算超阈值）。"""
+    """判断是否应触发 compaction（N6 token meter 统一会计）。"""
 
-    current_tokens = estimate_messages(history)
+    meter = get_token_meter()
+    current_tokens = sum(meter.estimate(msg) for msg in history)
     threshold = int(context_window * config.threshold_ratio)
     if current_tokens > threshold:
         return True
@@ -125,25 +151,27 @@ def _should_trigger_compaction(
 def _select_compactable_range(
     history: list[LLMContextMessage],
     *,
+    session_id: str,
     config: CompactionConfig,
 ) -> Optional[tuple[int, int]]:
-    """段识别——从头部找连续可压缩段。
+    """段识别——从头部找连续可压缩段（N5 tool-pairing balancer + N6 token meter）。
 
     段内不含 ReferenceMessage(CONTEXT_RESTORE) 和 is_mid_term_memory_message（整体扫描）。
     段尾到 history 尾部保留 retain_budget token。
-    段内不破坏工具配对。
+    段内不破坏工具配对（N5 ToolPairingBalancer 边界平衡检查）。
     """
 
     from src.maisaka.memory.mid_term import is_mid_term_memory_message
 
-    total_tokens = estimate_messages(history)
+    meter = get_token_meter()
+    total_tokens = sum(meter.estimate(msg) for msg in history)
     retain_budget = int(total_tokens * config.retain_ratio)
 
-    # 从尾部累计 token 找 retain_budget 边界
+    # 从尾部累计 token 找 retain_budget 边界（N6 token meter）
     accumulated = 0
     retain_index = len(history)
     for i in range(len(history) - 1, -1, -1):
-        msg_tokens = estimate_messages([history[i]])
+        msg_tokens = meter.estimate(history[i])
         accumulated += msg_tokens
         if accumulated >= retain_budget:
             retain_index = i
@@ -153,21 +181,19 @@ def _select_compactable_range(
     if retain_index <= 0:
         return None
 
-    # 从可压缩范围尾部往前找工具配对完整边界
-    boundary = retain_index
-    for i in range(retain_index - 1, -1, -1):
-        msg = history[i]
-        # 工具配对边界：ToolResultMessage 或带 tool_calls 的 AssistantMessage → 继续往前
-        if isinstance(msg, ToolResultMessage):
-            boundary = i
-            continue
-        if isinstance(msg, AssistantMessage) and msg.tool_calls:
-            boundary = i
-            continue
-        # 普通消息 → 边界确定
-        boundary = i + 1
-        break
+    # N5 ToolPairingBalancer 边界平衡检查
+    balancer = get_tool_pairing_balancer()
+    events = to_n5_events(history)
+    surface_nodes = list(range(len(history)))
+    generation = 0  # 临时列表 generation 固定 0
 
+    balanced_seq = balancer.adjust_to_nearest_balanced(
+        session_id, surface_nodes, generation, events, ideal_idx=retain_index - 1
+    )
+    if balanced_seq is None:
+        return None
+
+    boundary = balanced_seq + 1  # balanced_seq 是 seq，boundary 是切片端点
     if boundary <= 0:
         return None
 
@@ -181,7 +207,7 @@ def _select_compactable_range(
 
     if len(segment) < config.min_segment_size:
         return None
-    segment_tokens = estimate_messages(segment)
+    segment_tokens = sum(meter.estimate(msg) for msg in segment)
     if segment_tokens < config.min_segment_tokens:
         return None
 
@@ -255,24 +281,61 @@ async def _summarize_segment(
         return None
 
 
-def _commit_compaction(
+async def _commit_compaction(
     history: list[LLMContextMessage],
     segment_start: int,
     segment_end: int,
     summary_text: str,
-) -> list[LLMContextMessage]:
-    """替换执行——将可压缩段替换为一条 CompactionSummaryMessage。"""
+    session_id: str,
+) -> tuple[list[LLMContextMessage], str, int]:
+    """替换执行——N5 SurfaceReplacer 替换 + 事务身份 + 代数递增。
+
+    Returns:
+        (compacted_history, tx_id, replace_generation)
+    """
+
+    from src.A_memorix.core.runtime.services.compaction.types import (  # noqa: TID251 — ZG-25 升级复用 N5 成果
+        CompactionId,
+        CompactionRange,
+        ModelRoute,
+        SummaryNode,
+    )
 
     segment = history[segment_start:segment_end]
     first_ts = segment[0].timestamp if segment else datetime.now()
     last_ts = segment[-1].timestamp if segment else datetime.now()
     time_range = f"{first_ts.strftime('%Y-%m-%d %H:%M')} ~ {last_ts.strftime('%Y-%m-%d %H:%M')}"
 
+    # N5 事务身份
+    tx_id_obj = CompactionId.generate()
+    tx_id = tx_id_obj.value
+
+    # N5 SurfaceReplacer 替换
+    surface_replacer = get_surface_replacer(history, session_id)
+    compaction_range = CompactionRange(
+        start=segment_start,
+        end=segment_end,
+        start_idx=segment_start,
+        end_idx=segment_end,
+        shadowed_seqs=tuple(range(segment_start, segment_end)),
+    )
+    summary_node = SummaryNode(
+        node_id=f"summary-{tx_id}",
+        summary=summary_text,
+        tx_id=tx_id_obj,
+        model_route=ModelRoute(provider="internal", model="compaction", max_tokens=500),
+        generated_at=datetime.now(),
+    )
+    replace_result = await surface_replacer.replace(session_id, compaction_range, summary_node)
+
     summary_msg = CompactionSummaryMessage(
         summary_text=summary_text,
         timestamp=datetime.now(),
         original_segment_count=len(segment),
         original_time_range=time_range,
+        tx_id=tx_id,
+        replace_generation=replace_result.new_generation,
     )
 
-    return [summary_msg] + list(history[segment_end:])
+    compacted = [summary_msg] + list(history[segment_end:])
+    return (compacted, tx_id, replace_result.new_generation)

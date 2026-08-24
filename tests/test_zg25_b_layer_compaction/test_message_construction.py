@@ -78,3 +78,23 @@ class TestMessageConstruction:
         llm_msg = msg.to_llm_message()
 
         assert llm_msg.content == "摘要文本"
+
+    def test_new_fields_default_backward_compatible(self) -> None:
+        """ZG-25 升级：不传 tx_id / replace_generation → 默认值（向后兼容）。"""
+        msg = CompactionSummaryMessage(
+            summary_text="摘要",
+            timestamp=datetime.now(),
+        )
+        assert msg.tx_id == ""
+        assert msg.replace_generation == 0
+
+    def test_new_fields_assignable(self) -> None:
+        """ZG-25 升级：tx_id / replace_generation 可构造赋值。"""
+        msg = CompactionSummaryMessage(
+            summary_text="摘要",
+            timestamp=datetime.now(),
+            tx_id="abc-123",
+            replace_generation=3,
+        )
+        assert msg.tx_id == "abc-123"
+        assert msg.replace_generation == 3
