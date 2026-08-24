@@ -27,5 +27,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     exclude: ['**/dist/**', '**/node_modules/**'],
+    // agent reporter（vitest 4.1——WB 调研建议 3）：AI 协作时最小化输出
+    // （检测 AI 代理自动精简 terminal 输出——coding agent 调试友好）
+    reporter: ['default', 'agent'],
   },
 })
