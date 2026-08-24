@@ -4,7 +4,12 @@
 """
 
 from src.core.invariant_registry import invariant
+from src.core.service_manager.types import ServiceState
 from src.core.service_manager_port_registry import get_service_manager_port
+
+# 合法状态白名单——用 frozenset(ServiceState) 自动跟随枚举定义，
+# 避免 str(Enum) 行为差异（Python 3.11+ str(Enum) 返回 repr 而非 value）和白名单与枚举失同步
+_VALID_STATES = frozenset(ServiceState)
 
 
 @invariant("service_manager")
@@ -19,6 +24,9 @@ def check_service_manager(fail) -> None:
         if snapshot is None:
             fail("service_registry 含 None 状态")
             continue
-        state_str = str(getattr(snapshot, "state", "")).lower()
-        if state_str and state_str not in ("running", "degraded", "stopped", "pending", "initialized"):
+        state = getattr(snapshot, "state", None)
+        if state is None:
+            fail(f"服务状态未知: {snapshot}")
+            continue
+        if state not in _VALID_STATES:
             fail(f"组件状态非法: {snapshot}")

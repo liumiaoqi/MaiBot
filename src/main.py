@@ -259,6 +259,7 @@ class MainSystem:
         from src.config.config import config_manager as _cm
         from src.core.adapters.core_readiness_port import CoreReadinessPortAdapter
         from src.core.adapters.system_lifecycle_adapter import SystemLifecycleAdapter
+        from src.core.service_manager_port_registry import set_core_readiness_port
         from src.core.system_state.state_machine import SystemStateMachine
         from src.core.system_state_port_registry import set_system_lifecycle_adapter
 
@@ -268,12 +269,14 @@ class MainSystem:
             notify_timeout=sys_state_cfg.notify_timeout,
         )
 
+        core_readiness_port = CoreReadinessPortAdapter(orchestrator.get_core_readiness())
         self._lifecycle_adapter = SystemLifecycleAdapter(
             state_machine=self._lifecycle_sm,
-            core_readiness_port=CoreReadinessPortAdapter(orchestrator.get_core_readiness()),
+            core_readiness_port=core_readiness_port,
             state_aggregator=self._service_manager.get_state_aggregator(),
         )
         set_system_lifecycle_adapter(self._lifecycle_adapter)
+        set_core_readiness_port(core_readiness_port)
         if self._startup_result.ready:
             await self._lifecycle_adapter.trigger_startup_complete()
         else:

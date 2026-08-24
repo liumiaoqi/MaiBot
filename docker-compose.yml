@@ -55,8 +55,15 @@ services:
       - ./pyproject.toml:/MaiMBot/pyproject.toml:ro # 主程序版本号（宿主机更新即时反映）
       - ./bot.py:/MaiMBot/bot.py:ro # 主入口脚本
       - ./mingtang/dist:/MaiMBot/mingtang/dist:ro # WebUI构建产物（宿主机npm run build后即时生效）
+      - ./locales:/MaiMBot/locales:ro # i18n 翻译文件（宿主机修改即时生效，无需重建镜像）
       - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失
       - hf-cache:/root/.cache/huggingface # 持久化HuggingFace模型缓存
+    healthcheck:
+      test: ["CMD", "test", "-f", "/MaiMBot/mingtang/dist/index.html"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
     restart: always
     networks:
       - maim_bot

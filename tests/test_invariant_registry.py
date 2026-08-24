@@ -400,6 +400,34 @@ class TestRealInvariantPluginRuntime:
             assert len(violations) == 1
             assert "未启动" in violations[0]
 
+    def test_skips_when_config_disabled(self):
+        """plugin_runtime_v2.enabled=false 时不报违反。"""
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+
+        mock_app_port = MagicMock()
+        mock_app_port.get_plugin_runtime_v2_enabled.return_value = False
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=mock_app_port):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_continues_when_config_enabled(self):
+        """plugin_runtime_v2.enabled=true 时继续既有校验逻辑。"""
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+
+        mock_app_port = MagicMock()
+        mock_app_port.get_plugin_runtime_v2_enabled.return_value = True
+        mock_ipc_port = MagicMock()
+        mock_ipc_port.is_running = False
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=mock_app_port), \
+             patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_ipc_port):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未启动" in violations[0]
+
 
 class TestRealInvariantServiceManager:
     """v2：service_manager 不变量测试。"""
@@ -438,3 +466,30 @@ class TestRealInvariantServiceManager:
             check_service_manager(lambda msg: violations.append(msg))
             assert len(violations) == 1
             assert "None" in violations[0]
+
+    def test_passes_with_all_enum_members(self):
+        """生产路径：ServiceStateSnapshot.state 是 ServiceState 枚举成员，全部 9 个状态都应通过。"""
+        from unittest.mock import patch, MagicMock
+        from src.core.invariants.service_manager import check_service_manager
+        from src.core.service_manager.types import ServiceState
+
+        mock_port = MagicMock()
+        mock_snapshots = []
+        for state in ServiceState:
+            snap = MagicMock()
+            snap.state = state
+            mock_snapshots.append(snap)
+        mock_port.list_states.return_value = mock_snapshots
+        with patch("src.core.invariants.service_manager.get_service_manager_port", return_value=mock_port):
+            violations: list[str] = []
+            check_service_manager(lambda msg: violations.append(msg))
+            assert violations == []
+
+    def test_str_enum_regression(self):
+        """Python 3.11+ str(Enum) 返回 repr 而非 value，不变量不应因此误报。"""
+        from src.core.service_manager.types import ServiceState
+        from src.core.invariants.service_manager import _VALID_STATES
+
+        assert str(ServiceState.RUNNING) == "ServiceState.RUNNING"
+        assert ServiceState.RUNNING in _VALID_STATES
+        assert "running" in _VALID_STATES
