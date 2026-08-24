@@ -1657,6 +1657,8 @@ class MainSystem:
         violations = registry.verify_all()
         if violations:
             logger.warning("不变量启动检查发现 %d 个违反", len(violations))
+            for v in violations:
+                logger.warning("不变量违反: %s: %s", v.name, v.message)
         else:
             logger.info("不变量注册表已启动，已注册 %d 个不变量", len(registry.registered_names))
 
