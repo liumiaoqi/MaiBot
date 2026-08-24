@@ -30,6 +30,7 @@ export const menuSections: MenuSectionData[] = [
       { icon: 'relationship', label: 'sidebar.menu.relationshipMonitor', path: '/relationship-monitor', searchDescription: 'search.items.relationshipMonitorDesc' },
       { icon: 'subagent', label: 'sidebar.menu.subagentMonitor', path: '/subagent-monitor', searchDescription: 'search.items.subagentMonitorDesc' },
       { icon: 'deepseek', label: 'sidebar.menu.deepseekMonitor', path: '/deepseek-monitor', searchDescription: 'search.items.deepseekMonitorDesc' },
+      { icon: 'maisaka', label: 'sidebar.menu.maisakaMonitor', path: '/maisaka-monitor', searchDescription: 'search.items.maisakaMonitorDesc' },
 
       { icon: 'system', label: 'sidebar.menu.systemMonitor', path: '/system-monitor', searchDescription: 'search.items.systemMonitorDesc' },
       { icon: 'chat-management', label: 'sidebar.menu.chatManagement', path: '/chat-management', searchDescription: 'search.items.chatManagementDesc' },

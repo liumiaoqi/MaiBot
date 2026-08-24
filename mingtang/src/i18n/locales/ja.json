@@ -56,7 +56,8 @@
       "settings": "設定",
       "deepseekMonitor": "DeepSeek最適化",
       "appearance": "外観設定",
-      "behavior": "行動"
+      "behavior": "行動",
+      "maisakaMonitor": "MaiSaka 監視"
     }
   },
   "workspace": {
@@ -66,6 +67,9 @@
     "logs": "麦麦ログ"
   },
   "chat": {
+    "embed": {
+      "title": "麦麦チャット"
+    },
     "botNameFallback": "麦麦",
     "userFallback": "ユーザー",
     "userNameFallback": "WebUIユーザー",
@@ -636,7 +640,8 @@
       "knowledgeBaseDesc": "ナレッジベースを管理",
       "pluginConfigDesc": "インストール済みプラグインを設定",
       "mcpSettingsDesc": "MCPサーバー設定を構成",
-      "appearanceDesc": "テーマモード、色、インターフェーススタイルを設定"
+      "appearanceDesc": "テーマモード、色、インターフェーススタイルを設定",
+      "maisakaMonitorDesc": "MaiSaka 推理エンジンのチャットフローイベントをリアルタイム監視"
     }
   },
   "a11y": {
@@ -1469,6 +1474,43 @@
       "title": "サブエージェント実行",
       "records": "実行記録",
       "stats": "統計"
+    },
+    "maisaka": {
+      "title": "MaiSaka リアルタイム監視",
+      "waitingSession": "MaiSaka セッションを待機中…",
+      "noStageStatus": "ステージ状態なし",
+      "clearTimeline": "タイムラインクリア",
+      "scrollToBottom": "下部へスクロール",
+      "backgroundCollectionOn": "バックグラウンド取得：オン",
+      "backgroundCollectionOff": "バックグラウンド取得：オフ",
+      "stats": "統計",
+      "statsMessages": "メッセージ数",
+      "statsCycles": "サイクル数",
+      "statsToolCalls": "ツール呼び出し数",
+      "toolCallReasoning": "推論中呼び出し",
+      "toolCallResponse": "本文呼び出し",
+      "mediaImage": "画像",
+      "mediaEmoji": "絵文字",
+      "mediaToggleOriginal": "元ファイル表示",
+      "mediaToggleText": "テキスト表示",
+      "replyTo": "返信",
+      "updatedAt": "更新時刻",
+      "disconnected": "切断済み",
+      "connected": "接続済み",
+      "emptyTimeline": "イベントなし",
+      "planner": "プランナー終了",
+      "toolResults": "ツール結果",
+      "tokens": "トークン消費",
+      "duration": "処理時間",
+      "cycle": "サイクル",
+      "agentState": "エージェント状態",
+      "stage": "ステージ",
+      "detail": "詳細",
+      "collapseSidebar": "サイドバー折りたたみ",
+      "expandSidebar": "サイドバー展開",
+      "autoScroll": "自動スクロール",
+      "sessionCount": "セッション数",
+      "eventCount": "イベント数"
     }
   },
   "modelPresets": {

@@ -7,10 +7,10 @@ import {
   type RouteDomain,
 } from '../route-definitions'
 
-describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () => {
-  it('路由总数 = 37', () => {
-    expect(ROUTE_COUNT).toBe(37)
-    expect(routeDefinitions).toHaveLength(37)
+describe('R4-4b：39 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补页 2）', () => {
+  it('路由总数 = 39', () => {
+    expect(ROUTE_COUNT).toBe(39)
+    expect(routeDefinitions).toHaveLength(39)
   })
 
   it('8 功能域全部覆盖', () => {
@@ -24,10 +24,10 @@ describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () =>
 
   it('各域页面数符合蓝皮书 §一（config 域 R2 新增 /appearance = 9 页）', () => {
     expect(getRoutesByDomain('config')).toHaveLength(9)
-    expect(getRoutesByDomain('chat')).toHaveLength(2)
+    expect(getRoutesByDomain('chat')).toHaveLength(3)
     expect(getRoutesByDomain('memory')).toHaveLength(3)
     expect(getRoutesByDomain('resource')).toHaveLength(4)
-    expect(getRoutesByDomain('monitor')).toHaveLength(6)
+    expect(getRoutesByDomain('monitor')).toHaveLength(7)
     expect(getRoutesByDomain('agent')).toHaveLength(2)
     expect(getRoutesByDomain('plugin')).toHaveLength(7)
     expect(getRoutesByDomain('home')).toHaveLength(4)
@@ -59,6 +59,7 @@ describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () =>
       '/config/pack-market/$packId',
       '/appearance',
       '/chat',
+      '/chat/embed',
       '/chat-management',
       '/reasoning-process',
       '/resource/knowledge-graph',
@@ -71,7 +72,7 @@ describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () =>
       '/emotion-monitor',
       '/relationship-monitor',
       '/subagent-monitor',
-
+      '/maisaka-monitor',
       '/system-monitor',
       '/logs',
       '/agents',
@@ -89,7 +90,7 @@ describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () =>
       '/survey/maibot-feedback',
       '*',
     ]
-    expect(dashboardPaths).toHaveLength(37)
+    expect(dashboardPaths).toHaveLength(39)
 
     const routePaths = routeDefinitions.map((r) => r.path)
     dashboardPaths.forEach((p) => {
@@ -97,13 +98,13 @@ describe('R4-4b：37 页路由表登记（R4-4a 38 页 - setup 砍除）', () =>
     })
   })
 
-  it('37 页按蓝皮书 §一 8 域归属 features/<domain>/', () => {
+  it('39 页按蓝皮书 §一 8 域归属 features/<domain>/', () => {
     const domainPages: Record<RouteDomain, string[]> = {
       config: ['config/bot', 'config/model', 'config/prompts', 'config/mcp-settings', 'config/model-presets', 'config/prompt-generator', 'config/pack-market', 'config/pack-detail', 'config/appearance'],
-      chat: ['chat/chat', 'chat/chat-management'],
+      chat: ['chat/chat', 'chat/chat-embed', 'chat/chat-management'],
       memory: ['memory/reasoning-process', 'memory/memory', 'memory/focus'],
       resource: ['resource/emoji', 'resource/expression', 'resource/jargon', 'resource/knowledge-base'],
-      monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/system', 'monitor/logs'],
+      monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/system', 'monitor/logs', 'monitor/maisaka'],
       agent: ['agent/agent', 'agent/person'],
       plugin: ['plugin/plugins', 'plugin/plugin-config', 'plugin/plugin-detail', 'plugin/plugin-mirrors', 'plugin/plugins-embed', 'plugin/plugin-config-embed', 'plugin/plugin-mirrors-embed'],
       home: ['home/home', 'home/survey-webui-feedback', 'home/survey-maibot-feedback', 'home/404'],

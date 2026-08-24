@@ -56,7 +56,8 @@
       "settings": "系统设置",
       "deepseekMonitor": "DeepSeek优化",
       "appearance": "外观设置",
-      "behavior": "行为"
+      "behavior": "行为",
+      "maisakaMonitor": "MaiSaka 监控"
     }
   },
   "workspace": {
@@ -66,6 +67,9 @@
     "logs": "麦麦日志"
   },
   "chat": {
+    "embed": {
+      "title": "麦麦聊天"
+    },
     "botNameFallback": "麦麦",
     "userFallback": "用户",
     "userNameFallback": "WebUI用户",
@@ -636,7 +640,8 @@
       "knowledgeBaseDesc": "管理麦麦的知识库",
       "pluginConfigDesc": "配置已安装的插件",
       "mcpSettingsDesc": "配置 MCP 服务器设置",
-      "appearanceDesc": "配置主题模式、颜色和界面样式"
+      "appearanceDesc": "配置主题模式、颜色和界面样式",
+      "maisakaMonitorDesc": "实时监控 MaiSaka 推理引擎的聊天流事件"
     }
   },
   "a11y": {
@@ -1467,6 +1472,43 @@
       "title": "子智能体执行",
       "records": "执行记录",
       "stats": "统计"
+    },
+    "maisaka": {
+      "title": "MaiSaka 实时监控",
+      "waitingSession": "等待 MaiSaka 会话…",
+      "noStageStatus": "暂无阶段状态",
+      "clearTimeline": "清空时间线",
+      "scrollToBottom": "回到底部",
+      "backgroundCollectionOn": "持续获取：开",
+      "backgroundCollectionOff": "持续获取：关",
+      "stats": "统计",
+      "statsMessages": "消息数",
+      "statsCycles": "循环数",
+      "statsToolCalls": "工具调用数",
+      "toolCallReasoning": "推理中调用",
+      "toolCallResponse": "正文调用",
+      "mediaImage": "图片",
+      "mediaEmoji": "表情包",
+      "mediaToggleOriginal": "显示原文件",
+      "mediaToggleText": "显示识别文本",
+      "replyTo": "回复",
+      "updatedAt": "更新于",
+      "disconnected": "已断开",
+      "connected": "已连接",
+      "emptyTimeline": "暂无事件",
+      "planner": "规划终结",
+      "toolResults": "工具结果",
+      "tokens": "Token 消耗",
+      "duration": "耗时",
+      "cycle": "轮次",
+      "agentState": "智能体状态",
+      "stage": "阶段",
+      "detail": "详情",
+      "collapseSidebar": "折叠侧边栏",
+      "expandSidebar": "展开侧边栏",
+      "autoScroll": "自动滚动",
+      "sessionCount": "会话数",
+      "eventCount": "事件数"
     }
   },
   "modelPresets": {

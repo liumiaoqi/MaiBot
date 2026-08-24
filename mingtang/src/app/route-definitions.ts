@@ -34,9 +34,10 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'config/pack-detail', domain: 'config', path: '/config/pack-market/$packId', pageName: 'PackDetail' },
   { id: 'config/appearance', domain: 'config', path: '/appearance', pageName: 'Appearance' },
 
-  // chat（2 页）
+  // chat（3 页——R4-4b 新增 /chat/embed）
   { id: 'chat/chat', domain: 'chat', path: '/chat', pageName: 'Chat' },
   { id: 'chat/chat-management', domain: 'chat', path: '/chat-management', pageName: 'ChatManagement' },
+  { id: 'chat/chat-embed', domain: 'chat', path: '/chat/embed', pageName: 'ChatEmbed' },
 
   // memory（3 页）
   { id: 'memory/reasoning-process', domain: 'memory', path: '/reasoning-process', pageName: 'ReasoningProcess' },
@@ -49,13 +50,14 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'resource/jargon', domain: 'resource', path: '/resource/jargon', pageName: 'JargonManagement' },
   { id: 'resource/knowledge-base', domain: 'resource', path: '/resource/knowledge-base', pageName: 'KnowledgeBase' },
 
-  // monitor（6 页——遥测页已砍）
+  // monitor（7 页——遥测页已砍；R4-4b 新增 /maisaka-monitor）
   { id: 'monitor/deepseek', domain: 'monitor', path: '/deepseek-monitor', pageName: 'DeepSeekMonitor' },
   { id: 'monitor/emotion', domain: 'monitor', path: '/emotion-monitor', pageName: 'EmotionMonitor' },
   { id: 'monitor/relationship', domain: 'monitor', path: '/relationship-monitor', pageName: 'RelationshipMonitor' },
   { id: 'monitor/subagent', domain: 'monitor', path: '/subagent-monitor', pageName: 'SubAgentMonitor' },
   { id: 'monitor/system', domain: 'monitor', path: '/system-monitor', pageName: 'SystemMonitor' },
   { id: 'monitor/logs', domain: 'monitor', path: '/logs', pageName: 'Logs' },
+  { id: 'monitor/maisaka', domain: 'monitor', path: '/maisaka-monitor', pageName: 'MaisakaMonitor' },
 
   // agent（2 页）
   { id: 'agent/agent', domain: 'agent', path: '/agents', pageName: 'AgentManagement' },
@@ -77,7 +79,7 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'home/404', domain: 'home', path: '*', pageName: 'NotFound' },
 ]
 
-/** 路由总数（验收：= 34） */
+/** 路由总数（验收：= 36） */
 export const ROUTE_COUNT = routeDefinitions.length
 
 /** 8 功能域列表 */

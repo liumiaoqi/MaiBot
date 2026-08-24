@@ -56,7 +56,8 @@
       "settings": "Settings",
       "deepseekMonitor": "DeepSeek Optimizer",
       "appearance": "Appearance",
-      "behavior": "Behavior"
+      "behavior": "Behavior",
+      "maisakaMonitor": "MaiSaka Monitor"
     }
   },
   "workspace": {
@@ -66,6 +67,9 @@
     "logs": "Mai Logs"
   },
   "chat": {
+    "embed": {
+      "title": "MaiBot Chat"
+    },
     "botNameFallback": "Mai",
     "userFallback": "User",
     "userNameFallback": "WebUI User",
@@ -636,7 +640,8 @@
       "knowledgeBaseDesc": "Manage knowledge base",
       "pluginConfigDesc": "Configure installed plugins",
       "mcpSettingsDesc": "Configure MCP server settings",
-      "appearanceDesc": "Configure theme mode, colors and interface style"
+      "appearanceDesc": "Configure theme mode, colors and interface style",
+      "maisakaMonitorDesc": "Real-time monitoring of MaiSaka reasoning engine chat flow events"
     }
   },
   "a11y": {
@@ -1469,6 +1474,43 @@
       "title": "Sub-Agent Executions",
       "records": "Execution Records",
       "stats": "Statistics"
+    },
+    "maisaka": {
+      "title": "MaiSaka Real-time Monitor",
+      "waitingSession": "Waiting for MaiSaka session…",
+      "noStageStatus": "No stage status",
+      "clearTimeline": "Clear Timeline",
+      "scrollToBottom": "Scroll to Bottom",
+      "backgroundCollectionOn": "Background: On",
+      "backgroundCollectionOff": "Background: Off",
+      "stats": "Stats",
+      "statsMessages": "Messages",
+      "statsCycles": "Cycles",
+      "statsToolCalls": "Tool Calls",
+      "toolCallReasoning": "Reasoning Call",
+      "toolCallResponse": "Response Call",
+      "mediaImage": "Image",
+      "mediaEmoji": "Emoji",
+      "mediaToggleOriginal": "Show Original",
+      "mediaToggleText": "Show Text",
+      "replyTo": "Reply to",
+      "updatedAt": "Updated at",
+      "disconnected": "Disconnected",
+      "connected": "Connected",
+      "emptyTimeline": "No events",
+      "planner": "Planner Finalized",
+      "toolResults": "Tool Results",
+      "tokens": "Token Usage",
+      "duration": "Duration",
+      "cycle": "Cycle",
+      "agentState": "Agent State",
+      "stage": "Stage",
+      "detail": "Detail",
+      "collapseSidebar": "Collapse Sidebar",
+      "expandSidebar": "Expand Sidebar",
+      "autoScroll": "Auto Scroll",
+      "sessionCount": "Session Count",
+      "eventCount": "Event Count"
     }
   },
   "modelPresets": {

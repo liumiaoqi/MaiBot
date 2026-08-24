@@ -46,11 +46,12 @@ describe('R3 路由回归', () => {
     expect(memoryPaths).toContain('/focus')
   })
 
-  it('chat 域 2 条路由全部在路由定义中（chat + chat-management）', () => {
+  it('chat 域 3 条路由全部在路由定义中（chat + chat-embed + chat-management）', () => {
     const chatRoutes = routeDefinitions.filter((r) => r.domain === 'chat')
-    expect(chatRoutes).toHaveLength(2)
+    expect(chatRoutes).toHaveLength(3)
     const chatPaths = chatRoutes.map((r) => r.path)
     expect(chatPaths).toContain('/chat')
+    expect(chatPaths).toContain('/chat/embed')
     expect(chatPaths).toContain('/chat-management')
   })
 

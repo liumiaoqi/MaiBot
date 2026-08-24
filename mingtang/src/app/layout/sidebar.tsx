@@ -8,7 +8,7 @@ import { menuSections } from './menu-sections'
 
 const COLLAPSE_KEY = 'maibot-sidebar-collapsed'
 
-import { Home, Bot, Smile, Heart, Users, Activity, Monitor, Settings, Type, Sparkles, BookOpen, Package, Plug, Server, Palette, MessageSquare, Brain, Languages, Cpu, CircleDot } from 'lucide-react'
+import { Home, Bot, Smile, Heart, Users, Activity, Monitor, Settings, Type, Sparkles, BookOpen, Package, Plug, Server, Palette, MessageSquare, Brain, Languages, Cpu, CircleDot, Radio } from 'lucide-react'
 
 /** 菜单图标名 → lucide 组件映射（menu-sections 的 icon 名） */
 const ICON_MAP: Record<string, typeof Home> = {
@@ -17,6 +17,7 @@ const ICON_MAP: Record<string, typeof Home> = {
   'bot-config': Settings,
   'chat-management': MessageSquare,
   deepseek: Brain,
+  maisaka: Radio,
   emoji: Smile,
   emotion: Heart,
   expression: Sparkles,

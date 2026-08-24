@@ -18,12 +18,14 @@ import { PackMarketPage } from '../features/config/pack-market'
 import { PackDetailPage } from '../features/config/pack-detail'
 import { ChatPage } from '../features/chat'
 import { ChatManagementPage } from '../features/chat/chat-management'
+import { ChatEmbedPage } from '../features/chat/embed'
 import { ReasoningProcessPage } from '../features/memory/reasoning-process'
 import { DeepSeekMonitorPage } from '../features/monitor/deepseek-monitor'
 import { EmotionMonitorPage } from '../features/monitor/emotion-monitor'
 import { RelationshipMonitorPage } from '../features/monitor/relationship-monitor'
 import { SubAgentMonitorPage } from '../features/monitor/subagent-monitor'
 import { SystemMonitorPage } from '../features/monitor/system-monitor'
+import { MaisakaMonitorPage } from '../features/monitor/maisaka-monitor'
 import { AgentManagementPage } from '../features/agent'
 import { KnowledgeGraphPage } from '../features/resource/knowledge-graph'
 import { KnowledgeBasePage } from '../features/resource/knowledge-base'
@@ -67,6 +69,7 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/config/pack-market/$packId': () => <PackDetailPage />,
   '/appearance': () => <AppearancePage />,
   '/chat': () => <ChatPage />,
+  '/chat/embed': () => <ChatEmbedPage />,
   '/chat-management': () => <ChatManagementPage />,
   '/reasoning-process': () => <ReasoningProcessPage />,
   '/resource/knowledge-graph': () => <KnowledgeGraphPage />,
@@ -78,6 +81,7 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/relationship-monitor': () => <RelationshipMonitorPage />,
   '/subagent-monitor': () => <SubAgentMonitorPage />,
   '/system-monitor': () => <SystemMonitorPage />,
+  '/maisaka-monitor': () => <MaisakaMonitorPage />,
   '/agents': () => <AgentManagementPage />,
   '/plugins': () => <PluginMarketplacePage />,
   '/plugin-config': () => <PluginConfigPage />,
@@ -100,8 +104,8 @@ function createPlaceholderRoute(def: RouteDefinition) {
         <Placeholder pageName={def.pageName} domain={def.domain} />
       )
 
-  // 404 路由挂在 rootRoute 下
-  if (def.path === '*') {
+  // 404 路由和 chat embed 路由挂在 rootRoute 下（embed 无导航框架，绕过 Layout）
+  if (def.path === '*' || def.path === '/chat/embed') {
     return createRoute({
       getParentRoute: () => rootRoute,
       path: def.path,
@@ -118,7 +122,7 @@ function createPlaceholderRoute(def: RouteDefinition) {
   })
 }
 
-// 创建 38 页路由
+// 创建 39 页路由
 const routes = routeDefinitions.map(createPlaceholderRoute)
 
 // 提取各路由引用（按定义顺序）
@@ -134,6 +138,7 @@ const [
   configAppearanceRoute,
   chatRoute,
   chatManagementRoute,
+  chatEmbedRoute,
   memoryReasoningProcessRoute,
   memoryMemoryRoute,
   memoryFocusRoute,
@@ -147,6 +152,7 @@ const [
   monitorSubagentRoute,
   monitorSystemRoute,
   monitorLogsRoute,
+  monitorMaisakaRoute,
   agentAgentRoute,
   agentPersonRoute,
   pluginPluginsRoute,
@@ -191,6 +197,7 @@ const routeTree = rootRoute.addChildren([
     monitorSubagentRoute,
     monitorSystemRoute,
     monitorLogsRoute,
+    monitorMaisakaRoute,
     agentAgentRoute,
     agentPersonRoute,
     pluginPluginsRoute,
@@ -204,6 +211,7 @@ const routeTree = rootRoute.addChildren([
     homeSurveyWebuiRoute,
     homeSurveyMaibotRoute,
   ]),
+  chatEmbedRoute,
   homeNotFoundRoute,
 ])
 
