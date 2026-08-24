@@ -44,6 +44,8 @@ dependencies = [
     "watchfiles>=1.1.1",
     "ahocorasick-rs>=1.0.3",
     "pyyaml>=6.0.3",
+    "qiskit",
+    "qiskit-aer",
 ]
 
 [dependency-groups]
