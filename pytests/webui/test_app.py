@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -28,7 +27,7 @@ def test_ensure_static_path_ready_logs_install_hint_when_static_assets_are_missi
     assert result is None
     warning_mock.assert_any_call(webui_app.t("startup.webui_static_assets_unavailable"))
     warning_mock.assert_any_call(
-        webui_app.t("startup.webui_dashboard_package_hint", command=webui_app._MANUAL_INSTALL_COMMAND)
+        webui_app.t("startup.webui_static_dir_invalid_hint", env_var=webui_app._STATIC_DIR_ENV, default_dir=webui_app._DEFAULT_STATIC_DIR)
     )
 
 
@@ -47,7 +46,7 @@ def test_ensure_static_path_ready_logs_index_error_when_static_path_is_invalid(t
         webui_app.t("startup.webui_index_missing", index_path=static_path / "index.html")
     )
     warning_mock.assert_any_call(
-        webui_app.t("startup.webui_dashboard_package_hint", command=webui_app._MANUAL_INSTALL_COMMAND)
+        webui_app.t("startup.webui_static_dir_invalid_hint", env_var=webui_app._STATIC_DIR_ENV, default_dir=webui_app._DEFAULT_STATIC_DIR)
     )
 
 
@@ -86,55 +85,41 @@ def test_statistics_report_route_requires_auth(monkeypatch, tmp_path) -> None:
     assert authenticated_response.text == "<html>statistics</html>"
 
 
-def test_resolve_static_path_prefers_installed_dashboard_package(monkeypatch, tmp_path) -> None:
-    package_dist = tmp_path / "site-packages" / "maibot_dashboard" / "dist"
-    package_dist.mkdir(parents=True)
-
-    class _DashboardModule:
-        @staticmethod
-        def get_dist_path() -> Path:
-            return package_dist
-
+def test_resolve_static_path_defaults_to_mingtang_dist(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
+    monkeypatch.delenv(webui_app._STATIC_DIR_ENV, raising=False)
 
-    with patch.object(webui_app, "import_module", return_value=_DashboardModule()):
-        resolved_path = webui_app._resolve_static_path()
+    resolved = webui_app._resolve_static_path()
 
-    assert resolved_path == package_dist
+    assert resolved == (tmp_path / "mingtang" / "dist").resolve()
 
 
-def test_resolve_static_path_ignores_dashboard_dist_when_package_is_unavailable(monkeypatch, tmp_path) -> None:
-    dashboard_dist = tmp_path / "dashboard" / "dist"
-    dashboard_dist.mkdir(parents=True)
-    (dashboard_dist / "index.html").write_text("<html></html>", encoding="utf-8")
-
+def test_resolve_static_path_uses_env_var_relative_path(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
-    monkeypatch.setattr(webui_app, "_is_local_dashboard_enabled", lambda: False)
+    monkeypatch.setenv(webui_app._STATIC_DIR_ENV, "dashboard/dist")
 
-    with patch.object(webui_app, "import_module", side_effect=ImportError):
-        resolved_path = webui_app._resolve_static_path()
+    resolved = webui_app._resolve_static_path()
 
-    assert resolved_path is None
+    assert resolved == (tmp_path / "dashboard" / "dist").resolve()
 
 
-def test_resolve_static_path_uses_package_even_when_dashboard_dist_exists(monkeypatch, tmp_path) -> None:
-    dashboard_dist = tmp_path / "dashboard" / "dist"
-    dashboard_dist.mkdir(parents=True)
+def test_resolve_static_path_uses_env_var_absolute_path(monkeypatch, tmp_path) -> None:
+    abs_dir = tmp_path / "custom" / "webui"
+    abs_dir.mkdir(parents=True)
+    monkeypatch.setenv(webui_app._STATIC_DIR_ENV, str(abs_dir))
 
-    package_dist = tmp_path / "site-packages" / "maibot_dashboard" / "dist"
-    package_dist.mkdir(parents=True)
+    resolved = webui_app._resolve_static_path()
 
-    class _DashboardModule:
-        @staticmethod
-        def get_dist_path() -> Path:
-            return package_dist
+    assert resolved == abs_dir.resolve()
 
+
+def test_resolve_static_path_rollback_to_dashboard_dist(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
+    monkeypatch.setenv(webui_app._STATIC_DIR_ENV, "dashboard/dist")
 
-    with patch.object(webui_app, "import_module", return_value=_DashboardModule()):
-        resolved_path = webui_app._resolve_static_path()
+    resolved = webui_app._resolve_static_path()
 
-    assert resolved_path == package_dist
+    assert resolved == (tmp_path / "dashboard" / "dist").resolve()
 
 
 def test_resolve_safe_static_file_path_allows_regular_static_file(tmp_path) -> None:

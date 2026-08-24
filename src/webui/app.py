@@ -1,6 +1,6 @@
 """FastAPI 应用工厂 - 创建和配置 WebUI 应用实例"""
 
-from importlib import import_module
+
 from os import getenv
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -21,11 +21,10 @@ from src.webui.schemas.base import ErrorResponse
 
 logger = get_logger("webui.app")
 
-_DASHBOARD_PACKAGE_NAME = "maibot-dashboard"
-_LOCAL_DASHBOARD_ENV = "MAIBOT_WEBUI_USE_LOCAL_DASHBOARD"
 _STATISTICS_REPORT_PATH_ENV = "MAIBOT_STATISTICS_REPORT_PATH"
 _DEFAULT_STATISTICS_REPORT_PATH = "maibot_statistics.html"
-_MANUAL_INSTALL_COMMAND = f"pip install {_DASHBOARD_PACKAGE_NAME}"
+_STATIC_DIR_ENV = "MAIBOT_WEBUI_STATIC_DIR"
+_DEFAULT_STATIC_DIR = "mingtang/dist"
 
 
 def _resolve_safe_static_file_path(static_path: Path, full_path: str) -> Path | None:
@@ -54,10 +53,6 @@ def _resolve_statistics_report_path() -> Path:
     return (_get_project_root() / report_path).resolve()
 
 
-def _is_local_dashboard_enabled() -> bool:
-    return getenv(_LOCAL_DASHBOARD_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
-
-
 def _validate_static_path(static_path: Path | None) -> Tuple[str, Dict[str, Any]] | None:
     if static_path is None:
         return "startup.webui_static_dir_missing", {}
@@ -81,7 +76,7 @@ def _ensure_static_path_ready() -> Path | None:
     logger.warning(t("startup.webui_static_assets_unavailable"))
     error_key, error_kwargs = validation_error
     logger.warning(t(error_key, **error_kwargs))
-    logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
+    logger.warning(t("startup.webui_static_dir_invalid_hint", env_var=_STATIC_DIR_ENV, default_dir=_DEFAULT_STATIC_DIR))
     return None
 
 
@@ -251,12 +246,12 @@ def _setup_static_files(app: FastAPI):
 
     if not static_path.exists():
         logger.warning(t("startup.webui_static_dir_missing_with_path", static_path=static_path))
-        logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
+        logger.warning(t("startup.webui_static_dir_invalid_hint", env_var=_STATIC_DIR_ENV, default_dir=_DEFAULT_STATIC_DIR))
         return
 
     if not (static_path / "index.html").exists():
         logger.warning(t("startup.webui_index_missing", index_path=static_path / "index.html"))
-        logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
+        logger.warning(t("startup.webui_static_dir_invalid_hint", env_var=_STATIC_DIR_ENV, default_dir=_DEFAULT_STATIC_DIR))
         return
 
     @app.get("/maibot_statistics.html", include_in_schema=False, dependencies=[Depends(require_auth)])
@@ -297,28 +292,12 @@ def _setup_static_files(app: FastAPI):
     logger.debug(t("startup.webui_static_files_configured", static_path=static_path))
 
 
-def _resolve_static_path() -> Path | None:
-    if _is_local_dashboard_enabled():
-        static_path = _get_project_root() / "dashboard" / "dist"
-        if static_path.is_dir() and (static_path / "index.html").exists():
-            return static_path
-
-    try:
-        module = import_module("maibot_dashboard")
-        get_dist_path = getattr(module, "get_dist_path", None)
-        if callable(get_dist_path):
-            package_path = get_dist_path()
-            if isinstance(package_path, Path) and package_path.exists():
-                return package_path
-    except Exception as exc:
-        from src.core.error_escalation.types import ErrorLevel
-        from src.core.error_escalation_port_registry import get_error_escalation_port
-        port = get_error_escalation_port()
-        if port is not None:
-            port.report(ErrorLevel.WARNING, '解析 WebUI 静态资源路径失败', exception=exc)
-        logger.warning("操作异常 in app.py", exc_info=True)
-
-    return None
+def _resolve_static_path() -> Path:
+    configured_dir = getenv(_STATIC_DIR_ENV, "").strip()
+    dir_path = Path(configured_dir or _DEFAULT_STATIC_DIR)
+    if dir_path.is_absolute():
+        return dir_path.resolve()
+    return (_get_project_root() / dir_path).resolve()
 
 
 def show_access_token():
