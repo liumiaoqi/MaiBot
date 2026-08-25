@@ -50,11 +50,11 @@ export function useAuthGuard() {
       try {
         const isAuth = await checkAuthStatusCached()
         if (!cancelled && !isAuth) {
-          navigate({ to: '/auth' as never })
+          navigate({ to: '/auth' })
         }
       } catch {
         if (!cancelled) {
-          navigate({ to: '/auth' as never })
+          navigate({ to: '/auth' })
         }
       } finally {
         if (!cancelled) {

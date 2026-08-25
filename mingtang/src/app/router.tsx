@@ -38,6 +38,7 @@ import { PluginMirrorsPage } from '../features/plugin/mirrors'
 import { PluginMarketplaceEmbedPage } from '../features/plugin/embed/marketplace-embed'
 import { PluginConfigEmbedPage } from '../features/plugin/embed/config-embed'
 import { PluginMirrorsEmbedPage } from '../features/plugin/embed/mirrors-embed'
+import { AuthPage } from '../features/home/auth-page'
 import { HomePage } from '../features/home/home-page'
 import { MaiBotFeedbackSurveyPage, WebUIFeedbackSurveyPage } from '../features/survey'
 
@@ -91,6 +92,7 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/plugin-config/embed': () => <PluginConfigEmbedPage />,
   '/plugin-mirrors/embed': () => <PluginMirrorsEmbedPage />,
   '/': () => <HomePage />,
+  '/auth': () => <AuthPage />,
   '/survey/webui-feedback': () => <WebUIFeedbackSurveyPage />,
   '/survey/maibot-feedback': () => <MaiBotFeedbackSurveyPage />,
 }
@@ -104,8 +106,8 @@ function createPlaceholderRoute(def: RouteDefinition) {
         <Placeholder pageName={def.pageName} domain={def.domain} />
       )
 
-  // 404 路由和 chat embed 路由挂在 rootRoute 下（embed 无导航框架，绕过 Layout）
-  if (def.path === '*' || def.path === '/chat/embed') {
+  // 404、chat embed、auth 路由挂在 rootRoute 下（绕过 Layout + auth guard）
+  if (def.path === '*' || def.path === '/chat/embed' || def.path === '/auth') {
     return createRoute({
       getParentRoute: () => rootRoute,
       path: def.path,
@@ -122,7 +124,7 @@ function createPlaceholderRoute(def: RouteDefinition) {
   })
 }
 
-// 创建 39 页路由
+// 创建 40 页路由
 const routes = routeDefinitions.map(createPlaceholderRoute)
 
 // 提取各路由引用（按定义顺序）
@@ -163,6 +165,7 @@ const [
   pluginConfigEmbedRoute,
   pluginMirrorsEmbedRoute,
   homeHomeRoute,
+  homeAuthRoute,
 
   homeSurveyWebuiRoute,
   homeSurveyMaibotRoute,
@@ -212,6 +215,7 @@ const routeTree = rootRoute.addChildren([
     homeSurveyMaibotRoute,
   ]),
   chatEmbedRoute,
+  homeAuthRoute,
   homeNotFoundRoute,
 ])
 
