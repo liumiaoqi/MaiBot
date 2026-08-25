@@ -1,11 +1,12 @@
-"""SDK v4 装饰器 — @Tool/@Event/@Command/@HomeCard。
+"""SDK v4 装饰器 — @Tool/@Event/@Command/@HomeCard/@MessageGateway。
 
 统一组件模型：Tool（拉取式）+ Event（推送式）。
 Command = Tool 语法糖，HomeCard = Event 语法糖。
+MessageGateway = 消息网关声明，让适配器插件向 Platform IO 注册发送/接收路由。
 """
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 _VALID_WIDTHS = frozenset({"small", "medium", "large", "wide", "full"})
@@ -165,6 +166,74 @@ def HomeCard(
                 "title": title,
                 "width": width,
             },
+        )
+        return func
+
+    return decorator
+
+
+@dataclass(frozen=True)
+class MessageGatewayDeclaration:
+    """消息网关声明信息，由 @MessageGateway 装饰器产生。
+
+    声明插件具备某个平台的消息收发能力，Host 在网关就绪时
+    创建 PluginPlatformDriver 并绑定到 Platform IO 路由表。
+    """
+
+    name: str
+    platform: str
+    protocol: str
+    supports_send: bool = True
+    supports_receive: bool = False
+    route_type: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def MessageGateway(
+    *,
+    name: str,
+    platform: str,
+    protocol: str,
+    supports_send: bool = True,
+    supports_receive: bool = False,
+    route_type: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> Callable:
+    """消息网关装饰器 — 声明插件作为某平台的消息收发适配器。
+
+    被 @MessageGateway 装饰的方法是声明性的（方法体可为空）。
+    插件在底层连接就绪后调用 self.ctx.report_gateway_ready(name)
+    上报状态，Host 据此创建 PluginPlatformDriver 并绑定路由。
+
+    Args:
+        name: 网关名称，插件内唯一
+        platform: 平台标识（如 "qq"）
+        protocol: 协议标识（如 "onebot11"）
+        supports_send: 是否支持发送
+        supports_receive: 是否支持接收
+        route_type: 路由类型标签
+        metadata: 额外元数据
+
+    Returns:
+        装饰器函数
+    """
+
+    if not name:
+        raise ValueError("MessageGateway name 不能为空")
+    if not platform:
+        raise ValueError("MessageGateway platform 不能为空")
+
+    resolved_metadata = metadata if metadata is not None else {}
+
+    def decorator(func: Callable) -> Callable:
+        func._message_gateway = MessageGatewayDeclaration(
+            name=name,
+            platform=platform,
+            protocol=protocol,
+            supports_send=supports_send,
+            supports_receive=supports_receive,
+            route_type=route_type,
+            metadata=resolved_metadata,
         )
         return func
 

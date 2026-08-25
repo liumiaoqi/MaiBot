@@ -30,6 +30,8 @@ class MCPHostBridge:
         tool_registry: ToolRegistry,
         event_dispatcher: EventDispatcher,
         person_info_port: PersonInfoPort,
+        gateway_registry=None,
+        gateway_registrar=None,
     ) -> None:
         self._tool_registry = tool_registry
         self._event_dispatcher = event_dispatcher
@@ -38,6 +40,8 @@ class MCPHostBridge:
         self._event_declarations: dict[
             str, tuple[Any, str]
         ] = {}  # event_name → (EventDeclaration, plugin_id)
+        self._gateway_registry = gateway_registry
+        self._gateway_registrar = gateway_registrar
 
     # ── Runner 生命周期回调 ─────────────────────────────────────
 
@@ -95,6 +99,13 @@ class MCPHostBridge:
             await provider.close()
 
         self._clean_events_by_plugin(plugin_id)
+
+        # 注销该插件的所有网关驱动和路由绑定
+        if self._gateway_registrar is not None:
+            await self._gateway_registrar.on_runner_disconnected(plugin_id)
+        if self._gateway_registry is not None:
+            self._gateway_registry.remove(plugin_id)
+
         logger.info("Runner %s 已断开，MCPToolProvider 已注销", runner_id)
 
     # ── Event 分发 ──────────────────────────────────────────────

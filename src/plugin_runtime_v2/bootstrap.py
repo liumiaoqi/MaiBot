@@ -41,6 +41,19 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
     scope_store.load()
     token_service = TokenService()
 
+    # 2b. 创建网关注册表和注册协调器
+    from src.plugin_runtime_v2.host.gateway_registry import GatewayRegistry
+    from src.plugin_runtime_v2.host.gateway_registrar import V2GatewayRegistrar
+    from src.plugin_runtime_v2.host.gateway_startup_summary import GatewayStartupSummaryAdapter
+
+    gateway_registry = GatewayRegistry()
+    gateway_startup_summary = GatewayStartupSummaryAdapter()
+    gateway_registrar = V2GatewayRegistrar(
+        gateway_registry=gateway_registry,
+        scope_store=scope_store,
+        startup_summary=gateway_startup_summary,
+    )
+
     # 3. 创建 MCP Host Bridge
     tool_registry = _get_tool_registry()
     event_dispatcher = EventDispatcher(get_message_port=get_message_ingestion_port)
@@ -49,6 +62,8 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
         tool_registry=tool_registry,
         event_dispatcher=event_dispatcher,
         person_info_port=person_info_port,
+        gateway_registry=gateway_registry,
+        gateway_registrar=gateway_registrar,
     )
 
     # 4. 创建速率限制器
@@ -58,6 +73,9 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
     # 5. 创建 PerPluginStorage
     storage_service = PerPluginStorage()
 
+    # 5b. 读取 v2 消息网关特性开关（默认 True；False 时 Host 侧跳过网关就绪处理与驱动注册）
+    enable_v2_message_gateway = app_config_port.get_enable_v2_message_gateway()
+
     # 6. 创建 HostEndpoint
     endpoint = HostEndpoint(
         config=config,
@@ -66,6 +84,9 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
         scope_store=scope_store,
         rate_limiter=rate_limiter,
         storage_service=storage_service,
+        gateway_registry=gateway_registry,
+        gateway_registrar=gateway_registrar,
+        enable_v2_message_gateway=enable_v2_message_gateway,
     )
 
     # 7. 启动

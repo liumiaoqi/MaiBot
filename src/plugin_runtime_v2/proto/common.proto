@@ -13,6 +13,7 @@ message RunnerMessage {
     HelloPayload hello = 1;           // 握手请求（首条消息）
     EventPayload event = 2;           // Event 推送
     HeartbeatResponse heartbeat = 3;  // 心跳响应
+    GatewayReadyPayload gateway_ready = 4;  // 网关就绪状态上报
   }
 }
 
@@ -81,4 +82,19 @@ message EventPayload {
 // Event 确认
 message EventAck {
   bool received = 1;  // 是否已接收（必填）
+}
+
+// ============================================================
+// 网关就绪状态上报
+// ============================================================
+
+// 网关就绪状态载荷（Runner → Host，通过双向流）
+// ready=true 表示网关底层连接已就绪，可接收发送请求
+// ready=false 表示网关未就绪（断线/重连中），Host 应注销驱动
+message GatewayReadyPayload {
+  string gateway_name = 1;  // 网关名称（与 @MessageGateway(name=...) 一致）
+  string platform = 2;      // 平台标识（如 "qq"）
+  bool ready = 3;            // 是否就绪
+  string account_id = 4;    // 账号 ID（可选，就绪时填充）
+  string scope = 5;          // scope 标识（可选，如 "message:send:qq"）
 }

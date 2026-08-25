@@ -22,12 +22,13 @@ class TestBasicLoad:
                 return {"ok": True}
 
         loader = PluginLoader(MyPlugin)
-        tools, events, cards, instance = await loader.load()
+        tools, events, cards, gateway_decls, instance = await loader.load()
         assert loader.is_loaded
         assert instance is not None
         assert len(tools) == 1
         assert tools[0]["name"] == "t1"
         assert events == []
+        assert gateway_decls == []
 
     @pytest.mark.asyncio
     async def test_load_collects_events_and_homecards(self):
@@ -43,11 +44,12 @@ class TestBasicLoad:
                 pass
 
         loader = PluginLoader(MyPlugin)
-        tools, events, cards, instance = await loader.load()
+        tools, events, cards, gateway_decls, instance = await loader.load()
         assert len(events) == 2
         assert len(cards) == 1
         assert cards["card1"] is not None
         assert cards["card1"]["title"] == "My Card"
+        assert gateway_decls == []
 
     @pytest.mark.asyncio
     async def test_reload_prevented_by_flag(self):
@@ -57,7 +59,7 @@ class TestBasicLoad:
         loader = PluginLoader(MyPlugin)
         await loader.load()
         assert loader.is_loaded
-        tools2, _, _, inst2 = await loader.load()
+        tools2, _, _, _, inst2 = await loader.load()
         assert tools2 == []
 
     @pytest.mark.asyncio
@@ -68,7 +70,7 @@ class TestBasicLoad:
                 raise RuntimeError("cannot create")
 
         loader = PluginLoader(BadPlugin)
-        tools, events, cards, instance = await loader.load()
+        tools, events, cards, gateway_decls, instance = await loader.load()
         assert instance is None
         assert tools == []
         assert events == []

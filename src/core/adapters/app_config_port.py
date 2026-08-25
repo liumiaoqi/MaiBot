@@ -646,6 +646,12 @@ class GlobalConfigAppConfigPort:
             return cfg.enable_plugin_config_watch
         return True
 
+    def get_enable_v2_message_gateway(self) -> bool:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        if cfg and getattr(cfg, "enable_v2_message_gateway", None) is not None:
+            return cfg.enable_v2_message_gateway
+        return True
+
     def get_enable_dump_plugin_config(self) -> bool:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
         if cfg and getattr(cfg, "enable_dump_plugin_config", None) is not None:

@@ -14,6 +14,8 @@ from src.plugin_runtime_v2.sdk.decorators import (
     Command,
     Event,
     HomeCard,
+    MessageGateway,
+    MessageGatewayDeclaration,
     Tool,
 )
 from src.plugin_runtime_v2.sdk.plugin import MaiBotPlugin
@@ -24,6 +26,8 @@ __all__ = [
     "Event",
     "Command",
     "HomeCard",
+    "MessageGateway",
+    "MessageGatewayDeclaration",
     "PluginContext",
     "SendContext",
     "StorageContext",

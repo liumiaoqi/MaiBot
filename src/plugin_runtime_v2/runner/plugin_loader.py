@@ -6,6 +6,7 @@ from typing import Any
 
 from src.common.logger import get_logger
 from src.plugin_runtime_v2.sdk.decorators import EventDeclaration
+from src.plugin_runtime_v2.sdk.decorators import MessageGatewayDeclaration
 from src.plugin_runtime_v2.sdk.decorators import ToolDeclaration
 from src.plugin_runtime_v2.sdk.plugin import MaiBotPlugin
 
@@ -24,6 +25,7 @@ class PluginLoader:
         self._plugin_loaded: bool = False
         self._tool_declarations: list[dict[str, Any]] = []
         self._event_declarations: list[dict[str, Any]] = []
+        self._gateway_declarations: list[MessageGatewayDeclaration] = []
         self._homecard_registry: dict[str, dict[str, Any]] = {}
         # ZG16-6a: 配置管理 + 文件监听
         self._config_manager = None  # PluginConfigManager 实例（由外部注入）
@@ -33,14 +35,14 @@ class PluginLoader:
 
     async def load(
         self, plugin_cls: type[MaiBotPlugin] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]], MaiBotPlugin | None]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]], list[MessageGatewayDeclaration], MaiBotPlugin | None]:
         """扫描装饰器、实例化插件。
 
         首次执行后 _plugin_loaded 设为 True，重连时复用。
         PluginContext 注入和 on_load 由 RunnerEndpoint 在调用本方法后执行。
 
         Returns:
-            (tool_declarations, event_declarations, homecard_registry, plugin_instance)
+            (tool_declarations, event_declarations, homecard_registry, gateway_declarations, plugin_instance)
         """
         if plugin_cls is not None:
             self._plugin_cls = plugin_cls
@@ -50,12 +52,14 @@ class PluginLoader:
                 self._tool_declarations,
                 self._event_declarations,
                 self._homecard_registry,
+                self._gateway_declarations,
                 self._instance,
             )
 
         # 收集装饰器声明
         self._tool_declarations = []
         self._event_declarations = []
+        self._gateway_declarations = []
         self._homecard_registry = {}
 
         for name, method in inspect.getmembers(self._plugin_cls, predicate=inspect.isfunction):
@@ -63,6 +67,7 @@ class PluginLoader:
                 continue
             self._collect_tool(method)
             self._collect_event(method)
+            self._collect_message_gateway(method)
 
         # 实例化插件
         try:
@@ -74,20 +79,22 @@ class PluginLoader:
             if port is not None:
                 port.report(ErrorLevel.ERROR, "插件实例化失败", exception=exc)
             logger.error("插件 %s 实例化失败: %s", self._plugin_cls.__name__, exc)
-            return [], [], {}, None
+            return [], [], {}, [], None
 
         self._plugin_loaded = True
         logger.info(
-            "PluginLoader 扫描完成: cls=%s tools=%d events=%d cards=%d",
+            "PluginLoader 扫描完成: cls=%s tools=%d events=%d gateways=%d cards=%d",
             self._plugin_cls.__name__,
             len(self._tool_declarations),
             len(self._event_declarations),
+            len(self._gateway_declarations),
             len(self._homecard_registry),
         )
         return (
             self._tool_declarations,
             self._event_declarations,
             self._homecard_registry,
+            self._gateway_declarations,
             self._instance,
         )
 
@@ -197,3 +204,10 @@ class PluginLoader:
             self._homecard_registry[ed.name] = ed.card_metadata
 
         self._event_declarations.append(entry)
+
+    def _collect_message_gateway(self, method: Any) -> None:
+        """收集 @MessageGateway 声明的 MessageGatewayDeclaration。"""
+        gd: MessageGatewayDeclaration | None = getattr(method, "_message_gateway", None)
+        if gd is None:
+            return
+        self._gateway_declarations.append(gd)

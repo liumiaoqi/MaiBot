@@ -179,6 +179,7 @@ class PluginContext:
         runner_endpoint: RunnerEndpoint,
         homecard_registry: dict[str, dict[str, Any]],
         config: ConfigContext | None = None,  # ZG16-6a 新增（可选，初始下发后注入）
+        gateway_declarations: list | None = None,  # @MessageGateway 声明列表
     ) -> None:
         self._send = SendContext(granted_scopes, runner_endpoint)
         self._storage = StorageContext(granted_scopes, runner_endpoint, plugin_id)
@@ -189,6 +190,11 @@ class PluginContext:
         self._registered_tasks: set[asyncio.Task] = set()
         # ZG16-6a: 配置访问对象
         self._config = config or ConfigContext(plugin_id, runner_endpoint)
+        # 网关声明：gateway_name → platform 映射（report_gateway_ready 时查找）
+        self._gateway_platform_map: dict[str, str] = {}
+        if gateway_declarations is not None:
+            for gw in gateway_declarations:
+                self._gateway_platform_map[gw.name] = gw.platform
 
     @property
     def send(self) -> SendContext:
@@ -241,6 +247,45 @@ class PluginContext:
         """更新已授权的 scope 集合（Host 拒绝部分 scope 后调用）。"""
         self._send._granted_scopes = new_scopes
         self._storage._granted_scopes = new_scopes
+
+    # ── 网关就绪状态上报 ─────────────────────────────────────────
+
+    async def report_gateway_ready(self, gateway_name: str) -> None:
+        """上报网关已就绪（底层连接建立成功）。
+
+        Host 收到后注册 PluginPlatformDriver 并绑定路由。
+        gateway_name 必须与 @MessageGateway(name=...) 声明一致。
+        """
+        platform = self._gateway_platform_map.get(gateway_name)
+        if platform is None:
+            self._logger.warning(
+                "report_gateway_ready: 未知网关名 %s（未在 @MessageGateway 声明中）",
+                gateway_name,
+            )
+            return
+        await self._runner.report_gateway_ready(
+            gateway_name=gateway_name,
+            platform=platform,
+            ready=True,
+        )
+
+    async def report_gateway_not_ready(self, gateway_name: str) -> None:
+        """上报网关未就绪（底层连接断开）。
+
+        Host 收到后注销驱动和路由绑定。
+        """
+        platform = self._gateway_platform_map.get(gateway_name)
+        if platform is None:
+            self._logger.warning(
+                "report_gateway_not_ready: 未知网关名 %s（未在 @MessageGateway 声明中）",
+                gateway_name,
+            )
+            return
+        await self._runner.report_gateway_ready(
+            gateway_name=gateway_name,
+            platform=platform,
+            ready=False,
+        )
 
     # ── ZG-15：自启任务登记 ─────────────────────────────────────
 

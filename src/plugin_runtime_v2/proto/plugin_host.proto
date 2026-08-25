@@ -114,12 +114,24 @@ message EventDeclaration {
   string event_schema = 3;  // 事件载荷 JSON Schema（JSON 字符串）
 }
 
+
+// MessageGateway 声明（v2 消息网关）
+message MessageGatewayDeclaration {
+  string name = 1;             // 网关名称（必填，同 plugin 内唯一）
+  string platform = 2;         // 平台标识（必填，如 "qq"）
+  string protocol = 3;         // 协议标识（必填，如 "onebot11"）
+  bool supports_send = 4;      // 是否支持发送（默认 true）
+  bool supports_receive = 5;   // 是否支持接收（默认 false）
+  string route_type = 6;       // 路由类型（可选）
+}
+
 // 组件注册请求
 message RegisterComponentsRequest {
   string plugin_id = 1;                  // 插件 ID（必填）
   string plugin_version = 2;             // 插件版本
   repeated ToolDeclaration tools = 3;    // Tool 声明列表
   repeated EventDeclaration events = 4;  // Event 声明列表
+  repeated MessageGatewayDeclaration message_gateways = 5;  // MessageGateway 声明列表
 }
 
 // 组件注册响应

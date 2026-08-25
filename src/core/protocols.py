@@ -1293,6 +1293,12 @@ class AppConfigPort(Protocol):
     def get_enable_plugin_config_watch(self) -> bool:
         """读取 [plugin_runtime_v2].enable_plugin_config_watch（默认 true）。"""
 
+    def get_enable_v2_message_gateway(self) -> bool:
+        """读取 [plugin_runtime_v2].enable_v2_message_gateway（默认 true）。
+
+        False 时 Host 忽略 gateway_ready payload，SendService 回退 legacy fallback。
+        """
+
     def get_enable_dump_plugin_config(self) -> bool:
         """读取 [plugin_runtime_v2].enable_dump_plugin_config（默认 true）。"""
 

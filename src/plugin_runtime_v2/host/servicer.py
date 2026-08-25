@@ -164,6 +164,9 @@ class _PluginHostServicer(PluginHostServicer):
         scope_store = None,
         rate_limiter = None,
         storage_service = None,
+        gateway_registry = None,
+        gateway_registrar = None,
+        enable_v2_message_gateway: bool = True,
     ) -> None:
         self._registry = registry
         self._heartbeat_mgr = heartbeat_mgr
@@ -173,6 +176,9 @@ class _PluginHostServicer(PluginHostServicer):
         self._scope_store = scope_store
         self._rate_limiter = rate_limiter
         self._storage = storage_service
+        self._gateway_registry = gateway_registry
+        self._gateway_registrar = gateway_registrar
+        self._enable_v2_message_gateway = enable_v2_message_gateway
 
         self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
@@ -359,6 +365,12 @@ class _PluginHostServicer(PluginHostServicer):
                     elif payload_kind == "heartbeat":
                         self._heartbeat_mgr.record_response(runner_id)
                         conn.record_heartbeat()
+                    elif payload_kind == "gateway_ready":
+                        gw = msg.gateway_ready
+                        _safe_create_task(
+                            self._handle_gateway_ready(conn, gw),
+                            name=f"gateway-ready-{runner_id}-{gw.gateway_name}",
+                        )
             except Exception as exc:
                 from src.core.error_escalation.types import ErrorLevel
                 from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -500,9 +512,35 @@ class _PluginHostServicer(PluginHostServicer):
         conn.connected_at = time.time()
         conn.transition(ConnectionState.READY)
 
+        # 存储网关声明到 GatewayRegistry
+        if self._enable_v2_message_gateway and self._gateway_registry is not None and request.message_gateways:
+            from src.plugin_runtime_v2.sdk.decorators import MessageGatewayDeclaration
+
+            gateway_decls = [
+                MessageGatewayDeclaration(
+                    name=gw.name,
+                    platform=gw.platform,
+                    protocol=gw.protocol,
+                    supports_send=gw.supports_send,
+                    supports_receive=gw.supports_receive,
+                    route_type=gw.route_type,
+                )
+                for gw in request.message_gateways
+            ]
+            try:
+                self._gateway_registry.register_declarations(
+                    request.plugin_id, gateway_decls,
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "网关声明注册失败（名称重复）: plugin=%s error=%s",
+                    request.plugin_id, exc,
+                )
+
         logger.info(
-            "Runner %s 组件注册成功: plugin=%s, tools=%d, events=%d",
+            "Runner %s 组件注册成功: plugin=%s, tools=%d, events=%d, gateways=%d",
             runner_id, request.plugin_id, len(request.tools), len(request.events),
+            len(request.message_gateways) if request.message_gateways else 0,
         )
 
         if self._host_bridge is not None:
@@ -527,6 +565,52 @@ class _PluginHostServicer(PluginHostServicer):
             if getattr(conn, "_peer", "") == peer:
                 return runner_id
         return ""
+
+    async def _handle_gateway_ready(
+        self,
+        conn: RunnerConnection,
+        gw_payload: common_pb2.GatewayReadyPayload,
+    ) -> None:
+        """处理 gateway_ready payload（_recv_loop 中异步触发）。
+
+        异常隔离：分支内异常不崩溃 recv_loop。
+        """
+        if self._gateway_registrar is None:
+            return
+        if not self._enable_v2_message_gateway:
+            return  # 特性开关关闭，忽略 gateway_ready
+        try:
+            if gw_payload.ready:
+                await self._gateway_registrar.on_gateway_ready(
+                    plugin_id=conn.plugin_id,
+                    gateway_name=gw_payload.gateway_name,
+                    platform=gw_payload.platform,
+                    runner_listen_address=conn.runner_listen_address,
+                    account_id=gw_payload.account_id or None,
+                    scope=gw_payload.scope or None,
+                )
+            else:
+                await self._gateway_registrar.on_gateway_not_ready(
+                    plugin_id=conn.plugin_id,
+                    gateway_name=gw_payload.gateway_name,
+                )
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(
+                    ErrorLevel.WARNING,
+                    f"gateway_ready 处理失败: plugin={conn.plugin_id} "
+                    f"gateway={gw_payload.gateway_name}",
+                    exception=exc,
+                )
+            logger.warning(
+                "gateway_ready 处理失败: plugin=%s gateway=%s error=%s",
+                conn.plugin_id, gw_payload.gateway_name, exc,
+                exc_info=True,
+            )
 
     # ── 资源清理 ────────────────────────────────────────────────
 

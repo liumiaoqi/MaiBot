@@ -92,6 +92,7 @@ async def test_on_load_failure_endpoint_integration() -> None:
                 [{"name": "tool_x", "handler": lambda args: None}],
                 [],
                 None,
+                [],
                 plugin,
             )
 

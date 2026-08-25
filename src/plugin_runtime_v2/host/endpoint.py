@@ -41,7 +41,8 @@ class HostEndpoint:
 
     def __init__(self, config: HostEndpointConfig | None = None, host_bridge=None,
                  token_service=None, scope_store=None, rate_limiter=None,
-                 storage_service=None) -> None:
+                 storage_service=None, gateway_registry=None, gateway_registrar=None,
+                 enable_v2_message_gateway: bool = True) -> None:
         self._cfg = config or HostEndpointConfig()
         self._server: grpc.aio.Server | None = None
         self._registry = RunnerRegistry()
@@ -59,6 +60,9 @@ class HostEndpoint:
             scope_store=scope_store,
             rate_limiter=rate_limiter,
             storage_service=storage_service,
+            gateway_registry=gateway_registry,
+            gateway_registrar=gateway_registrar,
+            enable_v2_message_gateway=enable_v2_message_gateway,
         )
         self._token_service = token_service
         self._scope_store = scope_store

@@ -72,6 +72,7 @@ class RunnerEndpoint:
         self._plugin_loader = plugin_loader
         self._plugin_instance = None
         self._granted_scopes: set[str] = set()
+        self._gateway_declarations: list = []  # @MessageGateway 声明（load 后填充）
         # ZG-15：插件活体引用（加载成功后创建，注入 servicer/loader）
         self._refcount: PluginRefcount | None = None
         self._unloader = None
@@ -96,10 +97,11 @@ class RunnerEndpoint:
 
         # 加载插件（仅首次，重连时复用）
         if self._plugin_loader is not None and not self._plugin_loader.is_loaded:
-            tools, events, homecard_registry, plugin_instance = await self._plugin_loader.load()
+            tools, events, homecard_registry, gateway_declarations, plugin_instance = await self._plugin_loader.load()
             if plugin_instance is not None:
                 self._config.tools = tools
                 self._config.events = events
+                self._gateway_declarations = gateway_declarations
                 self._plugin_instance = plugin_instance
                 # ZG-15：创建活体引用并注入 servicer（拒新 + GetInflightCount）
                 self._refcount = PluginRefcount(self._config.plugin_id)
@@ -113,6 +115,7 @@ class RunnerEndpoint:
                     granted_scopes=set(self._config.scopes),
                     runner_endpoint=self,
                     homecard_registry=homecard_registry,
+                    gateway_declarations=gateway_declarations,
                 )
                 self._plugin_instance.ctx = ctx
                 # ZG-15：卸载编排器（三条卸载路径统一走 PluginUnloader）
@@ -230,6 +233,38 @@ class RunnerEndpoint:
             logger.warning("Runner %s emit_event 写入失败: %s",
                            self._config.runner_id, event_name)
 
+    async def report_gateway_ready(
+        self,
+        gateway_name: str,
+        platform: str,
+        ready: bool = True,
+        account_id: str | None = None,
+        scope: str | None = None,
+    ) -> None:
+        """通过双向流上报网关就绪状态。
+
+        ready=True 表示网关底层连接已就绪，Host 可注册驱动和路由。
+        ready=False 表示网关未就绪（断线），Host 应注销驱动。
+        """
+        if self._state != ConnectionState.READY:
+            raise ConnectionError("Runner not in READY state")
+        if self._stream_call is None:
+            raise ConnectionError("Stream not available")
+        msg = common_pb2.RunnerMessage(
+            gateway_ready=common_pb2.GatewayReadyPayload(
+                gateway_name=gateway_name,
+                platform=platform,
+                ready=ready,
+                account_id=account_id or "",
+                scope=scope or "",
+            )
+        )
+        try:
+            await self._stream_call.write(msg)
+        except grpc.aio.AioRpcError:
+            logger.warning("Runner %s report_gateway_ready 写入失败: %s",
+                           self._config.runner_id, gateway_name)
+
     @property
     def state(self) -> ConnectionState:
         return self._state
@@ -329,6 +364,17 @@ class RunnerEndpoint:
                         event_schema=json.dumps(e.get("event_schema") or {}),
                     )
                     for e in self._config.events
+                ],
+                message_gateways=[
+                    plugin_host_pb2.MessageGatewayDeclaration(
+                        name=gw.name,
+                        platform=gw.platform,
+                        protocol=gw.protocol,
+                        supports_send=gw.supports_send,
+                        supports_receive=gw.supports_receive,
+                        route_type=gw.route_type,
+                    )
+                    for gw in self._gateway_declarations
                 ],
             )
         )
