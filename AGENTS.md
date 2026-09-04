@@ -1,5 +1,23 @@
 > 硬性规则 + 路由策略。架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，工作手册见 `CLAUDE.md`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
 
+# 领域自治架构（2026-09-04 立——中央/地方）
+
+## 核心原则
+- **中央（MaiBot）**：本 AGENTS.md（全局铁律）+ `CLAUDE.md`（工作手册）+ `.shared/`（复盘/路由/索引）——不变，全仓唯一铁律
+- **地方（各领域）**：各自仓库/目录自己的 **AGENTS.md**——管理该领域的注意事项与坑（全量——按需读，不自动加载——省上下文）
+- **skill（智能体中枢）**：概要 + 索引 + 指路——不堆全量细节（skill 说'去读地方 AGENTS.md'）——避免 skill 太大挤占上下文
+- **事故复盘**：`.shared/postmortem/`（统一总账——不变——各领域复盘登记总表）
+
+## 规则（全智能体遵守）
+1. 进入某领域工作前 → 先读该领域 AGENTS.md（skill 会指路；不自动加载——省上下文）
+2. 坑/注意事项 → 归地方 AGENTS.md（不塞 skill——skill 只索引/路由）
+3. 全局铁律（本 AGENTS.md）不动——地方 AGENTS.md 不重复，只加领域补充
+4. 事故复盘 → 统一走 `.shared/postmortem/`（编号登记总表）
+
+## 试点
+- **SPICE**（2026-09-04 第一个）：`D:\Users\lmq\Documents\SPICE\AGENTS.md`（已建）——spice skill 已指路
+- 其他领域（51lab/first-flame/马克思传 等）按此模式跟进
+
 # 代码规范
 
 ## import 规范
