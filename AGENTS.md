@@ -10,6 +10,36 @@
 - **skill（skill 层——与 `C:\hub` 调度中枢同名不同物）**：概要 + 索引 + 指路——不堆全量细节（skill 说'去读地方 AGENTS.md'）——避免 skill 太大挤占上下文
 - **事故复盘**：`.shared/postmortem/`（统一总账——不变——各领域复盘登记总表）
 
+## 分层 AGENTS.md（2026-09-22 立——dsh 实测标准）
+
+> **起因**：51lab 这类"会有**子项目群**"的领域，单文件全量 AGENTS.md 会长成不可维护。
+> **依据**：`deepseek-ai/deepseek-harness` 实测——全仓 **21 份 AGENTS.md，分布在 20 个目录**。
+
+### 做法
+- ⭐ **规则跟目录走**：每个"会被独立进入工作"的目录各有自己一份 AGENTS.md，**就近描述自己**。
+- ⭐ **根 AGENTS.md 只做总纲 + 索引**——不写子目录的实现细节；子项目增减时**根文件几乎不动**。
+- **子目录那份只写该目录的坑**——实测多为 **0.5–3 KB**。
+  （dsh 里最大的一份是 `packages/client/AGENTS.md` **26.6 KB**，比根的 17.2 KB 还大——
+  因为它管的东西最杂；**大小取决于该目录的复杂度，不取决于层级高低**。）
+- **`CLAUDE.md` 只做指针**：内容恰好一行 `AGENTS.md`（dsh 全仓 4 处，**各 9 字节**）——
+  **不复制内容**，避免多份漂移。
+
+### 判据（坑往哪放）
+| 情况 | 落点 |
+|---|---|
+| 一个目录会被独立进入工作 | 给它一份 AGENTS.md |
+| 某坑只在该目录适用 | 写在该目录那份，**不往上提到根** |
+| 跨子项目的约定（工具链总纲 / 索引表 / 提交纪律） | 留根 AGENTS.md |
+| 全局事故复盘 | `.shared/postmortem/`（**不准下放**） |
+
+### 实例
+- **dsh**：`AGENTS.md`(17.2 KB) · `docs/AGENTS.md`(10.8 KB) · `packages/AGENTS.md`(6.2 KB) ·
+  `packages/client/AGENTS.md`(26.6 KB) · `.github/AGENTS.md`(1.3 KB) ·
+  `.agents/notes/AGENTS.md`(0.8 KB) …… 最深到 `apps/cli/tests/profiles/AGENTS.md`(0.8 KB)。
+- **51lab**：⚠️ 已建但**待分层**——现有 `AGENTS.md` 5.7 KB **单文件全量**，
+  同时装着 51-SDCC 线与 ESP32-S3 线（AGENTS.md §七）两条子线；
+  拟改为「根(总纲+索引) + `subprojects/sdcc51/AGENTS.md` + `subprojects/esp32s3/AGENTS.md`」。
+
 ## 规则（全智能体遵守）
 1. 进入某领域工作前 → 先读该领域 AGENTS.md（skill 会指路；`C:\hub` 领域索引表亦可查；不自动加载——省上下文）
 2. 坑/注意事项 → 归地方 AGENTS.md（不塞 skill——skill 只索引/路由）
@@ -18,7 +48,10 @@
 
 ## 试点
 - **Academic**（2026-09-04 第一个试点；2026-09-07 由 SPICE 改名——目录已扩为学业总目录）：`D:\Users\lmq\Documents\Academic\AGENTS.md`（已建）——spice skill 已指路
-- 其他领域（51lab/first-flame/马克思传 等）按此模式跟进
+- ⭐ **51lab**（**2026-09-22 复核**）：`D://Users//lmq//51lab//AGENTS.md`——**已建**（2026-09-08 自建，标题"51lab 领域须知（地方 AGENTS.md——自治）"），
+  涵盖工具链（nvim+xmake+SDCC，无 Keil）/ SDCC 4.6.2 语法边界 / CT107D 板逆向 / ESP32-S3 线。
+  ⚠️ **待改分层**：现有为**单文件全量**，且**两条子线已同居一份**（详见上文「分层 AGENTS.md」§实例）。
+- 其他领域（first-flame/马克思传 等）按此模式跟进
 
 # 代码规范
 
