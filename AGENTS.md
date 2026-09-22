@@ -117,7 +117,7 @@
    - 全部有中文版（.zh.md）；详见 `C:\hub\reference\dsh\dsh_team_skills_observation_0817.md`
 
 7. **克隆池 Skill 库使用引导（2026-08-19 立——5 库 + dsh 11 + 用户 6 全景）**：
-   - 完整版：`.shared/decisions/clone_skill_library_guide_0819.md`
+   - 完整版：`C:\hub\reference\clone_skill_library_guide_0819.md`
    - 常用映射：双轴审核→skills/code-review；对抗审查→agent-skills/doubt-driven-development；安全加固→agent-skills/security-and-hardening；科学统计→scientific-agent-skills/statistical-analysis；代码审计→reverse-skill/code-audit
    - 原则：skill 是方法不是圣经——引入前问"它解决我们哪个具体痛点"
 
