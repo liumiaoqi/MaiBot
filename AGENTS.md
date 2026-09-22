@@ -1,57 +1,14 @@
 > 硬性规则 + 路由策略。架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，工作手册见 `CLAUDE.md`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
 
-# 领域自治架构（2026-09-04 立——中央/地方；2026-09-11 复核：中央→分层，调度层移交 `C:\hub`）
+# 领域自治架构
 
-## 核心原则
-- **调度层（中枢）**：`C:\hub\AGENTS.md`——跨领域**路由**（领域在哪 / 派发回执入口 / 复盘总账入口）——**不含任何领域规则**（2026-09-11 立）
-- **工程铁律（MaiBot）**：本 AGENTS.md（工程规范）+ `CLAUDE.md`（工作手册）+ `.shared/`（复盘/路由/索引）——**全仓工程铁律**，**只在工程场景生效**
-  （2026-09-11 措辞收敛：原"全仓唯一铁律"过宽——不覆盖学习线/杂事会话；分层说明见 `C:\hub\AGENTS.md` §五）
-- **地方（各领域）**：各自仓库/目录自己的 **AGENTS.md**——管理该领域的注意事项与坑（全量——按需读，不自动加载——省上下文）
-- **skill（skill 层——与 `C:\hub` 调度中枢同名不同物）**：概要 + 索引 + 指路——不堆全量细节（skill 说'去读地方 AGENTS.md'）——避免 skill 太大挤占上下文
-- **事故复盘**：`.shared/postmortem/`（统一总账——不变——各领域复盘登记总表）
-
-## 分层 AGENTS.md（2026-09-22 立——dsh 实测标准）
-
-> **起因**：51lab 这类"会有**子项目群**"的领域，单文件全量 AGENTS.md 会长成不可维护。
-> **依据**：`deepseek-ai/deepseek-harness` 实测——全仓 **21 份 AGENTS.md，分布在 20 个目录**。
-
-### 做法
-- ⭐ **规则跟目录走**：每个"会被独立进入工作"的目录各有自己一份 AGENTS.md，**就近描述自己**。
-- ⭐ **根 AGENTS.md 只做总纲 + 索引**——不写子目录的实现细节；子项目增减时**根文件几乎不动**。
-- **子目录那份只写该目录的坑**——实测多为 **0.5–3 KB**。
-  （dsh 里最大的一份是 `packages/client/AGENTS.md` **26.6 KB**，比根的 17.2 KB 还大——
-  因为它管的东西最杂；**大小取决于该目录的复杂度，不取决于层级高低**。）
-- **`CLAUDE.md` 只做指针**：内容恰好一行 `AGENTS.md`（dsh 全仓 4 处，**各 9 字节**）——
-  **不复制内容**，避免多份漂移。
-
-### 判据（坑往哪放）
-| 情况 | 落点 |
-|---|---|
-| 一个目录会被独立进入工作 | 给它一份 AGENTS.md |
-| 某坑只在该目录适用 | 写在该目录那份，**不往上提到根** |
-| 跨子项目的约定（工具链总纲 / 索引表 / 提交纪律） | 留根 AGENTS.md |
-| 全局事故复盘 | `.shared/postmortem/`（**不准下放**） |
-
-### 实例
-- **dsh**：`AGENTS.md`(17.2 KB) · `docs/AGENTS.md`(10.8 KB) · `packages/AGENTS.md`(6.2 KB) ·
-  `packages/client/AGENTS.md`(26.6 KB) · `.github/AGENTS.md`(1.3 KB) ·
-  `.agents/notes/AGENTS.md`(0.8 KB) …… 最深到 `apps/cli/tests/profiles/AGENTS.md`(0.8 KB)。
-- **51lab**（2026-09-22 **已完成分层**）：根 `AGENTS.md` + `subprojects/sdcc51/AGENTS.md` + `docs/`。
-  ⚠️ 教训：初版曾据旧 AGENTS.md §七 误建 `subprojects/esp32s3/`——
-  **ESP32-S3 实际属 `plc_mcp`**，不在此领域。**分层必须跟已存在的目录走，不得凭文档建空目录。**
-
-## 规则（全智能体遵守）
-1. 进入某领域工作前 → 先读该领域 AGENTS.md（skill 会指路；`C:\hub` 领域索引表亦可查；不自动加载——省上下文）
-2. 坑/注意事项 → 归地方 AGENTS.md（不塞 skill——skill 只索引/路由）
-3. 工程铁律（本 AGENTS.md）不动——地方 AGENTS.md 不重复，只加领域补充
-4. 事故复盘 → 统一走 `.shared/postmortem/`（编号登记总表）
-
-## 试点
-- **Academic**（2026-09-04 第一个试点；2026-09-07 由 SPICE 改名——目录已扩为学业总目录）：`D:\Users\lmq\Documents\Academic\AGENTS.md`（已建）——spice skill 已指路
-- ⭐ **51lab**（**2026-09-22 复核**）：`D://Users//lmq//51lab//AGENTS.md`——**已建**（2026-09-08 自建，标题"51lab 领域须知（地方 AGENTS.md——自治）"），
-  涵盖工具链（nvim+xmake+SDCC，无 Keil）/ SDCC 4.6.2 语法边界 / CT107D 板逆向 / ESP32-S3 线。
-  ⚠️ **待改分层**：现有为**单文件全量**，且**两条子线已同居一份**（详见上文「分层 AGENTS.md」§实例）。
-- 其他领域（first-flame/马克思传 等）按此模式跟进
+> ⚠️ **本节已迁往中枢**（2026-09-22）：**`C:\hub\ARCHITECTURE.md`**
+>
+> **理由**：它讲的是**跨领域的分层原则**（调度层 / 工程铁律层 / 地方 / skill）与
+> 「分层 AGENTS.md」的通用标准与判据 —— **不属任何单一领域**。
+> **别在这里复制一份** —— 要改去中枢改（原处留指针，防多份漂移）。
+>
+> **MaiBot 在架构中的位置**：它是**工程铁律层**（见 `C:\hub\AGENTS.md` §五）。
 
 # 代码规范
 
@@ -124,8 +81,8 @@
 
 4. **压缩后不内耗（2026-08-22 立，用户拍板）**：上下文压缩/新会话后禁止"重建上下文强迫症"——不要 glob 全目录 + read 一堆文件做全景侦察。**一次定位**：git log 前 5 条 + 最新 handoff/回执 + 用户当前指令，读完就干活。配套：①工具调用失败重试一次，还失败换思路，不写 try/catch 防御性包装 ②动作前不反复验证——用户说提交就提交，验证收尾一次做 ③CA 回执说完成 → 抽查最小集（2-3 个关键 grep），不全面复验 ④交接文档是权威，不重复调查已完成任务
 
-5. **索引优先（2026-08-22 立，用户拍板）**：**有索引先读索引，索引有遗漏向用户报告**——skill 的任务是快速把握局面：进目录先读 INDEX/README（lab/INDEX.md、scripts/embedding_finetune/INDEX.md、.shared/PROJECTS_INDEX.md），不 glob 全目录侦察；索引缺内容 = 报告用户补索引，不自己翻全目录硬找
-6. **事故复盘文化（2026-08-22 立，用户拍板——对齐 dsh docs/postmortem）**：bug 逃逸到生产/真实用户时，不只修那行——写**事故复盘**（`.shared/postmortem/`，五段式：摘要/概述/时间线/根因/防护措施+教训）。三道筛选：隐蔽（机制不显然）/系统性（测试工具约定缺口）/重发现代价高（调试时间长且会复发）。**每篇结尾必须挂防护措施**（测试/AGENTS 规则/门禁——N1/N4/四连问/缺陷清单都是防护措施的实例）——复盘是回顾失败，不是设计决策，与 decisions/ 分开。**postmortem 主动查阅与维护（2026-08-25 立——用户指出"编码/决策时根本不知道这里有复盘文档"）**：postmortem 不是只写不读的档案——它是编码和决策时的**必查参考**，就像查 grep 一样自然。①**修 bug 前**先查 `.shared/postmortem/` 看是否有同类事故历史复盘——避免重蹈覆辙 ②**做设计决策前**先查 postmortem 了解过去踩过的坑和相关防护措施 ③**写新代码/审查代码时**对照 postmortem 中的防护措施逐条检查 ④**修完 bug 后**主动判断是否需要写复盘（三道筛选），不等用户要求 ⑤**创建新复盘前**先读 `postmortem/README.md` 了解格式/编号规范——违反此条=不知规范凭空造
+5. **索引优先（2026-08-22 立，用户拍板）**：**有索引先读索引，索引有遗漏向用户报告**——skill 的任务是快速把握局面：进目录先读 INDEX/README（lab/INDEX.md、scripts/embedding_finetune/INDEX.md、C:\hub\reference\projects-INDEX.md），不 glob 全目录侦察；索引缺内容 = 报告用户补索引，不自己翻全目录硬找
+6. **事故复盘文化（2026-08-22 立，用户拍板——对齐 dsh docs/postmortem）**：bug 逃逸到生产/真实用户时，不只修那行——写**事故复盘**（`.shared/postmortem/`，五段式：摘要/概述/时间线/根因/防护措施+教训）。三道筛选：隐蔽（机制不显然）/系统性（测试工具约定缺口）/重发现代价高（调试时间长且会复发）。**每篇结尾必须挂防护措施**（测试/AGENTS 规则/门禁——N1/N4/四连问/缺陷清单都是防护措施的实例）——复盘是回顾失败，不是设计决策，与 decisions/ 分开。**postmortem 主动查阅与维护（2026-08-25 立——用户指出"编码/决策时根本不知道这里有复盘文档"）**：postmortem 不是只写不读的档案——它是编码和决策时的**必查参考**，就像查 grep 一样自然。①**修 bug 前**先查 `.shared/postmortem/` 看是否有同类事故历史复盘——避免重蹈覆辙 ②**做设计决策前**先查 postmortem 了解过去踩过的坑和相关防护措施 ③**写新代码/审查代码时**对照 postmortem 中的防护措施逐条检查 ④**修完 bug 后**主动判断是否需要写复盘（三道筛选），不等用户要求 ⑤**创建新复盘前**先读总账 `C:\hub\postmortems\INDEX.md` 了解格式/编号规范——违反此条=不知规范凭空造
 7. **抓日志只抓新日志（2026-08-25 立，用户拍板）**：排障抓日志必须只抓**最后一次启动之后**的日志——禁止抓陈年老日志。Docker 用 `docker logs --since <启动时间>` 或 `--tail` 限定范围；先确认容器启动时间（`docker ps --format '{{.CreatedAt}}'`），再抓该时间之后的日志。抓到老日志会导致误判——把已修复的问题当成现存问题
 
 8. **Docker 维护（2026-09-01 立——vhdx 静默膨胀事故 137.8G，WB 复盘补位 001x）**：
@@ -157,7 +114,7 @@
    - **防御模式（缺陷类规则）**：`docs/defensive-patterns.md`——写生命周期/并发/子进程代码前必读
    - 事件体系：`docs/event-producer-consumer.md` / 生命周期：`docs/agent-lifecycle.md`
    - 团队 skill（工作流即插件）：`.agents/skills/`（11 个——code-review/pre-push-checks/trim-cot-leakage 等）
-   - 全部有中文版（.zh.md）；详见 `.shared/decisions/dsh_team_skills_observation_0817.md`
+   - 全部有中文版（.zh.md）；详见 `C:\hub\reference\dsh\dsh_team_skills_observation_0817.md`
 
 7. **克隆池 Skill 库使用引导（2026-08-19 立——5 库 + dsh 11 + 用户 6 全景）**：
    - 完整版：`.shared/decisions/clone_skill_library_guide_0819.md`
@@ -309,14 +266,14 @@ D:\Users\lmq\Documents\Academic\tools\TOOL_ISSUES.md
 | | 工具问题总账 | 事故复盘 |
 |---|---|---|
 | 门槛 | **低**（小瑕疵也记） | 高（造成不可用 / 状态丢失） |
-| 去处 | `.shared/tooling_issues.md` | `.shared/postmortem/`（编号总表） |
+| 去处 | `.shared/tooling_issues.md` | `.shared/postmortem/`（正文）+ `C:\hub\postmortems\INDEX.md`（编号总账） |
 | 性质 | 待办清单 | 深度分析 |
 
 **同一个问题可以两边都写**：小瑕疵先记总账；如果它已经造成了事故——**按事故复盘（硬性要求）另写复盘**，并在总账里挂链接。
 
 # 事故复盘（硬性要求——2026-08-28 立，用户拍板）
 
-**凡是造成"系统/工具不可用"或"用户状态丢失"的事故，修复完成后必须写复盘**，落 `.shared/postmortem/`，按该目录 README 的五段式（执行摘要 → 概述 → 时间线 → 根因 → 防护措施+教训），并更新索引。
+**凡是造成"系统/工具不可用"或"用户状态丢失"的事故，修复完成后必须写复盘**，落 `.shared/postmortem/`，按总账 `C:\hub\postmortems\INDEX.md` 的五段式（执行摘要 → 概述 → 时间线 → 根因 → 防护措施+教训），并更新索引。
 
 **触发清单**（命中任一即写）：
 1. 启动崩溃 / 构建阻断
@@ -328,8 +285,8 @@ D:\Users\lmq\Documents\Academic\tools\TOOL_ISSUES.md
 **复盘写的是"流程为什么放过了它"，不是"哪一行修好了"**。隐瞒误判等于让下一次重复付费——时间线里必须如实记录自己的错误步骤。
 
 **复盘编号全仓统一（2026-09-01 立——不分目录编号，一本总账）**：
-- 总表 = `.shared/postmortem/README.md` 索引（含"位置"列——任何项目/目录的事故都登记在这张表）
-- 编号全局连续：新复盘 = 总表当前最大号 + 1（现在最大 0011 → 下一篇 0012）；文件名 `NNNN-主题_日期.md`，文件放所属项目的 postmortem 目录（MaiBot/.shared、51lab/postmortem 等），**编号和登记必须统一走总表**
+- 总表 = `C:\hub\postmortems\INDEX.md` 索引（含"位置"列——任何项目/目录的事故都登记在这张表）
+- 编号全局连续：新复盘 = 总表当前最大号 + 1（当前最大 **0032** → 下一篇 **0033**）；文件名 `NNNN-主题_日期.md`，文件放所属项目的 postmortem 目录（MaiBot/.shared、51lab/postmortem 等），**编号和登记必须统一走总表**
 - 写前先读总表登记该号，写后回填状态（✅/🔄）——禁止"目录自己起始 0001"（避免多目录重号）
 
 
