@@ -36,9 +36,9 @@
 - **dsh**：`AGENTS.md`(17.2 KB) · `docs/AGENTS.md`(10.8 KB) · `packages/AGENTS.md`(6.2 KB) ·
   `packages/client/AGENTS.md`(26.6 KB) · `.github/AGENTS.md`(1.3 KB) ·
   `.agents/notes/AGENTS.md`(0.8 KB) …… 最深到 `apps/cli/tests/profiles/AGENTS.md`(0.8 KB)。
-- **51lab**：⚠️ 已建但**待分层**——现有 `AGENTS.md` 5.7 KB **单文件全量**，
-  同时装着 51-SDCC 线与 ESP32-S3 线（AGENTS.md §七）两条子线；
-  拟改为「根(总纲+索引) + `subprojects/sdcc51/AGENTS.md` + `subprojects/esp32s3/AGENTS.md`」。
+- **51lab**（2026-09-22 **已完成分层**）：根 `AGENTS.md` + `subprojects/sdcc51/AGENTS.md` + `docs/`。
+  ⚠️ 教训：初版曾据旧 AGENTS.md §七 误建 `subprojects/esp32s3/`——
+  **ESP32-S3 实际属 `plc_mcp`**，不在此领域。**分层必须跟已存在的目录走，不得凭文档建空目录。**
 
 ## 规则（全智能体遵守）
 1. 进入某领域工作前 → 先读该领域 AGENTS.md（skill 会指路；`C:\hub` 领域索引表亦可查；不自动加载——省上下文）
