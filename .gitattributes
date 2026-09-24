@@ -3,3 +3,8 @@
 *.py text eol=crlf
 webui/dist/** binary
 *.sh text eol=lf
+
+# 兜底：**未显式声明的**文本一律归一为「库内 LF」（2026-09-24 WB 补）
+# ⚠️ 上面 *.py / *.bat / *.cmd 的 `eol=crlf` 更具体 ⇒ 优先级更高，**工作区偏好不受影响**。
+# ⚠️ 本行不带 eol ⇒ 只归一「入库」，不强制把工作区 checkout 成 LF。
+* text=auto
