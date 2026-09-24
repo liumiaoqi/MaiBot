@@ -1,0 +1,14 @@
+# 编辑器侧的文本约定 —— 与 .gitattributes 配套（那条路 git 够不到）
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+# 例外：Windows 命令脚本（cmd.exe 需要 CRLF）
+[*.{cmd,bat}]
+end_of_line = crlf
+
+# ⚠️ 与 .gitattributes 的 `*.py text eol=crlf` 对齐 —— 两处必须一致，否则互相打架
+[*.py]
+end_of_line = crlf
