@@ -1,0 +1,50 @@
+#!/bin/sh
+# 提交门 · MaiBot（2026-09-24 立｜移植自 C:/hub/.githooks/pre-commit）
+#
+# 设计原则（照 dsh 的做法，但去掉 lefthook 依赖）：
+#   ① 零依赖：纯 POSIX sh，不 require node_modules / 不 require 外部二进制
+#   ② 快：只查「本次暂存的内容」，不扫全仓
+#   ③ 精准：只拦「你这次引入的问题」，不为历史存量天天报警
+#      —— ⚠️ 一条永远响的警报会被无视（复盘 0035 的教训）
+#   ④ 可绕过：`git commit --no-verify`（知道自己在做什么时用）
+#
+# 规范真源：CONVENTIONS.md §10（行尾） · §10.5（空白/行尾相关的坑）
+# 机制来源：dsh 的 lefthook.yml 里那条 `whitespace (staged): git diff --cached --check`
+#
+# ⚠️⚠️ 一个已修的真 bug（2026-09-24）：原来写的是
+#        if ! git diff --cached --check --quiet; then …
+#     而 `--quiet` 的语义是「有差异就返回 1」—— 它压过了 `--check` 的语义，
+#     导致【只要有任何 staged 改动，门就报错】。
+#     ⇒ 教训：**"能拦住坏的"不证明"不误拦好的"—— 必须测对照组**（复盘 0029）。
+#     ⇒ 现在的判据：`git diff --cached --check` 的【输出非空】或【退出码非 0】即有问题。
+
+fail=0
+
+# ── 门 ①：暂存内容的空白/行尾（dsh 同款）
+# 覆盖：行尾空格、多余空行、CRLF 混入（git 的 whitespace 规则集）
+check_out=$(git diff --cached --check 2>&1)
+check_rc=$?
+
+if [ -n "$check_out" ] || [ "$check_rc" -ne 0 ]; then
+    echo "" >&2
+    echo "  [提交门] ✗ 暂存内容存在空白/行尾问题："
+    [ -n "$check_out" ] && printf '%s\n' "$check_out" | head -20 >&2
+    [ -z "$check_out" ] && echo "    （git 未给出明细，退出码 $check_rc）" >&2
+    echo "" >&2
+    echo "  规范：CONVENTIONS.md §10（行尾一律 LF；无行尾空格）" >&2
+    echo "  处理：修好后重新 git add；确认无误可 git commit --no-verify 绕过" >&2
+    echo "" >&2
+    fail=1
+fi
+
+# ── 门 ②（预留）：本次暂存是否引入「库内 CRLF」
+# 暂不上线的理由：存量未收口的文件会造成误报（见复盘 0035「永远响的警报」）。
+# 需要时再启用：
+#   bad=$(git diff --cached --name-only -z | tr '\0' '\n' | while read -r f; do
+#           [ -f "$f" ] || continue
+#           case "$f" in *.pdf|*.png|*.jpg|*.zip|*.bin|*.gz) continue;; esac
+#           if head -c 200000 "$f" 2>/dev/null | grep -q "$(printf '\r')"; then echo "$f"; fi
+#         done)
+#   [ -n "$bad" ] && { echo "[提交门] ✗ 含 CRLF：$bad" >&2; fail=1; }
+
+exit $fail
