@@ -1,0 +1,17 @@
+# .git-blame-ignore-revs —— 让 git blame 跳过「纯格式」提交（git 2.23+）
+#
+# 用法：本机已配 `git config blame.ignoreRevsFile .git-blame-ignore-revs` ⇒ 默认生效。
+#   想要「不过滤」的一次性输出：git blame --ignore-revs-file="" <file>
+#   影响范围：**只改 blame 的显示**，不改历史、不改内容、不改 diff。
+#
+# 收录判据（可复现）：
+#   git diff --ignore-cr-at-eol --quiet <C>^ <C> -- . \
+#       ':(exclude).gitattributes' ':(exclude).editorconfig'
+#   返回 0 ⇒ 该提交除声明文件外**只改了行尾**，零内容变化。
+#   ⚠️ 特意用 --ignore-cr-at-eol 而不是 -w：-w 会连**行中空白**一起忽略，
+#      可能把真改动也当成格式噪声放过（Python 缩进尤其危险）。
+#
+# 规范真源：C:/hub/CONVENTIONS.md §10（行尾）
+#
+
+bfeb932d14488a88f84f6175e9f3cc88d70a5cb4  # 行尾归一（append `* text=auto` + renormalize）
