@@ -8,3 +8,8 @@ webui/dist/** binary
 # ⚠️ 上面 *.py / *.bat / *.cmd 的 `eol=crlf` 更具体 ⇒ 优先级更高，**工作区偏好不受影响**。
 # ⚠️ 本行不带 eol ⇒ 只归一「入库」，不强制把工作区 checkout 成 LF。
 * text=auto
+
+# 提交门/钩子本体（**无扩展名的 sh 脚本**）—— 必须 LF
+# ⚠️ 上面那条 `*.sh text eol=lf` 覆盖不到它们（没有 .sh 扩展名）；
+#    一旦被写成 CRLF，`#!/bin/sh\r` 会 **bad interpreter**，门与 LFS 钩子一起静默失效。
+.githooks/** text eol=lf
