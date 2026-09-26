@@ -1,5 +1,9 @@
 #!/bin/sh
-# 提交门 · MaiBot（2026-09-24 立｜移植自 C:/hub/.githooks/pre-commit）
+# 提交门（2026-09-24 立 ｜ 2026-09-25 加决策索引 ②③④ ｜ 2026-09-26 泛化成"有索引才生效"）
+#
+# ⭐ 这一份文件在多个仓里**字节一致**（`sha256` 相同 ⇒ 行为一致，一处改动一处核实）。
+#    **没有索引文件的仓**：门②③④ 自动跳过（不是死代码，而是"将来长出索引即生效"）。
+#    校验方式：`sha256sum .githooks/pre-commit` 各仓相同；行为判据见下。
 #
 # 设计原则（照 dsh 的做法，但去掉 lefthook 依赖）：
 #   ① 零依赖：纯 POSIX sh，不 require node_modules / 不 require 外部二进制
@@ -8,15 +12,42 @@
 #      —— ⚠️ 一条永远响的警报会被无视（复盘 0035 的教训）
 #   ④ 可绕过：`git commit --no-verify`（知道自己在做什么时用）
 #
-# 规范真源：CONVENTIONS.md §10（行尾） · §10.5（空白/行尾相关的坑）
+# 规范真源：CONVENTIONS.md §10（行尾）· §10.5（空白/行尾相关的坑）
+#           + 索引纪律：各索引文件自己的头部 + 台账 I-104
 # 机制来源：dsh 的 lefthook.yml 里那条 `whitespace (staged): git diff --cached --check`
 #
-# ⚠️⚠️ 一个已修的真 bug（2026-09-24）：原来写的是
+# ⚠️⚠️ 已修 bug ①（2026-09-24，勿退化）：原来写的是
 #        if ! git diff --cached --check --quiet; then …
 #     而 `--quiet` 的语义是「有差异就返回 1」—— 它压过了 `--check` 的语义，
 #     导致【只要有任何 staged 改动，门就报错】。
 #     ⇒ 教训：**"能拦住坏的"不证明"不误拦好的"—— 必须测对照组**（复盘 0029）。
 #     ⇒ 现在的判据：`git diff --cached --check` 的【输出非空】或【退出码非 0】即有问题。
+#
+# ── 门②③④ 的来历（2026-09-26，台账 I-104）
+#     现场：dsh 17:45 提交的索引行，20:06 被「旧副本整份写回」抹掉（磁盘版逐字节等于父提交）。
+#     ⇒ 三条检查的判据（都只看【本次暂存】）：
+#       门②  本次【新增】的索引目录内正文，必须在对应索引里出现（漏登记）
+#       门③  暂存版索引里【仓内相对】的链接目标必须存在（跳 :// 与盘符/绝对路径）
+#       门④  索引条目【净减少】却没删任何正文 ⇒ 很可能在用旧副本覆盖索引
+#     ⚠️ 门③ 必须跳过外部链接 —— 实测：`decisions/INDEX.md` 有 9 条、`postmortems/INDEX.md` 有 35 条
+#        全是 `file:///` 跨仓链接；不跳就是几十条永久误报（正是原则③ 要避免的）。
+#
+# ⚠️⚠️ 已修 bug ②（2026-09-26，门③ 初版）：抽链接用的是 `sed -n 's/.*](\([^)]*\)).*/\1/p'`，
+#     它在【真实索引】上会抽出**表格单元格内容**（"参考" · "|" · "`accepted`（已迁 "），
+#     一次跑出 **23 条误报** —— 因为行内存在没有 ASCII `)` 收尾的 `](` 片段，捕获一路吃到后面的单元格。
+#     ⇒ 修法：**只接受形状干净的目标**（`*.md` 且只含 `[A-Za-z0-9._/-]`），其余一律跳过；顺带 `tr -d '\r'`。
+#     ⇒ 教训：**门的判据必须在【真实数据】上量过**；抓到它的是对照组「合法编辑也必须放行」（复盘 0029 再证）。
+#
+# ⚠️⚠️ 已修 bug ③（2026-09-26，门④ 初版）：用「diff 里有 `-| ` 行」判"删了条目" ——
+#     但**修改一行的 diff 同样是「删+增」** ⇒ 只改摘要文字也被判"删了 1 行"（对照组再次抓到）。
+#     ⇒ 修法：比 **`^| \[` 行的净数**（`HEAD` 版 vs 暂存版），只有**净减少**才算。
+#     ⇒ 教训：**别用"diff 里有删除行"当"内容被删"的判据**；判"净减"而不是"有减"。
+#
+# ⚠️⚠️ 已修 bug ④（2026-09-26，门③ 抽链接取"最后一个"）：`.*](…` 是**贪婪**的 ⇒ 会捡到**摘要里的内联链接**
+#     （实测 `postmortems/INDEX.md` L49 摘要写 `[0029](0029-no-control-group-in-verification_0915.md)` ⇒
+#      被当成仓内路径去查、而该文件在中枢根本不存在 ⇒ 误报，且**每次编辑复盘总账都会拦**＝存量的永久警报）。
+#     ⇒ 修法：改成**从行首取每行【第一个】链接**（`^[^]]*](…`）—— 行首那个才是该条目的身份。
+#     ⇒ 教训：**判据要问"哪个才是这条记录的身份"** —— 一行里有多个链接时，"最后一个"不是默认答案。
 
 fail=0
 
@@ -27,7 +58,7 @@ check_rc=$?
 
 if [ -n "$check_out" ] || [ "$check_rc" -ne 0 ]; then
     echo "" >&2
-    echo "  [提交门] ✗ 暂存内容存在空白/行尾问题："
+    echo "  [提交门·① 空白/行尾] ✗ 暂存内容存在空白/行尾问题：" >&2
     [ -n "$check_out" ] && printf '%s\n' "$check_out" | head -20 >&2
     [ -z "$check_out" ] && echo "    （git 未给出明细，退出码 $check_rc）" >&2
     echo "" >&2
@@ -37,9 +68,71 @@ if [ -n "$check_out" ] || [ "$check_rc" -ne 0 ]; then
     fail=1
 fi
 
-# ── 门 ②（预留）：本次暂存是否引入「库内 CRLF」
+# ── 门②③④：索引一致性（对每个存在的索引跑；没索引的仓自动跳过）
+#    ⭐ 加一个新索引 = 往下面这行列表里加一个路径（正文目录 = 索引所在目录）
+staged=$(git diff --cached --name-only)
+
+for idxpath in decisions/INDEX.md postmortems/INDEX.md; do
+    dir=$(dirname "$idxpath")
+
+    # 只在本次暂存动到【该索引所在目录】时才跑这个索引
+    printf '%s\n' "$staged" | grep -q "^$dir/" || continue
+
+    idx=$(git show ":$idxpath" 2>/dev/null)
+    idx_old=$(git show "HEAD:$idxpath" 2>/dev/null)
+
+    # 门②：本次【新增】的目录内正文必须在该索引里登记
+    for f in $(git diff --cached --name-only --diff-filter=A -- "$dir/*.md" | grep -v "^$idxpath\$"); do
+        b=$(basename "$f")
+        if ! printf '%s\n' "$idx" | grep -qF "$b"; then
+            echo "  [提交门·② 索引登记] ✗ 新增的正文未在 $idxpath 里登记：$f" >&2
+            echo "     处理：在索引里加一行（含摘要/类型/生命周期/位置），或确认该文件不该进 $dir/" >&2
+            fail=1
+        fi
+    done
+
+    if printf '%s\n' "$staged" | grep -q "^$idxpath\$"; then
+
+        # 门③：索引里【仓内相对】的链接目标必须存在（跳过 URL / 绝对路径 / 盘符路径）
+        #   ⚠️ 取【每行第一个】链接（行首那个才是该条目的身份）；贪婪取最后一个会捡到摘要里的内联链接
+        #      —— 实测：`postmortems/INDEX.md` L49 的摘要里有 `[0029](0029-….md)` 这种仓内短写，
+        #      贪婪版把它当路径去查 ⇒ 误报（见文件头「已修 bug ④」）。
+        #   ⚠️ 形状校验见文件头「已修 bug ②」
+        for t in $(printf '%s\n' "$idx" | sed -n 's/^[^]]*](\([^)]*\)).*/\1/p' | tr -d '\r' | sort -u); do
+            case "$t" in
+                *://*|/*|[A-Za-z]:*) continue ;;
+            esac
+            case "$t" in
+                *.md) ;;
+                *) continue ;;
+            esac
+            case "$t" in
+                *[!A-Za-z0-9._/-]*) continue ;;
+            esac
+            if [ ! -f "$dir/$t" ] && [ ! -f "$t" ]; then
+                echo "  [提交门·③ 索引指向] ✗ $idxpath 里写的仓内文件不存在：$t" >&2
+                fail=1
+            fi
+        done
+
+        # 门④：索引条目【净减少】却没删任何正文 ⇒ 疑似旧副本覆盖（台账 I-104）
+        #   ⚠️ 不能用「diff 里有 -| 行」判：修改一行在 diff 里同样是「删+增」⇒ 会误报（bug ③）
+        rows_before=$(printf '%s\n' "$idx_old" | grep -c '^| \[')
+        rows_after=$(printf '%s\n' "$idx" | grep -c '^| \[')
+        del_files=$(git diff --cached --name-only --diff-filter=D -- "$dir/*.md" | grep -vc "^$idxpath\$")
+        if [ -n "$idx" ] && [ "$rows_after" -lt "$rows_before" ] && [ "$del_files" -eq 0 ]; then
+            echo "  [提交门·④ 索引条目净减少] ✗ $idxpath 表行数 $rows_before → $rows_after，但没删除任何正文：" >&2
+            git diff --cached -U0 -- "$idxpath" | grep '^-| ' | head -3 | cut -c1-120 >&2
+            echo "     ⚠️ 常见原因：拿【旧副本】整份覆盖了索引（台账 I-104：会静默丢行）" >&2
+            echo "     ⚠️ 合法改法：确实要精简 ⇒ 连同正文一起处理，或 git commit --no-verify" >&2
+            fail=1
+        fi
+
+    fi
+done
+
+# ── 预留段（未上线）：本次暂存是否引入「库内 CRLF」
 # 暂不上线的理由：存量未收口的文件会造成误报（见复盘 0035「永远响的警报」）。
-# 需要时再启用：
 #   bad=$(git diff --cached --name-only -z | tr '\0' '\n' | while read -r f; do
 #           [ -f "$f" ] || continue
 #           case "$f" in *.pdf|*.png|*.jpg|*.zip|*.bin|*.gz) continue;; esac
