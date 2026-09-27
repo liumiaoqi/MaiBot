@@ -322,6 +322,7 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=7)
     ap.add_argument("--verdict", default="")
     ap.add_argument("--audit", action="store_true")
+    ap.add_argument("--file", default="", help="--audit 要审的文件（默认 problems.json）")
     args = ap.parse_args()
 
     pfile = HERE / "problems.json"
@@ -338,7 +339,7 @@ def main() -> None:
     if args.verdict:
         verdict(args.verdict, json.loads(pfile.read_text(encoding="utf-8")))
     if args.audit:
-        data = json.loads(pfile.read_text(encoding="utf-8"))
+        data = json.loads((HERE / args.file if args.file else pfile).read_text(encoding="utf-8"))
         bad = audit(data)
         raise SystemExit(1 if bad else 0)
 
