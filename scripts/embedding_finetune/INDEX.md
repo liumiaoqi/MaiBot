@@ -13,6 +13,7 @@
 | `music_rule_gen/` | 音乐规则生成器——简谱解析 + 规则归纳 + 推理生成（“音乐是数值结构不是统计结构”） | 🟡 | README.md |
 | `trading/` | ⚠️ **名字已名不副实**：89 个 `.py` 里 **73 个是 `exp*.py`** —— 早期确为股票数据实验（`fetch_*`/`industry_*`/`probe_*`），**后来被当成通用实验编号区**：`exp30_entanglement_dedup` · `exp31_grover_goal_amplification` · `exp32_quantum_annealing_desire` · `exp33_fault_injection` · `exp34_qsnn` · `exp37_tensor_network_compression` · `exp38_fruitfly_olfaction` · `exp50_worm_trading` · `exp51–56`（角色/量子/基因/GRN drift、叙事）⇒ **线虫/演化线的代码也在这里** | 🟢 | NOTES.md（2026-08-18 建） |
 | `knob_experiment/` | 旋钮参数实验 | 🟡 | README.md |
+| ⭐ `social_rel/` | **社会关系模型 → 嵌进 MaiBot**：给现有 A_memorix 社会关系记忆加一层「**学出来的关系强度 / 仲裁**」；靶子 = *confidence 已存储却未参与检索排序*。**dsh** 的线（2026-09-27 立）—— ⚠️ 只做离线实验，先不改 `src/A_memorix/` 核心 | 🟢 | NOTES.md |
 | `C++/` | C++ 加速实现（build_triplets 三元组构建） | 🟡 | build_triplets.cpp + Makefile |
 | `maibot_embedding_finetune/` | bge 向量微调工具链（step0-4 流水线 + ONNX 导出） | 🟡 | README.md 下半部 |
 
