@@ -158,6 +158,7 @@ def gen_t5_undecidable(rng: random.Random, rows: int = 6) -> Dict:
     """
     cols = ["t", "col_a", "col_b", "col_c"]
     undecidable = rng.random() < 0.5
+    break_at = rng.randrange(rows)               # ⚠️ 破坏行**随机**（固定末行=位置提示）
     rows_out: List[List[str]] = []
     for i in range(rows):
         a = round(rng.uniform(1, 20), 1)
@@ -167,7 +168,7 @@ def gen_t5_undecidable(rng: random.Random, rows: int = 6) -> Dict:
         else:
             b = round(a * 2.0, 1)
             c = round(a * 2.0, 1)
-            if i == rows - 1:                    # 只在最后一行破坏 R2
+            if i == break_at:                    # ⭐ 随机一行破坏 R2（不是固定末行）
                 b = round(a * 2.0 + rng.choice([0.3, -0.4]), 1)
         rows_out.append([str(i + 1), _fmt(a), _fmt(b), _fmt(c)])
 
