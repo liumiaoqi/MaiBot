@@ -1731,3 +1731,45 @@ feedback_correction_episode_query_block_enabled 的全部出现（5 处）：
 | ③ 清理陈旧 pending | 数据清理 | 便宜，但**治的是现象** |
 
 ⇒ ⭐ **我的推荐顺序：①′ → ③ → ① → ②** ✓
+### 1.34 ⭐⭐ 接线审计（跨子系统）：**32/510 个声明字段在代码里 0 引用** ＋ ⚠️ **更正 §1.33**（2026-09-27）
+
+#### A. 审计工具与口径（工具已入库：`tools/audit_wiring.py`）
+
+```
+口径 v1（错）：拿配置键字符串去 grep `_cfg("...")` ⇒ 报 234 个"从未被读"
+   ✗ **自证错的证据**：名单里有 `memory_fusion.stage` —— 而**我亲手核实过它被读**（`fusion_config.py:47`）
+   ⇒ 真因：代码用 `official_configs.py` 的 **Pydantic 字段对象**读配置，**不是**字符串查键 ✓
+口径 v2（对）：用**字段名**在代码里的出现次数判定（排除声明文件自身）
+   正对照 `stage` → 引用 21 处 ✓（口径有效）· 负对照 `feedback_correction_episode_query_block_enabled` → 0 处 ✓（能找到真目标）
+```
+⇒ ⭐ **这次是"检查器的口径"第 N 次实证**（同族：§1.25 三类假警报 · §1.20 负样本 · §1.13 错断言）✓
+
+#### B. 结果：510 个字段中 **32 个 0 引用**，其中 **21 个成两族**
+
+| 族 | 字段数 | 与什么同源 |
+|---|---|---|
+| ⭐ `feedback_correction_*` | **15** | **DEL-1**（2026-07-28 删除模糊修改系统）|
+| ⭐ `fuzzy_modify_*` | **6** | 同一个 DEL-1 ✓ |
+| 其余零散 | 11 | `eviction` · `free_threaded` · `gc_tuning_enabled` · `image_parse_threshold` · `max_emoji_size_mb` · `mid_term_memory_lenth`（⚠️ 拼写如此）· `no_action_backoff_*` · `show_memory_prompt` · `wait_image_recognize_max_time` · `webui_style` |
+
+#### C. ⚠️⚠️ 更正 §1.33：「从未接线」是**错的**
+
+```
+在 `2f5688e76^`（DEL-1 的父提交）上，这些字段**确实被读**：
+  feedback_config.py:31   enabled=bool(integration.get("feedback_correction_enabled", False))
+  feedback_config.py:43   episode_query_block_enabled=bool(integration.get("feedback_correction_episode_query_block_enabled", True))
+  fuzzy_modify_config.py:22  enabled=bool(integration.get("fuzzy_modify_enabled", True))
+```
+⇒ ⭐⭐ **真实情况是**：这些开关**有过接线**，被 **DEL-1 连同整族代码删掉**；
+   `is_episode_source_query_blocked`（判定函数）**活了下来**，于是变成"**消费者没了、开关也没了、判定还在**" ✓
+⇒ ⭐ **这改变了建议的性质**：
+   - ❌ 不是"补一段从未有过的接线"（bug 修复）
+   - ✅ 而是「**是否部分恢复一个被有意删掉的子系统**」（**设计决策** —— 要 lmq 拍，且**未必要原样恢复**）
+⇒ ⚠️ **今天第三次被同一个坑咬**（"HEAD 搜不到 ≠ 从未存在"）—— 而且**我在审计设计里刚写过这条警告**，
+   却仍在 §1.33 里写下"从未接线" ✓ ⇒ ⭐ **说明"知道判据"与"用上判据"是两件事**（判据库已记 ✓）
+
+#### D. 审计工具本身的价值
+
+- ⭐ **跨子系统有效**：非 `a_memorix` 的字段（`webui_style` · `show_memory_prompt` …）也被找出来 ✓
+- ⭐ **可复用**：`tools/audit_wiring.py`（已入库）+ 两个对照写死在里面 ⇒ 下次任何人可一键复跑 ✓
+- ⚠️ **它只报"0 引用"，不报"引用了但无效"**（后者需要逐个人工看，如 §1.33 那个）✓
