@@ -129,8 +129,7 @@ def gen_t4(rng: random.Random, rows: int = 26) -> Dict:
         rows_out.append([str(i + 1), str(a), r1(c, majority)])
         if r1(c, ROUND_HALF_UP) != r1(c, ROUND_HALF_EVEN):
             sensitive.append(i)
-    if not sensitive:                                        # 兜底：保证至少一行能当"
-        risky"                                        # （正常不会走到）
+    if not sensitive:                                        # 兜底：正常不会走到
         raise RuntimeError("没能造出约定敏感行")
     bad = rng.choice(sensitive[1:-1] if len(sensitive) > 2 else sensitive)
     a_bad = Decimal(rows_out[bad][1])
