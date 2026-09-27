@@ -523,3 +523,40 @@ audit 原本的说法（"含信息"）已经接近 ρ；impl 的转述（"带方
 
 **写域**：`social_rel/sat/`（试点产物）· 结论由 lead 落笔进 `NOTES.md`。
 **优先级**：⚠️ **A 线（`task-4`）优先**；本试点**不占用** `impl3/`、不与 impl-synth 的写域重叠。
+---
+
+## 8. S1 / S2 执行记录（2026-09-27 · lmq 已批「按推荐走」＝ 选项 b）
+
+### 8.1 改了什么（**diff = 2 增 2 删，只动两行**）
+
+| # | 文件:行 | 改动 | 依据 |
+|---|---|---|---|
+| **S1** | `src/A_memorix/core/runtime/services/v5_memory.py:104` | `SET confidence = MAX(0.0, COALESCE(confidence,0.0) + ?)` ⇒ **加 `MIN(1.0, …)` 上界** | 我亲眼核过：只有下界、没有上界 ⇒ 首次 `reinforce`(+0.5) 会把 1.0 推到 **1.5**，超出下游 `unified_profile_service.py:115` 假定的 `[0,1]` |
+| **S2a** | `src/A_memorix/core/storage/stores/schema_manager.py:180`（表 `relations`） | `confidence REAL DEFAULT 1.0 → 0.5` | ⚠️ `deleted_relations`(L208) **不动**（最小改动）；⚠️ 已存在的库其 DDL 仍是 1.0 ⇒ 新库才是 0.5（**已知不对称，如实记**） |
+| **S2b** | 真库数据（**非代码**） | `UPDATE relations SET confidence=0.5 WHERE is_pinned=0` | 137 行；备份在先（`C:\hub\.scratch\social_rel_snap\pre-s2-0927_143615`） |
+
+**提交**：`015ba4b5d`（S1+S2a）· ⭐ **提交前先跑 `py_compile` 两文件 rc=0**（I-105 的临时规矩）；真库文件被 `.gitignore:data/` 挡住 ⇒ 迁移没脏仓库 ✓
+
+### 8.2 三条判据（事前 / 事后各量一次）
+
+```
+[before] 共 184 条 · DISTINCT(confidence)=1 · 分布=[(1.0, 184)] · (非 pinned 137, pinned 47)
+迁移      UPDATE relations SET confidence=0.5 WHERE is_pinned=0  ⇒ 影响 137 行
+[after]  共 184 条 · DISTINCT(confidence)=2 · 分布=[(0.5, 137), (1.0, 47)] ✓ 判据①
+解析量   可区分对子（pinned × 非 pinned）= 6439      ← 与 impl3 独立算得的 6,439 同数 ✓
+护栏     floor=0.3 ⇒ 0.5 ≥ 0.3 ⇒ 不误伤 ✓ 判据②
+判据③     ⚠️ **"排序质量变好"真库答不了**（无相关性标注）⇒ 只报"**6,439 个关系对从并列变为有序，方向=pinned 优先**"，
+          ⭐ **这是"可区分性"不是"质量"** —— 质量要等下游观察
+```
+
+### 8.3 回滚（一条 SQL + 还原代码）
+
+```sql
+UPDATE relations SET confidence = 1.0;      -- 数据回滚
+```
+代码回滚 = `git revert 015ba4b5d`；备份目录：`C:\hub\.scratch\social_rel_snap\pre-s2-0927_143615`。
+
+### 8.4 ⚠️ 本申请自己写下的两条"无法证明"（照旧成立）
+
+1. **47 条 `is_pinned` 是"用户"点的吗** —— 只能证明是**显式动作**写的（`protected_until` 47/47 空 ⇒ 非自动 TTL）；
+2. **饱和机制是反推**（无执行日志）—— 证伪命令：库里出现任意 `confidence != 1.0` ⇒ ⚠️ **现在这条命令会"响"了**（因为我们刚把它改成两档）⇒ 所以它从"证伪机制"变成"**验证本次改动生效**"的证据。
