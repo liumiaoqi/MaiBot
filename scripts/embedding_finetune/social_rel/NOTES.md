@@ -1428,3 +1428,43 @@ C2 质量守恒：Σu 16.000 → 16.000（漂移 7.11e-15）✓
 
 ⭐ **与既有判据咬合**：这是「**检查器的口径比被检查的东西更容易错**」的又一次实证 ——
 ⭐ 而且这次**连"假警报的构成"都量出来了**（28 + 1 = 29）✓ 同族：§1.20 的负样本三轮不合格 · §1.13 的错断言 · 判据库「判据上线前先跑探针」✓
+### 1.26 ⭐⭐⭐ 真库不止一个：**四个库** —— 而三套图/连接主义的表**在自己的库里也是空的**（2026-09-27 · 已逐条复核）
+
+#### A. 四个存储位置（我此前只知道两个；"数据在另一个库"我猜对了一半）
+
+```
+metadata.db               graph_nodes=0 · graph_edges=0 · relations=184 · paragraph_relations=217 · paragraphs=4692
+                          sqlite_sequence = [('person_profile_snapshots', 1220)]   ← ⭐ 正对照
+concept_graph.db          concept_nodes=0 · relation_edges=0 · trace_edges=0 · event_writes=0 · ⚠️ 无 sqlite_sequence 表
+connectionist.db          cognitive_entries=0 · episodes=0 · sagas=0 · fragment_status=0 · ⭐ sqlite_sequence **存在但为空**
+connectionist/traces.db   traces=0
+```
+⇒ ⭐ **四套图/连接主义表，在自己的库里也全是 0** ✓（`connectionist.db` 那 3 张 AUTOINCREMENT 表 + 空 `sqlite_sequence` ⇒ **零 INSERT**，
+   对照借的是**跨库**的 `person_profile_snapshots` seq=1220 —— 该库内**没有**正对照，成员如实标注了 ✓）
+
+#### B. ⭐⭐ "为什么是 0"：**两套门，两条链，都有排他机制**
+
+| 链 | 排他机制（已复核） |
+|---|---|
+| **概念图/融合写入**（`concept_nodes`/`relation_edges`/`trace_edges`/`event_writes`） | ⭐ **`memory_fusion.stage` 门控**：门在 `concept_graph/fusion_config.py:47`（`stage in ("fusion_write","fusion_full")`），调用点三处（`sdk_memory_kernel.py:788/837` · `host_service.py:244`）；**真配置 `config/bot_config.toml:162 stage = "fusion_off"`**，且 **37 个快照里 35 个连 `stage` 键都没有**（缺键默认 `fusion_off`）⇒ **从未有过非 `fusion_off` 的值** ✓<br>⭐ **路径级反证**：`fused_write_pipeline.py:134` 在**同一事务里必写** `mark_event_written` ⇒ `event_writes = 0` ⇒ **`write()` 一次都没执行过** ✓（比"行数 0"强：它证的是**路径**） |
+| **连接主义**（`cognitive_entries`/`episodes`/`sagas`/`fragment_status`/`traces`） | ⚠️ **无排他机制**：配置 `enabled = true` / `phase = "dual_write"` **是开的**；`observer.py:60-129` 有**三处提前返回**（抽不出概念 / 显著性不足 / 有效概念<2）⇒ **"没调用"与"调了但每次早退"静态上同形** ⇒ 成员**如实标为不可分** ✓ |
+
+#### C. ⭐ 顺手解释了我上一轮的观察：`concept_graph.db` 4 KB 主库 + 90 KB WAL
+
+> WAL 里是 **schema（DDL）**，不是数据 ——「**2026-08-04 建过一次库就再没写过**」✓
+> ⇒ 与 §1.43 我用"副本读写打开"看到的 **4,096 → 61,440 B**（WAL 确被写回、表仍 0 行）**完全一致** ✓
+
+#### D. ⭐ 我的答案键被纠正了一处（记下）
+
+| 项 | 我的键 | 成员（已核） |
+|---|---|---|
+| `paragraph_relations` 的写入者 | `delete.py:752/900` · `relation_store.py:268` · `migrate_…:1703`（**只找到显式调用点**） | ⭐ **真正的量产写入者藏在 `add_relation` 内部**：`relation_store.py:87-88 if source_paragraph: self.link_paragraph_relation(...)`（只看调用点会漏掉大半来源）✓ |
+| `paragraph_relations` 与 `relations` 的关系 | "多对多连接表，完整性 100%" ✓ | ⭐ **更深**：`source_paragraph` 只有 **87** 个 distinct 段落、join 表有 **101** 个 ⇒ **`source_paragraph` 只记"首次断言"，join 表记"全部断言"**（`sp NOT in join = 0`）✓ 两者缺一不可 |
+| `217` 的构成 | 163+30+9+4+5+6 = 217 ✓ | 同 ✓（且 163+15+3+1+1+1 = **184** ⇒ 21 条关系被多段挂链 ✓） |
+| 四个库 | ⚠️ 我只知道 **2 个**（metadata / concept_graph） | ⭐ **4 个**（+ `connectionist.db` + `connectionist/traces.db`）✓ |
+
+#### E. ⚠️ S3 的**流程缺陷**（如实记）
+
+> `dan-heng` 交回的是 **`bailu` 的那 2 题**（做得很深），而**它自己分到的那题没做** ⇒ **分工格出现一个洞** ✓
+> ⇒ 我已**分别补发**：给 `dan-heng` 重申它自己的题（并提示"题干可能有假前提，指出比硬答有价值"），
+>    给 `bailu` 索取它的回执 ✓ ⇒ **判定要等这两份补齐** ✓
