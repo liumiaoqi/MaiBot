@@ -139,25 +139,88 @@ def gen_t4(rng: random.Random, rows: int = 26) -> Dict:
     return {
         "kind": "rounding_outlier",
         "table": {"cols": cols, "rows": rows_out},
-        "question": "`col_c` = `col_a × 3.0` 保留 1 位小数。**表中恰好有一行**的四舍五入约定"
-                    "与**其余所有行**不一致（其余行统一用同一种约定）。只答 `t` 的值（正整数）。",
+        "question": "`col_c` = `col_a × 3.0` 保留 1 位小数（**精确十进制**，不是二进制浮点）。"
+                    "**表中恰好有一行**的四舍五入约定与**其余所有行**不一致"
+                    "（其余行统一用同一种约定）。只答 `t` 的值（正整数）。",
         "answer": rows_out[bad][0],
         "majority_convention": conv,
     }
 
 
-GENS = [gen_t1, gen_t2, gen_t3, gen_t4]
+def gen_t5_undecidable(rng: random.Random, rows: int = 6) -> Dict:
+    """⭐ 难度轴转向（wave 2 的结论）：**信息不足 ⇒ 正解是「无法判定」**
+
+    形态：表中 `col_c` 由某简单规则生成，给两个候选规则 R1/R2：
+      · **一半的题**：R1、R2 在**全部给定行上都成立** ⇒ 正确答 **「无法判定」**（数据不足以区分）
+      · **另一半**：R1 全部成立、R2 至少一行不成立 ⇒ 正确答 **「R1」**
+    ⚠️ 两类各半 ⇒ **答案不是常数**（照"提示位"判据，防题型本身成为提示）。
+    ⚠️ 可机械验证：生成时就断言"两类各自的成立情况"，并写进键里供复核。
+    """
+    cols = ["t", "col_a", "col_b", "col_c"]
+    undecidable = rng.random() < 0.5
+    rows_out: List[List[str]] = []
+    for i in range(rows):
+        a = round(rng.uniform(1, 20), 1)
+        if undecidable:
+            b = round(a * 2.0, 1)                # 两个规则都被满足
+            c = round(a * 2.0, 1)
+        else:
+            b = round(a * 2.0, 1)
+            c = round(a * 2.0, 1)
+            if i == rows - 1:                    # 只在最后一行破坏 R2
+                b = round(a * 2.0 + rng.choice([0.3, -0.4]), 1)
+        rows_out.append([str(i + 1), _fmt(a), _fmt(b), _fmt(c)])
+
+    # ⭐ 机械核（生成时自证）：两规则各自"全部行成立"与否
+    r1_ok = all(abs(round(float(r[1]) * 2.0, 1) - float(r[3])) < 1e-9 for r in rows_out)
+    r2_ok = all(abs(float(r[2]) - float(r[3])) < 1e-9 for r in rows_out)
+    if undecidable:
+        assert r1_ok and r2_ok, "undecidable 题必须两规则都成立"
+        answer = "无法判定"
+    else:
+        assert r1_ok and not r2_ok, "decidable 题必须 R1 成立、R2 不成立"
+        answer = "R1"
+    return {
+        "kind": "undecidable",
+        "table": {"cols": cols, "rows": rows_out},
+        "question": "`col_c` 由**某一条**简单规则生成。候选：(R1) `col_c = 2 × col_a`；"
+                    "(R2) `col_c = col_b`。**仅凭这张表**能唯一确定是 R1 还是 R2 吗？"
+                    "若**不能**，答 `无法判定`；若能，答 `R1` 或 `R2`。",
+        "answer": answer,
+        "verify": {"R1_fits_all_rows": r1_ok, "R2_fits_all_rows": r2_ok},
+    }
+
+
+GENS = [gen_t1, gen_t2, gen_t3, gen_t4, gen_t5_undecidable]
+
+
+def _answers_distinct(problems: List[Dict]) -> bool:
+    """同型题的答案必须**两两不同**（防"提示位"：同型题答案跨题规律会被成员看出来）"""
+    by_kind: Dict[str, List[str]] = {}
+    for p in problems:
+        by_kind.setdefault(p["kind"], []).append(str(p["answer"]))
+    return all(len(v) == len(set(v)) for v in by_kind.values())
 
 
 def gen_all(n: int, seed: int) -> Dict:
+    """⭐ 生成时**强制同型题答案两两不同**（"提示位"判据）——
+    同一 seed 下重试最多 200 次，取第一个满足分散条件的集合；并把检查结果写进键里。"""
     rng = random.Random(seed)
-    problems = []
-    for i in range(n):
-        p = GENS[i % len(GENS)](rng)
-        p["pid"] = f"P{i + 1:02d}"
-        problems.append(p)
+    problems: List[Dict] = []
+    for attempt in range(200):
+        problems = []
+        r = random.Random(seed + attempt * 7919)
+        for i in range(n):
+            p = GENS[i % len(GENS)](r)
+            p["pid"] = f"P{i + 1:02d}"
+            problems.append(p)
+        if _answers_distinct(problems):
+            break
+    else:
+        raise RuntimeError("200 次重试仍无法让同型题答案两两不同 —— 请增加题量或改设计")
     return {"seed": seed, "n": n, "problems": problems,
-            "note": "答案键在本文件里；发给成员时**必须剥掉 answer/decoy/kind 字段**。"}
+            "answers_distinct_within_kind": _answers_distinct(problems),
+            "note": "答案键在本文件里；发给成员时**必须剥掉 answer/decoy/kind/verify/majority_convention 字段**。"}
 
 
 def strip_for_solver(problems: Dict) -> Dict:
