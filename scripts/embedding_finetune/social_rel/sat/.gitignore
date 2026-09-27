@@ -1,0 +1,4 @@
+# social_rel/sat —— 生成物不入库（RULES.md：数据/产物不进仓）
+#   problems.json        含答案键 ⇒ 绝不入库
+#   problems_solver.json 发给成员的那一份 ⇒ 由 make_problems.py --gen 重生成
+*.json

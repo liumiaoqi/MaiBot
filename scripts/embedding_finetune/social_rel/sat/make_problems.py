@@ -1,0 +1,159 @@
+"""B 线试点 · 源问题集生成器（social_rel/sat/）
+
+设计约束（照 NOTES §7.6）：
+  · ⭐ 答案**唯一**且**可机械判定**  ⇒ 每题带答案键，校验器不依赖人眼
+  · ⭐ 成员**会失手**（不是白给）    ⇒ 埋"口径陷阱"：空值有三种写法、派生关系有方向
+  · ⭐ **无法靠检索作弊**            ⇒ 数据是本脚本合成的，外部没有第三处可查
+  · ⭐ 题面**不含答案**              ⇒ 源依赖审计（机械版）的前提
+
+三类题（每类都能机械判分）：
+  T1 `empty_col`  —— 6 列里哪一列**整列为空**（陷阱：`""` / `"-"` / `"0"` / `"NULL"` 写法混用）
+  T2 `tampered_row` —— 哪一行**违反了列间的派生关系**（如 col_c = round(col_a·k, 1)）
+  T3 `derived_from` —— 两列谁**派生自**谁（方向题，差一点就反）
+
+用法：
+  python make_problems.py --gen --seed 20260927 --n 7   # 生成 problems.json
+  python make_problems.py --verdict sat/answers.json    # 机械判分（答案键在 problems.json 里）
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import random
+from typing import Dict, List
+
+HERE = pathlib.Path(__file__).resolve().parent
+
+# ⚠️ 空值的多种写法 —— 陷阱之源：成员必须**先定口径**再答（"哪个算空"）
+NULLISH = ["", "-", "0", "NULL", "n/a"]
+
+
+def _fmt(v) -> str:
+    return f"{v:.1f}" if isinstance(v, float) else str(v)
+
+
+def make_table(rows: int, cols: List[str], rng: random.Random) -> List[List[str]]:
+    return [[_fmt(round(rng.uniform(1, 99), 1)) for _ in cols] for _ in range(rows)]
+
+
+def gen_t1(rng: random.Random, rows: int = 40) -> Dict:
+    """哪一列整列为空（口径：只有 '' 与 '-' 算空；'0' 与 'NULL' 是**值**）"""
+    cols = ["A", "B", "C", "D", "E", "F"]
+    t = make_table(rows, cols, rng)
+    empty_i = rng.randrange(len(cols))
+    for r in range(rows):
+        t[r][empty_i] = rng.choice(["", "-"])
+    # 干扰项：另有一列**看起来**像空（全是 '0'）—— 但它不是空，是有值
+    decoy = rng.choice([i for i in range(len(cols)) if i != empty_i])
+    for r in range(rows):
+        t[r][decoy] = "0"
+    return {
+        "kind": "empty_col",
+        "table": {"cols": cols, "rows": t},
+        "question": "哪一列**整列为空**？（口径：只有空字符串与 '-' 算空；'0'/'NULL' 算有值）"
+                    " 只答列名。",
+        "answer": cols[empty_i],
+        "decoy": cols[decoy],
+    }
+
+
+def gen_t2(rng: random.Random, rows: int = 30) -> Dict:
+    """哪一行违反了 col_c = round(col_a * 3.0, 1)（有一行被改过）"""
+    cols = ["t", "col_a", "col_b", "col_c", "note"]
+    t = []
+    for r in range(rows):
+        a = round(rng.uniform(1, 30), 1)
+        b = round(rng.uniform(1, 30), 1)
+        c = round(a * 3.0, 1)
+        t.append([str(r + 1), _fmt(a), _fmt(b), _fmt(c), rng.choice(["ok", "seen", "auto"])])
+    bad = rng.randrange(1, rows - 1)                      # 不取首尾，避免"边界行"成为线索
+    t[bad][3] = _fmt(round(float(t[bad][1]) * 3.0 + rng.choice([1.3, -1.7, 2.9]), 1))
+    return {
+        "kind": "tampered_row",
+        "table": {"cols": cols, "rows": t},
+        "question": "表中**只有一行**违反派生关系 `col_c = round(col_a * 3.0, 1)`（允许 0.0 的舍入误差）。"
+                    " 只答 `t` 的值（正整数）。",
+        "answer": t[bad][0],
+    }
+
+
+def gen_t3(rng: random.Random, rows: int = 24) -> Dict:
+    """两列谁派生自谁：v = round(u * k, 1)，问**源**是哪一列"""
+    cols = ["id", "u", "v", "w"]
+    k = rng.choice([2.5, 4.0, 7.5])
+    order = rng.random() < 0.5
+    t = []
+    for r in range(rows):
+        a = round(rng.uniform(1, 50), 1)
+        b = round(a * k, 1)
+        u, v = (a, b) if order else (b, a)                 # 谁是谁**随机**，防位置偏见
+        t.append([str(r + 1), _fmt(u), _fmt(v), _fmt(round(rng.uniform(1, 9), 1))])
+    src, dst = ("u", "v") if order else ("v", "u")
+    return {
+        "kind": "derived_from",
+        "table": {"cols": cols, "rows": t},
+        "question": f"`u` 与 `v` 之间是 `目标 = round(源 * {k}, 1)` 的派生关系。**哪一列是源**？ 只答 `u` 或 `v`。",
+        "answer": src,
+    }
+
+
+GENS = [gen_t1, gen_t2, gen_t3]
+
+
+def gen_all(n: int, seed: int) -> Dict:
+    rng = random.Random(seed)
+    problems = []
+    for i in range(n):
+        p = GENS[i % len(GENS)](rng)
+        p["pid"] = f"P{i + 1:02d}"
+        problems.append(p)
+    return {"seed": seed, "n": n, "problems": problems,
+            "note": "答案键在本文件里；发给成员时**必须剥掉 answer/decoy/kind 字段**。"}
+
+
+def strip_for_solver(problems: Dict) -> Dict:
+    """发给成员的那一份：只留 pid/table/question（源依赖审计的机械前提）"""
+    return {"problems": [{"pid": p["pid"], "table": p["table"], "question": p["question"]}
+                         for p in problems["problems"]]}
+
+
+def verdict(answers_path: str, problems: Dict) -> None:
+    """机械判分：answers = [{"pid": "P01", "answer": "C"}, ...]"""
+    given = {a["pid"]: str(a.get("answer", "")).strip() for a in
+             json.loads(pathlib.Path(answers_path).read_text(encoding="utf-8"))}
+    hit = 0
+    for p in problems["problems"]:
+        ok = given.get(p["pid"], "?") == p["answer"]
+        hit += ok
+        print(f"   {p['pid']} [{p['kind']:<13}] 答={given.get(p['pid'], '缺失'):<8} "
+              f"真值={p['answer']:<6} {'✓' if ok else '✗'}")
+    n = len(problems["problems"])
+    print(f"   === 命中 {hit}/{n} = {hit / n:.3f} ===")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--gen", action="store_true")
+    ap.add_argument("--seed", type=int, default=20260927)
+    ap.add_argument("--n", type=int, default=7)
+    ap.add_argument("--verdict", default="")
+    args = ap.parse_args()
+
+    pfile = HERE / "problems.json"
+    if args.gen:
+        data = gen_all(args.n, args.seed)
+        # ⚠️ 显式 newline="\n"：Python 在 Windows 默认会把 \n 翻成 CRLF（本仓规范是 LF）
+        pfile.write_text(json.dumps(data, ensure_ascii=False, indent=1),
+                         encoding="utf-8", newline="\n")
+        solver = HERE / "problems_solver.json"
+        solver.write_text(json.dumps(strip_for_solver(data), ensure_ascii=False, indent=1),
+                          encoding="utf-8", newline="\n")
+        print(f"   写出 {pfile.name}（含答案键）与 {solver.name}（发给成员的那一份）")
+        print(f"   题目 {data['n']} 道：" + ", ".join(f"{p['pid']}:{p['kind']}" for p in data["problems"]))
+    if args.verdict:
+        verdict(args.verdict, json.loads(pfile.read_text(encoding="utf-8")))
+
+
+if __name__ == "__main__":
+    main()
