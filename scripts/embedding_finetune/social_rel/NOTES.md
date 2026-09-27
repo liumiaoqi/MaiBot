@@ -56,6 +56,35 @@
 > ⚠️ 与 `zg30` 规格自陈一致：「**confidence 已存储但未作边权重**」。
 > ⇒ **本线第一步的改进点就是这个**：让**学出来的**关系强度真正进排序。
 
+### ⭐⭐⭐ 1.1 真库实测（2026-09-27 · 只读 · **只取聚合量，不取内容**）
+
+**先说怎么量的**：`data/MaiBot.db`（764 KB）是**空壳**（相关表 0 行）⇒ ⚠️ **真库是**
+`data\MaiMBot\a-memorix\metadata\metadata.db`（**261.7 MB**，49 表）。
+量法：复制到 `C:\hub\.scratch\social_rel_snap\` 后 `mode=ro` 打开（**不碰运行中的库**）。
+
+| 事实 | 数字 |
+|---|---|
+| 活关系 `relations` | **184** |
+| 已删关系 `deleted_relations` | **14,868**（≈活的 **81×**） |
+| ⭐⭐ `relations.confidence` | n=184 · min=1 max=1 avg=1 · **不同取值 = 1** |
+| `deleted_relations.confidence` | n=14,868 · 同样**全是 1** |
+| 段落 `paragraphs`（含 FTS/分词/ngram） | 4,692（ngram **753,551**） |
+| 实体提及 `paragraph_entities` | **40,904** |
+| 画像快照 `person_profile_snapshots` | **1,220** |
+| 段↔关系 `paragraph_relations` | 217 |
+| ⚠️ 图存储 `graph_edges` / `graph_nodes`（`concept_graph.db` 的 `relation_edges`/`trace_edges` 也是） | **全 0** ⇒ **图召回现在没米下锅** |
+| ⚠️ `memory_feedback_tasks` / `memory_feedback_action_logs`（V5 反馈回路） | **全 0** ⇒ **这条回路从没跑过** |
+| `person_profile_active_persons` | 0 |
+
+⭐⭐ **三条定案**：
+
+1. ⭐⭐ **顺序要改**：现在 `confidence` **零区分度（不同取值=1）** ⇒ **"让 confidence 进排序"这件事今天选不出任何东西**。
+   ⇒ **本线的第一件事不是"让信号进排序"，是"产生信号"**（合成侧照旧可以先验证机制，但**真实侧的前置是"有没有可分辨的信号"**）。
+2. ⭐ **`boost_weight` 是一条现成入口且从未被用过**：`relation_store.py:583-597` 的
+   `confidence = MAX(confidence, ?)`（外部可抬升）—— 这与"没人写过非 1 值"的事实一致 ⇒ **它就是"显式偏好信号"的接入口**。
+3. ⚠️ **关系维度是稀疏的**：关系 **184** vs 段落 **4,692** vs 实体提及 **40,904** ⇒
+   关系抽取的产出率很低（约 **0.004 关系/提及**）⇒ ⭐ **"关系太少"本身也是一条可改进点**（比"权重不准"更上游）。
+
 ---
 
 ## 2. 边界（我不做什么）
