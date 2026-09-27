@@ -63,9 +63,11 @@ UPDATE relations SET confidence = 1.0;          -- 数据
 
 ---
 
-## 三、⭐ 顺带：一个**一行级可修的具体缺陷**（不需要你拍，但我建议排进你的清单）
+## 三、⭐ 顺带：**两个具体可修的缺陷**（不需要你拍大方向，但我建议排进你的清单）
 
-**9 个关系端点没有对应 `entities` 行**（端点覆盖 62/71 = **87%** 是当前硬上限）——根因已定位：
+### 3.1 关系端点补建（一行级 ⇒ 端点覆盖 62/71 → 71/71）
+
+**9 个关系端点没有对应 `entities` 行**（**87% 是当前硬上限**）——根因已定位：
 ```
 web_import_manager.py:3915-3916   写关系前**补建两端实体**（全仓唯一这么做的地方）
 summary_importer.py:761+          直接 upsert 关系，**不补端点** ⇒ 模型用了没列进 entities 的短语 ⇒ 孤儿
@@ -73,6 +75,17 @@ summary_importer.py:761+          直接 upsert 关系，**不补端点** ⇒ �
 ```
 ⇒ **把 `web_import_manager` 那两行搬进 `summary_importer` 的关系段** ⇒ 9 个孤儿消除 ⇒
 **端点覆盖 62/71 → 71/71**，并顺带抬高任何图方法的上限 ✓
+
+### 3.2 ⭐ 新：`episode_pending_paragraphs` 的 `running` 是**死状态**（我已核到代码 + 真库）
+
+```
+取件（metadata_store.py:2166-2168）  WHERE status='pending' OR (status='failed' AND retry_count<?)
+                                     ⇒ ⭐ running **永远不被选中**
+置位（:2190-2193）                   UPDATE … SET status='running' … WHERE … AND status IN ('pending','failed')
+                                     ⇒ ⭐ 再调也**拉不回来**
+⇒ 进程在批次中途中断 ⇒ **该行永久卡死**；本库**已卡 1 行**（领任务同一秒中断，至今 ≈46 天）✓
+```
+**最小修法（两选一）**：① 取件加**租约超时回收**（`running` 且 `updated_at` 超时 ⇒ 重新可取）② 启动时把残留 `running` 重置为 `pending` ✓
 
 ---
 
