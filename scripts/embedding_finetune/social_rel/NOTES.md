@@ -234,7 +234,38 @@
 
 ---
 
-## 4. 写域声明（避免三方撞车）
+## 4. H3 待批提案（2026-09-27 · **等 task-3 的证据** · 现在不动 `src/`）
+
+### 4.0 前置核验
+
+- ✅ **PII 核验通过**：`impl2/real_sample.json` 全是聚合量（184 条 × `['g','sup','reinf_sec','vec_ok','conf']`，**无姓名/无文本/无向量**），
+  且 `n_relations=184` / `n_subjects=36` 与 §1.2 实测**吻合** ⇒ **可入库** ✓
+- ⚠️ **接线侧不用动**：`confidence_guard.py`（floor 0.3 ＋ 反对齐降级）＋ `graph_relation_recall.py:119-128` 都已落地 ⇒ **H3 只剩"值"这一件事**。
+
+### 4.1 两种改法（判据 = **最小改动优先**）
+
+| 型 | 改法 | 动 schema？ | 评价 |
+|---|---|---|---|
+| **① 累加型** | 在 `reinforce_relations` 的 UPDATE 里补 `confidence = min(1.0, confidence + δ)` | ⚠️ **要**（"再强化一次 +δ" 需计数列否则无法去重） | 直观，但动表结构 ⇒ 后备 |
+| **⭐ ② 派生型** | **不动 reinforce**：加一个**回填过程**，用现有字段算并写回 —— 输入只要 `last_reinforced`（时间）＋ `paragraph_relations` 支撑度 | ✅ **零 schema 改动** | ⭐ **首选**（用的全是已在跑的字段） |
+| ③ 查询时算 | 检索时实时算（不落库） | ✅ 零改动 | ⚠️ 不推荐：每次查询都算 ⇒ 与"秒级迭代"相悖的长期开销 |
+
+### 4.2 提案（草稿 · ❗等证据）—— 让 `confidence` 有值
+
+> 加一个**派生回填**（②），规则形如 `confidence = f(days_since_reinforced, support_count)`。
+> **量纲必须按 `[0,1]` 缩放**（⚠️ task-3 那个 `+1` 无量纲的坑，别在这里再踩）。
+
+**判据（缺一不可）**：① 真库可查 —— 回填后 `COUNT(DISTINCT confidence) > 1`；② **离线复刻**里 `sim × confidence` 优于"**常数权重 = 现状**"基线，且 ⭐ **coverage 与 selection 两个数同时给** ＋ 候选随机摆放（audit 两条硬约束）；③ ⚠️ **护栏不被误触**（新值不得让 `ConfidenceGuard` 判"反对齐"降级，否则白改）。
+
+**边界**：**只在 task-3 离线复刻证明有效之后**才提交 lmq 批；**在那之前一个字都不改 `src/A_memorix/`**。
+
+### 4.3 task-3 进展（impl-synth）
+
+`impl2/snapshot.py`（8.5 KB）＋ `impl2/real_sample.json`（15.9 KB，14:16 落盘）⇒ 正在做真库样本；我的交叉核验：规模与 §1.2 一致 ✓。
+
+---
+
+## 5. 写域声明（避免三方撞车）
 
 - **我写**：`scripts/embedding_finetune/social_rel/`（本目录）· 本线在 `INDEX.md` 的登记行 · 报告落 `.shared/research/`
 - **我不写**：`snn_behavior/`（WB）· `src/A_memorix/`（先）· CA 的 `.codeartsdoer/specs/zg30_*` · `TOOL_ISSUES.md`（WB 提交）
