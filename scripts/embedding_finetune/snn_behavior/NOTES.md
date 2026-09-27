@@ -78,3 +78,57 @@ Gg(电突触)   (279, 279) | 非零边 1065 | 权重和 1840
 
 ⚠️ 读 `.npy` 时 numpy 报 *"created on Python 2"*：与该仓库 2017-02 那次
 「**Converted all `.mat` files into `.npy`**」的提交吻合（**推断**，非定案）——旧式 `.npy` 头所致，**不影响取值**。
+
+---
+
+## `flywire_data/` 的渠道（2026-09-27 实测 —— lmq 问「果蝇的渠道」）
+
+> ⚠️ 先答一句：「**能从线虫那个地方下吗**」⇒ **不能**。线虫那份来自 **Neural Interactome**，
+> 那是**线虫专属**项目（整个项目就是那 302/279 个神经元），**没有果蝇**。
+> 果蝇走的是**另一套渠道** —— 而且**我们早就在用了**。
+
+### 手上这份是怎么来的
+
+`fetch_flywire_mb.py` / `_probe_rel.py` 用的就是 **`neuprint.janelia.org` 的 Cypher API**，
+里面**硬编码**了 dataset：**`hemibrain:v1.2.1`**（2020 年的**雌性半脑**）
+⇒ `flywire_data/` 那 2464 神经元 / 76 061 边**就是从渠道拉的**，不是别人给的。
+
+### ⭐ 想要「完整果蝇」：**换 dataset 名，一字之改**
+
+| | |
+|---|---|
+| 现在 | `dataset='hemibrain:v1.2.1'`（雌性半脑，2020） |
+| **完整雄性 CNS** | ⭐ **`dataset='male-cns:v1.0'`**（2026-09-03 发布；脑＋视叶＋腹神经索，166 691 神经元 / ~1.25 亿突触） |
+
+token、Cypher 查询、`fetch_adjacencies` 全都不用改。
+官方建议用 **`neuprint-python`**：`Client("https://neuprint.janelia.org", dataset='male-cns:v1.0', token=token)`。
+
+### 免登录直链（2026-09-27 `curl -I` 实测，均 **HTTP 200**）
+
+基址 `https://storage.googleapis.com/flyem-male-cns/v1.0/connectome-data/flat-connectome/`
+
+| 文件 | 实测大小 | 是什么 |
+|---|---|---|
+| `body-annotations-male-cns-v1.0-minconf-0.5.feather` | **13.8 MB** | 注释：类别 / 类型 / 左右侧 |
+| ⭐ `body-neurotransmitters-male-cns-v1.0.feather` | **41.3 MB** | ⭐⭐ **每个神经元的递质预测** —— **正好补上我们这份缺的"极性/递质"** |
+| `connectome-weights-male-cns-v1.0-minconf-0.5.feather` | **1002.5 MB** | **完整 CNS 的连接图**（"线虫式矩阵"的对应物） |
+| `syn-partners-male-cns-v1.0-minconf-0.5.feather` | **6463.2 MB** | 突触配对（**不建议下**） |
+
+（另有 `tbar-neurotransmitters` 2.7 GB · `syn-points` 12.7 GB · 骨架 SWC · 供自建 neuprint 的 neo4j 库）
+
+⚠️ **别全量下** —— 光连接表就 1 GB、突触表 6.5 GB 起。
+**正解 = 在 neuprint 上只拉子图**（= 我们原来拉蘑菇体子图的做法）＋ **那两个小表直接下**。
+
+### 其它入口（Janelia 官方页，2026-09-27 读）
+
+MaleCNS 站点 `janelia-flyem.github.io/male-cns/` · Cell Type Explorer · **Clio** · **Neuroglancer**
+（standalone 场景含 segmentation/synapses/neuropil）· **Virtual Fly Brain**
+预印本 DOI **`10.1101/2025.10.09.680999v2`**（Janelia 页给的；另有 *Cell* 版）
+**许可 CC-BY 4.0** ⇒ 注明出处即可。
+
+### ⭐ 由此得到的一条可做动作
+
+`body-neurotransmitters-male-cns-v1.0.feather`（41 MB，免登录）
+＋ 用 `male-cns:v1.0` **重拉一次蘑菇体子图**
+⇒ 就得到「**完整雄性果蝇里、带兴奋/抑制极性的蘑菇体**」
+—— 而不是现在这份 2020 hemibrain 的、**没有极性**的切片。
