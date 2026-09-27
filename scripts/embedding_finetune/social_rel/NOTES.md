@@ -2150,3 +2150,45 @@ mark_episode_source_running         metadata_store.py:1795
    但它覆盖的是**完整的取件路径**（`fetch_episode_pending_batch` 真的返回了那行 ✓）✓
 2. ⚠️ **单实例前提**（多实例并发时重置会抢别人的行 —— 已写进 docstring ✓）
 3. ⚠️ 本次只治了"**卡死**"；**那个队列的"没有消费者"**（§1.32）是另一件事 ✓
+### 1.45 ✅ 第 4 项落地：申请 0002（重建图存储）—— **效果可观测了**（2026-09-27）
+
+#### A. 执行（**零代码改动**，跑的是既有路径）
+
+```
+入口：GraphOpsService.rebuild_graph_from_metadata()（graph_ops.py:772）
+依赖：metadata_store + graph_store + 三个回调（照 kernel_initializer.py 的接线）
+[before] graph_nodes=0 · graph_edges=0 · relations=184 · entities=27588
+[rebuild] = {'node_count': 27597, 'edge_count': 76}          ← 与干跑预测一致 ✓
+[persist] 调用 gs.save(graph_dir) ⇒ 图文件：graph_adjacency.npz + graph_metadata.pkl ✓
+[after ] graph_nodes=27597 · graph_edges=76 · relations=184 · entities=27588（后两者未动 ✓）
+```
+
+#### B. ⭐⭐ 判据验收：**新进程** load 之后才叫"可观测"
+
+```
+新进程：GraphStore(data_dir=…, conn=…) → load()
+   [记忆图] 图存储已加载: **节点=27597, 边=76** ✓✓
+   neighbors 查询（真关系主体）：K-423 = 2 · 七龙王 = 1 · 世界树 = 1 ⇒ **图可查询** ✓✓
+```
+
+#### C. ⚠️⚠️ 一条必须记的方法论更正：**干跑漏掉了"持久化"这一步**
+
+```
+我此前（§8.7/8.8）干跑时看到"正确 seed 下 recall() 返回候选" ⇒ 据此判定"可行" ✓
+⚠️ 但那一次 rebuild 与 recall **在同一个进程**里 ⇒ 边还在**那个进程的内存**中 ✓
+⇒ 真正**新进程** load 时拿到的是 **节点=27597、边=0**（SQLite 镜像里的 graph_edges 只带
+   relation_hashes，邻接关系本在 npz/pkl 里；我当时的 persist_callback 是空桩 ⇒ 从未落盘）✗
+⇒ ⭐ **更正后的做法**：rebuild ⇒ **必须 persist**（真流程里由 `persist_callback=kernel._persist` 承担 ✓）
+⇒ ⭐ **教训（可复用）**：**"同进程内验证成功"不等于"系统里可用"** —— 跨进程/跨重启的验证才算 ✓
+   （同族：§1.25 负存在断言 · 判据库「检查器的口径」；这条已够格进判据库 ✓）
+```
+
+#### D. 回滚（两道）
+
+```bash
+# ① 数据：清空图镜像与文件
+DELETE FROM graph_nodes; DELETE FROM graph_edges;
+# ② 旧图文件已备份 → data/MaiMBot/a-memorix/graph/pre-0002-backup/graph_metadata.pkl（2.98 MB）
+```
+⚠️ 诚实边界：`neighbors` 非空证明**图可用**；但**`recall()` 的端到端**（走 `graph_relation_recall` 服务）
+本轮**未重跑** ⇒ 记为待做 ✓（判据"候选非空"已由 `neighbors` 这一层间接支撑 ✓）
