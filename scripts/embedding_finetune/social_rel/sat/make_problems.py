@@ -244,12 +244,84 @@ def verdict(answers_path: str, problems: Dict) -> None:
     print(f"   === 命中 {hit}/{n} = {hit / n:.3f} ===")
 
 
+def audit(data: Dict) -> int:
+    """⭐ 题集审计（"提示位探针"的可执行版）：答案有没有**可观察的形状**？
+
+    检查三类（每命中一条 → 记 1 个问题，返回问题数）：
+      ① **同型答案重复**（跨题规律的最小版）
+      ② **位置相关**：某型的答案**总是**落在首行/末行（或首列/末列）
+      ③ **类别常量**：`undecidable` 这类"答案是个类别"的题，类别是否恒定
+
+    ⚠️ 这只覆盖"答案 ↔ 位置/类别"这一层；**真正的一般性检查无法穷举**（这是本探针的已知上限，如实标注）。
+    """
+    problems = data["problems"]
+    flags: List[str] = []
+
+    by_kind: Dict[str, List[Dict]] = {}
+    for p in problems:
+        by_kind.setdefault(p["kind"], []).append(p)
+
+    # ① 同型答案重复
+    for kind, ps in by_kind.items():
+        ans = [str(p["answer"]) for p in ps]
+        if len(ans) != len(set(ans)):
+            flags.append(f"① {kind}: 同型答案重复 {ans}")
+
+    # ② 位置相关（把答案翻译成"在表里的位置"）
+    def pos_of(p: Dict):
+        rows = p["table"]["rows"]
+        cols = p["table"]["cols"]
+        if p["kind"] in ("tampered_row", "rounding_outlier"):
+            idx = [i for i, r in enumerate(rows) if r[0] == str(p["answer"])]
+            return ("row", idx[0], len(rows)) if idx else None
+        if p["kind"] == "empty_col":
+            return ("col", cols.index(p["answer"]), len(cols)) if p["answer"] in cols else None
+        if p["kind"] == "derived_from":
+            return ("col", cols.index(p["answer"]), len(cols)) if p["answer"] in cols else None
+        return None
+
+    for kind, ps in by_kind.items():
+        poss = [pos_of(p) for p in ps]
+        poss = [x for x in poss if x]
+        if len(poss) < 2:
+            continue
+        axis = poss[0][0]
+        idxs = [x[1] for x in poss]
+        lens = [x[2] for x in poss]
+        edges = {0, -1}
+        rel = {i - (n - 1) if i > n // 2 else i for i, n in zip(idxs, lens)}  # 0=首, -1=末
+        if rel and rel <= edges:
+            flags.append(f"② {kind}: 答案位置全在边缘 {idxs}/{lens}（位置即提示）")
+        if len(set(idxs)) == 1 and len(ps) > 1:
+            flags.append(f"② {kind}: 答案位置全同 {idxs[0]}/{lens[0]}（位置即提示）")
+
+    # ③ 类别常量
+    for kind, ps in by_kind.items():
+        ans = {str(p["answer"]) for p in ps}
+        if kind == "undecidable" and len(ans) == 1:
+            flags.append(f"③ {kind}: 答案类别恒定 {ans}（正解永远是同一个 ⇒ 可被猜中）")
+
+    print('   【题集审计】')
+    for kind, ps in sorted(by_kind.items()):
+        show = [f"{p['pid']}={p['answer']}" for p in ps]
+        pos = [pos_of(p) for p in ps]
+        print(f'      {kind:<18} {show}   位置={pos}')
+    if flags:
+        print(f'   ⛔ 命中 {len(flags)} 条可疑形状：')
+        for f in flags:
+            print('      ' + f)
+    else:
+        print('   ✓ 三类检查均未命中（⚠️ 不等于"无提示"—— 本审计只覆盖位置/类别这一层）')
+    return len(flags)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gen", action="store_true")
     ap.add_argument("--seed", type=int, default=20260927)
     ap.add_argument("--n", type=int, default=7)
     ap.add_argument("--verdict", default="")
+    ap.add_argument("--audit", action="store_true")
     args = ap.parse_args()
 
     pfile = HERE / "problems.json"
@@ -265,6 +337,10 @@ def main() -> None:
         print(f"   题目 {data['n']} 道：" + ", ".join(f"{p['pid']}:{p['kind']}" for p in data["problems"]))
     if args.verdict:
         verdict(args.verdict, json.loads(pfile.read_text(encoding="utf-8")))
+    if args.audit:
+        data = json.loads(pfile.read_text(encoding="utf-8"))
+        bad = audit(data)
+        raise SystemExit(1 if bad else 0)
 
 
 if __name__ == "__main__":
