@@ -762,6 +762,19 @@ class SummaryImporter:
         for rel in _normalize_relation_items(relations):
             s, p, o = rel["subject"], rel["predicate"], rel["object"]
             if all([s, p, o]):
+                # ⭐ 2026-09-27（申请 0003）：写关系前先补建**两端实体**。
+                # 此前本管线只建「LLM 列进 entities 的」实体 ⇒ 模型在 relations 里用了没列进去的短语时，
+                # 就留下「关系端点没有 entities 行」的孤儿（真库实测：端点覆盖卡在 62/71）。
+                # web_import 管线一直这么做（web_import_manager.py:3915-3916），本管线漏了。
+                # 与上面「导入实体」段同一写法；add_entity 按名字哈希幂等 ⇒ 重复调用安全 ✓
+                for _token in (s, o):
+                    try:
+                        _entity_hash = self.metadata_store.add_entity(
+                            name=_token, source_paragraph=hash_value
+                        )
+                        await self._ensure_entity_vector(entity_hash=_entity_hash, name=_token)
+                    except Exception as exc:  # 补建失败不该挡住关系写入
+                        logger.warning(f"关系端点实体补建失败: {exc}")
                 if self.relation_write_service is not None:
                     await self.relation_write_service.upsert_relation_with_vector(
                         subject=s,

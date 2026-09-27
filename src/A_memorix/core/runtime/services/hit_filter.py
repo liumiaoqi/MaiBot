@@ -42,18 +42,20 @@ class HitFilterService:
         self,
         paragraph_hashes: Sequence[str],
     ) -> tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Dict[str, Any]]]:
+        """读取「段落-陈旧关系」标记。
+
+        ⚠️ 2026-09-27（社会关系线 §1.33/§1.42 复核）：本方法的**生产者已被删除** ——
+        `paragraph_stale_relation_marks` 的写入者随 DEL-1（commit `2f5688e76`，2026-07-28）一起被删，
+        且 `sqlite_sequence` 证明该表**自建库以来零 INSERT** ⇒ 这里**结构上永远是空的**。
+        原实现「先取空 dict、再从中派生 relation_hashes」会让人误以为它在查库 ⇒ 现改为**直说**：
+        返回空，并保留方法签名（`graph_ops` 与 `kernel_initializer` 仍在注入/调用它，
+        删除需同时改 3 个文件 ⇒ 按「最小改动」原则只做就地澄清，**行为零变化**）。
+        """
         normalized = self._tokens(paragraph_hashes)
         if not normalized:
             return {}, {}
-        marks_by_paragraph = {}
-        relation_hashes = self._tokens(
-            mark.get("relation_hash", "")
-            for marks in marks_by_paragraph.values()
-            for mark in marks
-            if isinstance(mark, dict)
-        )
-        status_map = self._metadata_store.get_relation_status_batch(relation_hashes) if relation_hashes else {}
-        return marks_by_paragraph, status_map
+        # 生产者已删、表恒空 ⇒ 不再派生（原逻辑只会得到空串）
+        return {}, {}
 
     def paragraph_hidden_by_stale_marks(
         self,

@@ -2070,3 +2070,43 @@ def _episode_query_block_enabled(self) -> bool:
 git revert <本次提交>        # 代码
 # 或把 config/bot_config.toml 的 feedback_correction_enabled 改回 true（行为即回到修复前）
 ```
+### 1.43 ✅ 第 5 项落地：申请 0003（端点补建 ✅ / 死桩**改法与原推荐不同**，如实标注）（2026-09-27）
+
+#### A. (a) 端点补建 ✅ —— 一行级修复，落在 `summary_importer.py`
+
+```
+在「导入关系」循环里、写关系**之前**补建两端实体（L765-777）：
+    for _token in (s, o):
+        _entity_hash = self.metadata_store.add_entity(name=_token, source_paragraph=hash_value)
+        await self._ensure_entity_vector(entity_hash=_entity_hash, name=_token)
+⇒ ⭐ 用的是**本文件自己的**写法（`add_entity` + `_ensure_entity_vector`，与上面「导入实体」段同款），
+   不是跨文件照抄 `web_import_manager` 的 `_add_entity_with_vector` ✓
+⇒ `add_entity` 按名字哈希幂等 ⇒ 与上面的实体段重复调用安全 ✓；补建失败只 `logger.warning`、不挡关系写入 ✓
+```
+**验收**：`py_compile` rc=0 ✓ · 新增行在位（L772/777）✓ · `logger` 在 L32 可用 ✓
+⚠️ **端点覆盖 `62/71 → 71/71` 这条判据要等**一次新导入**才能看到**（本修复只对**将来**的导入生效 ✓；
+存量 9 个孤儿需另立回填申请 —— 与 0003 §三的说明一致 ✓）
+
+#### B. (b) 死桩：⚠️ **我没按原推荐删，改成"就地澄清"**（必须说明为什么）
+
+**原推荐（0003 §二）**：删掉 `load_paragraph_stale_marks` 的桩 + 其调用点 ✓
+**实际查到的（提交前复核）**：这个桩**不止一个消费者** ✗
+```
+hit_filter.py:41/58/72/205/227  ← 自己内部用
+graph_ops.py:17/23/439          ← ⭐ **另一条消费链**（回调注入）
+kernel_initializer.py:211       ← 注入点（load_paragraph_stale_marks=kernel._hit_filter_service.load_paragraph_stale_marks）
+⇒ 删它要**同时改 3 个文件**（超出"最小改动"，且会碰 graph_ops 的接线）✗
+```
+**改法**：**就地澄清**（行为零变化）——
+```
+删掉那段"先取空 dict、再从中派生 relation_hashes"的**误导性死逻辑**（它让人以为在查库），
+直接 `return {}, {}`，并在 docstring 里写明：生产者随 DEL-1 删除、表自建库以来零 INSERT、
+方法签名保留是因为还有 2 个消费点 ⇒ 删除需同时改 3 个文件 ✓
+```
+**验收**：`py_compile` rc=0 ✓ · **行为检验**：真类实例 + **会报错的 MetadataStore 桩** ⇒
+`load_paragraph_stale_marks(["abc","def"]) = ({}, {})` · `([]) = ({}, {})` ⇒ 与改动前逐字一致，且**证明它不碰库** ✓
+
+#### C. 待做（不是这项，但相关）
+
+- ⚠️ **存量回填**：9 个孤儿端点要另立申请（会写库 ✓）
+- ⚠️ **端到端**：真正跑一次导入才能看到 71/71（本轮只到"接线正确 + 语法 + 行为不变"这一层 ✓）
