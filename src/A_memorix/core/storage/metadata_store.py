@@ -2316,6 +2316,38 @@ class MetadataStore:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def reset_running_queue_rows(self) -> Dict[str, int]:
+        """⭐ 启动重置：把三张队列表里残留的 `running` 行拉回 `pending`。
+
+        2026-09-27 立（社会关系线 §1.32/§1.36 的**族级修复**）。
+
+        问题：三张队列的取件过滤只认 `pending` / `failed`（见各 fetch_* 的 WHERE），
+        而 `mark_*_running` 把行置成 `running` 之后**再没有任何路径能把它取回**
+        （置位语句自身的 WHERE 也只匹配 `pending` / `failed`）⇒
+        **进程在批次中途中断，该行就永久卡死**。真库实测：`episode_pending_paragraphs` 已卡 1 行约 46 天。
+
+        修法：进程刚启动时，本进程**不可能**持有 `running` 行 ⇒ 此时重置是安全的。
+        ⚠️ 前提：同一 DB 不被多个实例并发消费（本 bot 为单实例 ⇒ 成立）。
+
+        返回每张表被重置的行数（供日志核对）。
+        """
+        queue_tables = (
+            "episode_pending_paragraphs",
+            "paragraph_vector_backfill",
+            "episode_rebuild_sources",
+        )
+        now = datetime.now().timestamp()
+        out: Dict[str, int] = {}
+        cursor = self._conn.cursor()
+        for table in queue_tables:
+            cursor.execute(
+                f"UPDATE {table} SET status = 'pending', updated_at = ? WHERE status = 'running'",
+                (now,),
+            )
+            out[table] = int(cursor.rowcount or 0)
+        self._conn.commit()
+        return out
+
     def mark_paragraph_vector_backfill_running(self, hashes: List[str]) -> None:
         if not hashes:
             return

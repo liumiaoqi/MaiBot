@@ -2110,3 +2110,43 @@ kernel_initializer.py:211       ← 注入点（load_paragraph_stale_marks=kerne
 
 - ⚠️ **存量回填**：9 个孤儿端点要另立申请（会写库 ✓）
 - ⚠️ **端到端**：真正跑一次导入才能看到 71/71（本轮只到"接线正确 + 语法 + 行为不变"这一层 ✓）
+### 1.44 ✅ 第 6 项落地：`running` 死状态 —— **族级修复**（三张队列一起治），带真实副本 A/B（2026-09-27）
+
+#### A. 查明的族（不是一处，是三处同一机制）
+
+```
+mark_episode_pending_running        metadata_store.py:2176
+mark_paragraph_vector_backfill_running  metadata_store.py:2319
+mark_episode_source_running         metadata_store.py:1795
+三处的**取件过滤形状完全相同**：WHERE status='pending' OR (status='failed' AND retry_count < ?)
+⇒ ⭐ 置位后**没有任何路径能取回 running**（置位语句自身的 WHERE 也只匹配 pending/failed）
+⇒ 进程批次中途中断 ⇒ 该行**永久卡死**（真库实测：episode_pending 卡 1 行、约 46 天）✓
+```
+⭐ 附带查明：`episode_rebuild_sources` **没有后台循环**（`kernel_initializer.py:738-746` 的注册表里只有 episode_pending 与 paragraph_vector_backfill）
+⇒ 与 §1.32「那个队列没有消费者」**互相印证** ✓
+
+#### B. 改了什么（两处）
+
+| # | 位置 | 改动 |
+|---|---|---|
+| 1 | `metadata_store.py` | 新增 `reset_running_queue_rows()`：把**三张**队列里残留的 `running` 拉回 `pending`，返回每张表的重置行数 ✓<br>⭐ 安全性论证（写进 docstring）：**进程刚启动时本进程不可能持有 `running` 行** ⇒ 重置安全；⚠️ 前提是**单实例**消费同一 DB（本 bot 成立）✓ |
+| 2 | `kernel_initializer.py` `start_background_tasks` | 启动时**调用一次**（有行才 warning 日志；异常只记日志、**不阻塞启动**）✓ |
+
+#### C. ⭐ 真实副本上的 A/B（原件零改动）
+
+```
+副本：metadata.db 261.7 MB（+ -wal/-shm，复制后打开读写）
+[B 重置前] running 行 = 1 · **取件能取到的段落 = []**              ← 缺陷复现 ✓
+[执行] reset_running_queue_rows() = {'episode_pending_paragraphs': 1,
+                                    'paragraph_vector_backfill': 0, 'episode_rebuild_sources': 0}
+[A 重置后] running 行 = 0 · **取件能取到的段落 = ['d4fc5c8067e3']**  ← 修复生效 ✓✓
+⇒ ⭐ 而且**正是 §1.32 里那条卡死的行**（领任务同一秒中断那条）✓
+```
+**验收**：`py_compile` 两个文件 rc=0 ✓ · A/B 判据"**取不到 → 取得到**" ✓
+
+#### D. 诚实边界
+
+1. ⚠️ **端到端未做**：本轮的起点是"进程刚启动"这一**假设场景**（我没真的重启 bot ✓）；
+   但它覆盖的是**完整的取件路径**（`fetch_episode_pending_batch` 真的返回了那行 ✓）✓
+2. ⚠️ **单实例前提**（多实例并发时重置会抢别人的行 —— 已写进 docstring ✓）
+3. ⚠️ 本次只治了"**卡死**"；**那个队列的"没有消费者"**（§1.32）是另一件事 ✓
