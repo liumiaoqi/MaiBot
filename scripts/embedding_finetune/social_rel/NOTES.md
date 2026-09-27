@@ -56,6 +56,25 @@
 > ⚠️ 与 `zg30` 规格自陈一致：「**confidence 已存储但未作边权重**」。
 > ⇒ **本线第一步的改进点就是这个**：让**学出来的**关系强度真正进排序。
 
+### ⭐⭐⭐ 1.2 机制层根因（2026-09-27 · 只读 grep + 真库聚合）
+
+**一句话：MaiBot 的"使用痕迹"整条链路在【段落】与【关系】两张表上都是空的 —— 写入方法早就写好，但全仓没有任何调用点。**
+
+| 层 | 实测 |
+|---|---|
+| **写入方法存在** | `metadata_store.py:955` `record_access(hash, item_type)` —— `table_map = {"paragraph": "paragraphs", "relation": "relations"}`；SQL = `UPDATE … SET last_accessed = ?, access_count = access_count + 1 WHERE hash = ?` ✓ 完整实现 |
+| ⭐ **调用点** | **全 `src/` 只有 1 处出现 —— 就是它自己的定义** ⇒ **从未被调用** |
+| 关系层数据 | `relations.access_count` **全 0**（184/184）· `last_accessed` **全 None** |
+| 段落层数据 | `paragraphs.access_count` **全 0**（4,692/4,692）· `last_accessed` **全 None** |
+| 旧路径 | `update_relation_timestamp`（`relation_store.py:377` + `metadata_store.py:493`）**同样无调用点** |
+| ⭐ 唯一的例外 | `relations.last_reinforced`：**22/184 非空 · 15 个不同值**（全库唯一"活着"的强化痕迹） |
+
+⭐⭐ **结论：本线缺的不是模型，是「反馈回路没接线」。**
+它与 audit 的合成侧结论**正好对接**：**只要有频次信号，现有机制就能学到 0.9924**（audit 反例②）。
+⇒ ⭐ **第一步因此变成一个"小而硬的工程动作"**：在检索路径上挂 `record_access` 的调用点（检索命中谁 ⇒ 记一次）。
+**判据**：① 调用后 `access_count > 0`（可查真库）② 离线复刻里"带痕迹的排序"优于"现状排序"。
+⚠️ **但先不动 `src/A_memorix/`** —— 先在离线复刻里把"有了痕迹 ⇒ 排序更好"证明出来（最小改动纪律）。
+
 ### ⭐⭐⭐ 1.1 真库实测（2026-09-27 · 只读 · **只取聚合量，不取内容**）
 
 **先说怎么量的**：`data/MaiBot.db`（764 KB）是**空壳**（相关表 0 行）⇒ ⚠️ **真库是**
