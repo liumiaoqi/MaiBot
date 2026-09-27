@@ -106,6 +106,30 @@
 
 ---
 
+### ⭐⭐⭐ 1.3 定版靶子：`confidence` 的**值从来没被生产过**（2026-09-27 · 代码级证据链）
+
+**一句话：`reinforce_relations` 只写 `last_reinforced`，不写 `confidence`** ⇒
+即使检索服务**默认开着** `reinforce_access=True`，`confidence` 也**永远是 1.0** ⇒
+**"confidence 作边权重"（已实验证明有效 ＋ 护栏 ＋ 接线全落地）在真实数据上恒为恒等变换。**
+
+| 环节 | 状态 | 证据 |
+|---|---|---|
+| **实验依据** | ✅ | `.shared/research/2026-08/confidence_edge_weight_compare_0817.md` —— **CA 响应 dsh 派发**（`dsh2ca_confidence_edge_weight_exp_0817.md`）；结论：3/4 场景显著提升（**nDCG +5-20% · MAP +61-215% · Recall +72-160%**），仅**反对齐**场景有害 ⇒ 建议做 ZG-30 P2 |
+| **排序接线 ＋ 双护栏** | ✅ **已落地** | `confidence_guard.py`（floor `0.3` ＋ Spearman 反对齐降级告警）＋ `graph_relation_recall.py:119-128`（候选按 confidence 权重排序） |
+| **写入入口** | ✅ **在跑** | `search_execution_service.py:207` `reinforce_access=True`（默认开）⇒ `plugin.reinforce_access` ⇒ `reinforce_relations` |
+| ⭐ **值本身** | ❌ **从来没有** | `relation_store.py:663-680`：`SET last_reinforced = ?, is_inactive = 0, inactive_since = NULL` —— **不碰 `confidence`** |
+| **旁证（真库）** | ✅ 完全吻合 | `last_reinforced` **22/184 非空 · 15 个不同值**（**说明 reinforce 跑过**）· `confidence` **全 1.0** |
+
+⚠️ **对我前两轮说法的两次更正**（形状都是"没读全就当结论" —— 复盘 0035 同族）：
+
+1. s1 说「confidence 未参与排序」 ⇒ **不准确**：**接线早就有了**（我当时只 grep 了部分用法，没读到 `:119-128`）；
+2. §1.1 说「缺的是反馈回路没接线」 ⇒ **不准确**：**reinforce 回路在跑**；没接线的是**另一条**（`record_access` → `access_count`/`last_accessed`），而它**不是这条链的必需件**。
+
+⭐ **定版靶子（最小改动、可验证）**：
+> 让 `reinforce_relations` **顺带写 `confidence`**（由 `last_reinforced` / 强化次数 / 段落支撑度派生一条规则）。
+> **判据**：① 真库 `confidence` 出现非 1 值（可查）② **离线复刻**里 `sim × confidence` 排序优于基线（CA 的实验可复现）。
+> ⚠️ **先在离线复刻证明，再谈改 `src/A_memorix/`**（最小改动纪律）。
+
 ## 2. 边界（我不做什么）
 
 | ⛔ 不做 | 理由 |
