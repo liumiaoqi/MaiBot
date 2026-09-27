@@ -2192,3 +2192,45 @@ DELETE FROM graph_nodes; DELETE FROM graph_edges;
 ```
 ⚠️ 诚实边界：`neighbors` 非空证明**图可用**；但**`recall()` 的端到端**（走 `graph_relation_recall` 服务）
 本轮**未重跑** ⇒ 记为待做 ✓（判据"候选非空"已由 `neighbors` 这一层间接支撑 ✓）
+### 1.46 ✅ 第 2 项落地：申请 0004「真值回路」**机制通了**（最小可回滚形态，带干净 A/B）（2026-09-27）
+
+#### A. 改了什么（三处，全是"加"）
+
+| # | 位置 | 改动 |
+|---|---|---|
+| 1 | `schema_manager.py` | 新表 `relation_feedback_events`（**只增不改**的账本：relation_hash/action/actor/delta/confidence_after/created_at/source_note）+ 索引；DDL 收在 **`SchemaManager.ensure_relation_feedback_schema(cursor)`** 一处 ✓ |
+| 2 | `v5_memory.py` | `RELATION_FEEDBACK_DELTA = 0.1`（先硬编码）+ `record_relation_feedback(relation_hash, action, actor, source_note)`：`raise/lower/neutral` ⇒ 复用 **`adjust_relation_confidence`**（S1 已补 `[0,1]` 上下界）＋ 写账本 ✓ |
+| 3 | 同上 | ⭐ **用到时确保表存在**（见 B）✓ |
+
+#### B. ⚠️⚠️ 过程中抓到两个"只有真跑才暴露"的问题（都记下）
+
+1. ⭐⭐ **存量库拿不到新表**：DDL 原本只在 `_create_all_tables()` 里，而那条路径**只在数据库新建时跑**
+   （`create_tables()` ← `ensure(conn, db_existed)`）
+   ⇒ 真库副本 connect 之后实测**表仍不存在** ✗ ⇒ 若不修，**整个功能会静默失效** ✓
+   ⇒ 修法：DDL 收到 `SchemaManager.ensure_relation_feedback_schema(cursor)` 一处（**单一来源** ✓），
+     建库路径与服务**用到时**都调它（`IF NOT EXISTS` 幂等 ✓）✓
+2. ⭐ **`confidence_after` 恒为 0**：我原用 `get_relation_status_batch(...)["confidence"]`，
+   而该 batch 返回的是 **`weight`** 等派生字段、**不含 confidence** ✗ ⇒ 改为**直接读列** ✓
+   （⚠️ `py_compile` 抓不到这类错 —— 与 **I-105** 同族：**语法过 ≠ 跑得过** ✓）
+
+#### C. ⭐ 干净 A/B（**全新真库副本**，原件零改动）
+
+```
+① 存量副本 connect 后表存在 = **False** ✓（确认建库路径不跑）
+② 真关系 …56f0bf11 初始 confidence = 1.0
+     lower   → delta=-0.1 after=**0.9**  event_id=1 ✓
+     raise   → delta=+0.1 after=**1.0**  event_id=2 ✓
+     neutral → delta=+0.0 after=1.0      event_id=3 ✓（不改值）
+     非法动作 → success=False（"未知动作: 'nonsense'"）✓
+③ 账本 = [('lower',-0.1,0.9), ('raise',0.1,1.0), ('neutral',0.0,1.0)] ✓
+④ ⑤ 表值回到初始；neutral 不改值 ✓
+```
+⇒ 对应申请 0004 的判据：**① 回合通了** ✓ · **② 留痕完整** ✓ · **③ 可区分性**（机制已通）✓ · **⑤ 顺序（真值先于痕迹）** ✓
+
+#### D. ⚠️ 明确**未做**（如实标注）
+
+1. ⚠️ **工具/聊天侧入口未接** —— 这是申请 0004 §2.2 #1 里**刻意留给 lmq 定的接口**（聊天指令 / 工具参数 / UI）✓
+   ⇒ 接线点已备好：任何能拿到 `V5MemoryService` 的地方，调
+   `record_relation_feedback(relation_hash=…, action="raise"|"lower", actor=…)` 即可 ✓（**一行** ✓）
+2. ⚠️ **判据 ④ `ρ(痕迹, 真值) > 0.36`** 需要真数据积累后才能算 ⇒ 记为待做 ✓
+3. ⚠️ **δ 暂时硬编码 0.1**（§五.3 说好"跑通再议档位"）✓ 改它是一行、且不涉数据迁移 ✓

@@ -59,6 +59,32 @@ class SchemaManager:
             SCHEMA_VERSION,
         )
 
+    @staticmethod
+    def ensure_relation_feedback_schema(cursor: sqlite3.Cursor) -> None:
+        """确保「关系强度反馈事件」表存在（⭐ 申请 0004「真值回路」）。
+
+        ⚠️ 为什么需要它：本表的 DDL 原本只写在建表路径里，而那条路径**只在数据库新建时跑**
+        （`create_tables()` ← `ensure(conn, db_existed)`）⇒ **存量库永远拿不到这张表** ✗
+        （2026-09-27 实测：真库副本 connect 之后该表仍不存在 ✓）。
+        故把 DDL 收到这一处，**建库路径**与**服务用到时**都调它（`IF NOT EXISTS` ⇒ 幂等 ✓）。
+        """
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS relation_feedback_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                relation_hash TEXT NOT NULL,
+                action TEXT NOT NULL,
+                actor TEXT,
+                delta REAL,
+                confidence_after REAL,
+                created_at REAL,
+                source_note TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_relation_feedback_events_hash
+            ON relation_feedback_events (relation_hash, created_at)
+        """)
+
     def create_tables(self, cursor: sqlite3.Cursor) -> None:
         """创建所有业务表、索引，并写入版本信息。"""
         _create_all_tables(cursor)
@@ -168,6 +194,12 @@ def _create_all_tables(cursor: sqlite3.Cursor) -> None:
             deleted_at REAL
         )
     """)
+
+    # --- 关系强度反馈事件（⭐ 申请 0004「真值回路」的留痕表）---
+    # 只增不改：记录"某个显式动作改了哪条关系的强度"，是把"人的判断"写回系统的第一个落点，
+    # 也是 §4.5 顺序定律里"真值先于痕迹"的那个**真值**来源。
+    # ⚠️ 与 DEL-1（2026-07-28）删掉的 memory_feedback_* 一族**无关**，不复活旧子系统 ✓
+    SchemaManager.ensure_relation_feedback_schema(cursor)
 
     # --- 关系表 ---
     cursor.execute("""
