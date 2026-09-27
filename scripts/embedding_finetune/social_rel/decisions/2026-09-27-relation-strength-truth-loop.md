@@ -65,3 +65,14 @@ cd E:/Users/lmq/MaiBot
 # ② 结构侧穷尽：见 NOTES §1.24（时间切分）与 §1.36（21 列全扫）
 # ③ 回滚：UPDATE relations SET confidence = 1.0; ／ git revert <S2 提交>
 ```
+
+---
+
+## 七、后续（2026-09-27 晚 · lmq 决定）
+
+> lmq：**「寒假再说」** ⇒ ⭐ **本轮不接用户入口** ✓
+
+- **状态**：`0004` 的**机制与账本留仓**（`relation_feedback_events` 表 + `V5MemoryService.record_relation_feedback` ✓
+  已落地并验证），**入口暂不接** ✓
+- **重启时的动作**：读 `README.md` 的「重启最短路径」→ 定入口形态（聊天指令 / 工具参数 / UI）→ 接那一行 ✓
+- ⚠️ **期间不会积累任何真值数据** ⇒ 判据 ④（`ρ(痕迹, 真值) > 0.36`）**要等接了入口之后才能测** ✓
