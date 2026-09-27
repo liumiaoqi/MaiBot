@@ -19,10 +19,12 @@
 
 | 修法 | 内容 | 代价 |
 |---|---|---|
-| **① 放宽屏蔽（我的建议）** | `is_episode_source_query_blocked` 加**时限**（只屏蔽 `running`，或超 N 天自动放行）| 最小、可回滚，**立刻让 552 条可见** |
-| **② 排空队列** | 恢复消费者跑一批 | 要跑 LLM 切分 ⇒ 贵；⚠️ **3 行"毒丸"会先删 12 条 episode**（其中 10 条同一 source）⇒ 要先处理 |
-| **③ 清理陈旧 pending** | 超期 pending 标 done/failed | 比 ② 便宜，仍要拍 |
+| **①′ 让那个开关真的生效（**我的推荐**）** | ⭐ **这是"接线"不是"改语义"**：`feedback_correction_episode_query_block_enabled` 现在**只在 schema/config 里声明 + 面板展示**，而 `is_episode_source_query_blocked` 内部**只查表、不看开关** ⇒ **开关 false 也照样屏蔽** ⇒ 在判定开头读该开关即可 | ⭐ **最小、可回滚、立刻恢复 552 条可见**；而且这正是该开关**原本的设计意图**（名字就叫 `..._query_block_enabled`）✓ |
+| ② 排空队列 | 恢复消费者跑一批 | 贵；⚠️ **必须先处理 3 行"毒丸"**：`rebuild_source` 对"无活段落的 source"会走 `replace_episodes_for_source(token, [])`，而它内部是 **`DELETE FROM episodes WHERE source=?`（metadata_store.py:1994）** ⇒ **会真删掉那 12 条 episode** ✓ |
+| ③ 清理陈旧 pending | 超期 pending 标 done/failed | 比 ② 便宜 |
+| ① 加时限 | 改语义（治标：陈旧 pending 不再永久屏蔽） | 也能恢复可见，但不是原设计 |
 
+⭐ **推荐顺序：①′ → ③ → ① → ②** ✓
 ⚠️ 诚实边界：本库最后写入 **2026-07-22**、**早于 DEL-1（07-28）** ⇒ 对本库起作用的是"**总闸关着**"，"HEAD 无消费者"是对**代码**的陈述 ✓
 
 ---
