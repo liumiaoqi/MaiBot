@@ -1060,3 +1060,49 @@ C2 质量守恒：Σu 16.000 → 16.000（漂移 7.11e-15）✓
 #### C. 下一步
 
 等 3 位成员回执 ⇒ 用本节的键**逐题核对** ⇒ 给出"分工 vs 单人"的正确题数 + 是否出现"任一方独有"的答案。
+### 1.16 ⭐⭐⭐ B 线真实任务对照的**中途结果**：单人组 **7/7，且比 lead 的键更准**（2026-09-27）
+
+#### A. ⚠️ 先更正我 §1.15 的答案键（**我错了**）
+
+我在 §1.15 写：「那 4 张表 = **CA 在 lt3_storage/lt_del 里"建了 schema、没写实现"留下的预留表**」。
+**这是错的**（我用"HEAD 上搜不到插入语句"直接跳到"从未实现"）⇒ **真相是他们有一整套写入者，被一次大删除干掉**：
+
+```
+2f5688e76  "refactor: DEL-1 删除模糊修改系统 — ~4000行代码清算 [CC]"   （2026-07-28 21:33，我亲自核过 --stat）
+   删掉：feedback_correction.py (1630 行) · fuzzy_modify.py (1111 行) · feedback_config.py ·
+         fuzzy_modify_config.py · admin/correction.py · admin/feedback.py …
+
+4 张表的 INSERT 在 HEAD vs 2f5688e76^（我逐条核过）：
+  memory_feedback_tasks             HEAD 无（rc=1） ← DEL-1 前 metadata_store.py:7078
+  memory_feedback_action_logs       HEAD 无（rc=1） ← DEL-1 前 :7317
+  memory_fuzzy_modify_plans         HEAD 无（rc=1） ← DEL-1 前 :4104
+  paragraph_stale_relation_marks    HEAD 无（rc=1） ← DEL-1 前 :7382 与 :7601（两处）
+```
+⇒ ⭐ **CA 的规格里出现这些表名，不是"CA 建的预留表"，而是"CA 当初实现的、后来被 DEL-1 清算掉了"** ✓
+⚠️ **教训（我的）**：**"在 HEAD 上搜不到" ≠ "从未存在"** —— 我漏了 `git` 历史这一维。
+（同族：判据库「跑不出来先怀疑用法」第 4 问的镜像 —— **"看不见"不等于"没有"**；也与我 §1.15 里那句"表名只在 CA 文档里出现"的推论强度不匹配 ✓）
+
+#### B. 单人组的答案（**7/7，逐条已由我用命令复核**）—— 三个不同机制
+
+| 题 | 机制（已核） |
+|---|---|
+| 1 `memory_feedback_tasks` | **写入者被 DEL-1 整条删除** ＋ **配置闸** `bot_config.toml:142 feedback_correction_enabled = false`（闸门在碰库前返回） |
+| 2 `_action_logs` | **外键挂在 q1 那张表上** ⇒ q1 恒 0 ⇒ 它必然 0（结构性下游） |
+| 3 `_fuzzy_modify_plans` | 同 DEL-1 删除；⚠️ **配置是开的**（`L136 fuzzy_modify_enabled = true`）⇒ **需求驱动：从没人通过 UI 提交过** |
+| 4 `graph_nodes` / `graph_edges` | ⭐⭐ **镜像比数据晚出生**：SQLite 镜像 = `21980cd5e`（STO-4，**2026-07-28 22:32:58**），而 `relations.created_at` 最大值 = **2026-07-22 22:22:29** ⇒ ⭐ **0 条关系在镜像之后写入**；旧图只剩 `graph_metadata.pkl`（3.1 MB），`graph_adjacency.npz` 不存在 ⇒ `has_data()` False ⇒ 不 load；迁移脚本从未执行 |
+| 5 `paragraph_stale_relation_marks` | 同 DEL-1 删除；⭐ **额外发现**：侥幸存活的读者 `hit_filter.py:41-56` 已退化成**硬编码空字典的桩**（从不查库）⇒ 那条硬过滤分支**永不触发** |
+| 6 `person_profile_active_persons` | ⭐ 写入者**在线但零调用点**（`profile_store.py:106`）；**不是 DEL-1 造成**（删除前后都没人调）；读者还 INNER JOIN 另一张 **0 行**表 ⇒ 两处零叠加 |
+| 7 9 个端点无 `entities` 行 | ⭐⭐ **两条抽取链彼此独立**：实体走 `ingest.py:269-271`，关系走 `:274-290` ⇒ **`add_relation` 一个 entity 都不碰**；实测分离度 **27587/27588**（entities 被段落抽取覆盖）· 端点 **62/62** 都有 ⇒ 那 9 个**从未被实体抽取产出**；⭐ **9 个全部只作 object、从不出现在 subject 位** |
+
+#### C. ⭐⭐ 对 B 线问题的意义（这是本轮真正的产出）
+
+> **单人（1 人 · 1 次）把 7 题全做完，且比 lead 的答案键更准。**
+> ⇒ ⭐ **"超出单人能力"这个前提，在这次真实任务上再次不成立** ⇒ **组织收益仍未被证明**（第 4 次）✓
+> ⭐ 而且它**赢在方法**：**用了 `git` 历史维**（我只查 HEAD）⇒ 这恰恰说明
+> **"单人 vs 组织"的差别可能不在"人手多少"，而在"有没有人想到查历史"** ✓
+> ⭐ 它的自陈也够硬：5 条不确定（含"发布前路由是否真注册过""触发器是否真被闸掉""pkl 未反序列化"）
+> ＋ 两条**过程留痕**：① 第一版 grep 漏 `INSERT OR REPLACE|IGNORE` ⇒ 一度误判图两表"无写入者" ② **`rg` 默认吃 `.gitignore`** ⇒ 搜 `config/` 返回空，差点写"配置从未设置"（**I-54 同族**）✓
+
+#### D. 待办
+
+`bailu`（4 题）/ `dan-heng`（3 题）**仍在跑** ⇒ 他们的回执到了再合并判定（分工组总正确数 vs 单人 7）。
