@@ -1650,3 +1650,45 @@ source 前缀     段落数   有关系挂链的段落
 
 ⭐ **可复用的判据（已进判据库清单第 9 条）**：**派发单要求回执开头先复述自己的题号** ——
 本次正是它让"错位"**可见**（否则我会一直把两份回执按 id 贴错名字）✓✓
+### 1.32 ⭐⭐⭐⭐ **最重要的发现**：**552/694 条 episode 被屏蔽在用户可见结果之外**（2026-09-27 · 我已逐条复现）
+
+#### A. 事实链（每一环都有命令）
+
+```
+① 入队：`episode_rebuild_sources` 348 行（pending **343** + done 5）—— 由段落/实体的增删改关联事件入队
+   （唯一 INSERT 在 metadata_store.py:1754，13 处调用源：paragraph_added/deleted/entity_linked/relation_linked/…）
+② ⭐ **消费者没了**：唯一取件 API `fetch_episode_source_rebuild_batch`（metadata_store.py:1776）
+     · HEAD 调用点 = **0**（该名字仅剩定义）
+     · 历史调用点：`2f5688e76^:feedback_correction.py:867`（其驱动循环同文件 :899-915，**第 905 行被 `feedback_correction_enabled` 总闸拦住**）
+     · 两个运维入口（admin/episode.py、scripts/rebuild_episodes.py）用 `list_episode_sources_for_rebuild()`（**活段落 ∪ episodes** 枚举）⇒ ⭐ **从不读这张表**
+③ 343 行**从未被动过**：running 0 行 · last_error 0 行 · `updated_at > requested_at+1s` 仅 5 行
+   ⭐ **对照（兄弟队列同口径）= 1/688** ⇒ 差异是量级的 ✓
+④ ⭐⭐ **后果（用户可见）**：这 343 个 source 使 `is_episode_source_query_blocked` **恒真**
+   ⇒ `hit_filter.py:89-100 filter_episode_hits` 命中即 `continue`（丢弃）
+   ⇒ ⭐⭐⭐ **实测 552 / 694 条 episode 被屏蔽**（未屏蔽 142）✓
+⑤ ⚠️ **时间线约束（它主动分开写的）**：本库最后写入 **2026-07-22 14:22:55**，**早于 DEL-1（07-28）**
+   ⇒ 对**这个库**起作用的是 ④ 上游的 **总闸关着**（`feedback_correction_enabled=false`：代码默认 false · 仓内 false · 29/29 快照全 false）
+   ⇒ "HEAD 无消费者"是对**代码**的陈述（潜在风险）；`requested_at ≥ 07-28 = 0 行` 是实测锚点 ✓
+```
+
+#### B. ⭐ 它另外三条我没预料到的
+
+1. ⭐ **5 行 done 的出身**：与同 source 的 pending 收尾时间差 **0.004–0.014 s**（毫秒级）⇒ 是 **pending 循环顺手标的**（`ingest.py:343/364` 相邻两行），**不是任何"重建"标的**（重建要跑 LLM 切分，秒级）✓
+2. ⭐ **336/348 行连另一条队列也够不到**：335 个 `web_import` + 1 个 `chat_summary` 在 `episode_pending_paragraphs` 里**一行都没有**（web_import 在该表全表 0 行）✓
+3. ⭐⭐ **3 行"毒丸"**：source 已无活段落却仍有 episode（`chat` 1 + `chat_summary:231288e7` 10 + `chat_summary:c166a02a` 1 = **12 条**）⇒ 一旦被消费，`rebuild_source` 会**先 `replace_episodes_for_source(token, [])` 删掉这 12 条**再标 done ✓（⚠️ 代码推断，未实跑 ⇒ 它如实标注 ✓）
+
+#### C. ⚠️ 它如实交代的三处不确定（都记）
+
+1. "343 行从未被任何消费者取过"是**反证**（入队后未动 + 0 running + 0 last_error）⇒ **裸 SQL/库外工具手工操作排除不了**（该表无审计：`memory_feedback_action_logs`/`delete_operations` 均 0 行）✓
+2. **HEAD 事实 ≠ 本快照事实**（见 A⑤）✓
+3. **毒丸后果是代码推断**（跑就要写库 ⇒ 触红线）✓
+
+#### D. 影响与修法（三选一，都属核心改动 ⇒ 待拍）
+
+| 修法 | 内容 | 代价 |
+|---|---|---|
+| **① 排空队列** | 恢复消费者（或修 `scripts/rebuild_episodes.py` 让它真读这张表）跑一批 | 要跑 LLM 切分 ⇒ 贵，且**3 行毒丸会删 12 条 episode** ⇒ 需先处理毒丸 |
+| **② 放宽屏蔽规则** | `is_episode_source_query_blocked` 加**时限**（如只屏蔽 `running`，或超过 N 天自动放行） | 最小、可回滚，**立刻让 552 条 episode 可见** |
+| **③ 清理陈旧 pending** | 把超期 pending 标 done/failed（含 3 条毒丸按需处理） | 也要拍，但比 ① 便宜 |
+
+⭐ **我的建议：先 ②（立刻止血、可回滚）**，再议 ①/③ ✓
