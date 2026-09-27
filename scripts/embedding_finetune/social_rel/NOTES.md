@@ -1692,3 +1692,42 @@ source 前缀     段落数   有关系挂链的段落
 | **③ 清理陈旧 pending** | 把超期 pending 标 done/failed（含 3 条毒丸按需处理） | 也要拍，但比 ① 便宜 |
 
 ⭐ **我的建议：先 ②（立刻止血、可回滚）**，再议 ①/③ ✓
+### 1.33 ⭐⭐ 修法升级：最优解是**接线**，不是"放宽规则"（2026-09-27 · 两条都已复核）
+
+#### A. ✅ "毒丸"确认（从代码推断 → **代码实证**）
+
+```
+episode_service.py:562-564   rebuild_source：paragraphs = get_live_paragraphs_by_source(token)
+                             if not paragraphs:  replace_episodes_for_source(token, [])
+metadata_store.py:1984-1994  在 BEGIN IMMEDIATE 事务里：
+                             SELECT episode_id, created_at FROM episodes WHERE TRIM(source)=?
+                             **DELETE FROM episodes WHERE TRIM(COALESCE(source,'')) = ?**   ← L1994
+                             （然后按 payloads 重插 ⇒ 传 `[]` 就是纯删）
+```
+⇒ ⭐ **那 3 个"毒丸"source（共 12 条 episode，其中 10 条同属一个 source）一旦被消费就会被删掉** ✓
+⇒ ⚠️ **所以修法②（排空队列）必须先处理毒丸**，否则是数据损失 ✓
+
+#### B. ⭐⭐ 新发现：那个"屏蔽开关"**从未被接线**（第二个独立缺陷）
+
+```
+feedback_correction_episode_query_block_enabled 的全部出现（5 处）：
+  src/webui/config_schema.py:149        ← 声明（WebUI 表单）
+  src/config/official_configs.py:1817   ← 字段定义
+  metadata_store.py:1957                ← is_episode_source_query_blocked 的定义（**不读它**）
+  admin/source.py:33                    ← 只把结果**展示**给面板
+  hit_filter.py:97                      ← 真正用它屏蔽
+```
+⇒ ⭐⭐ **`is_episode_source_query_blocked` 内只查表**（`SELECT 1 FROM episode_rebuild_sources WHERE source=? AND status IN ('pending','running','failed')`）
+⇒ **开关设成 false 也照样屏蔽** ⇒ **屏蔽是无条件的** ✓
+⇒ ⭐⭐ 即"**可配置的开关不起作用**"（与 §1.4「设计齐、值为空」同族：**开关在、接线缺**）✓
+
+#### C. ⭐⭐⭐ 修法因此升级（写进简报）
+
+| 修法 | 性质 | 效果 |
+|---|---|---|
+| **①′ 让开关真的生效（**新推荐**）** | ⭐ **接线**（不是改语义）：在 `is_episode_source_query_blocked` 开头读该开关，false 即 `return False` | **立刻恢复 552 条可见**；而且这正是该开关**原本的设计意图**（名字就叫 `..._query_block_enabled`）✓<br>⚠️ 语义自洽性：`feedback_correction_enabled=false` 时，"屏蔽"本就不该生效 ✓ |
+| ① 加时限 | 改语义（治标：陈旧的 pending 不再永久屏蔽） | 也能恢复可见，但**不是原设计** |
+| ② 排空队列 | 要跑 LLM 切分 + **必须先处理毒丸（否则删 12 条）** | 最贵 |
+| ③ 清理陈旧 pending | 数据清理 | 便宜，但**治的是现象** |
+
+⇒ ⭐ **我的推荐顺序：①′ → ③ → ① → ②** ✓
