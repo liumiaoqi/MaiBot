@@ -86,15 +86,29 @@ class HitFilterService:
                 return True
         return False
 
+    def _episode_query_block_enabled(self) -> bool:
+        """episode source 屏蔽是否生效。
+
+        ⭐ 2026-09-27 修复（social_rel §1.33/§1.41）：这两个开关此前**只被声明与展示，从未被读取**
+        ⇒ 只要 source 留在重建队列里，用户的 episode 命中就会被**无条件**丢弃。
+        真库里 `feedback_correction_enabled = false`（整条反馈纠错关闭）而队列又**没有消费者**
+        （唯一取件 API 在 HEAD 调用点为 0）⇒ 屏蔽永远不解除 ⇒ 实测 552/694 条 episode 被挡住。
+        此处按声明语义接线：**总闸关 ⇒ 屏蔽（它的下游）本就不该生效**。
+        """
+        if not bool(self._cfg("integration.feedback_correction_enabled", False)):
+            return False
+        return bool(self._cfg("integration.feedback_correction_episode_query_block_enabled", True))
+
     def filter_episode_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         filtered: List[Dict[str, Any]] = []
+        block_enabled = self._episode_query_block_enabled()
         for item in hits:
             if str(item.get("type", "")).strip() != "episode":
                 filtered.append(item)
                 continue
             metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
             source = str(metadata.get("source", "") or item.get("source", "") or "").strip()
-            if source and self._metadata_store.is_episode_source_query_blocked(source):
+            if block_enabled and source and self._metadata_store.is_episode_source_query_blocked(source):
                 continue
             filtered.append(item)
         return filtered

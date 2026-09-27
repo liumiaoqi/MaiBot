@@ -2031,3 +2031,42 @@ git clone shared.bundle → 859 提交 / HEAD e908442 / 1282 文件
 | 6 | `running` 死状态（启动重置）| ⏳ |
 | 4 | 0002 重建图（判据：graph_edges=76 · recall() 非空）| ⏳ |
 | 2 | 0004 真值回路（⚠️ 接口形态需 lmq 定，我会取最小可回滚形态并标注）| ⏳ |
+### 1.42 ✅ 第 1 项落地：**552/694 屏蔽修好了**（①′ 接线 + 语义自洽，带 A/B 对照）（2026-09-27）
+
+#### A. 改了什么（一处，最小）
+
+`hit_filter.py`：新增 `_episode_query_block_enabled()`，并让 `filter_episode_hits` 的丢弃分支带上它 ✓
+```python
+def _episode_query_block_enabled(self) -> bool:
+    if not bool(self._cfg("integration.feedback_correction_enabled", False)):
+        return False          # 总闸关 ⇒ 屏蔽（它的下游）本就不该生效
+    return bool(self._cfg("integration.feedback_correction_episode_query_block_enabled", True))
+```
+⭐ 为什么是**两个**开关而不是一个：`..._query_block_enabled` 的真值是 **`true`** ⇒ **只接线它 ⇒ 什么都不变** ✗
+   而屏蔽属于"反馈纠错"这一族、其总闸 `feedback_correction_enabled = false` ⇒ **按声明语义，它就该是失效的** ✓
+   （这也是我简报 ①′ 里写过的"语义自洽性"那条 ✓）
+⚠️ `admin/source.py:33` 的展示**不动**（它报的是"这个 source 在不在队列里"这个**事实**，不是过滤决定 ✓）
+
+#### B. ⭐ A/B 对照（同一份代码、同一份数据，**只换配置**）
+
+```
+真库：episodes=694 · distinct source=13 · SQL 口径下会被挡的 episode = **552**
+⭐ [A 现状配置（总闸 false）]     被屏蔽 source = **0**   ⇒ 修复生效 ✓
+⭐ [B 对照（总闸改为 true）]      被屏蔽 source = **8**   ⇒ **复现修复前的行为** ✓
+```
+⇒ ⭐ 8 个受影响 source 承载 **552/694** 条 episode（79.5%）⇒ 与 §1.32 的读数**自洽** ✓
+⇒ ⭐ 这正是复盘 0029 要求的"**证明是这次改动起的作用**"：**唯一变量是配置** ✓
+
+#### C. 验证方法与它的一处限制（如实写）
+
+- ✅ **真路径**：用**真类**（`HitFilterService`，我一开始把类名猜成了 `HitFilter` ✗）＋ 与
+  `kernel_initializer.py:191-203` **同一套构造参数** ＋ **真 MetadataStore**（`connect()` 初始化 ✓）＋ **真配置**（读 `bot_config.toml` ✓）
+- ⚠️ **未做**：端到端（起 kernel 跑一次用户查询）—— 那需要拉起运行时 ⇒ 记为**待做** ✓
+  但本轮已覆盖"**过滤决策**"这一层（即用户可见性的唯一开关点 ✓）
+
+#### D. 回滚
+
+```bash
+git revert <本次提交>        # 代码
+# 或把 config/bot_config.toml 的 feedback_correction_enabled 改回 true（行为即回到修复前）
+```
