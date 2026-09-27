@@ -177,7 +177,7 @@ def _create_all_tables(cursor: sqlite3.Cursor) -> None:
             predicate TEXT NOT NULL,
             object TEXT NOT NULL,
             vector_index INTEGER,
-            confidence REAL DEFAULT 1.0,
+            confidence REAL DEFAULT 0.5,
             vector_state TEXT DEFAULT 'none',
             vector_updated_at REAL,
             vector_error TEXT,

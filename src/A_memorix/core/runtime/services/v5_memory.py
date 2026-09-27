@@ -101,7 +101,7 @@ class V5MemoryService:
             cursor.execute(
                 f"""
                 UPDATE relations
-                SET confidence = MAX(0.0, COALESCE(confidence, 0.0) + ?)
+                SET confidence = MIN(1.0, MAX(0.0, COALESCE(confidence, 0.0) + ?))
                 WHERE hash IN ({placeholders})
                 """,
                 tuple([float(delta)] + chunk),
