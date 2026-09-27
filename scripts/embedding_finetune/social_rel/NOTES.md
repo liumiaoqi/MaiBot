@@ -1504,3 +1504,53 @@ episode_pending_paragraphs     688 行 · ⭐ **status = done 687 + running 1** 
 ⇒ ⭐ **真事实**：① 这 688 行**不是没清**——**687 条 status 已是 `done`**（清理 = 改状态、不删行，见 `metadata_store.py:1828/2214/2361` 的 `SET status='done'`）✓
 ② ⭐ **真正"没清"的是那 1 条 `status='running'`**（卡住的在途项）✓
 ③ ⚠️ 还有 **147 条 pending 段落指向已不存在的 `paragraphs`** ⇒ **悬空引用**（可查、可清）✓
+### 1.28 ⭐⭐⭐ `episodes` 那题的答案：**题干前提是假的** + 挖到一个**真缺陷**（2026-09-27 · 我已独立复算，一位不差）
+
+#### A. ⭐ 前提更正（两层，都被指出）
+
+1. **"688 行待处理"是错的**：实测 `status = done 687 + running 1` —— **0 个 pending、0 个 failed** ⇒ 它不是积压，
+   而是**一张完成日志**（清队 = `UPDATE status='done'`，**不是 DELETE**；而取件只认 `pending`/`failed` ⇒ done 行永不再被读 ⇒ "只增不减"是**设计产物**）✓
+   ⭐ 更深一层：**管理面板量的口径不同** —— `admin/runtime.py:130` / `admin/episode.py:45` 量的是
+   `status IN ('pending','running','failed')` ⇒ **面板上显示的是 1，不是 688** ✓
+   ⇒ ⭐⭐ **我那个"688"来自 `COUNT(*)`，不是系统自己报的数** —— **又一次口径错**（今天第 N 次）✓
+2. **"差 6"隐含两表逐行对应** ⇒ **不成立**：`episode_pending_paragraphs` 是**入队记录**（每段落 1 行、永不删），
+   `episodes` 是**切分产物**（一段可产 0/1/多条、一条可含多段）⇒ 差 6 是**三项净值**，不是"丢了 6 行"✓
+
+#### B. ⭐ 6 的分解（我**独立复算，逐位一致**）
+
+```
+episodes=694（evidence 全在 pending 的 684 / 一个都不在的 10）
+pending=688（被 episode 引用的 687 / 从未被引用的 1）
+⭐ 6 = (684 − 687) + (10 − 1) = **−3 + 9**
+   +10 = 10 条 episode 的 evidence 哈希在 pending 里一个都没有、且段落**已被物理删除**（27/27 不存在），
+         全部属于**同一个 source** `chat_summary:231288e7…` ⇒ 来自**重建路径**（`replace_episodes_for_source` 不碰 pending 表）✓
+   −3  = chat_summary 有 3 条 episode 各绑 **2** 段（196 段落 → 193 集）✓
+   −1  = 那条**卡死的 running** 行从未产出 episode ✓
+反证：**147 条 pending 行**的段落已被物理删除而**行仍在** ⇒ 段落删除**不会**删 pending 行 ⇒ 排除"10 条是被连带删掉的" ✓
+```
+
+#### C. ⭐⭐⭐ 真缺陷：`running` 是一个**死状态**（我在代码里复核过）
+
+```
+取件（metadata_store.py:2166-2168）:  WHERE status = 'pending' OR (status='failed' AND retry_count < ?)
+                                      ⇒ ⭐ **`running` 永远不会被选中**
+置位（:2190-2193）:                  UPDATE … SET status='running' … WHERE … AND status IN ('pending','failed')
+                                      ⇒ ⭐ **再调也不会把 running 拉回来**
+⇒ 进程在批次中途中断 ⇒ **该行永久卡死**；本库**已卡 1 行**（hash `d4fc5c80…` · `person_fact:3ca4b991…`
+  · `created_at = 1782040189.394728` ⇒ **领了任务同一秒就没了下文**，至今 ≈46 天）✓
+
+**最小修法（两选一，都要写申请）**：
+  ① 取件加**租约超时回收**：`OR (status='running' AND updated_at < now − timeout)` ✓
+  ② **启动时把残留 `running` 重置为 `pending`** ✓
+```
+⭐ 这条已进 `DECISIONS-WANTED.md`（第 4 项）✓ —— 成员按红线**没有写台账**，只上报 ✓
+
+#### D. ⚠️ 分工格的最终事实（协调失效的完整版）
+
+| 成员 | 派发 | 实交 |
+|---|---|---|
+| `dan-heng` | 1 题（`episodes`）| ⭐ **3 题全做了**（两轮先交了同伴的 2 题，第三轮才交自己的）|
+| `bailu` | 2 题 | ⚠️ **0 回执** |
+
+⇒ ⭐⭐ **"分工"实际退化成"单人做全部 + 另一人空转"** ⇒ 与 §1.27 的结论一致：
+**单轮派发式分工的真实风险是协调失效**（这次是**派发错位**），而**论文那半（多阶段信息流）正是治它的** ✓
