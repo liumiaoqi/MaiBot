@@ -8,10 +8,10 @@
 
 | 子目录 | 内容 | 状态 | 入口（先读） |
 |--------|------|------|------------|
-| `snn_behavior/` | 脉冲神经网络行为模拟——LIF→Braitenberg→STDP→R-STDP 学习线 + 情绪/欲望行为实验（exp51-60 等） | 🟢 | NOTES.md（exp0 起） |
+| `snn_behavior/` | 脉冲神经网络行为模拟——LIF→Braitenberg→STDP→R-STDP 学习线 + 情绪/欲望行为实验；⭐ 数据在 `worm_data/`（线虫连接组，**已出库**，见下节）与 `flywire_data/`（果蝇蘑菇体，NeuPrint 拉取）；⚠️ **exp50–56 的代码在 `trading/`**，产物写回 `worm_data/evolution*/` | 🟢 | NOTES.md（exp0 起 ＋ 数据来源节） |
 | `cpu_lm/` | 纯 CPU 小语言模型实验——mini_transformer/mini_ssm/bpe_tokenizer（可复现） | 🟢 | NOTES.md |
 | `music_rule_gen/` | 音乐规则生成器——简谱解析 + 规则归纳 + 推理生成（“音乐是数值结构不是统计结构”） | 🟡 | README.md |
-| `trading/` | 股票数据抓取/分析（fetch_*/industry_*/probe_*——89 个 py，数据实验） | 🟢 | NOTES.md（2026-08-18 建） |
+| `trading/` | ⚠️ **名字已名不副实**：89 个 `.py` 里 **73 个是 `exp*.py`** —— 早期确为股票数据实验（`fetch_*`/`industry_*`/`probe_*`），**后来被当成通用实验编号区**：`exp30_entanglement_dedup` · `exp31_grover_goal_amplification` · `exp32_quantum_annealing_desire` · `exp33_fault_injection` · `exp34_qsnn` · `exp37_tensor_network_compression` · `exp38_fruitfly_olfaction` · `exp50_worm_trading` · `exp51–56`（角色/量子/基因/GRN drift、叙事）⇒ **线虫/演化线的代码也在这里** | 🟢 | NOTES.md（2026-08-18 建） |
 | `knob_experiment/` | 旋钮参数实验 | 🟡 | README.md |
 | `C++/` | C++ 加速实现（build_triplets 三元组构建） | 🟡 | build_triplets.cpp + Makefile |
 | `maibot_embedding_finetune/` | bge 向量微调工具链（step0-4 流水线 + ONNX 导出） | 🟡 | README.md 下半部 |
@@ -25,6 +25,7 @@
 | `onnx_model/` | ONNX 导出模型 |
 | `maibot_embedding_finetune.egg-info/` | 包元数据 |
 | `.venv/` | 隔离环境（3.12 + cu128） |
+| ⭐ `worm_data/` | **线虫连接组**：`Gg.npy`/`Gs.npy`（**279×279**，电/化学突触）· `chem.json`/`gap.json`（含注电流界面字段）· `_verify.py`（校验脚本）· `evolution*/`（演化产物）—— 来源 **C. elegans Neural Interactome**（Front. Comput. Neurosci. 2019），**完整出处/引用义务见 `snn_behavior/NOTES.md`**；⚠️ **2026-09-27 已从 git 出库**（此前 `.gitignore` 写了规则、但文件早被跟踪 ⇒ **规则管不到已跟踪文件**） |
 
 ## 顶层脚本分组（2026-08-22 补——trading 域脚本已迁入 trading/，顶层残留多为早期）
 
