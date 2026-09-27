@@ -48,7 +48,8 @@ def drive(pool):
     return d
 
 
-def run(p2k, k2m, readout, k, eta, trials, train_set, probes, update="selected", homeo=True):
+def run(p2k, k2m, readout, k, eta, trials, train_set, probes, update="selected", homeo=True,
+        eps=0.0, seed=0):
     w = k2m[:, 2].astype(float).copy()
     ks, kd = k2m[:, 0].astype(int), k2m[:, 1].astype(int)
     mask = {j: (kd == j) for j in readout}          # ⭐ 预计算：别每拍重建 30k 布尔数组
@@ -63,18 +64,33 @@ def run(p2k, k2m, readout, k, eta, trials, train_set, probes, update="selected",
         return s, float(x[readout[0]] - x[readout[1]])
 
     base = {n: resp(p)[1] for n, p in probes.items()}
+    rng = np.random.default_rng(seed)
     acc = []
     for t in range(trials):
         pool, want = train_set[t % len(train_set)]
         s, mg = resp(pool)
-        acc.append((mg >= 0) == want)
+        # ⭐ ε-greedy：以 eps 概率**随机执行动作**（探索）；否则按 margin。
+        #    更新仍**只动实际执行的那个动作**、sign **只由"这个动作对不对"(=奖励)** 给
+        #    ⇒ 这是**纯奖励**规则：更新时不需要知道标签，只需要知道"刚才那个动作好不好"
+        if eps > 0 and rng.random() < eps:
+            act = bool(rng.random() < 0.5)
+            mg_eff = 1.0 if act else -1.0
+        else:
+            act = mg >= 0
+            mg_eff = mg
+        acc.append(act == want)
+        mg = mg_eff
         if update == "selected":
             # 现状：只动「被选中的」那位，sign 由对错决定
             j = readout[0] if mg >= 0 else readout[1]
             ii = idx[j]
             w[ii] = w[ii] + eta * (1.0 if want else -1.0) * s[ks_of[j]]
+        elif update == "boostonly":
+            # 只加强「该选的那位」，**不削弱**任何一位
+            jw = readout[0] if want else readout[1]
+            w[idx[jw]] = w[idx[jw]] + eta * s[ks_of[jw]]
         else:
-            # contrast：**该选的那位 +1、另一位 −1** —— 改的是「信用分配」，不是读出结构
+            # contrast：**该选的那位 +1、另一位 −1**
             jw, jl = (readout[0], readout[1]) if want else (readout[1], readout[0])
             w[idx[jw]] = w[idx[jw]] + eta * s[ks_of[jw]]
             w[idx[jl]] = w[idx[jl]] - eta * s[ks_of[jl]]
@@ -128,16 +144,17 @@ def main():
         print(f"{'η':<6}{'全程':>8}{'①':>8}{'②':>8}{'③':>8}{'④后段':>9}"
               f"{'坏类 margin 基→后':>22}{'泛化Δ':>10}{'无关Δ':>10}")
         print("-" * 96)
-        for update in ("selected", "contrast"):
-            for homeo in (False, True):
-                print(f"  —— update={update} · homeo={'开' if homeo else '关'} ——", flush=True)
-                for eta in (1.0, 3.0):
-                    r = run(p2k, k2m, readout, k, eta, trials, train_set, probes, update, homeo)
-                    s = r["segs"]
-                    print(f"{eta:<6.1f}{r['acc']:>8.1%}{s[0]:>8.1%}{s[1]:>8.1%}{s[2]:>8.1%}{s[3]:>9.1%}"
-                          f"{r['base']['坏类']:>+13.0f} → {r['after']['坏类']:>+7.0f}"
-                          f"{r['after']['泛化'] - r['base']['泛化']:>+10.0f}"
-                          f"{r['after']['无关'] - r['base']['无关']:>+10.0f}", flush=True)
+        for update, needs_label in (("selected", False), ("boostonly", True), ("contrast", True)):
+            tag = "纯奖励（不用标签）" if not needs_label else "⚠️ 用了标签"
+            print(f"  —— update={update} · {tag} · homeo=开 ——", flush=True)
+            for eta in (1.0, 3.0, 12.0):
+                r = run(p2k, k2m, readout, k, eta, trials, train_set, probes,
+                        update, True, 0.0, seed=7)
+                s = r["segs"]
+                print(f"{eta:<6.1f}{r['acc']:>8.1%}{s[0]:>8.1%}{s[1]:>8.1%}{s[2]:>8.1%}{s[3]:>9.1%}"
+                      f"{r['base']['坏类']:>+13.0f} → {r['after']['坏类']:>+7.0f}"
+                      f"{r['after']['泛化'] - r['base']['泛化']:>+10.0f}"
+                      f"{r['after']['无关'] - r['base']['无关']:>+10.0f}", flush=True)
 
     print("\n[判据] 后段 > 前段 ⇒ 在学；坏类 margin 翻负 ⇒ 方向对；**无关 Δ 仍 ≈ 0** ⇒ 区分性没被淹")
     print(f"\n[耗时] {time.perf_counter() - t0:.1f} s")
