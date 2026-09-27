@@ -1956,3 +1956,25 @@ origin/main 距今 = **21.7 天**
 | 2 | ⭐ 给 **`.shared`** 配 remote 或**明确它只做本地存档**（它是复盘/台账的落点，859 条） | 若不配 ⇒ 要么接受风险，要么定期打包 |
 | 3 | `lab` / 两个 plugin：按需（`lab` 85 条像是学校作业脚本；plugin 32 条是部署件） | 按价值决定 ✓ |
 | 4 | ⚠️ 顺手：父仓那条 ` M .shared`（指针落后 10 条）**要不要提交**？→ 提交它 = 把 `.shared` 的 10 条纳入父仓记录（**不等于**把内容推到远程，但至少让"父仓指向哪"不再漂）✓ |
+### 1.40 ⭐⭐ 嵌套仓的**风险画像**与优先级（2026-09-27）
+
+| 仓 | 提交 / 文件 | 里面是什么 | 近 30 天 | remote | ⭐ 风险 |
+|---|---|---|---|---|---|
+| **`.shared`** | **859 / 1282** | ⭐ `decisions` · `drafts` · `handoff` · `postmortem` ⇒ **多智能体协作的全部记录**（我的复盘 0036 正文也在） | ⭐ **79 次**（唯一天天在写） | ⚠️ 无 | ⭐⭐⭐ **最高** |
+| `lab` | 85 / 256 | 实验线：`attention_mask` · `brute_force_exact` · `confidence_edge_weight` · `deepspec_two_tier` · `cpp26_clang_support` … | 1 次 | ⚠️ 无 | 中 |
+| `plugins/maibot-team.napcat-adapter` | 21 / 29 | MaiBot 插件源码（`event_buffer` · `dedup` · `maim_message_bridge` …） | **0** | ⚠️ 无 | 中低 |
+| `plugins/maibot-team.v1-compat` | 11 / 8 | 插件桥接 | **0** | ⚠️ 无 | 中低 |
+
+**父仓怎么跟踪它们（决定"推父仓能不能救"）**：
+```
+.shared → gitlink 160000（只存指针 02d8a8c7）· lab → gitlink 160000（e12c2ca）
+plugins → **tree 040000**，其中父仓只跟踪 **6 个条目**：
+  plugins/__init__.py · hello_world_plugin/{CHANGELOG.md,_manifest.json,plugin.py} ＋ 两个 plugin 仓的 **gitlink**
+⇒ ⭐ **四个仓的内容都不在父仓里** ⇒ 推父仓救不了它们 ✓（结论同 §1.39）
+```
+
+#### ⭐ 优先级建议（一句话版）
+
+> **`.shared` 第一优先** —— 它是**唯一每天都在写、且承载全部协作记录**的仓，却**连远程都没有** ✓
+> `lab` / 两个 plugin：近 30 天不动 ⇒ **不紧急**，但也**没有任何备份** ⇒ 按价值决定 ✓
+> ⭐ 最小动作（一分钟）：**给 `.shared` 加一个远程并推一次**（859 条 → 落地）✓
