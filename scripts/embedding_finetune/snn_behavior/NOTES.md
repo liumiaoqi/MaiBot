@@ -132,3 +132,22 @@ MaleCNS 站点 `janelia-flyem.github.io/male-cns/` · Cell Type Explorer · **Cl
 ＋ 用 `male-cns:v1.0` **重拉一次蘑菇体子图**
 ⇒ 就得到「**完整雄性果蝇里、带兴奋/抑制极性的蘑菇体**」
 —— 而不是现在这份 2020 hemibrain 的、**没有极性**的切片。
+### ⭐ 大表那几张：**列名实测**（2026-09-27，`curl -r -4096` 读 Arrow footer，未下大文件）
+
+| 表 | **实际列** | 一条记录 = 什么 |
+|---|---|---|
+| `connectome-weights`（**1.0 GB**） | `body_pre` · `body_post` · `weight` —— **只有三列** | **一对神经元**（谁连谁、连几条） |
+| `syn-partners`（**6.5 GB**） | `body_pre`/`body_post` ＋ `x_pre`/`y_pre`/`z_pre` ＋ `x_post`/`y_post`/`z_post` ＋ `conf_pre`/`conf_post` ＋ `primary_post` | **一个突触**（连在**哪**、多可信、落在**哪个脑区**） |
+
+⇒ ⭐ **`connectome-weights` 与手上 `mb_connections.csv`（`src,dst,weight`）同形状** ——
+差别只是**全量 vs 子图**。
+
+⭐⭐ **判据（什么时候才该下大表）**：先问一句 ——
+**我要的是「谁连谁」，还是「连在哪里」？**
+- **谁连谁** ⇒ `connectome-weights` 就够；而**子图版我们已经有**，缺哪块用 neuprint 拉哪块
+- **连在哪里 / 多可信 / 哪个脑区** ⇒ 才需要 `syn-partners`（6.5 GB）
+
+⚠️ **代价的真正差别不是磁盘，是技术栈**：`syn-*` 带坐标 ＋ `primary_post`（categorical）
+⇒ 要用它得配 **neuroglancer / navis / flybrains 坐标变换**那一套；
+而 weights 三列是**纯图论**，pandas / networkx / numpy 直接吃。
+⚠️ 文件名里的 **`minconf-0.5`** = **官方已按"置信度 ≥ 0.5"过滤过** ⇒ 引用/复现时必须写明用的是这个版本。
