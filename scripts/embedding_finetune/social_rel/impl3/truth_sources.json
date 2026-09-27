@@ -1,0 +1,94 @@
+{
+ "n_total": 184,
+ "confidence_default": "1.0",
+ "channels": [
+  {
+   "name": "is_pinned",
+   "col": "is_pinned",
+   "kind": "flag",
+   "writer": "remember_forever（显式 admin 动作）→ is_pinned=True",
+   "in_loop": "否",
+   "note": "显式意图；`protected_until>0` 为 0 行 ⇒ 自动 TTL 保护从未触发",
+   "n_total": 184,
+   "covered": 47,
+   "cover_frac": 0.2554347826086957,
+   "distinct": 1,
+   "pairs": 6439,
+   "verdict": "候选可用"
+  },
+  {
+   "name": "last_reinforced",
+   "col": "last_reinforced",
+   "kind": "value",
+   "writer": "reinforce_relations ← 检索路径（reinforce_access 默认开）",
+   "in_loop": "是",
+   "note": "⚠️ 它由**被评估的那个检索环**写出来 ⇒ 拿它当真值＝自证",
+   "n_total": 184,
+   "covered": 22,
+   "cover_frac": 0.11956521739130435,
+   "distinct": 15,
+   "pairs": 3784,
+   "verdict": "不能用（在检索环内 ⇒ 自证）"
+  },
+  {
+   "name": "access_count",
+   "col": "access_count",
+   "kind": "value",
+   "writer": "record_access（全仓 0 个调用点）",
+   "in_loop": "—",
+   "note": "通道存在、实现完整、**没有任何调用者**",
+   "n_total": 184,
+   "covered": 0,
+   "cover_frac": 0.0,
+   "distinct": 0,
+   "pairs": 0,
+   "verdict": "不能用（通道为空）"
+  },
+  {
+   "name": "last_accessed",
+   "col": "last_accessed",
+   "kind": "value",
+   "writer": "record_access（同上）",
+   "in_loop": "—",
+   "note": "同上",
+   "n_total": 184,
+   "covered": 0,
+   "cover_frac": 0.0,
+   "distinct": 0,
+   "pairs": 0,
+   "verdict": "不能用（通道为空）"
+  },
+  {
+   "name": "confidence",
+   "col": "confidence",
+   "kind": "value",
+   "writer": "remember_forever 的 MAX(confidence,0.1) / adjust_relation_confidence 的 ±delta",
+   "in_loop": "否",
+   "note": "⚠️ 列默认 1.0 ⇒ 唯一跑过的写路径是**空操作**",
+   "n_total": 184,
+   "covered": 184,
+   "cover_frac": 1.0,
+   "distinct": 1,
+   "pairs": 0,
+   "verdict": "不能用（常数 ⇒ 零信息）"
+  },
+  {
+   "name": "is_permanent",
+   "col": "is_permanent",
+   "kind": "flag",
+   "writer": "（未找到写入点）",
+   "in_loop": "—",
+   "note": "全 0",
+   "n_total": 184,
+   "covered": 0,
+   "cover_frac": 0.0,
+   "distinct": 0,
+   "pairs": 0,
+   "verdict": "不能用（通道为空）"
+  }
+ ],
+ "feedback_tables": {
+  "memory_feedback_tasks": 0,
+  "memory_feedback_action_logs": 0
+ }
+}
