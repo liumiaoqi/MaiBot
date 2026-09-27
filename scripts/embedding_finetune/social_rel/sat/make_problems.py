@@ -98,7 +98,56 @@ def gen_t3(rng: random.Random, rows: int = 24) -> Dict:
     }
 
 
-GENS = [gen_t1, gen_t2, gen_t3]
+def gen_t4(rng: random.Random, rows: int = 26) -> Dict:
+    """⭐ 口径硬题：哪一行的**四舍五入约定**与其余行不一致（多数派 vs 唯一违规行）
+
+    ⚠️ 这是 wave 1 的教训直接产物：两位成员**都**在自陈里担心"舍入约定"（HALF_UP vs HALF_EVEN）
+       ⇒ 把难度加在**口径歧义**上，而不是加计算量。
+    做法：先造出若干"两种约定会给出不同结果"的中点行（如 x.25 → 0.3 vs 0.2），
+          多数派用约定 A，**恰好一行**用约定 B。
+    """
+    from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN
+
+    def r1(v: Decimal, mode) -> str:
+        return str(v.quantize(Decimal("0.1"), rounding=mode))
+
+    cols = ["t", "col_a", "col_c"]
+    k = Decimal("3.0")
+    majority = rng.choice([ROUND_HALF_UP, ROUND_HALF_EVEN])
+    minority = ROUND_HALF_EVEN if majority is ROUND_HALF_UP else ROUND_HALF_UP
+
+    rows_out: List[List[str]] = []
+    sensitive: List[int] = []                                # 两种约定结果不同的行
+    for i in range(rows):
+        for _ in range(200):                                 # 找一个"有分歧"的 a
+            a = Decimal(str(round(rng.uniform(0.05, 40), 2)))
+            c = a * k
+            if r1(c, ROUND_HALF_UP) != r1(c, ROUND_HALF_EVEN):
+                break
+        else:
+            a, c = Decimal("10.25"), Decimal("10.25") * k
+        rows_out.append([str(i + 1), str(a), r1(c, majority)])
+        if r1(c, ROUND_HALF_UP) != r1(c, ROUND_HALF_EVEN):
+            sensitive.append(i)
+    if not sensitive:                                        # 兜底：保证至少一行能当"
+        risky"                                        # （正常不会走到）
+        raise RuntimeError("没能造出约定敏感行")
+    bad = rng.choice(sensitive[1:-1] if len(sensitive) > 2 else sensitive)
+    a_bad = Decimal(rows_out[bad][1])
+    rows_out[bad][2] = r1(a_bad * k, minority)                # 唯一违规行
+
+    conv = "HALF_UP(四舍五入)" if majority is ROUND_HALF_UP else "HALF_EVEN(银行家舍入)"
+    return {
+        "kind": "rounding_outlier",
+        "table": {"cols": cols, "rows": rows_out},
+        "question": "`col_c` = `col_a × 3.0` 保留 1 位小数。**表中恰好有一行**的四舍五入约定"
+                    "与**其余所有行**不一致（其余行统一用同一种约定）。只答 `t` 的值（正整数）。",
+        "answer": rows_out[bad][0],
+        "majority_convention": conv,
+    }
+
+
+GENS = [gen_t1, gen_t2, gen_t3, gen_t4]
 
 
 def gen_all(n: int, seed: int) -> Dict:
