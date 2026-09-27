@@ -589,3 +589,24 @@ floor=0.3  window=20
 | 组件层 | ✅ **可用**（权重分两档；护栏不误触） |
 | 消费路径 | ⚠️ **空**（图存储两表 0 行）⇒ **效果不可观测** |
 | 质量 | ⚠️ **仍不可判定**（无相关性标注）⇒ 需下游观察 |
+### 8.6 ⭐⭐ 下一个环找到了，而且**有现成按钮**（2026-09-27 · 只读）
+
+**问题**（§8.5）：`confidence` 两档已生效，但**消费它的图召回没有数据** ⇒ 效果不可观测。
+**查"谁本该写图"的结果**（全 `src/`）：
+
+| 发现 | 位置 |
+|---|---|
+| 图写入 API 存在 | `graph_store.py`：`add_nodes`(L235) · `add_edges`(L293) · `update_edge_weight`(L434) |
+| ⭐ **写入路径是接好的** | `relation_write_service.py:172/207` ⇒ `graph_store.add_edges(...)`（关系写入时就该同步图） |
+| ⭐⭐ **有现成的重建入口** | `graph_ops.py:772 rebuild_graph_from_metadata()`（管理员层 `admin/graph.py:50` 有调用） |
+| 数据源齐备 | `entities` **27,588** 行（全 `is_deleted=0`）· `relations` **184** |
+
+**重建函数的关键一行**（原文）：
+```python
+weights=[float(row.get("confidence", 1.0) or 1.0) for row in relation_rows],
+```
+⇒ ⭐⭐ **它把 `confidence` 直接作为边权写进图** ⇒ **重建一次，两档 confidence 就进入可观测路径**。
+
+⇒ 已立 **申请 0002**（`proposals/0002-populate-graph.md`，**待 lmq 拍**）：一次调用 ⇒ 图 **0/0 → ≈27,588 节点 / 184 边（边权两档）**；
+判据 ① `graph_edges=184` ② **`recall()` 返回非空候选**（真组件跑，不再只是组件单跑）③ 候选 confidence 含两档 ④ ⚠️ **质量仍不可判定**（本申请不声称"变好了"，只声称"**从此可观测**"）。
+⚠️ 且 `clear()` 会先清空图 —— **当前就是空的 ⇒ 无损**，但仍是写操作 ⇒ 备份先行、回滚 = 两条 `DELETE`。
