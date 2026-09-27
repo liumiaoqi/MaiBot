@@ -130,7 +130,23 @@
 > **判据**：① 真库 `confidence` 出现非 1 值（可查）② **离线复刻**里 `sim × confidence` 排序优于基线（CA 的实验可复现）。
 > ⚠️ **先在离线复刻证明，再谈改 `src/A_memorix/`**（最小改动纪律）。
 
-## 2. 边界（我不做什么）
+### ⭐⭐⭐ 1.4 统一诊断：MaiBot 的「记忆自我改进」**设计齐备，却没有一个环节在跑**（2026-09-27 实测汇总）
+
+| 环节 | 设计 | 实测状态（只读聚合，全部重核过） |
+|---|---|---|
+| 反馈采集（V5） | `memory_feedback_tasks` ＋ `memory_feedback_action_logs` | **各 0 行** |
+| 模糊修改计划 | `memory_fuzzy_modify_plans` | **0 行** |
+| 访问痕迹 | `metadata_store.py:955 record_access(hash, item_type)`（支持 paragraph/relation） | ⚠️ **全仓无调用点** ⇒ 两表 `access_count`/`last_accessed` 全空 |
+| 关系强化 | `reinforce_relations` ←（`search_execution_service.py:207` **默认开**） | ✅ **在跑**（`last_reinforced` **22/184**） |
+| 关系强度 | `confidence` 列 ＋ `boost_weight` 入口（`relation_store.py:583-597`） | ⚠️ **全 1.0**（reinforce 不写它） |
+| 排序接线 ＋ 双护栏 | `confidence_guard.py` ＋ `graph_relation_recall.py:119-128` | ✅ **已落地**（CA / ZG-30 P2） |
+| 图存储 | `graph_edges` / `graph_nodes` | **各 0 行** ⇒ **图召回没米下锅** |
+| 画像里的关系边 | `person_profile_snapshots.relation_edges_json` | 1220 条快照里**只有 6 条非空** |
+| 关系本体 | `relations` / `deleted_relations` | 184 / **14,868**（活:删 ≈ 1:81） |
+
+⇒ ⭐⭐ **一句话：设计齐、值为空、回路未闭** —— 与 §1.3 的 `confidence` **完全同形**（接线在、值为默认/空）。
+⇒ ⇒ **本线的第一步因此不是"加功能"，而是"把已有的回路跑起来"**（`task-4` 正在做）。
+
 
 | ⛔ 不做 | 理由 |
 |---|---|
@@ -257,7 +273,7 @@
 
 **判据（缺一不可）**：① 真库可查 —— 回填后 `COUNT(DISTINCT confidence) > 1`；② **离线复刻**里 `sim × confidence` 优于"**常数权重 = 现状**"基线，且 ⭐ **coverage 与 selection 两个数同时给** ＋ 候选随机摆放（audit 两条硬约束）；③ ⚠️ **护栏不被误触**（新值不得让 `ConfidenceGuard` 判"反对齐"降级，否则白改）。
 
-**边界**：**只在 task-3 离线复刻证明有效之后**才提交 lmq 批；**在那之前一个字都不改 `src/A_memorix/`**。
+**⭐ 前提已更正（见 §4.3）**：原稿隐含假设"让 `confidence` 有值就会更好" —— **错**。实测：**收益 ∝ ρ(痕迹, 真值)，ρ<0.36 为负**（κ=0 时 Δhit **−0.0150**, p=0.0043）⇒ **接线之前必须先量 ρ**；而**真库没有真值**（§1.4/§4.3）。
 
 ### 4.3 ⭐⭐ task-3 结论（2026-09-27 · **lead 独立复跑** · 入库 `367c510e0`）
 
