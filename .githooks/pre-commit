@@ -68,6 +68,44 @@ if [ -n "$check_out" ] || [ "$check_rc" -ne 0 ]; then
     fail=1
 fi
 
+# ── 门 ⑤：作者身份（2026-09-29 加）
+#    顺序说明：① 与 ⑤ 每次都跑（它们查的是"提交本身"），②③④ 只在暂存动到某个索引所在目录时跑。
+#    编号是加入顺序，不是执行顺序。
+#
+#    起因：hub 与 notification-keep 两个仓里共 137 条提交的作者邮箱是编的
+#          （`liumiaoqi@local` / `@localhost`），而**全局配置里本来就有正确的那个**：
+#          `68047429+liumiaoqi@users.noreply.github.com`。
+#          那些错的几条，全部来自提交命令上的 `-c user.email=…` —— 它覆盖了全局配置。
+#
+#    为什么要拦：那个错**是静默的**。提交成功、退出码 0、git log 里名字也对，
+#                只有到 GitHub 上才看得出来（关联不到账号：灰头像、不计贡献）。
+#                137 条已推送，重写历史会让所有 sha 变、四份文档里的提交号引用全部失效
+#                ⇒ 所以旧的不动，只保证**从今以后不再产生**。
+#
+#    判据：作者/提交者邮箱不该是本地编的域名。没有真域名就关联不到账号。
+#    处理：`git config --global user.email` 看正确的那个；提交时**不要带** `-c user.email`。
+author_ident=$(git var GIT_AUTHOR_IDENT 2>/dev/null)
+committer_ident=$(git var GIT_COMMITTER_IDENT 2>/dev/null)
+author_email=$(printf '%s\n' "$author_ident" | sed -n 's/.*<\(.*\)>.*/\1/p')
+committer_email=$(printf '%s\n' "$committer_ident" | sed -n 's/.*<\(.*\)>.*/\1/p')
+
+for who_email in "作者:$author_email" "提交者:$committer_email"; do
+    who=${who_email%%:*}
+    em=${who_email#*:}
+    case "$em" in
+        *@local|*@localhost|"")
+            echo "" >&2
+            echo "  [提交门·⑤ 身份] ✗ ${who}邮箱是 $em —— 它关联不到 GitHub 账号" >&2
+            echo "    （全局配置里本来就有正确的：git config --global user.email）" >&2
+            echo "" >&2
+            echo "  原因：提交命令带了 -c user.email=… ⇒ 去掉那个 -c 即可" >&2
+            echo "  处理：确认无误可 git commit --no-verify 绕过" >&2
+            echo "" >&2
+            fail=1
+            ;;
+    esac
+done
+
 # ── 门②③④：索引一致性（对每个存在的索引跑；没索引的仓自动跳过）
 #    ⭐ 加一个新索引 = 往下面这行列表里加一个路径（正文目录 = 索引所在目录）
 staged=$(git diff --cached --name-only)
