@@ -79,11 +79,17 @@ fi
 #
 #    为什么要拦：那个错**是静默的**。提交成功、退出码 0、git log 里名字也对，
 #                只有到 GitHub 上才看得出来（关联不到账号：灰头像、不计贡献）。
-#                137 条已推送，重写历史会让所有 sha 变、四份文档里的提交号引用全部失效
-#                ⇒ 所以旧的不动，只保证**从今以后不再产生**。
 #
-#    判据：作者/提交者邮箱不该是本地编的域名。没有真域名就关联不到账号。
+#    只对【会推出去的仓】生效（2026-09-29 补）：没有远程的仓，本地身份是**刻意的** ——
+#    典型是 `~/.dsh` 用户侧配置仓：它无 remote、且含 `.credentials.yaml`，
+#    在那里用 `@local` 提交是当年的选择、并无问题（那些提交不会发到 GitHub，
+#    也就不存在"关联到账号"这回事）。⇒ 所以先看有没有远程，没有就跳过这一门。
+#
+#    判据：作者/提交者邮箱不该是本地编的域名 —— **在这个仓有远程时**。
 #    处理：`git config --global user.email` 看正确的那个；提交时**不要带** `-c user.email`。
+if [ -z "$(git remote 2>/dev/null)" ]; then
+    :   # 本地仓（无远程）：跳过身份检查
+else
 author_ident=$(git var GIT_AUTHOR_IDENT 2>/dev/null)
 committer_ident=$(git var GIT_COMMITTER_IDENT 2>/dev/null)
 author_email=$(printf '%s\n' "$author_ident" | sed -n 's/.*<\(.*\)>.*/\1/p')
@@ -105,6 +111,7 @@ for who_email in "作者:$author_email" "提交者:$committer_email"; do
             ;;
     esac
 done
+fi
 
 # ── 门②③④：索引一致性（对每个存在的索引跑；没索引的仓自动跳过）
 #    ⭐ 加一个新索引 = 往下面这行列表里加一个路径（正文目录 = 索引所在目录）
