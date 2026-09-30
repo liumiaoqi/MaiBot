@@ -51,12 +51,84 @@
 
 fail=0
 
+# ⚠️⚠️ 2026-09-30 加【门⓪ 自动修】—— lmq 要求："有些小细节被拦了，直接由门改掉就好，节省 token"
+#   动机：一天里因为「末尾多一个空行」被拦两次、因「CRLF」被拦一次 ⇒ 每次都是一个来回。
+#   只修**机械可逆、无语义变化**的三类：
+#     · CRLF / 单独 CR → LF（各仓 `.gitattributes` 声明 `* text=auto eol=lf`）
+#     · 行尾空格 —— ⚠️ **跳过 `*.md`**：Markdown 里两个行尾空格是**硬换行**，那是语义不是噪声
+#     · 末尾多余空行 → 压成恰好一个换行（就是拦了我两次的那条）
+#   三条安全约束（都落在代码里，不靠自觉）：
+#     ① 只修【暂存内容 == 工作区内容】的文件 —— 否则会把**未暂存的改动**一起提交（用 `git diff --quiet` 判）
+#     ② 只修**文本**文件（按扩展名跳过二进制 —— 二进制上 `tr -d '\r'` 会毁数据）
+#     ③ 修完**重新 `git add`**；随后 ① **再查一遍**，① 仍报错 ⇒ **仍拦**（自动修不是放行的理由）
+autofixed=""
+for f in $(git diff --cached --name-only --diff-filter=ACMR); do
+    case "$f" in
+        *.pdf|*.png|*.jpg|*.jpeg|*.gif|*.zip|*.gz|*.bin|*.apk|*.jar|*.exe|*.so|*.dll|\
+        *.xlsx|*.xls|*.docx|*.doc|*.pptx|*.ppt|*.ico|*.ttf|*.woff|*.woff2|*.pdf) continue ;;
+    esac
+    [ -f "$f" ] || continue
+    # ① 暂存内容必须与工作区一致（否则自动修会把未暂存的改动一并提交）
+    git diff --quiet -- "$f" || continue
+
+    before=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
+    did=""
+
+    # CRLF / CR → LF
+    # ⚠️⚠️ 检测必须用 `od` 按**字节**看 —— 实测：git-bash 的 `grep` 在 Windows 上以**文本模式**读文件，
+    #     CR 对它**不可见**（`grep -q "$(printf '\r')"` 恒不命中）⇒ 这一支曾静默失效。
+    #     （与「PowerShell 文本管道会重插 CR」同族：**别用文本工具判字节**。）
+    if od -An -c "$f" 2>/dev/null | grep -q '\\r'; then
+        tr -d '\r' < "$f" > "$f.docgen-fix" && mv "$f.docgen-fix" "$f" && did="$did CRLF→LF"
+    fi
+
+    # 行尾空格（跳过 .md：那是 Markdown 的硬换行）
+    case "$f" in
+        *.md) ;;
+        *) if grep -q '[[:space:]]$' "$f" 2>/dev/null; then
+               sed 's/[[:space:]]*$//' "$f" > "$f.docgen-fix" && mv "$f.docgen-fix" "$f" && did="$did 行尾空格"
+           fi ;;
+    esac
+
+    # 末尾多余空行 → 恰好一个换行
+    if [ -n "$(tail -c 2 "$f" 2>/dev/null | grep -c '^$')" ] && [ "$(tail -c 2 "$f" 2>/dev/null | od -An -c | tr -d ' ')" = "\n\n" ]; then
+        awk '{n[NR]=$0} END{while(NR>0 && n[NR]=="")NR--; for(i=1;i<=NR;i++) print n[i]}' "$f" > "$f.docgen-fix" \
+            && mv "$f.docgen-fix" "$f" && did="$did 末尾空行"
+    fi
+
+    if [ -n "$did" ]; then
+        after=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
+        git add -- "$f"
+        autofixed="$autofixed
+    $f:$did（$before→$after 字节，已重新 add）"
+    fi
+done
+
+if [ -n "$autofixed" ]; then
+    echo "  [提交门·⓪ 自动修] 以下小问题已由门改掉并重新暂存（无需你手动修）：$autofixed" >&2
+    echo "     ⚠️ 只改了机械项：CRLF→LF / 行尾空格（.md 除外）/ 末尾多余空行。内容一个字没动。" >&2
+fi
+
 # ── 门 ①：暂存内容的空白/行尾（dsh 同款）
 # 覆盖：行尾空格、多余空行、CRLF 混入（git 的 whitespace 规则集）
-check_out=$(git diff --cached --check 2>&1)
+# ⚠️ 先跑门⓪ 自动修；这里查的是**自动修没覆盖到**的问题 ⇒ 仍拦
+# ⚠️⚠️ 2026-09-30：`*.md` 的行尾空格**放行** —— 与门⓪「跳过 .md」**保持一致**。
+#     理由：Markdown 里两个行尾空格是**硬换行语法**（语义，不是噪声）。
+#     实测：加了门⓪ 之后，b.md 的两处硬换行仍被 ① 拦下 ⇒ 两边自相矛盾（对照组测出来的）。
+check_raw=$(git diff --cached --check 2>&1)
 check_rc=$?
+md_hits=$(printf '%s\n' "$check_raw" | grep -c '\.md:[0-9]*: ')
+# ⚠️ 过滤必须**带状态**：`git diff --cached --check` 的输出除了 `文件:行: 原因` 还有**紧跟着的内容行**
+#   （形如 `+# 标题  `）⇒ 只滤报告行会把内容行漏下来、照样判"有问题"（第一次就是这么错的，对照组测出来）。
+check_out=$(printf '%s\n' "$check_raw" | awk '
+    /\.md:[0-9]+: / { skip = 1; next }     # .md 的报告行：连同它后面紧跟的 + 内容行一起跳过
+    skip && /^\+/   { next }
+    { skip = 0 }
+    /^$/            { next }
+    { print }
+')
 
-if [ -n "$check_out" ] || [ "$check_rc" -ne 0 ]; then
+if [ -n "$check_out" ] || { [ -z "$check_raw" ] && [ "$check_rc" -ne 0 ]; }; then
     echo "" >&2
     echo "  [提交门·① 空白/行尾] ✗ 暂存内容存在空白/行尾问题：" >&2
     [ -n "$check_out" ] && printf '%s\n' "$check_out" | head -20 >&2
@@ -66,6 +138,10 @@ if [ -n "$check_out" ] || [ "$check_rc" -ne 0 ]; then
     echo "  处理：修好后重新 git add；确认无误可 git commit --no-verify 绕过" >&2
     echo "" >&2
     fail=1
+fi
+
+if [ "${md_hits:-0}" -gt 0 ] && [ -z "$check_out" ]; then
+    echo "  [提交门·①] 放行 $md_hits 处 *.md 行尾空格（Markdown 硬换行语法；门⓪ 也刻意不修它）" >&2
 fi
 
 # ── 门 ⑤：作者身份（2026-09-29 加）
