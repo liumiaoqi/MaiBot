@@ -1,0 +1,19 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp47_worm_survival_consumption.py:60: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== exp47: 生存消费机制逼迫流动 + 繁殖即清算 ===
+消费率组: [0.0, 0.05, 0.1] | 纪元 15 x 100 天 | 寿命 3 纪元 | 繁殖即清算
+
+消费率                  平均资产    持仓率(末3纪元)        种群末规模       最深谱系
+--------------------------------------------------------------
+0.0               38802.2         22.0%          200         15
+0.05                140.3         11.4%          200         15
+0.1                6437.4         22.8%          200         13
+
+=== 关键对比:生存消费是否逼迫流动(持仓率)? ===
+消费 5%: 持仓率  11.4% vs 无消费  22.0% (未明显变化)
+消费 10%: 持仓率  22.8% vs 无消费  22.0% (未明显变化)
+
+=== 谱系深度(世代交替是否发生) ===
+消费 0%: 最深谱系 15 代
+消费 5%: 最深谱系 15 代
+消费 10%: 最深谱系 13 代
