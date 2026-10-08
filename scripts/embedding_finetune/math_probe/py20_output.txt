@@ -1,0 +1,32 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\math_probe\probe20_society_neg.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== exp44: 线虫社会进化(20基因 + 共享世界 + 拥挤竞争 + 从众/反从众) ===
+[probe20 variant] fitness = value-100 (no zero-clamp; selection order preserved)
+股票池 18 | 世界 = 5 只共享 | 40 线虫 x 40 代 | 基因 20
+
+第  0 代: 平均    -89.2 | 最佳       0.0
+第  8 代: 平均     19.6 | 最佳     301.4
+第 16 代: 平均    -55.6 | 最佳     -11.0
+第 24 代: 平均    -37.5 | 最佳       9.6
+第 32 代: 平均     -9.5 | 最佳     165.9
+第 39 代: 平均     -4.0 | 最佳     137.6
+
+=== 结果(社会环境) ===
+最佳适配度: 1452.6
+平均(每8代): -89 20 -56 -38 -9
+冠军基因(关键):
+  polarity         -1.000
+  gain             +2.770
+  scal_back        +3.000
+  scal_fwd         +1.340
+  w_ret            +0.041
+  w_trend          +0.000
+  w_vol            +0.000
+  social_strength  +0.126
+  social_polarity  -0.063
+  decay            +1.000
+  explore          +0.093
+
+=== 环境极限测试(历史最差 750 天窗口) ===
+冠军线虫在最差行情: 平均资产 54.0 | 最惨 1.7(初始 100)
+存活(>0): 18/18 段
