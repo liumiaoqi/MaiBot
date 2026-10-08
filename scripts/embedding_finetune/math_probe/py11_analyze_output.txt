@@ -1,0 +1,32 @@
+=== A. fitness trajectory (50 gens) ===
+best: gen0   1009.8 -> gen10  12566.1 (x12.4) -> gen49  27752.6 (gen10-49 x2.21)
+avg : gen0     48.5 -> gen10   1709.3 -> gen49   3352.0 (gen10-49 x1.96)
+late linear slope (gen20-49): +105.2 per gen  (vs gen0-10 +1156 per gen)
+best per-gen change: std 19903.5, max |jump| 54630.8
+
+=== B. gene wall-hitting (champions, 50 gens) ===
+gene                range    at_lo    at_hi    late_lo    late_hi
+polarity   [ -1.0,  1.0]       0%      36%         0%        44%
+gain       [  0.1,  3.0]       6%      30%         0%        28%
+scal_back  [  0.1,  3.0]      96%       0%        96%         0%
+scal_fwd   [  0.1,  3.0]       0%      68%         0%        72%
+scal_turn  [  0.1,  3.0]      38%       2%        48%         4%
+scal_motor [  0.1,  3.0]       6%      22%        12%        44%
+scal_sense [  0.1,  3.0]       4%      16%         8%        24%
+decay      [  0.0,  1.0]       0%      58%         0%        44%
+explore    [  0.0,  0.5]       2%      30%         4%         0%
+threshold  [ -0.5,  0.5]       0%       8%         0%         0%
+
+=== C. late-stage dispersion (champions gen25-49) ===
+polarity   late std = 0.2321
+gain       late std = 0.6644
+scal_back  late std = 0.0363
+scal_fwd   late std = 0.3816
+scal_turn  late std = 0.7663
+scal_motor late std = 0.9906
+scal_sense late std = 0.7595
+decay      late std = 0.1625
+explore    late std = 0.1145
+threshold  late std = 0.1374
+
+genes pinned at a wall in late stage: 1 / 10

@@ -1,0 +1,17 @@
+E:\Users/lmq/MaiBot/scripts/embedding_finetune/trading\exp42_worm_evolution.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+connectome: 279 neurons | price series: 8
+gen  0: avg   48.54 | best 1009.83
+gen 10: avg 1709.32 | best 12566.05
+gen 20: avg 1408.52 | best 17073.57
+gen 30: avg 1637.03 | best 12330.60
+gen 40: avg 1401.85 | best 14866.22
+gen 49: avg 3352.03 | best 27752.61
+=== 曲线（每10代）===
+gen  0: best   1009.83  avg     48.54
+gen 10: best  12566.05  avg   1709.32
+gen 20: best  17073.57  avg   1408.52
+gen 30: best  12330.60  avg   1637.03
+gen 40: best  14866.22  avg   1401.85
+gen 49: best  27752.61  avg   3352.03
+curves -> data_exp42/curve.csv ; champions -> champs.csv

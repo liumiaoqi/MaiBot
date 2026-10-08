@@ -1,0 +1,40 @@
+=== probe11: 1-D box evolution toy (box = [0,1], pop=50, 50 gens) ===
+
+scenario A: optimum INSIDE the box (x* = 0.7)
+--- A (mean gene at selected generations) ---
+gen 0    mean=0.5384  best-fit=            -6
+-1.9079 × 10
+gen 10   mean=0.6986  best-fit=            -7
+-9.3448 × 10
+gen 20   mean=0.7014  best-fit=            -7
+-4.8204 × 10
+gen 30   mean=0.7004  best-fit=            -6
+-1.8858 × 10
+gen 40   mean=0.7024  best-fit=            -6
+-2.6876 × 10
+gen 49   mean=0.7119  best-fit=            -8
+-8.9758 × 10
+late-stage (gen25-49) wall-hits (mean>0.98): 0 / 25
+
+scenario B: optimum OUTSIDE the box (x* = 1.4)
+--- B (mean gene at selected generations) ---
+gen 0    mean=0.5384  best-fit=-0.4919
+gen 10   mean=0.9894  best-fit=-0.1600
+gen 20   mean=0.9865  best-fit=-0.1600
+gen 30   mean=0.9906  best-fit=-0.1600
+gen 40   mean=0.9890  best-fit=-0.1600
+gen 49   mean=0.9923  best-fit=-0.1600
+late-stage (gen25-49) wall-hits (mean>0.98): 25 / 25
+
+scenario C: optimum OUTSIDE + fitness noise (sigma=0.05)
+--- C (mean gene at selected generations) ---
+gen 0    mean=0.5384  best-fit=-0.5021
+gen 10   mean=0.9894  best-fit=-0.1135
+gen 20   mean=0.9865  best-fit=-0.2424
+gen 30   mean=0.9906  best-fit=-0.2159
+gen 40   mean=0.9890  best-fit=-0.1420
+gen 49   mean=0.9923  best-fit=-0.2165
+late-stage (gen25-49) wall-hits (mean>0.98): 25 / 25
+
+reading: A settles at the interior optimum; B/Ð¡ hit the wall and stay
+=> real gene trajectories pinned at GENE_RANGES bounds = optimum outside the box
