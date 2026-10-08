@@ -881,3 +881,46 @@ p=0.2 时 overlap 仅 **0.729**（gauss 可达 0.066）——**「不动的大�
   而在「受控扰动」思想——**噪声源无所谓，gap 标度说了算**
 
 **文件**：`probe16_pareto.py` / `probe16_gap_theory.wls` · `py16_pareto_output.txt` / `wl16_output.txt` / `py_exp27_output.txt` / `py_exp28_output.txt`
+
+## probe17：进化家族批量体检——「谱系」而非「家族」，完成度 2/9（进化线）
+
+### 结构谱系（基因架构三代）
+
+| 变体 | 架构 | 与家族的关系 |
+|---|---|---|
+| 42 / 43 / 45 / 46 / 47 | 10 基因 + `GENE_RANGES`（**逐字相同**） | 同版 |
+| 44 | 20 基因（前 10 个界不变） | 扩展版 |
+| 48 | 染色体（3×6 → 12 表型参数；前 10 个表型界不变；含 `PHENO_NEUTRAL`） | 换代 |
+| 49 | 48 框架 + 量子变异算子（bitflip / ampdamp / depolar / tunnel） | 换代 + 算子实验 |
+
+⇒ **probe11 的「盒子墙」判决（scal_back 下界 / scal_fwd 上界）覆盖 42–47 全部 + 48/49 的前 10 维**。
+
+### 执行完成度 = 2/9（体检核心）
+
+| 目录 | 状态 |
+|---|---|
+| evolution（42） | **完整 6 点**（gen 0–49） |
+| evolution_market（43） | **完整 6 点** |
+| evolution_society（44） | 5 点（0/10/20/30/39——中断） |
+| evolution_repro（46） | 4 点（epoch 0/5/10/14——中断） |
+| flow（45）/ survival（47）/ genes（48）/ quantum_mut（49） | **全空**（makedirs 后无产出） |
+| evolution_chat | **不是进化存档**——装的是 exp51 聊天漂移数据（名不副实） |
+
+- 目录时间戳全部集中在 8 月 19 日凌晨（03:20–03:48）——**「批量实验未完成」现场**
+- **存档协议三套并存**：`champion_gen%03d`（42–45/47）· `epoch%02d`（46，且存的是**种群快照**不是冠军 fitness）· exp51 数据（误入）
+  ⇒ 跨变体无法直接对比（联查须适配）
+
+### society 的「选择失效」（通用陷阱）
+
+evolution_society 轨迹：`0 → 645 → 0 → 0 → 162`——**两次全零代**（gen20/30 冠军 fitness = 0 = 全员破产）。
+`fitness = max(0, value−100)` 在全员亏光时全为 0 ⇒ `argsort` 在等值上退化 ⇒ **选择变成随机漂变**。
+⇒ **「fitness 下限归零」+ 苛刻环境 = 选择信号消失**——修复：下限改负值（保留序）或环境预检可行性。
+
+### 行动建议
+
+- **补跑**：flow / survival / genes / quantum_mut（4 个空）+ society / repro 补到全程
+- **先改再跑**：society 的 fitness 下限（负值化）
+- **挪墙实验**（probe11 待办）与 48/49 的前 10 维一起做
+- 整理提醒：`evolution_chat` 里的 exp51 数据建议挪到自己的目录（⚠️ 未动）
+
+**文件**：结构扫描（grep 级）+ 存档读取；本次无新增跑动
