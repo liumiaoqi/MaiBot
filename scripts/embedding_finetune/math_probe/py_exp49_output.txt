@@ -1,0 +1,20 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp49_quantum_mutation_evolution.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== exp49: 量子遗传变异——信道算子/隧穿 vs 经典(量子 x 线虫进化) ===
+变异算子: classic / quantum_channel(bitflip+ampdamp+depolar) / quantum_tunnel
+
+变异算子                      种群末       最深谱系        平均持仓率      表达基因数         平均资产
+----------------------------------------------------------------------------
+classic                   147          7         31.3%        3.4        938.1
+quantum_channel           150          8         31.1%        9.1        185.1
+quantum_tunnel              0          0          0.0%        0.0          0.0
+
+=== 假基因化速度(表达基因数下降 = 失活) ===
+classic            起点 2.0 -> 终点 4.0(12纪元)
+quantum_channel    起点 10.0 -> 终点 8.2(12纪元)
+quantum_tunnel     起点 0.0 -> 终点 0.0(12纪元)
+
+=== 持仓振荡模式 ===
+classic            48 0 55 0 62 0 56 0 60 37 0 57
+quantum_channel    46 53 4 48 0 58 1 62 0 72 17 12
+quantum_tunnel     0 0 0 0 0 0 0 0 0 0 0 0
