@@ -1,0 +1,21 @@
+E:\Users/lmq/MaiBot/scripts/embedding_finetune/trading\exp42_worm_evolution.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+E:\Users/lmq/MaiBot/scripts/embedding_finetune/trading\exp42_worm_evolution.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+E:\Users/lmq/MaiBot/scripts/embedding_finetune/trading\exp42_worm_evolution.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== probe19: wall-move experiment (exp42 mechanics, same seed) ===
+baseline (probe11) = data_exp42/curve.csv
+full: gen0 3897.6 -> gen49 36325.9
+backonly: gen0 3897.6 -> gen49 36325.9
+fwdonly: gen0 1009.8 -> gen49 36398.8
+
+gen            baseline         full     backonly      fwdonly
+0                1009.8       3897.6       3897.6       1009.8
+10              12566.1      11820.4      15616.3      13174.2
+20              17073.6      34791.8      31426.1      34791.8
+30              12330.6      13891.6      17319.1      14317.6
+40              14866.2      17774.5      11597.5      14963.8
+49              27752.6      36325.9      36325.9      36398.8
+
+final ratios vs baseline: full x1.31 | backonly x1.31 | fwdonly x1.31
