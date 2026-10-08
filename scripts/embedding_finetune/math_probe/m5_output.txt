@@ -1,0 +1,47 @@
+=== probe5 MATLAB (R2025b) ===
+--- spectrum (top 16) ---
+54.618  47.663  44.908  39.835  35.787  35.456  32.095  28.486  6.171  5.911  5.864  5.763  5.655  5.527  5.465  5.413
+sigma8/sigma9 = 4.616   MP noise edge ~ 6.643
+centers singular values (8): 10.844  9.465  8.954  7.897  7.114  7.032  6.326  5.631
+--- Eckart-Young predicted error ---
+r=3 : 0.698
+r=6 : 0.444
+r=15 : 0.226
+r=30 : 0.161
+--- retrieval replay (fixed data) ---
+full            100   100   100
+trunc K=100     100    33     0
+tn r=15         100   100   100
+trunc K=40       67     0     0
+tn r=6          100   100    92
+--- r-scan: retrieval accuracy vs r (tn, r=1..30) ---
+r= 1 : new  33%  mid  33%  old   0%
+r= 2 : new  94%  mid  39%  old   0%
+r= 3 : new 100%  mid  69%  old  17%
+r= 4 : new 100%  mid 100%  old   4%
+r= 5 : new 100%  mid 100%  old  50%
+r= 6 : new 100%  mid 100%  old  92%
+r= 7 : new 100%  mid 100%  old 100%
+r= 8 : new 100%  mid 100%  old 100%
+r= 9 : new 100%  mid 100%  old 100%
+r=10 : new 100%  mid 100%  old 100%
+r=11 : new 100%  mid 100%  old 100%
+r=12 : new 100%  mid 100%  old 100%
+r=13 : new 100%  mid 100%  old 100%
+r=14 : new 100%  mid 100%  old 100%
+r=15 : new 100%  mid 100%  old 100%
+r=16 : new 100%  mid 100%  old 100%
+r=17 : new 100%  mid 100%  old 100%
+r=18 : new 100%  mid 100%  old 100%
+r=19 : new 100%  mid 100%  old 100%
+r=20 : new 100%  mid 100%  old 100%
+r=21 : new 100%  mid 100%  old 100%
+r=22 : new 100%  mid 100%  old 100%
+r=23 : new 100%  mid 100%  old 100%
+r=24 : new 100%  mid 100%  old 100%
+r=25 : new 100%  mid 100%  old 100%
+r=26 : new 100%  mid 100%  old 100%
+r=27 : new 100%  mid 100%  old 100%
+r=28 : new 100%  mid 100%  old 100%
+r=29 : new 100%  mid 100%  old 100%
+r=30 : new 100%  mid 100%  old 100%

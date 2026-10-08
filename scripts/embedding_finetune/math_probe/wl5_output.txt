@@ -1,0 +1,17 @@
+=== probe5: exp37 tensor-network compression (Wolfram 14.3.0 for Microsoft Windows (64-bit) (July 8, 2025)) ===
+--- spectrum (top 16) ---
+54.618  47.663  44.908  39.835  35.787  35.456  32.095  28.486  6.171  5.911  5.864  5.763  5.655  5.527  5.465  5.413
+sigma8/sigma9 = 4.616    MP noise edge ~ sigma(sqrt(T)+sqrt(D)) = 6.643
+centers singular values (8): 10.844  9.465  8.954  7.897  7.114  7.032  6.326  5.631   (=5x blocks -> signal band ~ 5 x these)
+--- Eckart-Young predicted reconstruction error ---
+r=3 : 0.698
+r=6 : 0.444
+r=15 : 0.226
+r=30 : 0.161
+--- retrieval replay (fixed data) ---
+config                  new   mid   old
+full                    100   100   100
+trunc K=100             100   33   0
+tn r=15                 100   100   100
+trunc K=40              67   0   0
+tn r=6                  100   100   92
