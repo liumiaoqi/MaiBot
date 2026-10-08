@@ -1,0 +1,30 @@
+=== probe4: salience-weighted Hopfield, SNR analysis ===
+--- per-tier SNR & one-shot estimate (M=20, c = 5 tiers x4) ---
+c=0.3 : uniform SNR=2.0263  Phi^N=0.1777   | weighted SNR=0.8559  Phi^N=             -8
+2.624014 × 10
+c=0.475 : uniform SNR=2.0263  Phi^N=0.1777   | weighted SNR=1.3648  Phi^N=0.000741
+c=0.65 : uniform SNR=2.0263  Phi^N=0.1777   | weighted SNR=1.8874  Phi^N=0.090731
+c=0.825 : uniform SNR=2.0263  Phi^N=0.1777   | weighted SNR=2.4297  Phi^N=0.545110
+c=1. : uniform SNR=2.0263  Phi^N=0.1777   | weighted SNR=2.9988  Phi^N=0.897186
+
+--- load scan: uniform vs weighted (ensemble mean over tiers) ---
+M    uniform SNR/est      weighted mean est  [per-tier est]
+5    4.416 / 0.9996      0.7728  0.0344 0.8314 0.9981 1.0000 1.0000
+10   2.944 / 0.8784      0.5782  0.0001 0.1280 0.7773 0.9860 0.9997
+15   2.361 / 0.4804      0.4302             -7
+7.8624 × 10 0.0093 0.3227 0.8355 0.9836
+20   2.026 / 0.1777      0.3068             -8
+2.6240 × 10 0.0007 0.0907 0.5451 0.8972
+25   1.803 / 0.0546      0.2069             -9
+1.8603 × 10 0.0001 0.0223 0.2864 0.7255
+30   1.640 / 0.0159      0.1314             -10
+2.2008 × 10 0.0000 0.0055 0.1315 0.5202
+
+--- crossover search (M=5..40 by 5, same 5-tier c) ---
+weighted est > uniform est for M = {{20, 25, 30, 35, 40}}  (first: {20, 25, 30, 35, 40})
+
+--- mini-case (N=8, M=2, synchronous) for cross-check ---
+W row1: 0.0000000 1.0000000 0.3333333 0.3333333 -0.3333333 -0.3333333 -1.0000000 -1.0000000
+x0    : {1., 1, 1, 1, 0, 0, 0, 0}
+fixed : {1., 1., 1., 1., -1., -1., -1., -1.}
+recovered s1? True

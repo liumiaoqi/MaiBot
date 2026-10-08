@@ -1,0 +1,19 @@
+=== probe4 MATLAB (R2025b) ===
+W row1: 0.0000000 1.0000000 0.3333333 0.3333333 -0.3333333 -0.3333333 -1.0000000 -1.0000000
+x0    : 1 1 1 1 0 0 0 0
+fixed : 1 1 1 1 -1 -1 -1 -1
+recovered s1? 1
+--- load scan (mask 30%, 300 trials each) ---
+    M      classic     weighted
+    5        0.993        0.833
+   10        0.850        0.563
+   15        0.450        0.453
+   20        0.147        0.300
+   25        0.020        0.187
+   30        0.003        0.110
+--- per-tier recovery (weighted, M=20, 800 trials) ---
+c=0.300 : recovery 0.138  (n=145)
+c=0.475 : recovery 0.287  (n=174)
+c=0.650 : recovery 0.372  (n=172)
+c=0.825 : recovery 0.406  (n=143)
+c=1.000 : recovery 0.410  (n=166)
