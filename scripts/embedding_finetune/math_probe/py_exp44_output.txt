@@ -1,0 +1,31 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp44_worm_society_evolution.py:56: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== exp44: 线虫社会进化(20基因 + 共享世界 + 拥挤竞争 + 从众/反从众) ===
+股票池 18 | 世界 = 5 只共享 | 40 线虫 x 40 代 | 基因 20
+
+第  0 代: 平均      0.0 | 最佳       0.0
+第  8 代: 平均      0.0 | 最佳       0.0
+第 16 代: 平均     37.3 | 最佳     362.2
+第 24 代: 平均      0.0 | 最佳       0.0
+第 32 代: 平均     27.5 | 最佳     206.3
+第 39 代: 平均     48.2 | 最佳     162.4
+
+=== 结果(社会环境) ===
+最佳适配度: 3616.6
+平均(每8代): 0 0 37 0 28
+冠军基因(关键):
+  polarity         -0.775
+  gain             +2.420
+  scal_back        +1.779
+  scal_fwd         +0.100
+  w_ret            +0.188
+  w_trend          +0.000
+  w_vol            +0.000
+  social_strength  +0.673
+  social_polarity  -1.000
+  decay            +0.949
+  explore          +0.097
+
+=== 环境极限测试(历史最差 750 天窗口) ===
+冠军线虫在最差行情: 平均资产 113.9 | 最惨 100.0(初始 100)
+存活(>0): 18/18 段
