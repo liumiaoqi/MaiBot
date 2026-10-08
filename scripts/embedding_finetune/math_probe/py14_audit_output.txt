@@ -1,0 +1,8 @@
+=== probe14: exp36 adversarial audit ===
+--- A/B/C: replay, clean-prediction, attribution ---
+mt: two-run agreement 1.000000 (disagree 0) | clean-predict hit 0.9996 | flips dir 0 / trig 1 (n=2748)
+hw: two-run agreement 0.998544 (disagree 4) | clean-predict hit 0.9996 | flips dir 0 / trig 1 (n=2748)
+--- D: corrected-sign slippage (buy pays +, sell receives -, i.e. really exploited) ---
+mt clean                  377.5
+mt adv (true sign)        375.6
+hw adv (true sign)        383.9
