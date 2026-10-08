@@ -1,0 +1,35 @@
+=== probe16: strategy families — Pareto sweep (exp27 pool) ===
+config                      overlap    quality
+gauss   sigma=0.005           0.9343     0.9998
+gauss   sigma=0.010           0.8894     0.9988
+gauss   sigma=0.020           0.7589     0.9946
+gauss   sigma=0.050           0.4572     0.9694
+gauss   sigma=0.100           0.1953     0.9092
+gauss   sigma=0.200           0.0657     0.8132
+ampdamp p=0.005               0.9436     0.9998
+ampdamp p=0.010               0.9377     0.9994
+ampdamp p=0.020               0.9195     0.9989
+ampdamp p=0.050               0.8847     0.9970
+ampdamp p=0.100               0.8229     0.9941
+ampdamp p=0.200               0.7292     0.9887
+qbit    p=0.005               0.9407     0.9997
+qbit    p=0.010               0.9364     0.9995
+qbit    p=0.020               0.9225     0.9992
+qbit    p=0.050               0.8720     0.9963
+qbit    p=0.100               0.8331     0.9942
+qbit    p=0.200               0.7305     0.9884
+
+--- fair comparison: quality AT matched overlap levels ---
+overlap             gauss      ampdamp         qbit
+0.95                  nan          nan          nan
+0.90               0.9990       0.9978       0.9979
+0.85               0.9975       0.9954       0.9951
+0.80               0.9959       0.9928       0.9924
+0.70               0.9896          nan          nan
+0.60               0.9813          nan          nan
+0.50               0.9730          nan          nan
+
+--- qbit (negate) vs ampdamp (zero-out) equivalence on a positive pool ---
+p=0.01 : ampdamp (0.9377, 0.9994)  qbit (0.9364, 0.9995)  d_overlap -0.0013
+p=0.05 : ampdamp (0.8847, 0.9970)  qbit (0.8720, 0.9963)  d_overlap -0.0127
+p=0.10 : ampdamp (0.8229, 0.9941)  qbit (0.8331, 0.9942)  d_overlap +0.0102

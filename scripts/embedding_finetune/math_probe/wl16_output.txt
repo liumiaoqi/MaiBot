@@ -1,0 +1,31 @@
+=== probe16: gap scale theory (N(0.5,0.12), n=500, top-8) ===
+--- expected score ladder near top-8 ---
+s_6 ~ 0.7709
+s_7 ~ 0.7638
+s_8 ~ 0.7574
+s_9 ~ 0.7517
+s_10 ~ 0.7465
+s_11 ~ 0.7418
+s_12 ~ 0.7374
+--- expected adjacent gaps ---
+gap_6 = 0.00718
+gap_7 = 0.00634
+gap_8 = 0.00570
+gap_9 = 0.00518
+gap_10 = 0.00476
+--- numeric check: empirical gaps (mean over 60 draws) ---
+empirical gap_6..gap_10: 0.00701  0.00735  0.00589  0.00448  0.00549
+
+gap_8 = 0.00570   (the boundary scale that governs top-8 swaps)
+
+--- scale law: sigma / gap_8 vs observed overlap (gauss family) ---
+sigma/gap_8 = 0.88   sigma = 0.005   overlap = 0.9343
+sigma/gap_8 = 1.76   sigma = 0.01   overlap = 0.8894
+sigma/gap_8 = 3.51   sigma = 0.02   overlap = 0.7589
+sigma/gap_8 = 8.78   sigma = 0.05   overlap = 0.4572
+sigma/gap_8 = 17.56   sigma = 0.1   overlap = 0.1953
+sigma/gap_8 = 35.11   sigma = 0.2   overlap = 0.0657
+
+reading: sigma < gap -> overlap > 0.93 (barely disturbed);
+sigma ~ 2-4 x gap -> the sweet band (overlap 0.89-0.76, quality > 0.99);
+sigma > 10 x gap -> collapse (overlap < 0.2).
