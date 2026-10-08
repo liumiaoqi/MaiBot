@@ -1,0 +1,29 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp41b_worm_attractors.py:28: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== exp41b: 线虫连接组自发吸引子——结构承载行为守则 ===
+真实 W 就绪(279 神经元,非零边 3978)
+  后退(AVA+DD): 4 个神经元
+  前进(AVB+DB): 5 个神经元
+  头部转向(RIV): 3 个神经元
+  运动命令(PVC): 2 个神经元
+  感觉(IL2/URX): 4 个神经元
+
+--- 自发吸引子与行为组激活(均值>0=该组激活,-1~+1) ---
+行为组                            真实连接         随机权重
+------------------------------------------------
+后退(AVA+DD)                    0.105       -0.030
+前进(AVB+DB)                    0.116       -0.004
+头部转向(RIV)                     0.093       -0.040
+运动命令(PVC)                     0.090       -0.110
+感觉(IL2/URX)                   0.045        0.020
+
+--- 行为组互斥性(后退 vs 前进在收敛状态的相关性) ---
+行为对                                    真实连接         随机权重
+--------------------------------------------------------
+后退(AVA+DD) x 前进(AVB+DB)               0.302        0.024
+后退(AVA+DD) x 头部转向(RIV)                0.410       -0.010
+前进(AVB+DB) x 运动命令(PVC)                0.448       -0.020
+
+=== 结论观察 ===
+真实连接:行为组激活是否非随机(偏离0)?互斥性(后退x前进<0)?
+随机权重:是否无结构(全部≈0)?——结构承载行为守则的直接对比

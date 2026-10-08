@@ -1,0 +1,12 @@
+=== probe8: 16-node subnet (57 edges) exhaustive enumeration ===
+nodes: {55, 47, 96, 116, 261, 105, 66, 58, 267, 253, 118, 56, 93, 48, 209, 79}
+states: 65536
+fixed points      : 4
+2-cycle states    : 112  (56 cycles)
+other (period>=3) : 65420
+all-ones fixed in subnet: True
+first fixed points (up to 5):
+  {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}  act=-1.000
+  {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1, -1, 1, -1, -1}  act=-0.750
+  {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, -1, 1, 1}  act=0.750
+  {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}  act=1.000

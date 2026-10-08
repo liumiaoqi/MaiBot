@@ -1,0 +1,26 @@
+=== probe8: worm connectome dynamics audit ===
+rowsum: min 0.0286  all>=0: 1
+all-ones fixed point: 1
+--- sync dynamics (100 inits) ---
+true fixed points : 5 / 100
+final activation  : mean 0.0781  min -1.0000  max 1.0000
+-1 count per final: mean 128.61  min 0  max 279  (n=279)
+unique final states: 97
+--- behavior group activation (replicate exp41b) ---
+x___AVA_DD_            mean   0.1100
+x___AVB_DB_            mean   0.1160
+x_____RIV_             mean   0.0400
+x_____PVC_             mean   0.1100
+x___IL2_URX_           mean   0.0350
+--- energy ---
+sync energy-increase steps: 492 / 1147 (42.9%)
+--- async dynamics (50 inits) ---
+true fixed     : 49 / 50
+activation     : mean 0.1822  min -1.0000  max 1.0000
+unique finals  : 46
+--- async behavior group activation (true fixed points) ---
+x___AVA_DD_            mean   0.0400
+x___AVB_DB_            mean   0.1360
+x_____RIV_             mean   0.4000
+x_____PVC_             mean   0.0800
+x___IL2_URX_           mean   0.2500
