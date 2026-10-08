@@ -1,0 +1,5 @@
+# 构建产物与运行输出（clone 后按 NOTES.md 重新生成）
+mai.exe
+out.txt
+*.o
+*.mod
