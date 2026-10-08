@@ -1,0 +1,16 @@
+=== probe13-A: spectral audit of propagation (real connectome) ===
+rho(W)          = 2.8346
+g* = 1/rho(W)   = 0.3528   (critical propagation coefficient)
+0.85 * rho(W)   = 2.4094   -> linear framework: DIVERGENT (thresholds/factors will damp it in practice)
+safety margin   = 2.41x  (0.85 vs g*)
+--- eigenvalue structure ---
+lambda min   -1.935  max    2.835  |negative count 153 / 279
+top 6 |lambda|: 2.835  2.011  1.935  1.592  1.506  1.494
+--- cross-check vs probe12 Ising ---
+Ising beta_c ~ 0.50 (measured); 1/rho(W) = 0.353 -- same order (both O(1) linear-response scales)
+Gershgorin bound: rho <= max row |sum| = 11.229 (actual 2.835)
+--- random W control ---
+rho(random) = 4.5331  (g*_rand = 0.2206)  vs real 2.8346
+--- what does g=0.85 mean here? ---
+real:    0.85/rho = 0.300  -> ABOVE critical
+random:  0.85/rho = 0.188  -> ABOVE critical

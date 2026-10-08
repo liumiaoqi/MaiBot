@@ -1,0 +1,13 @@
+=== probe13-B v2: Lee-Yang zeros, NESTED design ===
+--- nested glass subgraphs (mother n=10) ---
+glass-nested    n= 4: edges  5, roots   4 | Re>0:   2 | min|Im|:   1.7214 | pos-real: 0
+glass-nested    n= 6: edges 10, roots   8 | Re>0:   4 | min|Im|:   0.3813 | pos-real: 0
+glass-nested    n= 8: edges 15, roots   9 | Re>0:   4 | min|Im|:   0.5091 | pos-real: 0
+glass-nested    n=10: edges 21, roots  12 | Re>0:   4 | min|Im|:   1.0000 | pos-real: 0
+    closest-to-axis zeros: (0.000 +1.000i) (0.000 -1.000i) (0.679 +1.182i) (0.679 -1.182i)
+--- complete ferro graphs ---
+ferro-complete  n= 4: edges  6, roots   4 | Re>0:   2 | min|Im|:   1.4142 | pos-real: 0
+ferro-complete  n= 6: edges 15, roots   9 | Re>0:   4 | min|Im|:   0.6991 | pos-real: 0
+ferro-complete  n= 8: edges 28, roots  16 | Re>0:   8 | min|Im|:   0.3973 | pos-real: 0
+ferro-complete  n=10: edges 45, roots  25 | Re>0:  12 | min|Im|:   0.2565 | pos-real: 0
+    closest-to-axis zeros: (1.281 +0.257i) (1.281 -0.257i) (1.195 +0.498i) (1.195 -0.498i)
