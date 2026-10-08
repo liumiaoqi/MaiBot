@@ -1,0 +1,28 @@
+=== probe2: corrected forgetting model (state dynamics) ===
+params: s0=0.7  L0=0.1  taus=1.  taul=200.  k=0.5  N=31d, 4 reviews
+
+distribution           orig31    v2-stock  v2-gap
+cram   {27,28,29,30}   1.1133    0.7256    1.3434
+spaced {1,3,7,14}      1.1133    0.2436    1.1651
+even7  {7,14,21,28}    1.1133    0.1217    1.4289
+early  {1,2,3,4}       1.1133    0.5323    0.8531
+late   {20,24,28,30}   1.1133    0.4028    1.6458
+
+--- uniform family: {f, f+d, f+2d, f+3d} (keep <=30) ---
+(f,d)      v2-stock  v2-gap
+(1,1)      0.5323    0.8531
+(8,1)      0.4335    0.9951
+(15,1)     0.4458    1.0276
+(1,2)      0.3212    1.0733
+(8,2)      0.2150    1.2232
+(15,2)     0.2195    1.2638
+(1,4)      0.2137    1.1996
+(8,4)      0.1036    1.3539
+(15,4)     0.1169    1.4120
+(1,7)      0.1974    1.2449
+(8,7)      0.1814    1.4955
+(1,9)      0.2314    1.3003
+
+--- single review at t=1, observed at t=2 / t=5 ---
+orig  : 0.3426 (global clock; S collapses)
+v2 all: 0.1965 (state; S re-decays from review)

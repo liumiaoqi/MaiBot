@@ -1,0 +1,34 @@
+=== probe3: exp31 mechanism (Wolfram 14.3.0 for Microsoft Windows (64-bit) (July 8, 2025)) ===
+--- 1. mechanism check: scores = {0.9, 0.7, 0.5, 0.3, 0.1} ---
+k=1 : 0.360000000  0.280000000  0.200000000  0.120000000  0.040000000
+k=2 : 0.490909091  0.296969697  0.151515152  0.054545455  0.006060606
+k=8 : 0.874778507  0.117150015  0.007938127  0.000133330                  -8
+2.032160608 × 10
+--- 2. duality: max |P - softmax(k log s)| over k = 1..8 ---
+max abs diff =                          -16
+1.110223024625200000 × 10   (exact identity; k is an inverse temperature)
+--- 3. real Grover (N=5): P(marked) after k iterations ---
+k=0 : 0.200000
+k=1 : 0.968000
+k=2 : 0.537920
+k=3 : 0.010765
+k=4 : 0.736052
+k_opt(N=5) = pi/(4 theta) - 1/2 = 1.1940  -> sin^2 oscillates (overshoot visible: k=2 < k=1)
+grover k_opt for N: {{4, 1.000}, {16, 2.608}, {64, 5.767}, {256, 12.058}}
+--- 4. sharpening P_main(k) vs k (monotone, unlike Grover) ---
+k=1 : P_main = 0.360000
+k=2 : P_main = 0.490909
+k=4 : P_main = 0.678560
+k=8 : P_main = 0.874779
+k=16 : P_main = 0.982302
+k=64 : P_main = 1.000000
+closed form ratio P1/P2 = (0.9/0.7)^k : {{1, 1.2857}, {2, 1.6531}, {4, 2.7326}, {8, 7.4672}}
+--- 4b. P_secondary(0.7) vs k: rises then falls ---
+k=1 : P_sec = 0.280000
+k=2 : P_sec = 0.296970
+k=3 : P_sec = 0.280000
+k=5 : P_sec = 0.212143
+k=8 : P_sec = 0.117150
+--- 5. frustrated item (s3 = -0.5), k=2 ---
+clip(0) hard-exclusion : 0.578571429  0.350000000  0.000000000  0.064285714  0.007142857
+keep-|s| (phase-like)  : 0.490909091  0.296969697  0.151515152  0.054545455  0.006060606

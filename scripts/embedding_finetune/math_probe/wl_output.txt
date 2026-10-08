@@ -1,0 +1,31 @@
+=== A. exp29 replay (Wolfram 14.3.0 for Microsoft Windows (64-bit) (July 8, 2025)) ===
+granular : MAE 0.43316   31d 27.48%
+ampdamp  : MAE 0.41652   31d 20.39%
+twolevel : MAE 0.17727   31d 8.56%
+review{1}        7d 0.3869   31d 0.3426
+review{1,3,7,14} 7d 0.9662   31d 1.1133
+
+=== B. symbolic analysis ===
+B1 crossover (general): t* = -((tl0*ts0*Log[L0/S0])/(tl0 - ts0))
+B1 crossover (exp29):   t* = 1.9557 days
+B2 closed form: ret31(n) = 0.7 e^{-31} + (0.1 + 0.3 n) e^{-31/200}
+B2 n=0 -> ret31 = 0.0856   (sim {1,3,7,14}: 1.1133)
+B2 n=1 -> ret31 = 0.3426   (sim {1,3,7,14}: 1.1133)
+B2 n=2 -> ret31 = 0.5995   (sim {1,3,7,14}: 1.1133)
+B2 n=3 -> ret31 = 0.8564   (sim {1,3,7,14}: 1.1133)
+B2 n=4 -> ret31 = 1.1133   (sim {1,3,7,14}: 1.1133)
+B2 n=5 -> ret31 = 1.3703   (sim {1,3,7,14}: 1.1133)
+B2 spaced  {1,3,7,14}   ret31 = 1.1133
+B2 crammed {27,28,29,30} ret31 = 1.1133
+B2 midblock{14,15,16,17} ret31 = 1.1133
+B3 periodic (dt=7d, 2y): peak 3.304 at t = 189 d
+B4 phase-correct steady state  L*(dt) = 0.3 e^{-dt/200}/(1 - e^{-dt/200})
+B4 dt=1 d -> L* = 59.8501
+B4 dt=3 d -> L* = 19.8504
+B4 dt=7 d -> L* = 8.4223
+B4 dt=14 d -> L* = 4.1375
+B4 dt=30 d -> L* = 1.8537
+B4 dt=60 d -> L* = 0.8575
+B5 S after review at t=14, evaluated at t=15:
+   no phase reset: 0.7 e^{-15} = 2.1413162435127802e-7
+   phase reset   : 0.7 e^{-1}  = 0.25751561

@@ -1,0 +1,26 @@
+=== probe3 MATLAB cross-check (R2025b) ===
+--- mechanism check ---
+k=1 : 0.360000000  0.280000000  0.200000000  0.120000000  0.040000000
+k=2 : 0.490909091  0.296969697  0.151515152  0.054545455  0.006060606
+k=8 : 0.874778507  0.117150015  0.007938127  0.000133330  0.000000020
+--- k-scan (P1=main 0.9, P2=sec 0.7, H=entropy nats) ---
+k=  0.5 : P_main=0.2826  P_sec=0.2493  H=1.5499  P_last=0.094216
+k=  1.0 : P_main=0.3600  P_sec=0.2800  H=1.4293  P_last=0.040000
+k=  2.0 : P_main=0.4909  P_sec=0.2970  H=1.1854  P_last=0.006061
+k=  3.0 : P_main=0.5951  P_sec=0.2800  H=0.9881  P_last=0.000816
+k=  4.0 : P_main=0.6786  P_sec=0.2483  H=0.8271  P_last=0.000103
+k=  6.0 : P_main=0.7986  P_sec=0.1768  H=0.5815  P_last=0.000002
+k=  8.0 : P_main=0.8748  P_sec=0.1172  H=0.4078  P_last=0.000000
+k= 12.0 : P_main=0.9525  P_sec=0.0467  H=0.1953  P_last=0.000000
+k= 16.0 : P_main=0.9823  P_sec=0.0176  H=0.0895  P_last=0.000000
+P_sec argmax: 0.2972 at k = 1.88
+P_last < 0.001 from k = 2.91
+--- Monte Carlo check (k=2, 1e6 draws) ---
+analytic  : 0.49091  0.29697  0.15152  0.05455  0.00606
+MC (1e6)  : 0.49114  0.29663  0.15163  0.05457  0.00603
+max |diff| = 0.00033  (expected ~ 1/sqrt(n) = 0.00100)
+--- ratio P1/P2 vs (0.9/0.7)^k ---
+k=1 : ratio=1.2857   closed form=1.2857
+k=2 : ratio=1.6531   closed form=1.6531
+k=4 : ratio=2.7326   closed form=2.7326
+k=8 : ratio=7.4672   closed form=7.4672
