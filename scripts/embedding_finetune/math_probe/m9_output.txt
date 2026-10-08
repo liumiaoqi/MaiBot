@@ -1,0 +1,26 @@
+=== probe9: paired attractor statistics (v2) ===
+--- real W (1000 inits) ---
+non-converged (filtered): 20
+unique true fixed points: 639
+spot-check 50: all valid fixed points: 1
+zero-component fixed points: 143 / 639  (structural pairing rate = 77.6%)
+margin min|h|: min 0.00e+00  median 0.0086
+canonical representatives: 584
+pairing (sampling view): 110 / 639 = 17.2%
+--- group activation: equal / weighted / canonical ---
+group                       equal   weighted  canonical
+x___AVA_DD_                0.0383     0.0505    -0.1353
+x___AVB_DB_                0.0141     0.0310    -0.1062
+x_____RIV_                 0.0276     0.0558    -0.5868
+x_____PVC_                 0.0094     0.0418    -0.2380
+x___IL2_URX_              -0.0125     0.0342    -0.7731
+--- basin asymmetry (335 pairs) ---
+log-ratio(c,-c): mean 0.906  std 0.516  max|.| 1.946
+(positive = the lex-smaller member reached more often)
+--- random W control (300 inits) ---
+non-converged: 0   unique fixed: 300
+x___AVA_DD_            equal   0.0233  weighted   0.0233
+x___AVB_DB_            equal  -0.0613  weighted  -0.0613
+x_____RIV_             equal  -0.0311  weighted  -0.0311
+x_____PVC_             equal   0.0000  weighted   0.0000
+x___IL2_URX_           equal   0.0017  weighted   0.0017

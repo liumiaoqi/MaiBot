@@ -1,0 +1,12 @@
+=== probe9: Â±1 symmetry of threshold dynamics (16-node subnet) ===
+fixed points: 4
+--- pairing audit: is -x also fixed? ---
+FP1  act=-1.000  min|h|=0.114286  zero comps=0  -x also fixed: True   (consistent)
+FP2  act=-0.750  min|h|=0.085714  zero comps=0  -x also fixed: True   (consistent)
+FP3  act=0.750  min|h|=0.085714  zero comps=0  -x also fixed: True   (consistent)
+FP4  act=1.000  min|h|=0.114286  zero comps=0  -x also fixed: True   (consistent)
+
+2-cycle states: 112   paired (-c also in set): 68 / 112
+
+theorem (antisymmetry): T(-x) = -T(x) wherever Wx has no zero component;
+=> fixed points and cycles come in Â± pairs away from sign-degenerate points.
