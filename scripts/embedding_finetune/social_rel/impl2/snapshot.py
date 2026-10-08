@@ -111,7 +111,7 @@ def cross_check(snap: Dict[str, object], con: sqlite3.Connection) -> bool:
         ok &= hit
         print(f"  {k:<28} 本次 = {got[k]:<6} 已登记 = {want:<6} {'✓' if hit else '✗ 不一致！'}")
 
-    # ⭐ 导出保真度守卫：导出后的 distinct 必须等于库里的 distinct。
+    # 导出保真度守卫：导出后的 distinct 必须等于库里的 distinct。
     #    （否则就是**导出过程**丢了精度 —— 2026-09-27 实测发生过一次：天数+round(,4) 把 4.774 s 的差合并了）
     fid = got["last_reinforced_distinct"] == db_distinct
     ok &= fid
@@ -121,7 +121,7 @@ def cross_check(snap: Dict[str, object], con: sqlite3.Connection) -> bool:
 
 
 def degeneracy(snap: Dict[str, object]) -> None:
-    """⭐ 真数据上**精确可算**的表达力：痕迹派生 confidence 到底能区分多少「关系对」。
+    """真数据上**精确可算**的表达力：痕迹派生 confidence 到底能区分多少「关系对」。
 
     这一节不依赖任何模型假设 —— 它只数真库里的并列。
     ⚠️ 「可区分」**只说明权重值不同**，不说明这些差异指向真值（那取决于耦合 κ，真库给不出）。
@@ -140,7 +140,7 @@ def degeneracy(snap: Dict[str, object]) -> None:
     print()
     print("【真实侧表达力 · 精确计数（不含任何模型假设）】")
     print(f"  关系总数 = {n} · 有强化痕迹 = {nr}（{nr / n:.2%}）· 无痕迹 = {n - nr}（{(n - nr) / n:.2%}）")
-    print(f"  ⭐ 无痕迹的 {n - nr} 条在「只由 last_reinforced 派生」的 confidence 下**必然全部并列**"
+    print(f"  无痕迹的 {n - nr} 条在「只由 last_reinforced 派生」的 confidence 下**必然全部并列**"
           f"（它们与彼此的 {n - nr - 1} 个对子都分不开）")
     print(f"  有痕迹的 {nr} 条里只有 {len(vals)} 个不同值 ⇒ 内部还有 {sum(c * (c - 1) // 2 for c in vals.values())} 个对子并列")
     print(f"  ⇒ 可区分对子 = {distinguishable:,} / {total_pairs:,} = **{distinguishable / total_pairs:.2%}**"

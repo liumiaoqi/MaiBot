@@ -8,7 +8,7 @@
 
 ## 一、问题（三条，都已由我亲自复核）
 
-### 问题 1 ⭐ 9 个关系端点没有 `entities` 行（**端点覆盖的硬上限**）
+### 问题 1 9 个关系端点没有 `entities` 行（**端点覆盖的硬上限**）
 
 ```
 真库：relations 71 个不同端点 → 62 个在 entities 里，**9 个不在**（87% 是当前上限）
@@ -23,7 +23,7 @@
 ```
 **影响**：任何依赖"关系端点能在实体表里落地"的功能（图构建、端点覆盖统计、将来的社会场）都被卡在 87%。
 
-### 问题 2 ⭐ `hit_filter.py` 里有一条**永不触发**的硬过滤分支
+### 问题 2 `hit_filter.py` 里有一条**永不触发**的硬过滤分支
 
 ```
 core/runtime/services/hit_filter.py:41-56  load_paragraph_stale_marks()
@@ -33,7 +33,7 @@ core/runtime/services/hit_filter.py:41-56  load_paragraph_stale_marks()
 ```
 **影响**：一段**看起来还在工作**的过滤逻辑实际是死码（读的人会误判行为）。
 
-### 问题 3 ⭐ 4 张表是 DEL-1 的**残留**（写入者被删、表还在）
+### 问题 3 4 张表是 DEL-1 的**残留**（写入者被删、表还在）
 
 ```
 2f5688e76「DEL-1 删除模糊修改系统 — ~4000行代码清算」（2026-07-28）删掉了：
@@ -43,7 +43,7 @@ core/runtime/services/hit_filter.py:41-56  load_paragraph_stale_marks()
   memory_feedback_action_logs  ← :7317
   memory_fuzzy_modify_plans    ← :4104
   paragraph_stale_relation_marks ← :7382 与 :7601
-⭐ 且 `sqlite_sequence` 探针证明它们**自建库以来零 INSERT**（对照表 person_profile_snapshots = 1220）
+且 `sqlite_sequence` 探针证明它们**自建库以来零 INSERT**（对照表 person_profile_snapshots = 1220）
 ```
 **影响**：schema 与代码不一致（表在、没人写），新人会以为"这功能只是没启用"。
 

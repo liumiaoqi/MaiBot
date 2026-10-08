@@ -762,7 +762,7 @@ class SummaryImporter:
         for rel in _normalize_relation_items(relations):
             s, p, o = rel["subject"], rel["predicate"], rel["object"]
             if all([s, p, o]):
-                # ⭐ 2026-09-27（申请 0003）：写关系前先补建**两端实体**。
+                # 2026-09-27（申请 0003）：写关系前先补建**两端实体**。
                 # 此前本管线只建「LLM 列进 entities 的」实体 ⇒ 模型在 relations 里用了没列进去的短语时，
                 # 就留下「关系端点没有 entities 行」的孤儿（真库实测：端点覆盖卡在 62/71）。
                 # web_import 管线一直这么做（web_import_manager.py:3915-3916），本管线漏了。

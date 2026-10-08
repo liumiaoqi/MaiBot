@@ -118,7 +118,7 @@ def channel_facts(con: sqlite3.Connection) -> List[Dict[str, object]]:
             "covered": len(covered_vals),
             "cover_frac": len(covered_vals) / max(1, n_total),
             "distinct": len(set(covered_vals)),
-            # ⭐ 与 `impl2` §3 **同一口径**：可区分对子 = 总对子 − 同值（并列）对子
+            # 与 `impl2` §3 **同一口径**：可区分对子 = 总对子 − 同值（并列）对子
             "pairs": total_pairs - tied,
             "verdict": "",
         })
@@ -189,7 +189,7 @@ def main() -> None:
     print("  ③ 另外三条路径（reinforce/weaken/forget）用 `MAX(0.0, confidence ± delta)`：")
     print("     · weaken(−0.5) / forget(−2.0) **能把值打下来** —— 但库里一条都没有 ⇒ **它们从未跑过**")
     print("     · reinforce(+0.5) **没有上界钳位** ⇒ 若跑过，库里会出现 **>1.0 的值** —— 也没有")
-    print("  ⇒ ⭐ 观测到的「全 1.0」**只能**由「只跑过 remember_forever」解释（47 条 is_pinned 正好是它的签名）")
+    print("  ⇒ 观测到的「全 1.0」**只能**由「只跑过 remember_forever」解释（47 条 is_pinned 正好是它的签名）")
 
     if args.dump:
         out = os.path.join(HERE, "truth_sources.json")

@@ -6,7 +6,7 @@
   「痕迹里的信息量 κ 要到多大，派生出的 `confidence` 才值得接」——κ 是**假设**，不是发现，必须扫。
 
 三件事：
-  ① `exact_expressiveness()` —— ⭐ **纯计数、零模型假设**：真库的痕迹到底能区分多少「关系对」。
+  ① `exact_expressiveness()` —— **纯计数、零模型假设**：真库的痕迹到底能区分多少「关系对」。
      这一节是**硬事实**，它给出了任何派生规则在真实数据上的表达力上限。
   ② `make_instance()` —— 按真实形状（184 关系 / 36 主体 / 支撑度 1..6 / last_reinforced 的 15 个值）
      重建一个样本，并注入：潜真值 `rel*` · 相似度 `sim` · 痕迹（由 `κ` 控制它与 `rel*` 的耦合）。
@@ -155,7 +155,7 @@ def _distinguishable_pairs(keys: Sequence[object]) -> int:
 def real_level_sizes(snap: Dict[str, object]) -> Dict[str, List[int]]:
     """真库里两个特征的**并列结构**（按时效/支撑度降序，每档多少条）。
 
-    ⭐ 这是必须保真的东西：真库 22 条痕迹只落在 **15 个时刻**上（不是 22 个），
+    这是必须保真的东西：真库 22 条痕迹只落在 **15 个时刻**上（不是 22 个），
        支撑度只有 **6 档**且 163/184 挤在第 1 档。
        建模时若把并列拆开，等于**凭空造出分辨力**，会把表达力上限算高一个量级。
     """
@@ -206,7 +206,7 @@ def _levelize(t: np.ndarray, idx: np.ndarray, sizes: Sequence[int]) -> np.ndarra
 
 def derived_confidence(traced: np.ndarray, rec_norm: np.ndarray, sup_norm: np.ndarray,
                        alpha: float = ALPHA_DEFAULT) -> np.ndarray:
-    """⭐ **待验证的派生规则**（交付②）：
+    """**待验证的派生规则**（交付②）：
 
         conf = FLOOR + (CEIL − FLOOR) · w
         w    = alpha · 时效分 + (1 − alpha) · 支撑度分        （有痕迹）

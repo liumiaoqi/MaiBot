@@ -18,7 +18,7 @@
 读数设计（关键：**分段正确率**，才看得出"什么时候开始学会"）
 -----------------------------------------------------------
   全程正确率 · **四段正确率**（每 1/4 一段）· 坏类 margin 基→后 · 泛化 Δ · 无关 Δ
-  ⭐ 判据：**后段 > 前段** 才算"在学"；**坏类 margin 翻负** 才算"方向对"；
+  判据：**后段 > 前段** 才算"在学"；**坏类 margin 翻负** 才算"方向对"；
      而且**无关 Δ 必须仍然 ≈ 0**（否则区分性又被整体推高淹掉）。
 
 ⚠️ 本流程是**确定性**的（无随机初始化/无采样噪声）⇒ 每格跑一次即可，不需要多 seed。
@@ -52,7 +52,7 @@ def run(p2k, k2m, readout, k, eta, trials, train_set, probes, update="selected",
         eps=0.0, seed=0):
     w = k2m[:, 2].astype(float).copy()
     ks, kd = k2m[:, 0].astype(int), k2m[:, 1].astype(int)
-    mask = {j: (kd == j) for j in readout}          # ⭐ 预计算：别每拍重建 30k 布尔数组
+    mask = {j: (kd == j) for j in readout}          # 预计算：别每拍重建 30k 布尔数组
     idx = {j: np.flatnonzero(mask[j]) for j in readout}
     w0j = {j: float(w[idx[j]].sum()) for j in readout}
     ks_of = {j: ks[idx[j]] for j in readout}
@@ -69,7 +69,7 @@ def run(p2k, k2m, readout, k, eta, trials, train_set, probes, update="selected",
     for t in range(trials):
         pool, want = train_set[t % len(train_set)]
         s, mg = resp(pool)
-        # ⭐ ε-greedy：以 eps 概率**随机执行动作**（探索）；否则按 margin。
+        # ε-greedy：以 eps 概率**随机执行动作**（探索）；否则按 margin。
         #    更新仍**只动实际执行的那个动作**、sign **只由"这个动作对不对"(=奖励)** 给
         #    ⇒ 这是**纯奖励**规则：更新时不需要知道标签，只需要知道"刚才那个动作好不好"
         if eps > 0 and rng.random() < eps:
@@ -96,7 +96,7 @@ def run(p2k, k2m, readout, k, eta, trials, train_set, probes, update="selected",
             w[idx[jl]] = w[idx[jl]] - eta * s[ks_of[jl]]
         np.clip(w, 0.0, W_CLIP, out=w)
         if homeo:
-            for jj in readout:                 # ⭐ per-MBON 稳态：每位自己封顶
+            for jj in readout:                 # per-MBON 稳态：每位自己封顶
                 ij = idx[jj]
                 tot = float(w[ij].sum())
                 if tot > w0j[jj]:

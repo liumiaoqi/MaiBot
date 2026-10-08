@@ -122,7 +122,7 @@ def person_rank_metrics(score: np.ndarray, world: World, k: int = K_DEFAULT,
         true_top = set(cand[np.argsort(-rel, kind="stable")[:k]].tolist())
         hits.append(len(true_top & top_set) / float(k))
 
-        # ⭐ 生成 ≠ 选择：两个数必须**同时**给，只报一个会把结论报反
+        # 生成 ≠ 选择：两个数必须**同时**给，只报一个会把结论报反
         covered = best in top_set
         cov1s.append(1.0 if covered else 0.0)
         sel1s.append(1.0 if int(cand[order[0]]) == best else 0.0)

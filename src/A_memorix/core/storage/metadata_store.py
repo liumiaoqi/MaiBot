@@ -2317,7 +2317,7 @@ class MetadataStore:
         return [dict(row) for row in cursor.fetchall()]
 
     def reset_running_queue_rows(self) -> Dict[str, int]:
-        """⭐ 启动重置：把三张队列表里残留的 `running` 行拉回 `pending`。
+        """启动重置：把三张队列表里残留的 `running` 行拉回 `pending`。
 
         2026-09-27 立（社会关系线 §1.32/§1.36 的**族级修复**）。
 

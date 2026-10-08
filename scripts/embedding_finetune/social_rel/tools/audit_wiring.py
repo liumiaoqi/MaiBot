@@ -36,7 +36,7 @@ def main() -> None:
                 uses[f].append(f'{p.relative_to(SRC)}×{n}')
 
     zero = [f for f in fields if not uses[f]]
-    print(f'   ⭐ **声明后代码里 0 次引用** 的字段 = {len(zero)} 个')
+    print(f'   **声明后代码里 0 次引用** 的字段 = {len(zero)} 个')
     for f in zero:
         print(f'      {f}')
     print('\n   === 对照 ===')

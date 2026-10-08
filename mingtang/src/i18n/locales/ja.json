@@ -464,7 +464,7 @@
       "buildTool": "ビルドツール",
       "openSourceThanks": "使用オープンソースライブラリ",
       "openSourceLicense": "オープンソースライセンス",
-      "openSourceDesc": "このプロジェクトは GitHub で公開されています。Star ⭐ でサポートしてください！",
+      "openSourceDesc": "このプロジェクトは GitHub で公開されています。Star でサポートしてください！",
       "visitGitHub": "GitHub へ進む",
       "appDesc": "MaiBot のモダンな Web 管理インターフェース",
       "maimaiCore": "MaiBot コア",

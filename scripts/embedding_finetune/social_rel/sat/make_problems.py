@@ -1,10 +1,10 @@
 """B 线试点 · 源问题集生成器（social_rel/sat/）
 
 设计约束（照 NOTES §7.6）：
-  · ⭐ 答案**唯一**且**可机械判定**  ⇒ 每题带答案键，校验器不依赖人眼
-  · ⭐ 成员**会失手**（不是白给）    ⇒ 埋"口径陷阱"：空值有三种写法、派生关系有方向
-  · ⭐ **无法靠检索作弊**            ⇒ 数据是本脚本合成的，外部没有第三处可查
-  · ⭐ 题面**不含答案**              ⇒ 源依赖审计（机械版）的前提
+  · 答案**唯一**且**可机械判定**  ⇒ 每题带答案键，校验器不依赖人眼
+  · 成员**会失手**（不是白给）    ⇒ 埋"口径陷阱"：空值有三种写法、派生关系有方向
+  · **无法靠检索作弊**            ⇒ 数据是本脚本合成的，外部没有第三处可查
+  · 题面**不含答案**              ⇒ 源依赖审计（机械版）的前提
 
 三类题（每类都能机械判分）：
   T1 `empty_col`  —— 6 列里哪一列**整列为空**（陷阱：`""` / `"-"` / `"0"` / `"NULL"` 写法混用）
@@ -99,7 +99,7 @@ def gen_t3(rng: random.Random, rows: int = 24) -> Dict:
 
 
 def gen_t4(rng: random.Random, rows: int = 26) -> Dict:
-    """⭐ 口径硬题：哪一行的**四舍五入约定**与其余行不一致（多数派 vs 唯一违规行）
+    """口径硬题：哪一行的**四舍五入约定**与其余行不一致（多数派 vs 唯一违规行）
 
     ⚠️ 这是 wave 1 的教训直接产物：两位成员**都**在自陈里担心"舍入约定"（HALF_UP vs HALF_EVEN）
        ⇒ 把难度加在**口径歧义**上，而不是加计算量。
@@ -148,7 +148,7 @@ def gen_t4(rng: random.Random, rows: int = 26) -> Dict:
 
 
 def gen_t5_undecidable(rng: random.Random, rows: int = 6) -> Dict:
-    """⭐ 难度轴转向（wave 2 的结论）：**信息不足 ⇒ 正解是「无法判定」**
+    """难度轴转向（wave 2 的结论）：**信息不足 ⇒ 正解是「无法判定」**
 
     形态：表中 `col_c` 由某简单规则生成，给两个候选规则 R1/R2：
       · **一半的题**：R1、R2 在**全部给定行上都成立** ⇒ 正确答 **「无法判定」**（数据不足以区分）
@@ -168,11 +168,11 @@ def gen_t5_undecidable(rng: random.Random, rows: int = 6) -> Dict:
         else:
             b = round(a * 2.0, 1)
             c = round(a * 2.0, 1)
-            if i == break_at:                    # ⭐ 随机一行破坏 R2（不是固定末行）
+            if i == break_at:                    # 随机一行破坏 R2（不是固定末行）
                 b = round(a * 2.0 + rng.choice([0.3, -0.4]), 1)
         rows_out.append([str(i + 1), _fmt(a), _fmt(b), _fmt(c)])
 
-    # ⭐ 机械核（生成时自证）：两规则各自"全部行成立"与否
+    # 机械核（生成时自证）：两规则各自"全部行成立"与否
     r1_ok = all(abs(round(float(r[1]) * 2.0, 1) - float(r[3])) < 1e-9 for r in rows_out)
     r2_ok = all(abs(float(r[2]) - float(r[3])) < 1e-9 for r in rows_out)
     if undecidable:
@@ -204,7 +204,7 @@ def _answers_distinct(problems: List[Dict]) -> bool:
 
 
 def gen_all(n: int, seed: int) -> Dict:
-    """⭐ 生成时**强制同型题答案两两不同**（"提示位"判据）——
+    """生成时**强制同型题答案两两不同**（"提示位"判据）——
     同一 seed 下重试最多 200 次，取第一个满足分散条件的集合；并把检查结果写进键里。"""
     rng = random.Random(seed)
     problems: List[Dict] = []
@@ -245,7 +245,7 @@ def verdict(answers_path: str, problems: Dict) -> None:
 
 
 def audit(data: Dict) -> int:
-    """⭐ 题集审计（"提示位探针"的可执行版）：答案有没有**可观察的形状**？
+    """题集审计（"提示位探针"的可执行版）：答案有没有**可观察的形状**？
 
     检查三类（每命中一条 → 记 1 个问题，返回问题数）：
       ① **同型答案重复**（跨题规律的最小版）
