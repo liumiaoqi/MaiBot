@@ -1,0 +1,33 @@
+=== probe7: exp30 dedup metric audit ===
+--- cross-check vs python (max abs diff) ---
+redundant    j=4.7e-11  c=5.0e-11  mi=5.0e-11
+independent  j=4.7e-11  c=4.9e-11  mi=4.8e-11
+syn00        j=4.7e-11  c=4.9e-11  mi=5.0e-11
+syn10        j=4.7e-11  c=5.0e-11  mi=5.0e-11
+syn30        j=4.7e-11  c=4.9e-11  mi=5.0e-11
+syn50        j=4.7e-11  c=5.0e-11  mi=5.0e-11
+constrained  j=0.0e+00  c=0.0e+00  mi=0.0e+00
+--- metric means ---
+dataset        jaccard    cosine      mi30       MI2      idfJ
+redundant       0.3365    0.6176    0.1046    0.0479    0.2516
+independent     0.0278    0.0404    0.0116    0.0024    0.0205
+syn00           0.3335    0.6399    0.0991    0.0462    0.2500
+syn10           0.3533    0.6233    0.1037    0.0503    0.2650
+syn30           0.3310    0.6321    0.1004    0.0463    0.2453
+syn50           0.3451    0.6286    0.1032    0.0487    0.2600
+constrained     0.0000    0.0000    0.0000    0.0025    0.0000
+--- separation d (vs independent, pooled std) ---
+redundant:
+  jaccard  mean   0.3365  d=  3.86
+  cosine   mean   0.6176  d=  4.64
+  mi30     mean   0.1046  d=  3.86
+  MI2      mean   0.0479  d=  3.11
+  idfJ     mean   0.2516  d=  3.33
+constrained:
+  jaccard  mean   0.0000  d= -1.06
+  cosine   mean   0.0000  d= -0.81
+  mi30     mean   0.0000  d= -1.07
+  MI2      mean   0.0025  d=  0.06
+  idfJ     mean   0.0000  d= -0.94
+corr(jaccard, mi30) on red+ind pool = 0.9664
+corr(jaccard, MI2)  on red+ind pool = 0.9813

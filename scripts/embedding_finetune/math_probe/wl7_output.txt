@@ -1,0 +1,19 @@
+=== probe7: identity of exp30 mutual_information() ===
+x: {124, 16, 124, 49, 32, 3, 32, 19, 3, 60, 3, 65, 181, 0, 192}
+y: {65, 32, 3, 181, 36, 19, 3, 186, 19, 3, 49, 19, 192, 32, 154}
+
+closed form    : 0.170989249040
+python exp30   : 0.170989249040   (from py run of exp30 itself)
+diff           :              -13
+2.995659 × 10
+
+--- per-word contributions (ln(4V) - ln((cx+1)(cy+1))) ---
+w=3 cx=3 cy=3  ->  3.912023
+w=19 cx=1 cy=3  ->  4.605170
+w=32 cx=2 cy=2  ->  4.487387
+w=49 cx=1 cy=1  ->  5.298317
+w=65 cx=1 cy=1  ->  5.298317
+w=181 cx=1 cy=1  ->  5.298317
+w=192 cx=1 cy=1  ->  5.298317
+
+baseline if all counts were 1: a * (ln(4V)-ln4)/V = 0.185441  (actual = baseline minus freq corrections)
