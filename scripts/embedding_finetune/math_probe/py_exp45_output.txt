@@ -1,0 +1,22 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp45_worm_forced_flow.py:50: UserWarning: Reading `.npy` or `.npz` file required additional header parsing as it was created on Python 2. Save the file again to speed up loading and avoid this warning.
+  Gs = np.load(os.path.join(DATA, 'Gs.npy'))
+=== exp45: 胁迫环境——现金税逼迫经济流动 ===
+股票池 18 | 40 线虫 x 30 代 x 600 天 | 现金税组: [0.0, 0.0005, 0.001, 0.002]
+
+现金税/日             最佳适配度        平均持仓率     polarity    scal_back     scal_fwd
+------------------------------------------------------------------------
+0.0              1537.7         53.5%         1.00         0.21         0.98
+0.0005           1329.4         53.9%        -0.12         1.95         0.96
+0.001            1459.6         54.2%         0.95         0.10         2.45
+0.002             417.2         52.6%        -0.76         1.78         0.10
+
+=== 关键对比:现金税是否逼迫流动? ===
+tax=0.0005: 持仓率  53.9% vs 无税  53.5% (未明显变化)
+tax=0.0010: 持仓率  54.2% vs 无税  53.5% (未明显变化)
+tax=0.0020: 持仓率  52.6% vs 无税  53.5% (未明显变化)
+
+=== 进化策略变化 ===
+tax=0.0000: polarity +1.00 | scal_back 0.21 | scal_fwd 0.98
+tax=0.0005: polarity -0.12 | scal_back 1.95 | scal_fwd 0.96
+tax=0.0010: polarity +0.95 | scal_back 0.10 | scal_fwd 2.45
+tax=0.0020: polarity -0.76 | scal_back 1.78 | scal_fwd 0.10
