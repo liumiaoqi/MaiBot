@@ -1,0 +1,12 @@
+=== probe10: hunger ledger (bit-exact replay of exp32 rng stream) ===
+arrival/step = 1.5   theoretical floor = STEPS*sum = 252
+
+mode          hunger      max     sw   serv_act   serv_bud idle_waste       clip    h_final
+greedy           494      1.6  166.0      250.7      811.2      560.5        0.0       1.30
+   identity check (run1): h_final 1.3000  vs  252 - clip - serv = 1.3000
+inertia         1278      7.2   24.0      245.6     1152.0      906.4        0.0       6.40
+   identity check (run1): h_final 6.4000  vs  252 - clip - serv = 6.4000
+anneal           514      2.8  152.6      250.0      843.3      593.3        0.0       2.01
+   identity check (run1): h_final 1.7000  vs  252 - clip - serv = 1.7000
+quantum         1175      7.0   30.8      246.5     1135.7      889.3        0.0       5.54
+   identity check (run1): h_final 7.3000  vs  252 - clip - serv = 7.3000

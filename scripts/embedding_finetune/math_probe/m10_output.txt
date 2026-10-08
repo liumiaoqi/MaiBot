@@ -1,0 +1,19 @@
+=== probe10: strategy zoo (floor = 252) ===
+mode        hunger    max     sw   vs_floor
+greedy         494    1.6  166.0      1.96x
+inertia       1278    7.2   24.0      5.07x
+anneal         517    3.0  151.7      2.05x
+quantum       1173    7.0   30.6      4.65x
+hrrn           502    2.4  167.0      1.99x
+round          503    2.4  168.0      1.99x
+wrr            502    2.4  167.0      1.99x
+--- inertia threshold scan ---
+   thr   hunger    max     sw
+     0      494    1.6  166.0
+     1      601    2.4   95.0
+     2      745    3.2   54.0
+     3      921    4.2   42.0
+     5     1278    7.2   24.0
+     8     1781    9.3   16.0
+    12     2525   13.5   12.0
+    20     3777   21.9    6.0
