@@ -107,6 +107,13 @@
 | exp60b | `exp60b_covariance_drift.py` | 290 | exp60b: 协方差矩阵漂移——参数相关性感知的角色漂移（lmq"矩阵化空间"直觉验证） |  |
 | exp60c | `exp60c_self_covariance.py` | 281 | exp60c: 自我认知协方差——每角色独立的"自我环"矩阵（exp57 自我认知 × exp60b 矩阵化） |  |
 
+## F. 量子游走线（exp61–）  
+*概念图激活动力学 / 量子游走 / 首达标度 —— 尚无探针*
+
+| exp | 文件 | 行数 | 摘要（首行 docstring） | 探针 |
+|---|---|---|---|---|
+| exp61 | `exp61_quantum_walk_diffusion.py` | 265 | exp61: 量子游走 vs 经典扩散——概念图激活动力学对照（首达时间标度版；对照 AUDIT-CHECKLIST 修订） |  |
+
 ## 二、探针清单（math_probe/，21 个）
 
 | # | 对象 | 一句话结论 |
