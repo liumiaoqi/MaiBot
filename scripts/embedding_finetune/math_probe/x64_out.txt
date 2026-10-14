@@ -1,0 +1,27 @@
+=== x64/exp64: ModelFit (WL 15) redo of exp63 shape ID ===
+data: Ebbinghaus 7 points (days, retention)
+python exp63 reference: AIC -> power -58.3 < stretch -51.9 < biexp -45.6 < exp -22.5
+
+--- 1. single-model fits (expression) ---
+1 exp      : 0.24604730990585574 + 0.2722970609259306/E^(1.6623468389596234*[1])
+2 biexp    : 0.38064393932606205/E^(27.508333748262995*t) + 0.319277456576128/E^(0.015577070475277866*t)
+3 power(+c): 0.1217164441420584 + 0.18744510177439386/[1]^0.19932247510986612
+
+FormulaModel::nrlnum: The function value {-0.0390507 + 0. I, 0.0921979 + 0. I, 0.0630849 + 0. I, -0.15077 + 0. I, -0.518028 + 0.267798 I, -1.19102 + 1.05871 I, -3.82363 + 4.06558 I} is not a list of real numbers with dimensions {7} at {alpha, m0, tau} = {-0.731288, 0.545241, -1.27945}.
+4 wixted   : 0.5452405401805702*(1 - 0.7815874836606361*t)^0.7312878412000963
+
+--- 2. auto selection by cross-validation over the four models ---
+
+FormulaModel::nrlnum: The function value {0.260157 + 0.347903 I, -0.0461211 + 0.202163 I, 0.011387 + 0. I, 0.422717 + 0.433282 I, 0.130379 + 0.29652 I} is not a list of real numbers with dimensions {5} at {alpha, m0, tau} = {-0.182137, 0.464415, -0.288087}.
+
+FormulaModel::nrlnum: The function value {-0.0424377 + 0. I, -6.50933 + 3.32572 I, 0.0884352 + 0. I, -1.5543 + 0.688602 I, -0.14036 + 0. I} is not a list of real numbers with dimensions {5} at {alpha, m0, tau} = {-0.84538, 0.542047, -1.40591}.
+
+General::stop: Further output of FormulaModel::nrlnum will be suppressed during this calculation.
+auto-selected: 0.5452405401805702*(1 - 0.7815874836606361*Indexed[#1, {1}])^0.7312878412000963 &
+
+--- 3. verdict vs python ---
+Compare the auto-selected family with python AIC winner (power).
+NOTE: FormulaModel has no parameter constraints - the Wixted fit runs
+      into the complex plane and gets wrongly auto-selected; use classical
+      NonlinearModelFit when constraints are needed.
+(2026-10-14, WL 15 ModelFit first use)
