@@ -1,0 +1,21 @@
+=== x62: exp62 SQA cross-check (Wolfram, independent implementation) ===
+
+--- 1. exact single-bit TFIM: <sz> = h/Sqrt[h^2+G^2] ---
+<sz>(h=0.5, G=1.0) = 0.44721360
+
+--- 2. independent PIMC <mean s> vs exact THERMAL <sz> (h=0.5, P=16, T=1.0, 2000 sweeps, 15 runs) ---
+exact thermal: <sz> = h*Tanh[Sqrt[h^2+G^2]/T]/Sqrt[h^2+G^2]
+G       PIMC <s>      exact <sz>(T=1) abs diff
+0.50    1.00000       0.430529        0.56947
+1.00    1.00000       0.360849        0.63915
+2.00    1.00000       0.234805        0.76519
+(if diffs are few-%, PIMC is healthy -> exp62 losses point to thermalization budget, not a bug)
+
+--- 3. double-well quantum spectrum (4x4): spectral gap E1-E0 ---
+G       E0          E1          Delta = E1-E0
+0.05    -2.801042   -1.201560   1.599482
+0.20    -2.816781   -1.224426   1.592355
+0.50    -2.908327   -1.335963   1.572365
+1.00    -3.265429   -1.582722   1.682708
+2.00    -4.648296   -1.851273   2.797023
+(classical barrier = +3.2; note E1 tracks the LOCAL minimum, not a tunneling partner â gap != tunneling splitting)
