@@ -1174,5 +1174,19 @@ evolution_society 轨迹：`0 → 645 → 0 → 0 → 162`——**两次全零�
 **产出**：`probe27_spectral_audit.py` · `r27_lmax_by_rep.csv`（λ 表：size,rep,lmax,⟨k²⟩/⟨k⟩——供 R 修正分析用）
 **下一枪更新**：① 尺寸加密（12+ 点）；② **峰定位降噪**（λ 归一精确化的前提——n=60 已两次露头）；③ θ 口径进 R 正式流程（配对 `r27_lmax_by_rep.csv`）。
 
+**v2 加密版实测（10 尺寸，含 v1 全部锚点）**：`probe27b_fss.py`（±0.6/17 点、65280 runs）× `probe27b_analyze.py`（五点拟合 + run 级 bootstrap + 去点敏感性）。
+
+| 口径 | 点估计 1/ν | R² | LOO 范围（去点） |
+|---|---|---|---|
+| 名义 β | **1.116** | 0.987 | [0.44, 1.25] |
+| **θ=β·λ_max** | **0.690** | 0.940 | [0.05, 0.85] |
+
+- **方向确认**：θ 归一把名义漂移降 **~38%**（v1 三点法 22% / 五点法 ~0%——**v2 的 10 点更可信**）；`χ/β ~ λ^1.26`（R²=0.83，与 v1 的 1.15~1.38 同带）。
+- **但小端主导**：n=40 是全局最敏感点（删它 → θ 崩到 0.05；其 θ_c=1.92 与 n=60 的 1.72 的 CI 仅边界相接）——**漂移主要是小尺寸端点贡献**（FSS 渐近区的老问题）。
+- **不确定性 vs 效应**：点估计差（0.43）仍与 LOO 宽度（~0.8）同量级 ⇒ 口径 = "**λ 标尺效应显著、绝对值待大端数据钉死**"。
+- **下一步优先级刷新**：① **向大 n 扩展**（>279——度池只有 279 个值，需`replace=True`抽样等的设计决定）；② 小端每点统计加密（压 n=40 的 CI）；③ θ 口径进 R（数据 + λ 表已备：`r27_lmax_by_rep.csv`）。
+
+**产出（v2 追加）**：`probe27b_fss.py` / `probe27b_analyze.py` · 输出 `py27b_fss_output.csv`（65280 runs）/ `py27b_fss_console.txt`
+
 **产出**：`probe27_glauber.py` / `probe27_fss.py` / `probe27_fss.R` / `hard_random.py` / `x78_fss_recheck.wl`
 · 输出：`py27_fss_output.csv`（34560 runs）/ `r27_fss_output.txt` / `r27_fss_params.csv` / `py27_fss_console.txt` / 图 ×2（peaks / scaling）/ `probe27_recon_seeds.csv`
