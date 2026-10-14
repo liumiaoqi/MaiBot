@@ -39,6 +39,15 @@ dependencies = [
     "snntorch>=0.8",
     # 金融实验（2026-08-18 加——真实 A 股数据获取，验证半仓/网格策略）
     "akshare>=1.14",
+    # 量子实验（2026-10-14 补登记——exp62 SQA 对照用；此前 uv pip 裸装未声明）
+    "dwave-samplers>=1.8.0",
+    # numba JIT（2026-10-14 补登记——probe27 FSS 加速用；此前裸装未声明）
+    "numba>=0.68.0",
+    # 直接 import 补声明（2026-10-14 登记审计——脚本直接用、此前靠传递链兜）
+    "scipy>=1.18.0",
+    "scikit-learn>=1.9.0",
+    "pandas>=3.0.5",
+    "transformers>=4.57.6",
 ]
 
 [tool.setuptools]
