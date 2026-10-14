@@ -18,7 +18,9 @@ import sys
 import numpy as np
 
 from probe27_glauber import load_W
-from probe27b_fss import build_graph, deg_weight_pools, GRAPH_REPS, SIZES as SIZES_V2
+from probe27b_fss import (build_graph as build_graph_b, deg_weight_pools,
+                          SIZES as SIZES_V2)
+from probe27c_fss import build_graph as build_graph_c, SIZES as SIZES_V3
 
 V1_SIZES = (40, 60, 90, 130, 190, 279)
 B = 300
@@ -38,18 +40,23 @@ def peak5(xs, ys):
     return float(xs[i])
 
 
-def analyze(csv_name, sizes, rng_seed=42):
-    d = np.loadtxt(csv_name, delimiter=',', skiprows=1, usecols=(0, 1, 2, 7))
+def analyze(csv_names, sizes, rng_seed=42):
+    if isinstance(csv_names, str):
+        csv_names = [csv_names]
+    d = np.vstack([np.loadtxt(c, delimiter=',', skiprows=1, usecols=(0, 1, 2, 7))
+                   for c in csv_names])
     W = load_W()
     deg, wp = deg_weight_pools(W)
     lmax = {}
     for n in sizes:
-        for rep in range(GRAPH_REPS):
-            Wg, _, _ = build_graph(n, rep, deg, wp)
+        bg = build_graph_b if n in SIZES_V2 else build_graph_c
+        reps_here = sorted(set(d[d[:, 0] == n][:, 1].astype(int)))
+        for rep in reps_here:
+            Wg, _, _ = bg(n, rep, deg, wp)
             lmax[(n, rep)] = np.linalg.eigvalsh(Wg).max()
 
     rng = np.random.RandomState(rng_seed)
-    print(f"=== analysis: {csv_name} ({len(sizes)} sizes, B={B}) ===")
+    print(f"=== analysis: {', '.join(csv_names)} ({len(sizes)} sizes, B={B}) ===")
     print(f"{'n':>4} {'beta_c':>8} {'theta_c':>8} {'chi_pk':>7} {'chi/beta':>9} "
           f"{'lam_max':>8} | theta_c 95% CI")
     res = []
@@ -59,7 +66,8 @@ def analyze(csv_name, sizes, rng_seed=42):
         pool_theta = []
         pool_beta = []
         lams = []
-        for rep in range(GRAPH_REPS):
+        reps_here = sorted(set(d[d[:, 0] == n][:, 1].astype(int)))
+        for rep in reps_here:
             sub = d[(d[:, 0] == n) & (d[:, 1] == rep)]
             betas = np.array(sorted(set(sub[:, 2])))
             runs = {b: sub[sub[:, 2] == b][:, 3] for b in betas}
@@ -108,6 +116,9 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "--v1":
         res, pools = analyze('py27_fss_output.csv', V1_SIZES)
+    elif mode == "--combined":
+        res, pools = analyze(['py27b_fss_output.csv', 'py27c_fss_output.csv'],
+                             tuple(SIZES_V2) + tuple(SIZES_V3))
     else:
         res, pools = analyze('py27b_fss_output.csv', SIZES_V2)
     sizes = [r[0] for r in res]
@@ -140,9 +151,11 @@ def main():
     lm = np.array([r[5] for r in res])
     cb = np.array([r[4] for r in res])
     a = np.polyfit(np.log(lm), np.log(cb), 1)
-    pred = np.exp(a[1]) * lm ** a[0]
-    r2a = 1 - ((cb - pred) ** 2).sum() / ((cb - cb.mean()) ** 2).sum()
-    print(f"chi/beta ~ lam_max^a : a = {a[0]:.3f}  R2={r2a:.4f}")
+    # log-space R2 (matches the R-side convention: summary(lm(log y ~ log x)))
+    pred_log = np.polyval(a, np.log(lm))
+    r2a = 1 - ((np.log(cb) - pred_log) ** 2).sum() / \
+        ((np.log(cb) - np.log(cb).mean()) ** 2).sum()
+    print(f"chi/beta ~ lam_max^a : a = {a[0]:.3f}  R2(log-space)={r2a:.4f}")
 
 
 if __name__ == "__main__":
