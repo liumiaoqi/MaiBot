@@ -1,0 +1,19 @@
+=== s5.2：扩散激活 × confidence 端到端排序 ===
+BFS 就绪（100 源）
+谱分解完成
+  a. base 2-hop                nDCG@5 = 0.7467
+  b. diffusion t=2             nDCG@5 = 0.4790
+  b. diffusion t=4             nDCG@5 = 0.3428
+  b. diffusion t=8             nDCG@5 = 0.2148
+  c. diff×conf κ=0.0           nDCG@5 = 0.2677
+  c. diff×conf κ=0.3           nDCG@5 = 0.2971
+  c. diff×conf κ=0.5           nDCG@5 = 0.3287
+  c. diff×conf κ=0.7           nDCG@5 = 0.3213
+  c. diff×conf κ=0.9           nDCG@5 = 0.3571
+
+=== 判据核对（预登记）===
+P1  diffusion(0.4790) > base(0.7467): False
+P2  κ=0 时 conf 臂(0.2677) ≤ 纯扩散(0.3428): True
+P3  κ=0.5 时 conf 臂(0.3287) > 纯扩散(0.3428): False
+P3+ 过零扫描：κ=0.7(0.3213) · κ=0.9(0.3571) vs 纯扩散(0.3428)
+（2026-10-14 · s5.2）
