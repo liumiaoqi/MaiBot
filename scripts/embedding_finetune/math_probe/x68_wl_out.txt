@@ -1,0 +1,8 @@
+=== x68: s5.5 rate cross-check (from counts) ===
+G     noise_rate    hit_rate
+0     0.7092        NumberForm[0.2908, 6]
+1     0.622         NumberForm[0.378, 6]
+2     0.5256        NumberForm[0.4744, 6]
+3     0.438         NumberForm[0.562, 6]
+5     0.2672        NumberForm[0.7328, 6]
+(compare python grace_period_output.txt: 0.7092 0.6220 0.5256 0.4380 0.2672 / 0.2908 0.3780 0.4744 0.5620 0.7328)

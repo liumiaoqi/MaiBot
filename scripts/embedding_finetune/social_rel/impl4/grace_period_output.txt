@@ -1,0 +1,15 @@
+=== s5.5 v2: silent grace period (direction D) ===
+world: 300 stable (10 clusters) + 30 new/round x 10 rounds | K=5
+
+G          noise_rate       hit_rate
+--------------------------------------
+0             0.7092        0.2908   (noise delta   -0.0% / hit delta   -0.0%)
+1             0.6220        0.3780   (noise delta  -12.3% / hit delta  +30.0%)
+2             0.5256        0.4744   (noise delta  -25.9% / hit delta  +63.1%)
+3             0.4380        0.5620   (noise delta  -38.2% / hit delta  +93.3%)
+5             0.2672        0.7328   (noise delta  -62.3% / hit delta +152.0%)
+
+=== verdict (pre-registered) ===
+exists G>=1 with noise drop>50 and hit drop<=5 : PASS
+(2026-10-14, s5.5 v2)
+x68 sample exported: x68_grace_aggregate.csv
