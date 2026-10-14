@@ -1,14 +1,14 @@
-(* x78_fss_recheck.wl — §9 main-quantity recheck for probe14
+(* x78_fss_recheck.wl — §9 main-quantity recheck for probe27
    Independent Wolfram re-derivation of the FSS exponents from
-   py14_fss_output.csv, cross-checked against the R-side pipeline
-   (r14_fss_params.csv). Two independent analysis implementations on
+   py27_fss_output.csv, cross-checked against the R-side pipeline
+   (r27_fss_params.csv). Two independent analysis implementations on
    the same data: agreement = the exponent extraction is implementation-
    robust, not an artifact of one toolchain. *)
 
 ClearAll["Global`*"];
 base = "E:/Users/lmq/MaiBot/scripts/embedding_finetune/math_probe/";
-rows = Rest[Import[base <> "py14_fss_output.csv", "CSV"]];  (* strings *)
-Print["=== x78: independent WL recheck of probe14 FSS ==="];
+rows = Rest[Import[base <> "py27_fss_output.csv", "CSV"]];  (* strings *)
+Print["=== x78: independent WL recheck of probe27 FSS ==="];
 Print["rows: ", Length[rows]];
 Print[];
 
@@ -60,7 +60,7 @@ wlP = analyze[Select[rows, #[[4]] == "P" &], "P (WL)"];
 wlH = analyze[Select[rows, #[[4]] == "H" &], "H (WL)"];
 
 (* R-side comparison *)
-rParams = Rest[Import[base <> "r14_fss_params.csv", "CSV"]];
+rParams = Rest[Import[base <> "r27_fss_params.csv", "CSV"]];
 Print["=== R vs WL parameter comparison ==="];
 Print["source |  gnu  R   WL  |  snu  R   WL  |  beta_inf R   WL"];
 Do[
@@ -77,4 +77,4 @@ Print[];
 Print["note: same data, two independent implementations (R lm/aggregate vs"];
 Print["WL Median/Fit/LinearModelFit). Agreement checks the exponent"];
 Print["extraction is robust to the analysis toolchain."];
-Print["(2026-10-14, x78 for probe14)"];
+Print["(2026-10-14, x78 for probe27)"];

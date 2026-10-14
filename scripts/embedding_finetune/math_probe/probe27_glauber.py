@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""probe14 — FSS 普适性分析的内核（Glauber × numba × 硬随机）
+"""probe27 — FSS 普适性分析的内核（Glauber × numba × 硬随机）
 
 背景：probe12 的 χ 峰（β_c≈0.5，279 节点连接组）受「有限尺寸抹圆」之限。
 本 probe 用有限尺寸标度（FSS）严格化：嵌套子图序列 × β 密扫 × 多实现平均。
 随机实现种子双源对照：
   P（伪随机，固定基 SeedSequence）
   H（硬件随机源 RDSEED/RDRAND，见 hard_random.py；种子全程记录）
-统计与拟合移交 R（probe14_fss.R）。
+统计与拟合移交 R（probe27_fss.R）。
 
 统计口径与 probe12 对齐（同 χ 定义、同采样结构）：
   χ = n·β·(⟨m²⟩ − ⟨m⟩²)，m = mean(x)；nTherm=400, nSamp=300, gap=2。
@@ -17,7 +17,7 @@
   ③ numba 编译 + 单 run 速度实测
   ④ 粗 β 扫（复现 probe12 峰位）
 
-Run: ../.venv/Scripts/python.exe probe14_glauber.py
+Run: ../.venv/Scripts/python.exe probe27_glauber.py
 """
 
 import pathlib
@@ -166,7 +166,7 @@ def main():
     sym = np.allclose(W, W.T)
     nnz = int((W != 0).sum())
     nz = W[W != 0]
-    print(f"=== probe14 reconnaissance ===")
+    print(f"=== probe27 reconnaissance ===")
     print(f"connectome: n={n} nnz={nnz} symmetric={sym} "
           f"weights |min|={abs(nz).min():.4f} |max|={abs(nz).max():.4f}")
     print(f"hard_random source: {source_name}")
@@ -209,7 +209,7 @@ def main():
     print(f"total recon time: {time.time()-t_all:.1f}s")
     # record hardware seeds for audit
     if SEED_LOG:
-        out = pathlib.Path(__file__).parent / 'probe14_recon_seeds.csv'
+        out = pathlib.Path(__file__).parent / 'probe27_recon_seeds.csv'
         with open(out, 'w', encoding='utf-8', newline='') as f:
             f.write("k,hw_seed32\n")
             for k, s in SEED_LOG:

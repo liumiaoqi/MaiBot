@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""probe14 正式版 v2 — FSS 普适性分析：配置模型系综 × 双随机源（P/H）
+"""probe27 正式版 v2 — FSS 普适性分析：配置模型系综 × 双随机源（P/H）
 
 装置演化记录（2026-10-14 勘察）：
   ① 母图「节点诱导子图」✗：切节点连带切边——平均度 14.26→3.19、λ_max 2.83→0.90
@@ -15,8 +15,8 @@
   动力学种子双源：P 固定（可复现）| H 硬件（RDSEED/RDRAND，全记录）
   图实现种子固定（GRAPH_SEED），记录度审计（自环损耗）。
 
-输出：py14_fss_output.csv（每 run 一行）+ 控制台摘要
-Run: ../.venv/Scripts/python.exe probe14_fss.py    （约 12-15 分钟）
+输出：py27_fss_output.csv（每 run 一行）+ 控制台摘要
+Run: ../.venv/Scripts/python.exe probe27_fss.py    （约 12-15 分钟）
 """
 
 import pathlib
@@ -24,7 +24,7 @@ import time
 
 import numpy as np
 
-from probe14_glauber import load_W, glauber_stats, seed_P
+from probe27_glauber import load_W, glauber_stats, seed_P
 import hard_random as hr
 
 SIZES = (40, 60, 90, 130, 190, 279)
@@ -36,7 +36,7 @@ FINE_HALFWIDTH = 0.5
 N_P, N_H = 48, 48
 NTHERM_F, NSAMP_F, GAP_F = 600, 500, 2
 GRAPH_SEED = 20261016
-OUT_CSV = pathlib.Path(__file__).parent / 'py14_fss_output.csv'
+OUT_CSV = pathlib.Path(__file__).parent / 'py27_fss_output.csv'
 
 
 def deg_weight_pools(W):
@@ -80,7 +80,7 @@ def build_graph(n, rep, deg_full, wpool):
 def main():
     t0 = time.time()
     hr._init()
-    print("=== probe14 FSS v2 (config-model ensemble x dual source) ===")
+    print("=== probe27 FSS v2 (config-model ensemble x dual source) ===")
     print(f"hw source: {hr.source_name} | sizes={SIZES} reps={GRAPH_REPS} "
           f"fine points={FINE_POINTS} runs/point={N_P}+{N_H}")
     W = load_W()

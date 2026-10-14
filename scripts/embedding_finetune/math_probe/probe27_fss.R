@@ -1,10 +1,10 @@
 #!/usr/bin/env Rscript
-# probe14_fss.R — FSS 普适性分析（R 侧）：峰定位 → χ_max 标度（γ/ν）→
+# probe27_fss.R — FSS 普适性分析（R 侧）：峰定位 → χ_max 标度（γ/ν）→
 #   β_c(n) 漂移（1/ν、β_∞）→ 硬/伪随机源对照（P vs H）。
 #
-# 输入 : py14_fss_output.csv（每 run 一行：size,rep,beta,source,run,seed,absm,chi,q）
+# 输入 : py27_fss_output.csv（每 run 一行：size,rep,beta,source,run,seed,absm,chi,q）
 # 输出 : 控制台报告 + 两张 png
-# 用法 : Rscript probe14_fss.R [csv路径] [--selftest]
+# 用法 : Rscript probe27_fss.R [csv路径] [--selftest]
 #
 # 方法注：临界区 χ 分布重尾 ⇒ 主统计量用 median（附 IQR）；
 #   峰定位 = 剖面 argmax + 三点抛物线顶点细化；
@@ -13,7 +13,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 selftest <- "--selftest" %in% args
 args <- setdiff(args, "--selftest")
-csv_path <- if (length(args) >= 1) args[1] else "py14_fss_output.csv"
+csv_path <- if (length(args) >= 1) args[1] else "py27_fss_output.csv"
 
 if (selftest) {
   cat("=== SELFTEST: synthetic data (known exponents) ===\n")
@@ -40,7 +40,7 @@ if (selftest) {
 }
 
 sizes <- sort(unique(d$size))
-cat("=== probe14 FSS analysis (R) ===\n")
+cat("=== probe27 FSS analysis (R) ===\n")
 cat("rows:", nrow(d), "| sizes:", sizes, "| sources:", unique(d$source), "\n\n")
 
 agg_src <- function(dd) {
@@ -119,17 +119,17 @@ if (!selftest) {
     gnu = c(r_all$gnu, r_P$gnu, if (!is.null(r_H)) r_H$gnu),
     snu = c(r_all$snu, r_P$snu, if (!is.null(r_H)) r_H$snu),
     beta_inf = c(r_all$beta_inf, r_P$beta_inf, if (!is.null(r_H)) r_H$beta_inf))
-  write.csv(param_rows, "r14_fss_params.csv", row.names = FALSE)
-  cat("params -> r14_fss_params.csv\n\n")
+  write.csv(param_rows, "r27_fss_params.csv", row.names = FALSE)
+  cat("params -> r27_fss_params.csv\n\n")
 }
 
 if (!selftest) {
-  png("probe14_fss_peaks.png", width = 1000, height = 560)
+  png("probe27_fss_peaks.png", width = 1000, height = 560)
   cols <- rainbow(length(sizes))
   M <- r_all$M
   ymax <- max(M$q75)
   plot(NA, xlim = range(M$beta), ylim = c(0, ymax), xlab = "beta",
-       ylab = "chi (median)", main = "probe14: susceptibility profiles (config-model ensemble)")
+       ylab = "chi (median)", main = "probe27: susceptibility profiles (config-model ensemble)")
   for (j in seq_along(sizes)) {
     sub <- M[M$size == sizes[j], ]
     lines(sub$beta, sub$med, col = cols[j], lwd = 2)
@@ -138,7 +138,7 @@ if (!selftest) {
   legend("topright", legend = paste("n =", sizes), col = cols, lwd = 2, cex = 0.9)
   dev.off()
 
-  png("probe14_fss_scaling.png", width = 1000, height = 480)
+  png("probe27_fss_scaling.png", width = 1000, height = 480)
   par(mfrow = c(1, 2))
   P <- r_all$P
   plot(log(P$size), log(P$chi_max), pch = 19, xlab = "log n", ylab = "log chi_max",
@@ -149,6 +149,6 @@ if (!selftest) {
        ylab = "beta_c", main = sprintf("beta_c drift (1/nu=%.2f)", r_all$snu))
   abline(r_all$fit2, col = "red")
   dev.off()
-  cat("figures: probe14_fss_peaks.png | probe14_fss_scaling.png\n")
+  cat("figures: probe27_fss_peaks.png | probe27_fss_scaling.png\n")
 }
-cat("(2026-10-14, R-side analysis for probe14)\n")
+cat("(2026-10-14, R-side analysis for probe27)\n")

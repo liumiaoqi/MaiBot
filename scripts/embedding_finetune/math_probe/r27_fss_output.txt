@@ -3,7 +3,7 @@ During startup - Warning messages:
 2: Setting LC_CTYPE=C.UTF-8 failed
 3: Setting LC_MONETARY=C.UTF-8 failed
 4: Setting LC_TIME=C.UTF-8 failed
-=== probe14 FSS analysis (R) ===
+=== probe27 FSS analysis (R) ===
 rows: 34560 | sizes: 40 60 90 130 190 279 | sources: P H
 
 --- all sources ---
@@ -44,7 +44,7 @@ gamma/nu:  P=0.080  H=0.013  |diff|=0.067
 1/nu:      P=1.570  H=0.915  |diff|=0.655
 beta_inf:  P=1.395  H=1.065  |diff|=0.330
 
-params -> r14_fss_params.csv
+params -> r27_fss_params.csv
 
-figures: probe14_fss_peaks.png | probe14_fss_scaling.png
-(2026-10-14, R-side analysis for probe14)
+figures: probe27_fss_peaks.png | probe27_fss_scaling.png
+(2026-10-14, R-side analysis for probe27)

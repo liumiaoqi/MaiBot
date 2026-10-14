@@ -1,4 +1,4 @@
-=== x78: independent WL recheck of probe14 FSS ===
+=== x78: independent WL recheck of probe27 FSS ===
 rows: 34560
 
 --- all sources (WL) ---
@@ -25,4 +25,4 @@ PaddedForm[H, {5, Left}] | NumberForm[0.0133766591014414, {5, 3}] NumberForm[0.0
 note: same data, two independent implementations (R lm/aggregate vs
 WL Median/Fit/LinearModelFit). Agreement checks the exponent
 extraction is robust to the analysis toolchain.
-(2026-10-14, x78 for probe14)
+(2026-10-14, x78 for probe27)
