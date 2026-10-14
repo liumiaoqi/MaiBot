@@ -1,0 +1,19 @@
+=== bench-3: diffusion channel on LongMemEval-S (500 questions) ===
+
+arm           R@5       R@10      MRR
+--------------------------------------
+m0         0.9360     0.9600   0.8444
+m1         0.9200     0.9600   0.8444
+m2         0.9020     0.9600   0.8444
+
+--- preference subset (n=30) ---
+m0     n=30 R@5 0.7333 R@10 0.8000 MRR 0.5732
+m1     n=30 R@5 0.7333 R@10 0.8000 MRR 0.5732
+m2     n=30 R@5 0.6667 R@10 0.8000 MRR 0.5732
+
+=== verdict (pre-registered) ===
+P1 m1 full-set not worse than baseline: FAIL
+P2 m1 improves preference subset: FAIL
+P3 m2 near m1 (budget sensitivity ok): FAIL
+(2026-10-14, bench-3)
+saved: py_bench3_output.txt
