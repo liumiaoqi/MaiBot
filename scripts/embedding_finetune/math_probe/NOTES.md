@@ -1207,5 +1207,13 @@ evolution_society 轨迹：`0 → 645 → 0 → 0 → 162`——**两次全零�
 **产出（v3 追加）**：`probe27c_fss.py` / `r27c_lmax_by_rep.csv` / `r27bc_lmax_by_rep.csv`（合并 λ 表）
 · 输出 `py27c_fss_output.csv`（14688 runs）/ `py27c_fss_console.txt` / `r27bc_theta_out.txt`（R）/ `py27bc_analyze_out.txt`（python）——`py27bc_fss_output.csv` 为派生合并文件（cat 可重建，未入库）
 
+**data collapse（折叠图 + 折叠扫描，R）**：
+
+- **图**（`probe27_collapse.png`，双栏对照）：名义 β 坐标下 16 条曲线**全平在顶部**（±2.5 标度窗内无下降结构——**名义标度假设被直接否定**；β 剖面的实际峰宽比 n^-0.95 的标度宽度大两个数量级）；**θ=β·λ 坐标下 16 条曲线折出完整山形**（x=0 处 y=1、两侧衰减，左翼有 0.2-0.5 散布=残余小端效应）——**「λ 归一是正确坐标」的视觉验证** ✓
+- **折叠质量扫描**（新估计器：|β−β_c|≤0.56 物理窗内、40 箱的"平均箱内方差"最小化）：
+  θ 口径 best **1/ν_θ = 0.460**（与峰位法的 0.376 **同带，差 0.08——双估计器互证** ✓）；名义 best 0.570（vs 峰位法 0.950）。
+  ⚠️ **工具局限如实记录**：该分数对「曲线族的整体压缩」有偏（全平族也能得低分）——**判别力有限，只作辅助**；主判据仍以峰位漂移 + LOO 为准。（同族教训：R²-扫描的 bootstrap 退化——**估计器的统计性质要单独审计**。）
+- 产出：`probe27_collapse.R` / `probe27_collapse.png`
+
 **产出**：`probe27_glauber.py` / `probe27_fss.py` / `probe27_fss.R` / `hard_random.py` / `x78_fss_recheck.wl`
 · 输出：`py27_fss_output.csv`（34560 runs）/ `r27_fss_output.txt` / `r27_fss_params.csv` / `py27_fss_console.txt` / 图 ×2（peaks / scaling）/ `probe27_recon_seeds.csv`
