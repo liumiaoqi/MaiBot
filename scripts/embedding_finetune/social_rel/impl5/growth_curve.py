@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""social_rel · s6.1（v6）—— 生长曲线：展示-选择反馈（x74 三处方）
+"""social_rel · s6.1（v8）—— 生长曲线：反馈质量响应曲线（all 口径）
 
-v5 双诊断（2026-10-14）：
-  ① 天花板：诱惑 σ=0.45（sim≈0.91）进不了 top5 → 纯 sim 已 0.98，无生长空间；
-  ② 反馈失衡：只评 top1 → 正确节点被评后 conf→0.74，诱惑从未被评 conf=1.0
-     → 已评正确节点被未评诱惑反超 → 全臂下降（0.98→0.88）。
+v7 判决（已提交）：
+  - all 口径胜出（good 末点 0.873 vs before 0.833，seed 收敛更好）；
+  - 三臂平台按信号质量单调：pu0.8 → 0.873 | pu0.59 → 0.800 | pu0.0 → 0.500；
+  - bad 臂在 all 口径下负生长 -12pp（before 口径无信息、静止）。
 
-x74 处方（M-first，math_probe/x74_v6_design.wl）：
-  ① 世界：σ_temp=0.25 → 初始 hit≈0.6（诱惑占 top5 两席，生长有空间）；
-  ② 反馈形态：「展示 top5 + 选择」——选中者记正；选中者之前的展示位记拒
-     （before 口径，x74 模拟 0.67→1.00；all 口径不稳，正确节点被误伤，否）；
-  ③ pu 稳健（0.6-0.9 均生长），取 0.8。
+v8 的数学问题：平台 0.873 是机制缺陷还是数学必然？
+  「信号摊薄对称点」推导：top5 里 4 个正确者时，正确者被选率 = 0.8/4 = 0.2；
+  诱惑（1 个在展示里）独吞失误信号 = 0.2/1 = 0.2 —— 恰好打平，
+  conf 收敛到同值、分辨力归零，排序退化为 sim 决胜 → 平台 ≈ 0.87。
+  推论（可检验预言）：**平台高度是信号纯度的函数**——
+    pu0.9 → 0.225 vs 0.1，正确者显著胜 → 平台应升至 ~0.95；
+    pu0.7 → 0.175 vs 0.3，诱惑胜 → 平台应降至 ~0.75。
+  若 v8 数据与预言一致 → 「平台 = f(信号质量)」成立，平台 0.87 是必然而非缺陷。
 
-三臂（对齐 v5 语义）：
-  good  pu=0.8；dirty pu=0.8*0.3+0.7*0.5=0.59（信号压向随机）；bad pu=0（永远选错）。
+v8 设计（单变量：信号质量矩阵，all 口径）：
+  曲线五条：pu ∈ {0.9, 0.8, 0.7, 0.59(dirty), 0.0(bad)}
 
 预登记判据：
-  P1 good ：后半段均值 ≥ 起点 +10pp 且 末点 ≥ 起点 +10pp（生长！）
-  P2 dirty：走平或负（后半段均值 ≤ 起点 +3pp）
-  P3 bad  ：末点 < 起点（负生长）
+  P4（主）平台随信号质量单调：late(0.9) ≥ late(0.8) ≥ late(0.7) ≥ late(0.59)，
+          且 late(0.0) 最低（容差 0.02）
+  P1（0.8 档仍 +10pp）
+  记录：bad 崩坏度
 
-x71：批次 CSV（wl 复核）。3 seeds 均值。
+x71：宽表 CSV。3 seeds 均值。
 Run: ../../.venv/Scripts/python.exe growth_curve.py
 """
 
@@ -35,10 +39,8 @@ Q_PER_BATCH = 60
 K = 5
 BATCHES = (0, 25, 50, 100, 200, 350, 500)
 SIGMA_REAL = 0.35
-SIGMA_TEMP = 0.25          # x74 处方①：初始 hit≈0.6
-PU_GOOD = 0.8
-PU_DIRTY = 0.8 * 0.3 + 0.7 * 0.5   # = 0.59，信号压向随机（v5 kappa=0.3 语义）
-PU_BAD = 0.0               # 永远选错
+SIGMA_TEMP = 0.25
+PUS = (0.9, 0.8, 0.7, 0.59, 0.0)
 SEEDS = (20261014, 20261015, 20261016)
 OUT_CSV = pathlib.Path(r'E:/Users/lmq/MaiBot/scripts/embedding_finetune/math_probe/x71_growth_batches.csv')
 
@@ -48,7 +50,6 @@ def build(rng):
     labels = rng.randint(0, N_CLUSTER, N_NODES)
     nodes = centers[labels] + rng.normal(0, SIGMA_REAL, (N_NODES, D_DIM))
     nodes /= (np.linalg.norm(nodes, axis=1, keepdims=True) + 1e-9)
-    # 诱惑节点：盯簇 temp_target，向量 = 该簇中心 + N(0, SIGMA_TEMP)
     temp_target = rng.randint(0, N_CLUSTER, N_TEMP)
     temps = []
     for t in temp_target:
@@ -68,7 +69,6 @@ def run(pu, seed):
     n_all = len(all_nodes)
     pos = np.zeros(n_all)
     tot = np.zeros(n_all)
-    # 固定查询集（跨批次一致）
     qs = []
     for k in range(Q_PER_BATCH):
         a = k % N_CLUSTER
@@ -79,18 +79,19 @@ def run(pu, seed):
     for b in BATCHES:
         for _ in range(b - prev):
             q, main = qs[rng.randint(len(qs))]
-            conf = (pos + 2.0) / (tot + 2.0)          # 未评 = 1.0（x72 处方）
+            conf = (pos + 2.0) / (tot + 2.0)
             scores = (all_nodes @ q) * conf
             top = np.argsort(-scores)[:K]
             true_hit = all_labels[top] == main
             true_idx = top[true_hit]
             if len(true_idx) > 0 and rng.random() < pu:
-                pick = int(rng.choice(true_idx))       # 用户选正确
+                pick = int(rng.choice(true_idx))
             else:
                 non = top[~true_hit]
-                pick = int(non[0]) if len(non) > 0 else int(top[0])  # 选最前非正确（或兜底）
+                pick = int(non[0]) if len(non) > 0 else int(top[0])
             pick_pos = int(np.where(top == pick)[0][0])
-            for j in top[:pick_pos]:                   # before 口径：选中者之前记拒
+            # all 口径：展示未选全记拒（位置无关）
+            for j in np.delete(top, pick_pos):
                 tot[j] += 1
             tot[pick] += 1
             pos[pick] += 1
@@ -108,39 +109,47 @@ def run(pu, seed):
 
 
 def run_mean(pu):
-    rs = [run(pu, sd) for sd in SEEDS]
-    arr = np.array(rs)
+    arr = np.array([run(pu, sd) for sd in SEEDS])
     return arr.mean(axis=0), arr
 
 
 def main():
-    print("=== s6.1 v6: growth curve, show-top5 + choose feedback (x74 prescriptions) ===")
+    print("=== s6.1 v8: feedback-quality response curve (all rejection) ===")
     print(f"world: {N_NODES} real + {N_TEMP} temptation (sigma {SIGMA_TEMP}) | batches={BATCHES}")
-    print(f"arms: good pu={PU_GOOD} | dirty pu={PU_DIRTY:.2f} | bad pu={PU_BAD} | seeds={len(SEEDS)}")
+    print(f"quality sweep pu: {PUS} | seeds={len(SEEDS)}")
     print()
-    good, good_rs = run_mean(PU_GOOD)
-    dirty, dirty_rs = run_mean(PU_DIRTY)
-    badorder, bad_rs = run_mean(PU_BAD)
-    print("%-8s %14s %14s %14s" % ("feedback", "good", "dirty", "bad-order"))
-    print("-" * 52)
-    for i, b in enumerate(BATCHES):
-        print("%-8d %14.4f %14.4f %14.4f" % (b, good[i], dirty[i], badorder[i]))
+    curves = {}
+    for pu in PUS:
+        c, rs = run_mean(pu)
+        curves[pu] = (c, rs)
+        print("pu=%-4.2f : %s  (gain %+0.4f)" % (
+            pu, "  ".join("%.3f" % v for v in c), c[-1] - c[0]))
     print()
-    print("per-seed last point (good arm):", ["%.3f" % r[-1] for r in good_rs])
+    late = {pu: curves[pu][0][len(BATCHES)//2:].mean() for pu in PUS}
+    print("late-mean (second half avg):")
+    for pu in PUS:
+        print("  pu=%-4.2f : %.4f" % (pu, late[pu]))
     print()
-    P1 = good[-1] >= good[0] + 0.10 and good[len(good)//2:].mean() >= good[0] + 0.10
-    P2 = dirty[-1] <= dirty[0] + 0.03 and dirty[len(dirty)//2:].mean() <= dirty[0] + 0.03
-    P3 = badorder[-1] < badorder[0]
-    print("=== verdict (pre-registered) ===")
-    print(f"P1 good: grow(+10pp, late-mean): {'PASS' if P1 else 'FAIL'} ({good[0]:.4f} -> {good[-1]:.4f})")
-    print(f"P2 dirty: flat/neg: {'PASS' if P2 else 'FAIL'} ({dirty[0]:.4f} -> {dirty[-1]:.4f})")
-    print(f"P3 bad order: negative: {'PASS' if P3 else 'FAIL'} ({badorder[0]:.4f} -> {badorder[-1]:.4f})")
-    print("(2026-10-14, s6.1 v6)")
+    print("=== verdict (v8 criteria) ===")
+    P4 = (late[0.9] >= late[0.8] - 0.02 and late[0.8] >= late[0.7] - 0.02
+          and late[0.7] >= late[0.59] - 0.02
+          and late[0.0] <= min(late[0.59], late[0.7]) - 0.02)
+    g8 = curves[0.8][0]
+    P1 = g8[-1] >= g8[0] + 0.10 and g8[len(g8)//2:].mean() >= g8[0] + 0.10
+    print(f"P4 quality-monotone platforms: {'PASS' if P4 else 'FAIL'}"
+          f"  (0.9:{late[0.9]:.3f} 0.8:{late[0.8]:.3f} 0.7:{late[0.7]:.3f} 0.59:{late[0.59]:.3f} 0.0:{late[0.0]:.3f})")
+    print(f"P1 grow at pu=0.8 (+10pp): {'PASS' if P1 else 'FAIL'} ({g8[0]:.4f} -> {g8[-1]:.4f})")
+    print(f"bad-arm collapse (pu=0): 0.620 -> {curves[0.0][0][-1]:.3f}")
+    print()
+    print("per-seed last points:")
+    for pu in PUS:
+        print("  pu=%-4.2f : %s" % (pu, ["%.3f" % r[-1] for r in curves[pu][1]]))
+    print("(2026-10-14, s6.1 v8)")
 
     with open(OUT_CSV, 'w', encoding='utf-8', newline='') as f:
-        f.write("feedback,good,dirty,badorder\n")
+        f.write("feedback,pu90,pu80,pu70,pu59,pu00\n")
         for i, b in enumerate(BATCHES):
-            f.write("%d,%.6f,%.6f,%.6f\n" % (b, good[i], dirty[i], badorder[i]))
+            f.write("%d," % b + ",".join("%.6f" % curves[pu][0][i] for pu in PUS) + "\n")
     print(f"x71 exported: {OUT_CSV.name}")
 
 

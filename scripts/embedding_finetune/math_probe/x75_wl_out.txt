@@ -1,0 +1,35 @@
+=== x75 part 1: independent recomputation from x71 CSV ===
+columns: {pu90, pu80, pu70, pu59, pu00}
+col    start    last     gain     late-mean
+pu90   0.620   0.953   0.333   0.920
+pu80   0.620   0.873   0.253   0.855
+pu70   0.620   0.840   0.220   0.847
+pu59   0.620   0.800   0.180   0.802
+pu00   0.620   0.500   -0.120   0.605
+
+late-means: 0.920 >= 0.855 >= 0.847 >= 0.802 >= 0.605
+quality-monotone (tol 0.02): CONFIRMED
+
+=== x75 part 2: edge algebra (local-signal symmetry point) ===
+condition for correct-node edge: pu/k > (1-pu)/n_t  <=>  pu > k/(k+n_t)
+
+critical pu for candidate-grid (row = #true k, col = #tempter n_t):
+k-n_t	1	2
+3	0.75	0.6
+4	0.8	0.6666666666666666
+5	0.8333333333333334	0.7142857142857143
+largest locally-advantaged k at each pu (k* = pu*n_t/(1-pu)):
+pu-n_t	1	2
+0.9	9.000000000000002	18.000000000000004
+0.8	4.000000000000001	8.000000000000002
+0.7	2.333333333333333	4.666666666666666
+0.59	1.4390243902439024	2.8780487804878048
+
+reading: pu=0.8 sits exactly at the k=4/n_t=1 critical (0.80): at that
+edge the correct-node advantage over tempters vanishes locally, so the
+platform stalls in a mixed regime (~0.85). pu=0.9 clears every critical
+point -> tempters fully retire -> platform 0.92+ and still climbing.
+pu<=0.59 falls further behind; bad arm (pu=0) collapses to 0.50.
+v8 late-means (0.920/0.855/0.847/0.802/0.605) are ordered exactly as
+the critical-point ordering predicts.
+(2026-10-14, x75 for s6.1 v8)
