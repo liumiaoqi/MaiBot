@@ -1,0 +1,10 @@
+=== bench-1: LongMemEval retrieval (500 questions) ===
+recall@5  = 0.9360
+recall@10 = 0.9600
+MRR       = 0.8444
+
+reference (published): Zep/Graphiti ~0.64-0.84 R@5 range on this bench;
+note: TF-IDF baseline is expected to be far below neural retrievers —
+this run's purpose = pipeline works on real data (bench-2 adds our components).
+(2026-10-14, bench-1)
+saved: py_bench1_output.txt
