@@ -1,0 +1,24 @@
+=== x73: v5 world design (temptation nodes) ===
+
+--- 1. how high must temptation sim be to enter top5? ---
+A èç¹ç¬¬ 5 å sim åå¼ = 0.6614
+  temptation mu=0.85 -> P(æ¤è¿ top5) = 0.9704
+  temptation mu=0.90 -> P(æ¤è¿ top5) = 0.9915
+  temptation mu=0.95 -> P(æ¤è¿ top5) = 0.9981
+=> å mu=0.90~0.95ï¼Pâ0.3~0.7ï¼ï¼ä¸çåºçº¿å°æ¾èä¸é
+
+--- 2. learning delta estimate ---
+  k=1 temptation slots: base=0.800 -> after=1.000  gain=+0.200
+  k=2 temptation slots: base=0.600 -> after=1.000  gain=+0.400
+  k=3 temptation slots: base=0.400 -> after=1.000  gain=+0.600
+=> è¯±å¯¼èç¹è¦çç ~70-90% æ¶ï¼å­¦ä¹ åå +0.2~+0.4 ââ çé¿ç©ºé´åè¶³
+
+--- 3. coverage budget ---
+temptation nodes = 20 | queries/batch = 60
+æ¯æ¬¡æ¥è¯¢æå¤ç¢° 1 ä¸ªè¯±æèç¹ï¼top1ï¼ï¼500 æ¡åé¦ä¸ææè¦ç = 100.0% of temptation nodes
+=> 500 æ¡è¶³å¤å¨è¦çï¼æ¯èç¹ ~25 æ¬¡è¯ä¼°ï¼
+
+=== v5 è®¾è®¡å¤æ¹ ===
+â  temptation sim mu=0.90, sigma=0.1ï¼P(æ¤å¥)~0.5ï¼ï¼â¡ åºçº¿é¢æ 0.6-0.8ï¼
+â¢ æªè¯é»è®¤ 1.0ï¼v4 å¤æ¹æ²¿ç¨ï¼ï¼â£ åé¦ 500 æ¡å¯å¨è¦çè¯±æèç¹ã
+(2026-10-14, x73 Â· M-first)

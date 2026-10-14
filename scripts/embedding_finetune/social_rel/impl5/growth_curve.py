@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""social_rel · s6.1（重构版）—— 生长曲线：反馈→conf 的直连设计
+"""social_rel · s6.1（v5）—— 生长曲线：诱惑节点世界（x72/x73 双处方）
 
-v1/v2 失败的教训：反馈“±0.1 微调”对排序影响力太弱、链条断两截。
-重构：**反馈直接定义 conf**——
-  每次“检索反馈”：系统对某 query 给出 top1 候选，用户打 √（正确）/×（错误）。
-  node 的 conf = 它的“被打 √ 的历史比例”（拉普拉斯平滑）。
-  √/× 与节点质量绑定：正确候选 √率 0.8 / 错误候选 √率 0.3（信噪由 κ 调）。
-  排序 = sim × conf。曲线应随反馈积累单调上升（conf 从 1.0 → 真值水平）。
+设计（M-first：x72 判冷启动、x73 定诱惑强度）：
+  世界：100 真实节点（10 簇）+ 20 诱惑节点（各盯一个簇：向量 = 该簇中心 + 噪声，
+        使其对"该簇的 query" sim ≈ 0.66，能挤 top5 但属于别的簇（label ≠ 该簇））。
+  query：取某簇中心（该簇的 2 个诱惑节点是干扰源）。
+  反馈：系统给 top1；正确 = 真实节点且同主簇；诱惑节点永远算错。
+  反馈率：正确候选 √率 0.8 / 错误候选 √率 0.3（κ 调）。
+  conf：未评默认 1.0（x72 处方：不惩罚未知）；被评收敛到 √率。
 
 预登记判据：
-  P1  κ=0.8：曲线单调升，500 反馈内较无反馈基线 ≥ +10%
+  P1  κ=0.8：曲线单调升，且末点 ≥ 起点 +10%（生长！）
   P2  κ=0.3（脏）：走平或负
-  P3  bad-order（前期错误反馈主导，s4 式）：出现负生长
+  P3  bad-order：负生长
 
-x71：批次曲线 CSV 导出（wl 复核）。
+x71：批次 CSV（wl 复核）。
 Run: ../../.venv/Scripts/python.exe growth_curve.py
 """
 
@@ -21,13 +22,14 @@ import numpy as np
 import pathlib
 
 N_NODES = 100
+N_TEMP = 20
 D_DIM = 32
 N_CLUSTER = 10
 Q_PER_BATCH = 60
 K = 5
 BATCHES = (0, 50, 200, 500)
-P_HIT_GOOD_AVG = 0.8   # 正确（同簇）候选的 √ 概率
-P_HIT_BAD_AVG = 0.3    # 错误（异簇）候选的 √ 概率
+P_HIT_GOOD = 0.8
+P_HIT_BAD = 0.3
 SEED = 20261014
 OUT_CSV = pathlib.Path(r'E:/Users/lmq/MaiBot/scripts/embedding_finetune/math_probe/x71_growth_batches.csv')
 
@@ -38,58 +40,65 @@ def build():
     labels = rng.randint(0, N_CLUSTER, N_NODES)
     nodes = centers[labels] + rng.normal(0, 0.35, (N_NODES, D_DIM))
     nodes /= (np.linalg.norm(nodes, axis=1, keepdims=True) + 1e-9)
-    # 跨簇查询：q = 0.62*A + 0.38*B（正确答案 = 主簇 A；B 簇节点是干扰）
-    qs = []
-    for k in range(Q_PER_BATCH):
-        a, b = rng.choice(N_CLUSTER, 2, replace=False)
-        q = 0.62 * centers[a] + 0.38 * centers[b]
-        q /= np.linalg.norm(q) + 1e-9
-        qs.append((q, a))
-    return nodes, labels, qs, rng
+    # 诱惑节点：盯簇 targets[k]，向量 = 该簇中心 + 噪声（sim ≈ 0.66 左右）
+    temp_target = rng.randint(0, N_CLUSTER, N_TEMP)
+    temps = []
+    for t in temp_target:
+        v = centers[t] + rng.normal(0, 0.45, D_DIM)
+        v /= (np.linalg.norm(v) + 1e-9)
+        temps.append(v)
+    temps = np.array(temps)
+    # 每个诱惑节点的真实 label = 别的簇
+    temp_label = (temp_target + 1 + rng.randint(0, N_CLUSTER - 1, N_TEMP)) % N_CLUSTER
+    all_nodes = np.vstack([nodes, temps])
+    all_labels = np.concatenate([labels, temp_label])
+    return centers, all_nodes, all_labels, N_NODES, rng
 
 
 def run(kappa, order="good"):
-    nodes, labels, qs, rng = build()
-    pos = np.zeros(N_NODES)   # √ 次数
-    tot = np.zeros(N_NODES)   # 被评次数
+    centers, all_nodes, all_labels, n_real, rng = build()
+    n_all = len(all_nodes)
+    pos = np.zeros(n_all)
+    tot = np.zeros(n_all)
     curve = []
     prev = 0
+    # 固定查询集（跨批次一致）
+    qs = []
+    for k in range(Q_PER_BATCH):
+        a = k % N_CLUSTER
+        q = centers[a] / (np.linalg.norm(centers[a]) + 1e-9)
+        qs.append((q, a))
     for b in BATCHES:
         for _ in range(b - prev):
-            qi = int(rng.randint(len(qs)))
-            q, main = qs[qi]
-            sims = nodes @ q
-            # x72 处方：未评默认 1.0（先验 α=2, r0=1.0）——不惩罚未知
-            conf = (pos + 2.0 * 1.0) / (tot + 2.0)
+            q, main = qs[rng.randint(len(qs))]
+            sims = all_nodes @ q
+            conf = (pos + 2.0) / (tot + 2.0)          # 未评 = 1.0（x72 处方）
             top1 = int(np.argmax(sims * conf))
-            correct = (labels[top1] == main)
-            p_hit = P_HIT_GOOD_AVG if correct else P_HIT_BAD_AVG
+            correct = (all_labels[top1] == main)
+            p = P_HIT_GOOD if correct else P_HIT_BAD
             if kappa < 1.0:
-                p_hit = p_hit * kappa + (1 - kappa) * 0.5
+                p = p * kappa + (1 - kappa) * 0.5
             if order == "bad":
-                p_hit = 1.0 - p_hit
-            r = rng.random() < p_hit
+                p = 1.0 - p
+            r = rng.random() < p
             tot[top1] += 1
-            if r:
-                pos[top1] += 1
+            pos[top1] += 1 if r else 0
         prev = b
-        # 评估：全部跨簇查询（干净读取，命中 = top5 中主簇节点数）
-        conf = (pos + 2.0 * 1.0) / (tot + 2.0)
+        conf = (pos + 2.0) / (tot + 2.0)
         hits = 0
         total = 0
         for (q, main) in qs:
-            sims = nodes @ q
+            sims = all_nodes @ q
             rank = np.argsort(-(sims * conf))[:K]
-            hits += int((labels[rank] == main).sum())
+            hits += int((all_labels[rank] == main).sum())
             total += K
         curve.append(hits / total)
     return curve
 
 
 def main():
-    print("=== s6.1 (rewrite): growth curve with feedback-defined conf ===")
-    print(f"world: {N_NODES} nodes / {N_CLUSTER} clusters | batches={BATCHES} | "
-          f"p_hit: correct={P_HIT_GOOD_AVG} wrong={P_HIT_BAD_AVG}")
+    print("=== s6.1 v5: growth curve with temptation nodes (x72+x73 prescriptions) ===")
+    print(f"world: {N_NODES} real + {N_TEMP} temptation nodes | batches={BATCHES}")
     print()
     good = run(0.8, "good")
     dirty = run(0.3, "good")
@@ -99,14 +108,14 @@ def main():
     for i, b in enumerate(BATCHES):
         print("%-10d %14.4f %14.4f %14.4f" % (b, good[i], dirty[i], badorder[i]))
     print()
-    P1 = good[-1] >= good[0] * 1.10 and all(good[i] <= good[i + 1] + 1e-9 for i in range(len(good) - 1))
+    P1 = good[-1] >= good[0] + 0.10 and all(good[i] <= good[i+1] + 1e-9 for i in range(len(good)-1))
     P2 = dirty[-1] <= dirty[0] * 1.02
     P3 = badorder[-1] < badorder[0]
     print("=== verdict (pre-registered) ===")
-    print(f"P1 good: monotone up & >=+10%%: {'PASS' if P1 else 'FAIL'} ({good[0]:.4f} -> {good[-1]:.4f})")
+    print(f"P1 good: monotone up & +10pp: {'PASS' if P1 else 'FAIL'} ({good[0]:.4f} -> {good[-1]:.4f})")
     print(f"P2 dirty: flat/negative: {'PASS' if P2 else 'FAIL'} ({dirty[0]:.4f} -> {dirty[-1]:.4f})")
-    print(f"P3 bad order: negative growth: {'PASS' if P3 else 'FAIL'} ({badorder[0]:.4f} -> {badorder[-1]:.4f})")
-    print("(2026-10-14, s6.1 rewrite)")
+    print(f"P3 bad order: negative: {'PASS' if P3 else 'FAIL'} ({badorder[0]:.4f} -> {badorder[-1]:.4f})")
+    print("(2026-10-14, s6.1 v5)")
 
     with open(OUT_CSV, 'w', encoding='utf-8') as f:
         f.write("feedback,good,dirty,badorder\n")
