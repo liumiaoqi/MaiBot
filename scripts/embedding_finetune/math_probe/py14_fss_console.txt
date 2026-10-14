@@ -1,0 +1,68 @@
+=== probe14 FSS v2 (config-model ensemble x dual source) ===
+hw source: rdrand | sizes=(40, 60, 90, 130, 190, 279) reps=4 fine points=15 runs/point=48+48
+degree pool: min=1 max=85 mean=14.26 | weight pool=3978
+
+degree audit (self-loop loss; coupling mass per node = 2*pairs*wbar/n):
+  n= 40 rep=0 pairs= 290 selfloop= 11 (3.8%)
+  n= 40 rep=1 pairs= 247 selfloop=  4 (1.6%)
+  n= 40 rep=2 pairs= 331 selfloop= 18 (5.4%)
+  n= 40 rep=3 pairs= 241 selfloop= 13 (5.4%)
+  n= 60 rep=0 pairs= 527 selfloop=  8 (1.5%)
+  n= 60 rep=1 pairs= 452 selfloop=  3 (0.7%)
+  n= 60 rep=2 pairs= 428 selfloop= 11 (2.6%)
+  n= 60 rep=3 pairs= 424 selfloop=  6 (1.4%)
+  n= 90 rep=0 pairs= 622 selfloop= 10 (1.6%)
+  n= 90 rep=1 pairs= 629 selfloop= 12 (1.9%)
+  n= 90 rep=2 pairs= 667 selfloop= 17 (2.5%)
+  n= 90 rep=3 pairs= 595 selfloop=  7 (1.2%)
+  n=130 rep=0 pairs= 868 selfloop= 11 (1.3%)
+  n=130 rep=1 pairs= 933 selfloop= 14 (1.5%)
+  n=130 rep=2 pairs= 927 selfloop= 10 (1.1%)
+  n=130 rep=3 pairs= 988 selfloop= 12 (1.2%)
+  n=190 rep=0 pairs=1390 selfloop= 19 (1.4%)
+  n=190 rep=1 pairs=1411 selfloop= 13 (0.9%)
+  n=190 rep=2 pairs=1369 selfloop= 10 (0.7%)
+  n=190 rep=3 pairs=1381 selfloop= 10 (0.7%)
+  n=279 rep=0 pairs=1989 selfloop= 16 (0.8%)
+  n=279 rep=1 pairs=1989 selfloop= 15 (0.8%)
+  n=279 rep=2 pairs=1989 selfloop= 13 (0.7%)
+  n=279 rep=3 pairs=1989 selfloop=  9 (0.5%)
+
+=== Phase 1: coarse peak localization (24 runs, 1 graph) ===
+  n= 40: peak ~3.07   profile[0.60:0.8 0.91:1.6 1.22:2.7 1.53:4.5 1.84:7.6 2.15:13.1 2.45:21.5 2.76:29.9 3.07:34.5 3.38:20.7 3.69:14.9 4.00:5.0]
+  n= 60: peak ~1.84   profile[0.60:1.0 0.91:2.3 1.22:5.8 1.53:14.0 1.84:21.4 2.15:7.8 2.45:4.4 2.76:1.6 3.07:1.4 3.38:1.3 3.69:1.2 4.00:1.2]
+  n= 90: peak ~1.84   profile[0.60:1.0 0.91:2.2 1.22:5.9 1.53:16.4 1.84:29.2 2.15:6.8 2.45:1.8 2.76:1.6 3.07:1.5 3.38:1.4 3.69:1.3 4.00:1.2]
+  n=130: peak ~1.84   profile[0.60:1.0 0.91:2.3 1.22:6.1 1.53:19.5 1.84:31.2 2.15:2.5 2.45:1.9 2.76:1.5 3.07:1.3 3.38:1.2 3.69:1.0 4.00:0.9]
+  n=190: peak ~1.53   profile[0.60:1.1 0.91:2.9 1.22:11.3 1.53:20.0 1.84:2.3 2.15:1.9 2.45:1.7 2.76:1.5 3.07:1.3 3.38:1.2 3.69:1.1 4.00:1.0]
+  n=279: peak ~1.22   profile[0.60:1.1 0.91:3.3 1.22:15.9 1.53:9.0 1.84:2.4 2.15:1.9 2.45:1.7 2.76:1.5 3.07:1.4 3.38:1.2 3.69:1.1 4.00:1.0]
+
+=== Phase 2: fine sweep (4 graphs x 15 betas x 96 runs) ===
+  1920/34560 (6%) 9s elapsed, ~148s left
+  3840/34560 (11%) 17s elapsed, ~137s left
+  5760/34560 (17%) 24s elapsed, ~119s left
+  7680/34560 (22%) 36s elapsed, ~127s left
+  9600/34560 (28%) 48s elapsed, ~124s left
+  11520/34560 (33%) 60s elapsed, ~121s left
+  13440/34560 (39%) 79s elapsed, ~125s left
+  15360/34560 (44%) 96s elapsed, ~119s left
+  17280/34560 (50%) 114s elapsed, ~114s left
+  19200/34560 (56%) 142s elapsed, ~114s left
+  21120/34560 (61%) 168s elapsed, ~107s left
+  23040/34560 (67%) 195s elapsed, ~98s left
+  24960/34560 (72%) 236s elapsed, ~91s left
+  26880/34560 (78%) 278s elapsed, ~79s left
+  28800/34560 (83%) 311s elapsed, ~62s left
+  30720/34560 (89%) 363s elapsed, ~45s left
+  32640/34560 (94%) 412s elapsed, ~24s left
+  34560/34560 (100%) 463s elapsed, ~0s left
+
+done in 483s | rows=34560 -> py14_fss_output.csv
+hardware seeds used: 17280
+
+quick fine-summary (mean chi):
+  n= 40  peak beta~2.716  chi~29.77
+  n= 60  peak beta~2.122  chi~26.75
+  n= 90  peak beta~1.979  chi~33.68
+  n=130  peak beta~1.622  chi~25.35
+  n=190  peak beta~1.456  chi~29.24
+  n=279  peak beta~1.361  chi~29.19

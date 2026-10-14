@@ -1,0 +1,50 @@
+During startup - Warning messages:
+1: Setting LC_COLLATE=C.UTF-8 failed
+2: Setting LC_CTYPE=C.UTF-8 failed
+3: Setting LC_MONETARY=C.UTF-8 failed
+4: Setting LC_TIME=C.UTF-8 failed
+=== probe14 FSS analysis (R) ===
+rows: 34560 | sizes: 40 60 90 130 190 279 | sources: P H
+
+--- all sources ---
+ size   beta_c  chi_max
+   40 2.959638 30.55081
+   60 2.001482 28.04928
+   90 1.985664 39.55800
+  130 1.730162 32.78652
+  190 1.493264 32.70398
+  279 1.398709 35.40846
+chi_max ~ n^a : a = 0.076 +- 0.073  (R2=0.2164)
+beta_c drift: 1/nu = 1.560 (R2=0.9473) | beta_inf = 1.3971
+
+--- P (pseudo) ---
+ size   beta_c  chi_max
+   40 2.966810 30.57556
+   60 1.995790 27.87706
+   90 1.987277 39.54688
+  130 1.733212 32.83671
+  190 1.476999 32.51118
+  279 1.400594 35.81468
+chi_max ~ n^a : a = 0.080 +- 0.074  (R2=0.2282)
+beta_c drift: 1/nu = 1.570 (R2=0.9448) | beta_inf = 1.3949
+
+--- H (hardware) ---
+ size   beta_c  chi_max
+   40 2.958754 31.36776
+   60 2.336000 29.14111
+   90 1.985649 39.88400
+  130 1.718559 30.19735
+  190 1.499289 31.86828
+  279 1.386627 32.43507
+chi_max ~ n^a : a = 0.013 +- 0.076  (R2=0.0077)
+beta_c drift: 1/nu = 0.915 (R2=0.9988) | beta_inf = 1.0647
+
+=== P vs H parameter contrast ===
+gamma/nu:  P=0.080  H=0.013  |diff|=0.067
+1/nu:      P=1.570  H=0.915  |diff|=0.655
+beta_inf:  P=1.395  H=1.065  |diff|=0.330
+
+params -> r14_fss_params.csv
+
+figures: probe14_fss_peaks.png | probe14_fss_scaling.png
+(2026-10-14, R-side analysis for probe14)

@@ -1,0 +1,28 @@
+=== x78: independent WL recheck of probe14 FSS ===
+rows: 34560
+
+--- all sources (WL) ---
+TableForm[{{40, 2.959638097116703, 30.550809416122092}, {60, 2.001482276744571, 28.049279155372233}, {90, 1.985663535219515, 39.557998626009066}, {130, 1.730161616869461, 32.786515276354294}, {190, 1.4932644749191673, 32.70397691366725}, {279, 1.3987094494214392, 35.40846046709521}}, TableHeadings -> {None, {n, beta_c, chi_max}}]
+gamma/nu = NumberForm[0.07622318080637253, {5, 3}]  (R2=NumberForm[0.21641432336838334, {5, 4}])
+1/nu = NumberForm[1.56, {5, 3}]  beta_inf = NumberForm[1.3970812364861185, {5, 4}]  (R2=NumberForm[0.947300987960002, {5, 4}])
+
+--- P (WL) ---
+TableForm[{{40, 2.9668103653653115, 30.575556266745025}, {60, 1.995790350543621, 27.87705569896093}, {90, 1.987277173720389, 39.54687810771702}, {130, 1.733211855961234, 32.8367053212196}, {190, 1.4769989296538928, 32.51118102675969}, {279, 1.4005942084908454, 35.8146759960473}}, TableHeadings -> {None, {n, beta_c, chi_max}}]
+gamma/nu = NumberForm[0.0802905548893369, {5, 3}]  (R2=NumberForm[0.2281938841597251, {5, 4}])
+1/nu = NumberForm[1.5699999999999998, {5, 3}]  beta_inf = NumberForm[1.394949489271608, {5, 4}]  (R2=NumberForm[0.9448413914741114, {5, 4}])
+
+--- H (WL) ---
+TableForm[{{40, 2.9587539247077146, 31.36775663704975}, {60, 2.336, 29.1411085}, {90, 1.985648606326539, 39.88400047522555}, {130, 1.7185588541006032, 30.197354316914925}, {190, 1.4992888563144622, 31.868276934353162}, {279, 1.3866272390697283, 32.43507268899907}}, TableHeadings -> {None, {n, beta_c, chi_max}}]
+gamma/nu = NumberForm[0.013376659101453288, {5, 3}]  (R2=NumberForm[0.0077249555685931755, {5, 4}])
+1/nu = NumberForm[0.915, {5, 3}]  beta_inf = NumberForm[1.0646877033538857, {5, 4}]  (R2=NumberForm[0.9988435422470576, {5, 4}])
+
+=== R vs WL parameter comparison ===
+source |  gnu  R   WL  |  snu  R   WL  |  beta_inf R   WL
+PaddedForm[all, {5, Left}] | NumberForm[0.0762231808064035, {5, 3}] NumberForm[0.07622318080637253, {5, 3}] | NumberForm[1.56, {5, 3}] NumberForm[1.56, {5, 3}] | NumberForm[1.39708123648612, {5, 4}] NumberForm[1.3970812364861185, {5, 4}]
+PaddedForm[P, {5, Left}] | NumberForm[0.0802905548894041, {5, 3}] NumberForm[0.0802905548893369, {5, 3}] | NumberForm[1.57, {5, 3}] NumberForm[1.5699999999999998, {5, 3}] | NumberForm[1.39494948927161, {5, 4}] NumberForm[1.394949489271608, {5, 4}]
+PaddedForm[H, {5, Left}] | NumberForm[0.0133766591014414, {5, 3}] NumberForm[0.013376659101453288, {5, 3}] | NumberForm[0.915, {5, 3}] NumberForm[0.915, {5, 3}] | NumberForm[1.06468770335388, {5, 4}] NumberForm[1.0646877033538857, {5, 4}]
+
+note: same data, two independent implementations (R lm/aggregate vs
+WL Median/Fit/LinearModelFit). Agreement checks the exponent
+extraction is robust to the analysis toolchain.
+(2026-10-14, x78 for probe14)
