@@ -1,0 +1,25 @@
+=== x77: independent recomputation from x76 CSV ===
+columns: {round, hit_a, noise_a, hit_b, noise_b, hit_c, noise_c}
+rounds: 10
+
+col       round-mean   (python total)
+hit_a   0.4744   (0.4744)   diff            -17
+5.5511 × 10
+noise_a   0.5256   (0.5256)   diff            -16
+1.1102 × 10
+hit_b   0.8048   (0.8048)   diff 0.0000
+noise_b   0.1952   (0.1952)   diff 0.0000
+hit_c   0.8312   (0.8312)   diff             -16
+-1.1102 × 10
+noise_c   0.1688   (0.1688)   diff 0.0000
+
+round-0 row: 1.0000  0.0000  1.0000  0.0000  1.0000  0.0000
+round-9 row: 0.1040  0.8960  0.6920  0.3080  0.7960  0.2040
+
+hit_a: rounds 2-3 mean 0.6920  ->  rounds 7-9 mean 0.1427
+noise_a: rounds 2-3 mean 0.3080  ->  rounds 7-9 mean 0.8573
+hit_b: rounds 2-3 mean 0.8420  ->  rounds 7-9 mean 0.7067
+noise_b: rounds 2-3 mean 0.1580  ->  rounds 7-9 mean 0.2933
+hit_c: rounds 2-3 mean 0.8820  ->  rounds 7-9 mean 0.7467
+noise_c: rounds 2-3 mean 0.1180  ->  rounds 7-9 mean 0.2533
+(2026-10-14, x77 for s7.1)
