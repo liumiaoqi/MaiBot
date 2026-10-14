@@ -1,0 +1,16 @@
+=== s5.7: integrated v2 with diffusion channel ===
+queries=500 | grace=2 | diffusion: kNN(k=6, t=2.0) on final snapshot
+graph: 600 nodes, edges=3233
+
+arm      noise_rate   hit_rate  diff_slot_hit
+--------------------------------------------------
+a            0.5256     0.4744            nan
+b            0.4448     0.5552         1.0000
+c            0.3580     0.6420         0.9960
+
+=== verdict (pre-registered) ===
+P1 explore slot not losing (hit>=0.98*a): PASS
+P2 diffusion slot hit-rate > baseline hit: PASS
+P3 noise not worse (<=1.05*a): PASS
+(2026-10-14, s5.7)
+x70 counts exported: x70_quantum_channel_counts.csv

@@ -1,0 +1,6 @@
+=== x70: s5.7 rate cross-check (from counts) ===
+arm   noise_rate    hit_rate    diff_slot_hit
+a     0.5256        0.4744      NumberForm[0., 6]
+b     0.4448        0.5552      NumberForm[1., 6]
+c     0.358         0.642       NumberForm[0.996, 6]
+(compare python: a 0.5256/0.4744/- - b 0.4448/0.5552/1.0 - c 0.3580/0.6420/0.996)
