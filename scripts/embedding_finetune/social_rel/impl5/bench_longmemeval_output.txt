@@ -3,6 +3,16 @@ recall@5  = 0.9360
 recall@10 = 0.9600
 MRR       = 0.8444
 
+--- break down by question_type ---
+type                              n        R@5       R@10      MRR
+------------------------------------------------------------------
+knowledge-update                 78     0.9872     1.0000   0.9206
+multi-session                   133     0.9323     0.9474   0.8342
+single-session-assistant         56     1.0000     1.0000   1.0000
+single-session-preference        30     0.7333     0.8000   0.5732
+single-session-user              70     0.9429     0.9714   0.8312
+temporal-reasoning              133     0.9248     0.9624   0.8126
+
 reference (published): Zep/Graphiti ~0.64-0.84 R@5 range on this bench;
 note: TF-IDF baseline is expected to be far below neural retrievers —
 this run's purpose = pipeline works on real data (bench-2 adds our components).

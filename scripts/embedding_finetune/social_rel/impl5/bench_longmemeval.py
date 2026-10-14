@@ -81,12 +81,21 @@ def main():
                 break
         r5 = 1 if any(sids[i] in ans for i in order[:5]) else 0
         r10 = 1 if any(sids[i] in ans for i in order[:10]) else 0
-        rows.append((r5, r10, (1.0 / rank_of_first_hit) if rank_of_first_hit else 0.0))
+        rows.append((r5, r10, (1.0 / rank_of_first_hit) if rank_of_first_hit else 0.0,
+                     item.get("question_type", "?")))
 
-    arr = np.array(rows, dtype=float)
+    arr = np.array([r[:3] for r in rows], dtype=float)
+    types = [r[3] for r in rows]
     print(f"recall@5  = {arr[:,0].mean():.4f}")
     print(f"recall@10 = {arr[:,1].mean():.4f}")
     print(f"MRR       = {arr[:,2].mean():.4f}")
+    print()
+    print("--- break down by question_type ---")
+    print("%-28s %6s %10s %10s %8s" % ("type", "n", "R@5", "R@10", "MRR"))
+    print("-" * 66)
+    for t in sorted(set(types)):
+        m = np.array([r[:3] for r, tt in zip(rows, types) if tt == t], dtype=float)
+        print("%-28s %6d %10.4f %10.4f %8.4f" % (t, len(m), m[:,0].mean(), m[:,1].mean(), m[:,2].mean()))
     print()
     print("reference (published): Zep/Graphiti ~0.64-0.84 R@5 range on this bench;")
     print("note: TF-IDF baseline is expected to be far below neural retrievers —")
