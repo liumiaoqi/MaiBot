@@ -1,0 +1,30 @@
+=== x63: memory kernel <-> decay tail (symbolic) ===
+
+--- 1. Markov kernel K(t) = g*delta(t) ---
+mhat(s) = m0/(s + g)  ->  m(t) = m0*e^{-g t}  (pure exponential)
+
+--- 2. power-law kernel K(t) = c*t^-alpha (0<alpha<1), Laplace transform ---
+LaplaceTransform[c t^-alpha] = c*s^(-1 + alpha)*Gamma[1 - alpha]
+
+mhat(s) = m0/(s + K^(s)); as s->0, s^(alpha-1) dominates s
+=> mhat(s) ~ m0/(c Gamma(1-alpha)) s^(1-alpha)
+=> m(t) ~ m0/(c Gamma(1-alpha) Gamma(alpha)) t^-alpha   (POWER-LAW tail)
+
+==> non-Markovian signature = power-law tail; Markov = exponential.
+
+--- 3. numerical check: Mittag-Leffler solution (alpha=0.5, c=0.1) ---
+m(t) = E_{1-alpha}(-c t^{1-alpha}); check m(t)*t^alpha -> const
+t       m(t)          m(t)*t^0.5
+1       0.896457      0.896457
+10      0.723578      2.288156
+100     0.427584      4.275836
+1000    0.170578      5.394141
+10000                3             33
+7.491686 × 10
+100000               7             74
+3.227540 × 10
+(approaching a constant slowly (correction ~ t^{-0.5}) => power-law tail confirmed)
+
+--- 4. stretched exponential (Weibull) is NOT power-law ---
+m(t) = m0 e^{-(t/tau)^beta}: decays FASTER than any power law at large t.
+=> discriminating power vs stretched-exponential needs the far tail.

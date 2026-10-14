@@ -1,0 +1,35 @@
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp63_decay_shape_id.py:40: RuntimeWarning: invalid value encountered in power
+  return m0 * (1.0 + t / tau) ** (-alpha)
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp63_decay_shape_id.py:44: RuntimeWarning: invalid value encountered in power
+  return m0 * np.exp(-((t / tau) ** beta))
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp63_decay_shape_id.py:52: OptimizeWarning: Covariance of the parameters could not be estimated
+  popt, _ = curve_fit(model_fn, t, y, p0=p0, maxfev=20000)
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp63_decay_shape_id.py:44: RuntimeWarning: divide by zero encountered in power
+  return m0 * np.exp(-((t / tau) ** beta))
+E:\Users\lmq\MaiBot\scripts\embedding_finetune\trading\exp63_decay_shape_id.py:36: RuntimeWarning: overflow encountered in exp
+  return a * np.exp(-t / tau1) + b * np.exp(-t / tau2)
+=== exp63: 记忆衰减形状辨识（指数/双指数/幂律/拉伸指数） ===
+
+--- ① 可分辨矩阵 @ 8 点（Ebbinghaus 密度，噪声 sigma=0.01） ---
+真值\选出      exp        biexp      power      stretch
+exp        50.8    %  3.3     %  16.7    %  29.2    %
+biexp      0.0     %  100.0   %  0.0     %  0.0     %
+power      0.0     %  19.2    %  76.7    %  4.2     %
+stretch    0.0     %  10.0    %  0.8     %  89.2    %
+
+--- ② Ebbinghaus 真实数据点：四模型 AIC 裁判 ---
+  exp      AIC=  -22.45  参数: 0.626 2.214
+  biexp    AIC=  -45.61  参数: 0.660 0.016 0.331 56.922
+  power    AIC=  -58.34  参数: 1.000 0.000 0.131   ← min
+  stretch  AIC=  -51.86  参数: 1.002 0.447 0.127
+
+--- ③ 采样预算对「power vs biexp」分辨力的影响（真值 power 与 biexp 各 120 次） ---
+  8 点                power 选对 80.8% · biexp 选对 100.0% · 互混 7.5%
+  24 点(对数均匀)         power 选对 93.3% · biexp 选对 100.0% · 互混 2.9%
+
+=== 判词 ===
+① 8 点密度下的可分辨矩阵：哪些形状互混（尤其 power<->biexp、power<->stretch）；
+② Ebbinghaus 数据上 AIC 赢家 = 该数据支持的形状（对照 exp29 的 MAE 结论）；
+③ 若 power vs biexp 在 8 点下互混显著、24 点显著改善 ⇒ 给未来真实数据采集的采样判据。
+④ 非马尔可夫（幂律核）的可测特征 = 长尾（x63 符号 ⇔ 本表数值）；指数核无此尾。
+（2026-10-14 · D 线）
