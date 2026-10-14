@@ -4,13 +4,13 @@ world: 100 nodes / 10 clusters | batches=(0, 50, 200, 500) | p_hit: correct=0.8 
 feedback        kappa=0.8      kappa=0.3      bad-order
 --------------------------------------------------------
 0                  0.9967         0.9967         0.9967
-50                 0.9233         0.9567         0.9800
-200                0.9000         0.9433         0.8400
-500                0.8900         0.9600         0.9000
+50                 0.9967         0.9867         0.9667
+200                0.9867         0.9333         0.9500
+500                0.9867         0.9667         0.9500
 
 === verdict (pre-registered) ===
-P1 good: monotone up & >=+10%%: FAIL (0.9967 -> 0.8900)
-P2 dirty: flat/negative: PASS (0.9967 -> 0.9600)
-P3 bad order: negative growth: PASS (0.9967 -> 0.9000)
+P1 good: monotone up & >=+10%%: FAIL (0.9967 -> 0.9867)
+P2 dirty: flat/negative: PASS (0.9967 -> 0.9667)
+P3 bad order: negative growth: PASS (0.9967 -> 0.9500)
 (2026-10-14, s6.1 rewrite)
 x71 exported: x71_growth_batches.csv

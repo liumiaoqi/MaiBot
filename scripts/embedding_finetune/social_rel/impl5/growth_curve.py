@@ -59,7 +59,8 @@ def run(kappa, order="good"):
             qi = int(rng.randint(len(qs)))
             q, main = qs[qi]
             sims = nodes @ q
-            conf = (pos + 1.0) / (tot + 2.0)
+            # x72 处方：未评默认 1.0（先验 α=2, r0=1.0）——不惩罚未知
+            conf = (pos + 2.0 * 1.0) / (tot + 2.0)
             top1 = int(np.argmax(sims * conf))
             correct = (labels[top1] == main)
             p_hit = P_HIT_GOOD_AVG if correct else P_HIT_BAD_AVG
@@ -73,7 +74,7 @@ def run(kappa, order="good"):
                 pos[top1] += 1
         prev = b
         # 评估：全部跨簇查询（干净读取，命中 = top5 中主簇节点数）
-        conf = (pos + 1.0) / (tot + 2.0)
+        conf = (pos + 2.0 * 1.0) / (tot + 2.0)
         hits = 0
         total = 0
         for (q, main) in qs:
