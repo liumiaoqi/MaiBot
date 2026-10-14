@@ -1,0 +1,6 @@
+=== x69: s5.6 rate cross-check (from counts) ===
+arm   noise_rate    hit_rate    reject%
+a     0.7092        0.2908      NumberForm[0., 5]
+b     0.5256        0.4744      NumberForm[0., 5]
+c     0.528603      0.4252      NumberForm[9.8, 5]
+(compare python: a 0.7092/0.2908/0 - b 0.5256/0.4744/0 - c 0.5286/0.4252/9.8)

@@ -1,0 +1,15 @@
+=== s5.6 v2: integrated ablation ===
+queries=500 | theta(margin reject, 10% quantile)=0.000358
+
+arm     noise_rate   hit_rate   reject%   kept
+------------------------------------------------
+a           0.7092     0.2908      0.0%    500
+b           0.5256     0.4744      0.0%    500
+c           0.5286     0.4252      9.8%    451
+
+=== verdict (pre-registered) ===
+P1 grace helps (noise down & hit up): PASS
+P2 margin ok (reject<=10pct & hit>=0.9*b): FAIL
+P3 noise not worse with margin: FAIL
+(2026-10-14, s5.6 v2)
+x69 counts exported: x69_integrated_counts.csv
