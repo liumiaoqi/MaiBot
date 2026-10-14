@@ -1188,5 +1188,24 @@ evolution_society 轨迹：`0 → 645 → 0 → 0 → 162`——**两次全零�
 
 **产出（v2 追加）**：`probe27b_fss.py` / `probe27b_analyze.py` · 输出 `py27b_fss_output.csv`（65280 runs）/ `py27b_fss_console.txt`
 
+**v3 上端扩展（6 尺寸 300-760，replace 度抽样）+ 16 点组合——λ 标尺效应定格**
+
+动机：v2 诊断「小端主导（n=40 最敏感）⇒ 钉死渐近行为要大端数据」。设计：n>279 度值 `replace=True`（有放回；前几阶矩无偏）；3 rep × 48 runs（n=760 单 run 0.16s 的预算裁剪，统计较薄已标注）。
+
+| 数据集 | 名义 1/ν | θ=β·λ 口径 | 名义 LOO | χ/β~λ^a |
+|---|---|---|---|---|
+| v1（6 点） | 1.284 | 1.378 | [0.33, 1.61] | 1.15 |
+| v2（10 点） | 1.116 | 0.690 | [0.44, 1.25] | 1.26 |
+| **组合（16 点）** | **0.950**（R²=0.989） | **0.376**（R²=0.966） | **[0.64, 1.00]** | **1.59**（R²=0.88） |
+
+- **λ 标尺效应定格 ~60%**（0.95→0.38）——随数据量增大而**强化**（22%→38%→60%），LOO 收窄（±0.6→±0.4→**±0.18**）支持可信度上升——**数据加密的教科书式回报**；
+- 全部数字经 **python 分析器 vs R（probe27_theta.R）双实现逐位互证**（16 点全表一致）；
+- θ_c 大端（430→760）近平台（1.40→1.35）；残余 1/ν_θ=0.38（LOO 下端 0.08——n=40 仍最敏感）=「**真正的有限尺寸效应**」候选（含小端偏差成分）；
+- `χ/β ~ λ^1.59`——a 随 λ 跨度扩大**向 2 靠近**（1.15→1.26→1.59）——**理论落点待认领**（mean-field γ/ν=2 为候选）。
+- ⚠️ 口径注：v3 = replace=True 度抽样 + 3rep×48run（与 v2 的 replace=False + 4rep×96run 不同）——合并分析中已按尺寸分派、输出标注。
+
+**产出（v3 追加）**：`probe27c_fss.py` / `r27c_lmax_by_rep.csv` / `r27bc_lmax_by_rep.csv`（合并 λ 表）
+· 输出 `py27c_fss_output.csv`（14688 runs）/ `py27c_fss_console.txt` / `r27bc_theta_out.txt`（R）/ `py27bc_analyze_out.txt`（python）——`py27bc_fss_output.csv` 为派生合并文件（cat 可重建，未入库）
+
 **产出**：`probe27_glauber.py` / `probe27_fss.py` / `probe27_fss.R` / `hard_random.py` / `x78_fss_recheck.wl`
 · 输出：`py27_fss_output.csv`（34560 runs）/ `r27_fss_output.txt` / `r27_fss_params.csv` / `py27_fss_console.txt` / 图 ×2（peaks / scaling）/ `probe27_recon_seeds.csv`

@@ -1,0 +1,31 @@
+=== probe27c: FSS upper-end extension (6 sizes > 279, replace=True degrees) ===
+hw source: rdrand | sizes=(300, 360, 430, 520, 630, 760) reps=3 runs/point=24+24 | coarse window (0.5, 2.4)
+degree pool: min=1 max=85 mean=14.26 | weight pool=3978
+
+=== Phase 1: coarse peak localization ===
+  n=300: peak ~1.36   profile[0.50:0.8 0.67:1.4 0.85:2.5 1.02:5.2 1.19:12.5 1.36:23.0 1.54:6.6 1.71:4.2 1.88:2.2 2.05:1.9 2.23:1.8 2.40:1.7]
+  n=360: peak ~1.19   profile[0.50:0.8 0.67:1.4 0.85:2.7 1.02:6.2 1.19:19.2 1.36:19.0 1.54:2.7 1.71:2.2 1.88:1.9 2.05:1.7 2.23:1.6 2.40:1.4]
+  n=430: peak ~1.36   profile[0.50:0.8 0.67:1.4 0.85:2.5 1.02:5.6 1.19:16.8 1.36:20.9 1.54:7.5 1.71:2.4 1.88:2.1 2.05:1.9 2.23:1.8 2.40:1.6]
+  n=520: peak ~1.19   profile[0.50:0.8 0.67:1.4 0.85:2.8 1.02:6.9 1.19:23.6 1.36:5.4 1.54:2.6 1.71:2.3 1.88:2.0 2.05:1.8 2.23:1.6 2.40:1.5]
+  n=630: peak ~1.19   profile[0.50:0.8 0.67:1.5 0.85:3.4 1.02:10.5 1.19:25.8 1.36:2.8 1.54:2.3 1.71:2.1 1.88:1.9 2.05:1.8 2.23:1.6 2.40:1.5]
+  n=760: peak ~1.19   profile[0.50:0.8 0.67:1.5 0.85:3.3 1.02:10.9 1.19:31.4 1.36:2.7 1.54:2.2 1.71:2.0 1.88:1.9 2.05:1.7 2.23:1.5 2.40:1.4]
+
+=== Phase 2: fine sweep (3 graphs x 17 betas x 48 runs) ===
+  1920/14688 (13%) 49s elapsed, ~327s left
+  3840/14688 (26%) 101s elapsed, ~284s left
+  5760/14688 (39%) 160s elapsed, ~249s left
+  7680/14688 (52%) 229s elapsed, ~209s left
+  9600/14688 (65%) 313s elapsed, ~166s left
+  11520/14688 (78%) 427s elapsed, ~117s left
+  13440/14688 (92%) 569s elapsed, ~53s left
+
+done in 750s | rows=14688 -> py27c_fss_output.csv
+hardware seeds used: 7344
+
+quick fine-summary (mean chi):
+  n=300  peak beta~1.439  chi~31.96
+  n=360  peak beta~1.341  chi~29.10
+  n=430  peak beta~1.289  chi~27.60
+  n=520  peak beta~1.266  chi~35.64
+  n=630  peak beta~1.191  chi~34.02
+  n=760  peak beta~1.191  chi~34.07
