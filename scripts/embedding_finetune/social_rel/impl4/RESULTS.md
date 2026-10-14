@@ -98,3 +98,31 @@ base 错误率 0.520 逐值一致；分位曲线逐点一致（0.3 分位 36.5%/
 ⇒ 换评分场景（如 sim 分 margin）可复检——本结论限定在扩散激活评分上。
 
 **产出**：`impl4/margin_decision.py` + 输出 · `math_probe/x66_margin_crosscheck.wl` + 输出 + 样本 CSV
+
+---
+
+## s5.B（同日）：证据独立性审计——可行性审计与结论（方向 B）
+
+**目标**：量「evidence 的同源占比」（同源多打点灌水 confidence）；判据 >30% ⇒ 值得聚合修正。
+
+**审计结果**（8-31 真库快照 · 只读 · 只取聚合量不取内容）：
+
+| 候选表 | 行数 | 证据字段可用性 |
+|---|---|---|
+| jargons | 82 | `evidence_messages` **全空**（length=NULL） ✗ |
+| behavior_experience_paths | 0 | — ✗ |
+| agent_relationships | 19 | 有 score/level/interaction_count（无来源字段）——弱样本 |
+| a-memorix/connectionist.db | 全表 **0** | ✗ |
+| agent_interaction_* 等 | 0 | ✗ |
+
+**agent_relationships 旁证（唯一有值的表）**：19 行 · score 均值 368.2（非 0-1 尺度，与 A_memorix
+的 confidence 是两套系统）· interaction_count 中位 ~21、长尾至 373。
+
+**结论**：
+1. 证据链数据在真库中**根本不存在**——与 s4 的「confidence 恒 1.0」是**同一现实**：数据从未被生产。
+2. ⇒ B 的判据（同源占比）**当前不可测量**。本方向从「审计实验」**转为「记录设计的输入」**：
+   0004 真值回路接线时，**证据记录应带来源独立性信息**（会话/来源 ID——jargons 的
+   `session_id_dict` 是一个可参考的既有形状），否则「独立性」永远无法事后审计。
+3. **不投入进一步实验**（数据不存在，做仿真 = 又一轮自证）。
+
+（无主量复算：本审计为只读可行性盘点——§9 第 4 条豁免。）
