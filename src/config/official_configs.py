@@ -5478,6 +5478,7 @@ class MaimMessageConfig(ConfigBase):
             },
             "x-widget": "custom",
             "x-icon": "key",
+            "x-secret": True,
         },
     )
     """旧版 API 的认证令牌；为空表示不验证。"""
@@ -5576,6 +5577,7 @@ class MaimMessageConfig(ConfigBase):
             },
             "x-widget": "custom",
             "x-icon": "shield",
+            "x-secret": True,
         },
     )
     """允许访问新版 API 的 Key 列表；为空表示不限制。"""
