@@ -575,6 +575,19 @@ def claim_secret_value(
     2. **占位自带来源路径**：按 ``path`` 直接取原值（含下标，所以换序也能认对）。
     3. 以上任一不成立 ⇒ 抛 ``SecretClaimError``，由调用方转成 400 并**拒绝整次写入**。
 
+    ⚠️ **``set: false`` 的占位要拒绝**（F3 子观察，2026-10-16 定）：以前这个标志**从没被读过**
+    ⇒ 一个"服务端说这里没值"的占位照样能认领。判别它的是**来源**（而不是标志本身）：
+
+    - 来源**真的有值** ⇒ 这是"客户端拿着'没值'的标记去覆盖一个**有值**的位置"⇒ 写下去
+      等于**删掉那份凭据**（占位不是值，落盘的就是"没有值"）。⇒ 拒绝并点名。危险形态在于
+      来源路径不随元素移动而变化（改过的表单、换过序的表单都会碰到），静默接受 = 丢密钥。
+    - 来源**本来就没值/不存在** ⇒ 照常认领（认领的结果就是"没值"），
+      这正是"读一份没配密钥的配置、填了别的字段、再整体写回"的合法路径。**不能**一并拒掉。
+
+    为什么不做"标记成了 set:false 就把这一项从结果里删掉"这种"更聪明"的处理：那会让
+    ``set`` 标志对**落盘内容**产生副作用（同一份表单，改一个无关字段就可能删掉一个表项），
+    比拒绝更难排障。**判据是：说清楚、不猜。**
+
     ⚠️ **已知局限（保留、不修 —— F3 明文要求）**：新建表项带着"别家"的占位、且其来源下标
     仍然有效时，会按规则②继承该位置的凭据。保留是因为改名/换序场景需要这条兜底
     （否则改名即丢密钥）；根治方向是占位强制带来源名。**不得对外表述成"增删换序都不会串"。**
@@ -636,17 +649,46 @@ def claim_secret_value(
     if isinstance(origin_name, str) and origin_name.strip():
         claimed = _claim_by_origin_name(stored_root, source_tokens, origin_name.strip())
         if claimed is not MISSING:
+            _refuse_claim_if_placeholder_says_unset(sentinel, claimed, target_path=target_path)
             return claimed
 
     # 规则②：按来源路径/下标认领
     claimed = lookup_path(stored_root, source_tokens)
     if claimed is not MISSING:
+        _refuse_claim_if_placeholder_says_unset(sentinel, claimed, target_path=target_path)
         return claimed
 
     raise SecretClaimError(
         f"秘密占位认不到来源：来源路径 '{recorded_path}' 在已存储的配置里不存在",
         location=target_path,
         recorded_path=recorded_path,
+    )
+
+
+def _refuse_claim_if_placeholder_says_unset(
+    sentinel: Mapping[str, Any],
+    claimed_value: Any,
+    *,
+    target_path: str,
+) -> None:
+    """``set: false`` 的占位**不许**认领一个真值（F3 子观察的判据落点）。
+
+    调用条件：来源与靶子都校验过、且**确实认到了值**。此时若占位自称"没值"（``set: false``）
+    而来源里真有值，说明这份占位不是这个位置的（改过的表单 / 换过序 / 客户端自己构造的）。
+    认领下去 = 把一份**存在的凭据换成"没有值"**——静默丢密钥，正是 F2 要防的事。
+
+    ⚠️ 只在"**来源确实有值**"时拒绝：来源本来就没值（`set: false` 的合法来源）时不该拦，
+    否则"读一份没配密钥的配置 → 填别的字段 → 整体写回"这条正常路径会被误伤。
+    """
+    if sentinel.get(SENTINEL_SET_KEY, True) is not False:
+        return
+    if not is_configured(claimed_value):
+        return
+    raise SecretClaimError(
+        "秘密占位自称未配置（set=false），但它指向的来源位置上有值："
+        "照写会把那份凭据换成'没有值'。请重新读取配置后再提交（占位可能来自改过/换序的表单）",
+        location=target_path,
+        recorded_path=str(sentinel.get(SENTINEL_PATH_KEY, "")),
     )
 
 

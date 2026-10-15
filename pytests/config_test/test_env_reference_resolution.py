@@ -1,4 +1,4 @@
-"""3 段 · 密钥引用化：``${VAR}`` 解析（F4）的回归测试。
+"""3 段 · 密钥引用化：``${VAR}`` 解析（F4）的回归测试（**4 段按归位后的口径改写过**）。
 
 覆盖判据门①（命中 / 未命中报错 / 非引用明文原样）与冻结契约 F4 的两条边界：
 
@@ -12,6 +12,12 @@
 实现走的是**生产路径**（``load_config_from_file`` → ``ConfigBase.from_dict`` → pydantic →
 ``APIProvider.model_post_init``），不是"测试自己 init 自己"。
 夹具一律用**假值**；配置文件写在 ``tmp_path``，活配置一个字节都不碰。
+
+⚠️ **4 段（解析时机归位）改写了本文件的判据**：解析不再发生在加载期，所以"加载后对象里是
+明文"这条旧判据**反转**成"加载后对象里仍是引用"。注入边界的判据（解析确实发生在建客户端时、
+缺变量在那一刻报错、明文路径不受影响）在
+``pytests/config_test/test_env_reference_injection_boundary.py``；"版本升级后盘上仍是引用"
+的端到端判据在同目录 ``test_secret_writeback_guard.py``。
 """
 
 import re
@@ -19,7 +25,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from src.config.config import MODEL_CONFIG_VERSION, ModelConfig, load_config_from_file
 from src.config.model_configs import (
@@ -71,6 +76,15 @@ q = "{REFERENCE_TEXT}"
     )
 
 
+def _api_key_disk_line(path: Path) -> str:
+    """取文件里 ``api_key`` 那一行的裸值（逐字对，不用"包含"这种弱判据）。"""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("api_key") and "=" in stripped:
+            return stripped.split("=", 1)[1].split("#", 1)[0].strip().strip('"')
+    raise AssertionError("配置里找不到 api_key 行")
+
+
 def _env_example_entries() -> list[tuple[str, str]]:
     """读仓根 `.env.example` 的 (键名, 值) 列表——注释与空行跳过。"""
     entries: list[tuple[str, str]] = []
@@ -84,9 +98,15 @@ def _env_example_entries() -> list[tuple[str, str]]:
 
 
 class TestReferenceResolution:
-    """判据门①：三种情形（走生产加载路径）。"""
+    """判据门①：三种情形（走生产加载路径）。
 
-    def test_reference_hit_resolves_and_stays_reference_on_disk(
+    ⚠️ **4 段（解析时机归位）后的口径**：加载期**不再**把 ``${VAR}`` 解成明文——
+    配置对象里存的就是盘上原文，解析发生在"注入客户端之前"
+    （见 `test_env_reference_injection_boundary.py`）。本类因此改判两件事：
+    ① 加载后对象里**仍是引用**（不是明文）② 文件里的引用**一个字节都没被动**。
+    """
+
+    def test_reference_stays_reference_in_memory_and_on_disk(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv(FAKE_ENV_VAR, FAKE_KEY_VALUE)
@@ -96,39 +116,27 @@ class TestReferenceResolution:
         config, updated = load_config_from_file(ModelConfig, config_path, MODEL_CONFIG_VERSION)
 
         provider = config.api_providers[0]
-        assert provider.api_key == FAKE_KEY_VALUE
+        # 归位后的硬判据：对象里是引用，**不是**解析值。
+        # （旧行为是 `== FAKE_KEY_VALUE`——那正是"升级回写会把明文写回"的根因）
+        assert provider.api_key == REFERENCE_TEXT
+        assert provider.api_key != FAKE_KEY_VALUE
 
         # 边界：只有 api_key 是解析位，其余字段按契约保持字面量
         assert provider.auth_query_name == REFERENCE_TEXT
         assert provider.default_headers["X-Trace"] == REFERENCE_TEXT
         assert provider.default_query["q"] == REFERENCE_TEXT
 
-        # 解析不写回文件：明文不进文件，引用还在
+        # 解析不写回文件：明文不进文件，引用还在（逐字对，防"引用被别的形态替换"）
         on_disk = config_path.read_text(encoding="utf-8")
         assert REFERENCE_TEXT in on_disk
         assert FAKE_KEY_VALUE not in on_disk
         assert updated is False
-
-    def test_reference_missing_reports_variable_and_field_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv(FAKE_ENV_VAR, raising=False)
-        config_path = tmp_path / "model_config.toml"
-        _write_model_config(config_path, REFERENCE_TEXT)
-
-        # pydantic 会把 model_post_init 里的 ValueError 包成 ValidationError，
-        # 两种形态都算合格——判据是**文本**里找得到变量名与字段路径
-        with pytest.raises((ConfigEnvReferenceError, ValidationError)) as excinfo:
-            load_config_from_file(ModelConfig, config_path, MODEL_CONFIG_VERSION)
-
-        message = str(excinfo.value)
-        assert FAKE_ENV_VAR in message
-        assert _FIELD_PATH in message
+        assert _api_key_disk_line(config_path) == REFERENCE_TEXT
 
     def test_plaintext_api_key_is_untouched(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """双读期：老配置（明文）照常工作，不允许"只有引用能跑"。"""
+        """双读期：老配置（明文）照常工作，不允许"只有引用能跑"（F4 判据④）。"""
         monkeypatch.delenv(FAKE_ENV_VAR, raising=False)
         config_path = tmp_path / "model_config.toml"
         _write_model_config(config_path, FAKE_LITERAL_KEY)
@@ -136,6 +144,26 @@ class TestReferenceResolution:
         config, _ = load_config_from_file(ModelConfig, config_path, MODEL_CONFIG_VERSION)
 
         assert config.api_providers[0].api_key == FAKE_LITERAL_KEY
+
+    def test_loader_alone_does_not_check_the_variable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """**成对判据（加载器一侧）**：缺变量**不**在加载期炸——加载只管读文件。
+
+        归位之前是"解析在 ``model_post_init`` ⇒ 加载即 ``ValidationError``、
+        **容器起不来**"；归位之后加载器不认识引用能否解析（那是启动期预校验与注入边界的事）。
+
+        ⚠️ 这条**必须与"启动期拦"那条成对**（`test_env_reference_startup_preflight.py`）：
+        单留本条会把"缺变量没人管、首次调用才炸"钉成正确行为（那是失败响度的退步）；
+        单留那条又说不清"到底是谁拦的"。两条一起，责任才划得清：**加载器不拦，启动期拦**。
+        """
+        monkeypatch.delenv(FAKE_ENV_VAR, raising=False)
+        config_path = tmp_path / "model_config.toml"
+        _write_model_config(config_path, REFERENCE_TEXT)
+
+        config, _ = load_config_from_file(ModelConfig, config_path, MODEL_CONFIG_VERSION)
+
+        assert config.api_providers[0].api_key == REFERENCE_TEXT
 
 
 class TestResolutionBoundary:
@@ -163,11 +191,15 @@ class TestResolutionBoundary:
 class TestRawApiKeyAccessor:
     """写回路径的取用点：`raw_api_key_of` 给的是**盘上原文**，不是解析后的明文。
 
-    背景（3 段实测的写回洞）：解析就地改写 `api_key`，而 `write_config_to_file` 逐字段
-    ``getattr`` 取模板 ⇒ 不区分就会把真密钥写回文件。
+    背景（3 段实测的写回洞）：解析曾在 ``model_post_init`` 里就地改写 `api_key`，而
+    `write_config_to_file` 逐字段 ``getattr`` 取模板 ⇒ 不区分就会把真密钥写回文件。
+
+    4 段归位之后：``api_key`` **本身就是原文** ⇒ 本函数与它恒等（用例 ①② 钉住这条），
+    但**不是**恒等函数——没经过配置构造路径的对象仍返回 ``None``（用例③，
+    写回守卫的防御分支靠它可达）。
     """
 
-    def test_reference_keeps_raw_text_for_writeback(
+    def test_reference_is_the_raw_text_for_writeback(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv(FAKE_ENV_VAR, FAKE_KEY_VALUE)
@@ -177,7 +209,8 @@ class TestRawApiKeyAccessor:
         config, _ = load_config_from_file(ModelConfig, config_path, MODEL_CONFIG_VERSION)
         provider = config.api_providers[0]
 
-        assert provider.api_key == FAKE_KEY_VALUE
+        # 归位后：对象里的值 == 盘上原文 == 写回源（三者同一个字符串）
+        assert provider.api_key == REFERENCE_TEXT
         assert raw_api_key_of(provider) == REFERENCE_TEXT
 
     def test_plaintext_raw_equals_value(self, tmp_path: Path) -> None:
@@ -188,6 +221,7 @@ class TestRawApiKeyAccessor:
         provider = config.api_providers[0]
 
         assert raw_api_key_of(provider) == FAKE_LITERAL_KEY
+        assert provider.api_key == FAKE_LITERAL_KEY
 
     def test_empty_key_is_captured_not_missing(self) -> None:
         """空 key（auth_type=none 合法）要能区分于"没留原文"——否则写回守卫会误拒。"""

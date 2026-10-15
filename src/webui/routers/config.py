@@ -74,6 +74,7 @@ from src.webui.config_paths import (
 )
 from src.webui.config_schema import ConfigSchemaGenerator
 from src.webui.config_secrets import (
+    SENTINEL_SET_KEY,
     SecretClaimError,
     claim_secret_value,
     describe_secret_value,
@@ -2167,17 +2168,30 @@ def _build_read_entry(
     ⚠️ 秘密判定必须**双向**做（见 ``config_secrets.find_secret_root`` 的 docstring）：
     这条路径自己（或其**祖先**）是秘密 ⇒ 出标记；否则取子树时还要把**里面**的秘密
     （它的**后代**）换成标记——只做前者 = 请求一个祖先容器就把密钥整包领走。
+
+    ⚠️ **标记说的必须是"被请求位置"的状态**（F10 修复，2026-10-16）：请求
+    ``maim_message.auth_token[7]`` 而数组只有 3 项时，旧实现回的是**秘密根**的三态
+    （``set: true`` + 根的 ``kind``）⇒ 客户端看到"这个位置已配置"、还拿到一个**并不存在**
+    的数组形态。现在按被请求位置取状态：
+    ``配置=set 为真 / 未配置或位置不存在=set 为假``，并且**不带 ``kind``**
+    （未配置的位置没有"值形态"可言）。``inherited`` 与 "set 为假" 同向——"这里没有值"
+    就是"读到的不是文件里的值"（schema 默认或根本没有），客户端据此知道可以写新值。
     """
     path_text = format_path(tokens)
 
     # 方向甲「路径在秘密里」：请求的位置落在某个秘密字段**内部**（例如它的数组元素）
-    # ⇒ 发出去的是**秘密根**的标记，请求位置只回报"这里读不回来"。
+    # ⇒ 发出去的是**该位置**的标记（值本身永远不出站）。
     secret_root = find_secret_root(tokens, declared)
     if secret_root is not None:
+        # ⚠️ 标记必须按**被请求位置**（tokens）现算，不能拿 secret_root 去算（F10）：
+        # `describe_secret_value` 对"位置不存在"给的正是 `set: false` 且不带 `kind`
+        # （`is_configured(MISSING)` 为假）⇒ 客户端看到"这里没有值，可以写"，而不是
+        # 拿秘密根的形态去猜一个并不存在的位置。
+        marker = describe_secret_value(stored, tokens)
         return {
             "path": path_text,
-            "value": describe_secret_value(stored, secret_root),
-            "inherited": lookup_path(stored, secret_root) is MISSING,
+            "value": marker,
+            "inherited": not marker.get(SENTINEL_SET_KEY, False),
             "revision": revision,
         }
 

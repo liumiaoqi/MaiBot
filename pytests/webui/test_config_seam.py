@@ -465,6 +465,11 @@ class TestSecretsNeverLeave:
 
         直接按元素下标请求时，必须沿着祖先链认出它是秘密字段内部（否则这条路径会以
         "非秘密"的身份把令牌原文发出去）。
+
+        ⚠️ **4 段改写过**：标记的 ``path`` 从"秘密**根**"改成**被请求的那一条**（F10）。
+        "是哪条秘密"这件事的判据在**外层 entry 的 path**（＝请求路径）与脱敏本身，
+        不靠内层 ``path`` 反推；内层 ``path`` 保持"客户端请求哪儿就是哪儿"，这样
+        客户端拿标记回写时不必做一次"根 → 位置"的换算（换错就是写错位置）。
         """
         response = client.post(
             READ_URL,
@@ -475,7 +480,8 @@ class TestSecretsNeverLeave:
 
         entry = _entries_by_path(response.json())["maim_message.auth_token[0]"]
         assert entry["value"]["$secret"] is True
-        assert entry["value"]["path"] == "maim_message.auth_token", "标记要指出真正的秘密根"
+        assert entry["value"]["set"] is True
+        assert entry["value"]["path"] == "maim_message.auth_token[0]", "标记要指出被请求的位置"
 
     def test_whole_plane_read_has_no_element_level_secret_entries(
         self, client: TestClient, seam_config_dir
@@ -691,11 +697,67 @@ class TestResetSemantics:
         assert entry["inherited"] is True
         assert entry["value"]["set"] is False
 
-    def test_unset_a_missing_path_is_refused(self, client: TestClient, seam_config_dir) -> None:
-        """重置一个本来就不存在的键 ⇒ 400（不是静默成功）。"""
+    def test_unset_a_missing_path_is_idempotent(self, client: TestClient, seam_config_dir) -> None:
+        """重置一个本来就不存在的键 ⇒ **幂等成功**（F9，2026-10-16 定；旧行为是 400）。
+
+        判据不是"返回 200"而是三件事同时成立（缺任何一条这条用例都会假绿）：
+
+        1. 这次 unset **成功**（批量重试不再卡在这个"已经是想要的状态"的操作上）；
+        2. 文件**一个字节都不变**（幂等 ≠ 顺手写点什么）；
+        3. 读回来仍是"继承"（``inherited=true`` + schema 默认值），而不是被写成空值。
+        """
+        config_path = seam_config_dir / "bot_config.toml"
+        before = config_path.read_bytes()
         revision = _read_paths(client, "bot")["revision"]
+
         response = _mutate(client, "bot", revision, [{"op": "unset", "path": "chat.ascii_column_width"}])
+
+        assert response.status_code == 200, response.text
+        assert config_path.read_bytes() == before, "幂等 unset 动了文件"
+        entry = _entries_by_path(_read_paths(client, "bot", ["chat.ascii_column_width"]))[
+            "chat.ascii_column_width"
+        ]
+        assert entry["inherited"] is True
+        assert entry["value"] == 48  # ChatConfig.ascii_column_width 的 schema 默认
+
+    def test_unset_on_a_walkable_but_absent_parent_still_fails(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """**幂等的边界**：父路径根本不存在 ⇒ 仍然是 400（那多半是路径写错了）。
+
+        与上一条成对：幂等只覆盖"键不在（但父层在）"，不覆盖"这条路径走不通"——
+        把打错的路径静默当成功，等于把用户的错误吃掉。
+        """
+        revision = _read_paths(client, "bot")["revision"]
+
+        response = _mutate(client, "bot", revision, [{"op": "unset", "path": "bot.nickname.deep.missing"}])
+
         assert response.status_code == 400, response.text
+
+    def test_secret_read_inside_a_secret_reports_the_requested_position(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """F10：读秘密字段**内部**一个不存在的下标 ⇒ 报**被请求位置**的状态，不是根的状态。
+
+        夹具里 ``maim_message.auth_token`` 只有 1 项；请求 ``auth_token[7]``：
+        旧实现回的是秘密根的三态（``set: true`` + 根的 ``kind``）⇒ 客户端以为"这个位置已配置"、
+        还拿到一个并不存在的数组形态。新口径：``set: false``、不带 ``kind``、
+        ``inherited: true``，且 ``path`` 就是**被请求的那一条**。
+        """
+        revision = _read_paths(client, "bot")["revision"]
+        entries = _entries_by_path(_read_paths(client, "bot", ["maim_message.auth_token[7]"]))
+
+        marker = entries["maim_message.auth_token[7]"]["value"]
+        assert marker["$secret"] is True
+        assert marker["set"] is False, "报的是秘密根的状态（F10 回归）"
+        assert "kind" not in marker, "位置不存在就没有值形态可报"
+        assert marker["path"] == "maim_message.auth_token[7]"
+        assert entries["maim_message.auth_token[7]"]["inherited"] is True
+        assert revision >= 1
+
+        # 对照：**已存在**的那个下标仍要报"已配置"（防"一刀切成 set:false"这种过修）
+        existing = _entries_by_path(_read_paths(client, "bot", ["maim_message.auth_token[0]"]))
+        assert existing["maim_message.auth_token[0]"]["value"]["set"] is True
 
 
 # ── 接缝自身的边界 ─────────────────────────────────────────────────
@@ -893,6 +955,79 @@ class TestSeamBoundaries:
         assert laundered.status_code == 400, laundered.text
         assert "maim_message.auth_token" in laundered.text
         assert config_path.read_bytes() == before_bytes, "洗秘密的写入必须整次作废"
+
+    def test_unset_placeholder_saying_false_cannot_claim_a_real_value(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """**F3 子观察（2026-10-16 定）**：``set: false`` 的占位标志以前**从没被读过**。
+
+        这里的占位指向 ``api_providers[1].api_key``（盘上是引用文本，即"有值"），
+        但自带 ``set: false``——一个自相矛盾的标记。旧行为照常认领 ⇒ 写下去**静默丢掉那份凭据**
+        （占位不是值，落盘的就是"没有值"）。新行为：拒绝整次写入、点名。
+        """
+        config_path = seam_config_dir / "model_config.toml"
+        before_bytes = config_path.read_bytes()
+        revision = _read_paths(client, "model")["revision"]
+
+        response = _mutate(
+            client,
+            "model",
+            revision,
+            [
+                {
+                    "op": "set",
+                    "path": "api_providers[1].api_key",
+                    "value": {
+                        "$secret": True,
+                        "set": False,
+                        "path": "api_providers[1].api_key",
+                        "origin_name": "SeamRef",
+                    },
+                }
+            ],
+        )
+
+        assert response.status_code == 400, response.text
+        assert "set=false" in response.text or "set: false" in response.text
+        assert config_path.read_bytes() == before_bytes, "被拒绝的写入必须整次作废"
+
+    def test_unset_placeholder_on_an_empty_source_is_still_accepted(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """**F3 子观察的反向判据**（防"一刀切"）：来源位置本来就没值 ⇒ ``set: false`` 的占位与事实一致。
+
+        形态取自真实客户端行为：读一份**没配密钥**的配置（秘密字段直接**不存在** ⇒ 三态里的
+        "未配置"，``set: false`` + 来源路径），在页面上填别的字段，然后把整份读回来的东西写回去。
+        这一路**不能**被 F3 子观察的判据误伤——判据只拦"来源**有值**却自称没值"的自相矛盾。
+
+        ⚠️ **已知边界（保留，本次不修）**：来源路径**不存在**时，占位无法被"认领"（没有值可认），
+        它会**原样留在 payload 里**，由 ``find_unresolved_sentinels`` 拦成 400。
+        ⇒ 本次判据补的是"值为 None/空"这一类（能认领、认领结果是空），
+        "字段整个不存在"这一类仍是 400（拒绝而不是猜：空值该不该落盘是另一个决定）。
+        """
+        config_path = seam_config_dir / "bot_config.toml"
+        # 把"有值"改成"值为空"：字段还在（来源路径可认领），但值确实是空的
+        text = config_path.read_text(encoding="utf-8").replace(
+            f'auth_token = ["{FAKE_BOT_TOKEN}"]\n', "auth_token = []\n"
+        )
+        config_path.write_text(text, encoding="utf-8")
+        revision = _read_paths(client, "bot")["revision"]
+
+        response = _mutate(
+            client,
+            "bot",
+            revision,
+            [
+                {
+                    "op": "set",
+                    "path": "maim_message.auth_token",
+                    "value": {"$secret": True, "set": False, "path": "maim_message.auth_token"},
+                }
+            ],
+        )
+
+        assert response.status_code == 200, response.text
+        assert _load_plain(config_path)["maim_message"]["auth_token"] == []
 
     def test_placeholder_from_a_non_secret_field_is_refused(
         self, client: TestClient, seam_config_dir

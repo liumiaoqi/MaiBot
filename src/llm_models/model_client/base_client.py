@@ -5,7 +5,7 @@ from typing import Any, Callable, Coroutine, Dict, List, Set, Tuple, Type
 import asyncio
 
 from src.common.logger import get_logger
-from src.config.model_configs import APIProvider, ModelInfo
+from src.config.model_configs import APIProvider, ModelInfo, resolve_provider_env_references
 from src.core.protocols import ModelConfigPort
 from src.llm_models.payload_content.message import Message
 from src.llm_models.payload_content.resp_format import RespFormat
@@ -444,29 +444,39 @@ class ClientRegistry:
     def get_client_class_instance(self, api_provider: APIProvider, force_new: bool = False) -> BaseClient:
         """获取注册的 API 客户端实例。
 
+        **这是 `${VAR}` 解析的唯一注入边界**（4 段归位）：配置对象里存的是盘上原文，
+        解析在"读出配置后、注入客户端之前"这一步做，且只做在**传给工厂的副本**上——
+        传进来的 ``api_provider`` 往往就是 `ConfigManager` 持有的那份，就地改写它等于把明文
+        塞回配置对象，下一次配置升级就会把明文写回文件（3 段实测的写回洞）。
+
         Args:
-            api_provider: APIProvider 实例。
+            api_provider: APIProvider 实例（持有盘上原文）。
             force_new: 是否强制创建新实例。
 
         Returns:
             BaseClient: 注册的 API 客户端实例。
+
+        Raises:
+            KeyError: ``client_type`` 未注册。
+            ConfigEnvReferenceError: ``api_key`` 引用的环境变量缺失或为空（不静默退化）。
         """
         from . import ensure_client_type_loaded
 
         ensure_client_type_loaded(api_provider.client_type)
+        resolved_provider = resolve_provider_env_references(api_provider)
 
         # 如果强制创建新实例，直接创建不使用缓存
         if force_new:
-            if registration := self.client_registry.get(api_provider.client_type):
-                return registration.factory(api_provider)
-            raise KeyError(f"'{api_provider.client_type}' 类型的 Client 未注册")
+            if registration := self.client_registry.get(resolved_provider.client_type):
+                return registration.factory(resolved_provider)
+            raise KeyError(f"'{resolved_provider.client_type}' 类型的 Client 未注册")
 
         # 正常的缓存逻辑
         if api_provider.name not in self.client_instance_cache:
-            if registration := self.client_registry.get(api_provider.client_type):
-                self.client_instance_cache[api_provider.name] = registration.factory(api_provider)
+            if registration := self.client_registry.get(resolved_provider.client_type):
+                self.client_instance_cache[api_provider.name] = registration.factory(resolved_provider)
             else:
-                raise KeyError(f"'{api_provider.client_type}' 类型的 Client 未注册")
+                raise KeyError(f"'{resolved_provider.client_type}' 类型的 Client 未注册")
         return self.client_instance_cache[api_provider.name]
 
     def clear_provider_cache(self, provider_name: str) -> None:

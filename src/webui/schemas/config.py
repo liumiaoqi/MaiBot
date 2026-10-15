@@ -19,6 +19,16 @@ class ConfigReadRequest(BaseModel):
 class ConfigMutateOp(BaseModel):
     """一次路径操作（F1）：``set`` / ``unset`` / ``remove_at``。
 
+    **路径约定**（F8，2026-10-16 对齐——实现是真源，本文档指向它）：
+
+    - ``remove_at`` 的 ``path`` **指向数组容器本身**，下标走 ``index`` 字段：
+      删 ``[[api_providers]]`` 的第 1 项 ⇒ ``{"op": "remove_at", "path": "api_providers", "index": 1}``。
+      **不要**写成 ``path="api_providers[1]"``（旧文档是那么写的，与实现不符：实现会把
+      ``[1]`` 走到元素上，然后报"目标不是数组"）。真源：
+      :func:`src.webui.config_paths.remove_index`（``lookup_path(root, tokens)`` + ``del container[index]``）。
+    - ``unset`` 的 ``path`` 指向**键**；对不存在的键是**幂等 no-op**（F9，2026-10-16 定），
+      对数组元素则拒绝（那条路要 ``remove_at``）。
+
     ``unset`` 表示"重置为继承"（真删键），**不是**"写一个等于默认值的值"（F5）——
     后者会让 ``inherited`` 永远是 false，此后再改 schema 默认值也追不上。
     """
@@ -26,9 +36,13 @@ class ConfigMutateOp(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     op: Literal["set", "unset", "remove_at"] = Field(..., description="操作类型")
-    path: str = Field(..., description="配置路径，如 chat.max_tokens、api_providers[0].api_key")
+    path: str = Field(..., description="配置路径，如 chat.max_tokens、api_providers（remove_at 指向数组容器）")
     value: Any = Field(default=None, description="set 的新值；可以是原值，也可以是读回来的秘密占位")
-    index: int | None = Field(default=None, ge=0, description="remove_at 的下标")
+    index: int | None = Field(
+        default=None,
+        ge=0,
+        description="remove_at 要删的元素下标（path 指向数组容器本身，见类文档）",
+    )
 
 
 class ConfigMutateRequest(BaseModel):

@@ -12,6 +12,7 @@ from src.common.logger import get_logger
 from src.common.version import read_project_version
 
 from .config_base import AttributeData, ConfigBase, Field
+from .config_lifecycle import check_field_lifecycle, collect_generated_paths
 from .config_upgrade_hooks import (
     MIGRATIONS_COMMENT,
     MIGRATIONS_KEY,
@@ -26,7 +27,7 @@ from .config_utils import output_config_changes, recursive_parse_item_to_table
 from .default_model_config import create_default_model_config
 from .file_watcher import FileChange, FileWatcher
 
-from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
+from .model_configs import APIProvider, ModelInfo, ModelTaskConfig, preflight_provider_env_references
 from .official_configs import (
     AMemorixConfig,
     AgentAutonomySectionConfig,
@@ -338,6 +339,16 @@ class ConfigManager:
         return self._frozen
 
     def initialize(self):
+        """启动入口：读两份配置 + **启动期预校验**（缺变量当场拒绝启动）。
+
+        预校验的位置有意放在两份配置都读完之后、`_warn_if_vlm_not_configured` 之前：
+        它是"这份配置**能不能**跑起来"的问题，比"视觉模型配没配"这种告警更根本。
+
+        ⚠️ 为什么启动期要单独校验一次（4 段归位的代价与补偿）：``${VAR}`` 的解析挪到
+        "注入客户端之前"之后，"缺变量"不再是启动失败，而是**第一次建客户端**才炸 ⇒
+        容器 `ready=True`、心跳正常，直到用户第一条消息进来才失败。启动期这一次**只读不写**
+        （不构造客户端、不改文件，盘上仍是 ``${VAR}``），把"配置错误要响亮"这条拿回来。
+        """
         logger.info(t("config.current_version", version=MMC_VERSION))
         logger.info(t("config.loading"))
         self.global_config, global_updated = load_config_from_file(Config, self.bot_config_path, CONFIG_VERSION)
@@ -349,6 +360,7 @@ class ConfigManager:
         )
         if global_updated or model_updated:
             logger.info("配置已自动升级，将继续使用更新后的配置启动")
+        preflight_provider_env_references(self.model_config)
         self._warn_if_vlm_not_configured(self.model_config)
         logger.info(t("config.loaded"))
 
@@ -647,20 +659,80 @@ class ConfigManager:
             logger.error(t("config.reload_timeout", timeout_seconds=self._hot_reload_timeout_s))
 
 
+def _template_path_of(config_path: Path) -> Path:
+    """配置的 `.template` 基线路径（同目录、加后缀）。
+
+    `.template` = **程序自己生成的默认形态**（`generate_new_config_file` 落盘），用来回答
+    "这个弃用键是用户显式留的，还是我们写进默认值的"（见 `collect_generated_paths`）。
+    """
+    return config_path.with_name(f"{config_path.name}.template")
+
+
+def _read_generated_paths(config_class: type[T], config_path: Path, new_ver: str) -> frozenset[str]:
+    """读 `.template` 基线并导出"我们写进默认值"的被声明路径。
+
+    - 基线不存在（老部署、或 `.template` 被删）⇒ 返回**空集**：宁可信"用户自己留的"而多响一次，
+      也不能反过来（把用户的显式选择静默掉）。
+    - 基线读不动（坏 TOML / 权限）⇒ 同上，并且双通道出声——这类失败只影响"出不出声"，不该阻断启动。
+    """
+    template_path = _template_path_of(config_path)
+    if not template_path.exists():
+        return frozenset()
+    try:
+        with open(template_path, "r", encoding="utf-8") as handle:
+            template_data = tomlkit.load(handle).unwrap()
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取配置默认值基线失败，本次按'用户显式保留'处理", exception=exc)
+        logger.warning(f"读取配置默认值基线失败（{template_path.name}），本次按'用户显式保留'处理: {exc}")
+        return frozenset()
+    return collect_generated_paths(config_class, template_data)
+
+
 def generate_new_config_file(
     config_class: type[T], config_path: Path, inner_config_version: str, override_repr: bool = False
 ) -> None:
-    """生成新的配置文件
+    """生成新的配置文件（同时落一份 `.template` 默认值基线）。
 
     :param config_class: 配置类
     :param config_path: 配置文件路径
     :param inner_config_version: 配置文件版本号
+
+    ⚠️ `.template` 是**副作用最小**的基线载体：它只被 `_read_generated_paths` 读，不参与任何
+    运行期决策；`.gitignore` 已覆盖 `config/*`，容器挂载的 `docker-config/mmc` 也跟着落一份。
     """
     if config_class is ModelConfig:
         config = create_default_model_config(config_class)
     else:
         config = config_class()
     write_config_to_file(config, config_path, inner_config_version, override_repr)
+    _write_default_template(config, config_path, inner_config_version, override_repr)
+
+
+def _write_default_template(
+    config: ConfigBase, config_path: Path, inner_config_version: str, override_repr: bool
+) -> None:
+    """把刚生成的默认配置另存一份 `.template`（数据形态，不含注释）。
+
+    写失败**不阻断**配置生成：基线只影响"弃用警告响不响"，不该让首启失败（写一张告警即可）。
+    """
+    template_path = _template_path_of(config_path)
+    try:
+        template = _build_config_template(config, inner_config_version, override_repr)
+        with open(template_path, "w", encoding="utf-8") as handle:
+            tomlkit.dump(template, handle)
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "写入配置默认值基线失败", exception=exc)
+        logger.warning(f"写入配置默认值基线失败（{template_path.name}），后续弃用提示可能偏多: {exc}")
 
 
 
@@ -690,6 +762,18 @@ def load_config_from_file(
     try:
         raw_inner_version = _read_raw_inner_version(inner_table, str(config_path), new_ver)
         version_plan = plan_version_chain(str(config_path), raw_inner_version, new_ver, raw_migrations)
+        # 字段级生命周期（4 段）：与版本链**同一个位置**——任何写入之前。
+        # 弃用只出声（warning），移除是拒绝（ConfigFieldRefusedError，原文件不动）。
+        # 顺序说明：放在 apply_config_upgrade_hooks **之前**——"这个字段已经被移除了"比
+        # "该跑哪个迁移器"更根本；先让迁移器改一遍数据再拒绝，等于做了一次白工。
+        # `generated_paths` = 程序默认值基线里的被声明路径 ⇒ 那些键是我们写进去的、不是用户的
+        # 选择，弃用不出声（见 `collect_generated_paths`）。
+        check_field_lifecycle(
+            config_class,
+            config_data,
+            file_name=str(config_path),
+            generated_paths=_read_generated_paths(config_class, config_path, new_ver),
+        )
         hook_result = apply_config_upgrade_hooks(
             config_data,
             config_path.name,

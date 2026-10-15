@@ -235,7 +235,14 @@ class TestEnvReferenceResolution:
         for raw_value in ("${}", "${1BAD}", "prefix-${", "plain-text"):
             assert resolve_env_references(raw_value, field_path="api_providers[x].api_key") == raw_value
 
-    def test_provider_from_dict_resolves_reference(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_provider_from_dict_keeps_reference_unresolved(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """**4 段按归位后的口径改写过**：``from_dict`` **不再**解析 ``${VAR}``。
+
+        旧判据（``provider.api_key == FAKE_ENV_KEY_VALUE``）现在被有意反转——解析期构造对象时
+        就地改写正是"升级回写把明文写回文件"的根因（3 段实测）。新判据是对象里**仍是引用**，
+        解析由 ``resolve_provider_env_references`` 在注入客户端之前做（判据在
+        ``pytests/config_test/test_env_reference_injection_boundary.py``）。
+        """
         monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
 
         provider = APIProvider.from_dict(
@@ -243,21 +250,26 @@ class TestEnvReferenceResolution:
             {"name": "FakeRef", "base_url": "https://x.invalid/v1", "api_key": REFERENCE_TEXT},
         )
 
-        assert provider.api_key == FAKE_ENV_KEY_VALUE
+        assert provider.api_key == REFERENCE_TEXT
+        assert provider.api_key != FAKE_ENV_KEY_VALUE
 
-    def test_provider_from_dict_missing_variable_reports_name_not_empty_key(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """缺变量时不能变成"没配 key"——报错要带变量名。"""
+    def test_provider_from_dict_missing_variable_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """**4 段按归位后的口径改写过**：缺变量在构造期**不再**报错。
+
+        旧判据（构造即抛、消息带变量名）对应"解析在 ``model_post_init``"；归位之后构造只做
+        形状与非空校验，缺变量的报错推后到**注入客户端**那一刻（那里仍带变量名与字段路径）。
+
+        ⚠️ 行为代价（如实记录）：容器不再因为"某个变量没配"而起不来——代价是**这个引用
+        在真正被用之前不会被验证**。判据：错误没丢，只是换了时机（见边界用例的双条断言）。
+        """
         monkeypatch.delenv(REFERENCE_ENV_VAR, raising=False)
 
-        with pytest.raises(Exception) as excinfo:
-            APIProvider.from_dict(
-                AttributeData(),
-                {"name": "FakeRef", "base_url": "https://x.invalid/v1", "api_key": REFERENCE_TEXT},
-            )
+        provider = APIProvider.from_dict(
+            AttributeData(),
+            {"name": "FakeRef", "base_url": "https://x.invalid/v1", "api_key": REFERENCE_TEXT},
+        )
 
-        assert REFERENCE_ENV_VAR in str(excinfo.value)
+        assert provider.api_key == REFERENCE_TEXT
 
 
 # ── 脱敏口径与嵌套遍历 ──────────────────────────────────────────────
@@ -422,20 +434,31 @@ class TestWritePathFidelity:
         assert after["api_providers"][0]["base_url"] == "https://plain.example.invalid/v2"
         assert config_secrets.find_unresolved_sentinels(after) == []
 
-    def test_save_fails_loudly_when_referenced_variable_missing(
+    def test_save_keeps_reference_when_referenced_variable_missing(
         self, client: TestClient, config_dir, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """缺变量：400 + 报出变量名 + 文件一个字节都不动。"""
+        """**4 段按归位后的口径改写过**：缺变量**不再**让这次保存 400。
+
+        旧判据（400 + 变量名 + 文件不动）对应"加载/保存期解析引用"。归位之后配置侧**不认识**
+        引用能否解析（那是注入边界的事）⇒ 保存照常成功，且**盘上仍是引用**（不是坏明文、
+        也不是空串）。本用例改为钉住这条新语义，并显式记录 UX 变化：以前这个错误在校验器里
+        被大声报出来，现在要等到真正建客户端时才报——**代价是有意接受的**（参见
+        `test_env_reference_injection_boundary.py`：错误没丢，只是换了时机）。
+
+        ⚠️ 这条用例是"三对照"里**保留**那对照的一部分：缺变量的引用必须**原样活着**，
+        既不能被换成空串，也不能被换成明文。
+        """
         monkeypatch.delenv(REFERENCE_ENV_VAR, raising=False)
         config_path = config_dir / "model_config.toml"
-        before_bytes = config_path.read_bytes()
         providers = client.get("/api/webui/config/model").json()["config"]["api_providers"]
 
         response = client.post("/api/webui/config/model/section/api_providers", json=providers)
 
-        assert response.status_code == 400, response.text
-        assert REFERENCE_ENV_VAR in response.text
-        assert config_path.read_bytes() == before_bytes
+        assert response.status_code == 200, response.text
+        after = _load_plain(config_path)
+        keys = [provider["api_key"] for provider in after["api_providers"]]
+        assert REFERENCE_TEXT in keys, f"缺变量的引用没能原样保留在盘上：{keys}"
+        assert "" not in keys, "引用被静默换成了空串（正是 P2 要防的形态）"
 
     def test_new_plaintext_key_is_written(
         self, client: TestClient, config_dir, monkeypatch: pytest.MonkeyPatch

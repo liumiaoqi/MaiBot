@@ -359,19 +359,32 @@ def assign_path(root: Any, tokens: Sequence[PathToken], value: Any) -> None:
 def remove_path(root: Any, tokens: Sequence[PathToken]) -> None:
     """按路径删除键（``unset`` op 的实现——**真删**，不是写默认值）。
 
+    **幂等**（F9，2026-10-16 定）：键**本来就不存在**时**不算失败**——"重置为继承"的目标
+    是"这个键不在文件里"，而它已经在那个状态了。旧行为是抛 ``ConfigPathError`` ⇒ 400，
+    ⇒ 批量重试（第一次成功、重发同一批）会卡在这一条上，把"已经是想要的状态"报成错误。
+
+    ⚠️ 幂等**只覆盖"键不存在"这一种**，别的照旧报错：
+      - 路径**走不通**（父层类型不符 / 中间段不存在 / 下标越界）⇒ 仍然 ``ConfigPathError``:
+        "文件里根本没有这条路径"是**别的错**（拼错路径、对着旧版本的表单操作），
+        悄悄放过等于把用户的错误吃掉；
+      - 数组元素要用 ``remove_at``（下标删除）⇒ 仍然拒绝。
+
     只删键，不清理变成空表的父层：TOML 里空表是合法的，而"顺手删掉空表"会让
     ``[chat]`` 这类节连同注释一起消失，超出用户点"重置"的意图。
 
     Raises:
-        ConfigPathError: 路径不存在或不可删。
+        ConfigPathError: 父容器不可写 / 目标不是键（是数组元素）/ 路径走不通。
     """
     if not tokens:
         raise ConfigPathError("配置路径不能为空")
     parent, last_token = lookup_parent(root, tokens)
     if isinstance(last_token, int):
         raise ConfigPathError("数组元素要用 remove_at（下标删除），不能用 unset", path=format_path(tokens))
-    if not isinstance(parent, Mapping) or last_token not in parent:
+    if not isinstance(parent, Mapping):
         raise ConfigPathError("路径不存在，无法重置", path=format_path(tokens))
+    if last_token not in parent:
+        # F9：幂等分支——键已经在"不在文件里"这个状态，重复 unset 不改语义
+        return
     if not _is_mutable(parent):
         raise ConfigPathError("父容器不可写", path=format_path(tokens))
     del parent[last_token]
