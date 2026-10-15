@@ -921,9 +921,12 @@ dependencies = [
     { name = "faiss-cpu" },
     { name = "fastapi" },
     { name = "google-genai" },
+    { name = "grpcio" },
+    { name = "grpcio-reflection" },
     { name = "httpx", extra = ["socks"] },
     { name = "jieba" },
     { name = "json-repair" },
+    { name = "jsonschema" },
     { name = "maibot-dashboard" },
     { name = "maibot-plugin-sdk" },
     { name = "maim-message" },
@@ -955,10 +958,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "grpcio" },
-    { name = "grpcio-reflection" },
     { name = "grpcio-tools" },
-    { name = "jsonschema" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -975,9 +975,12 @@ requires-dist = [
     { name = "faiss-cpu", specifier = ">=1.11.0" },
     { name = "fastapi", specifier = ">=0.116.0" },
     { name = "google-genai", specifier = ">=1.39.1" },
+    { name = "grpcio", specifier = ">=1.83.0" },
+    { name = "grpcio-reflection", specifier = ">=1.83.0" },
     { name = "httpx", extras = ["socks"] },
     { name = "jieba", specifier = ">=0.42.1" },
     { name = "json-repair", specifier = ">=0.60.1" },
+    { name = "jsonschema", specifier = ">=4.0" },
     { name = "maibot-dashboard", specifier = ">=1.5.4" },
     { name = "maibot-plugin-sdk", specifier = ">=2.7.0" },
     { name = "maim-message", specifier = "==0.6.8" },
@@ -1009,10 +1012,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "grpcio", specifier = ">=1.83.0" },
-    { name = "grpcio-reflection", specifier = ">=1.83.0" },
     { name = "grpcio-tools", specifier = ">=1.83.0" },
-    { name = "jsonschema", specifier = ">=4.0" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff", specifier = ">=0.12.2" },

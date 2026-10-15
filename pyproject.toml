@@ -46,14 +46,14 @@ dependencies = [
     "pyyaml>=6.0.3",
     "qiskit",
     "qiskit-aer",
+    "grpcio>=1.83.0",
+    "grpcio-reflection>=1.83.0",
+    "jsonschema>=4.0",
 ]
 
 [dependency-groups]
 dev = [
-    "grpcio>=1.83.0",
-    "grpcio-reflection>=1.83.0",
     "grpcio-tools>=1.83.0",
-    "jsonschema>=4.0",
     "pytest",
     "pytest-asyncio",
     "ruff>=0.12.2",
