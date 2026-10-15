@@ -1,189 +1,17 @@
-> 硬性规则 + 路由策略。架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，工作手册见 `CLAUDE.md`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
+# AGENTS.md（MaiBot · 工程铁律层）
 
-# 领域自治架构
+> **硬性规则 + 路由策略。本文件是唯一正本**——`CLAUDE.md`（原 `.claude/CLAUDE.md` 工作手册）已于 2026-10-15 合并入此，根目录 `CLAUDE.md` 仅留指针（dsh 标准）。
+> 架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`；债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`；决策/复盘/交接见 `.shared/`（总账见 `C:\hub\`）。
+> **分层位置**：本仓 = 工程铁律层（跨领域分层原则见 `C:\hub\ARCHITECTURE.md`）。
+> ⚠️ **写代码 / 审查前必扫**：§七 高频缺陷模式 + `docs/pitfalls.md`（25 条实战踩坑）。
 
-> ⚠️ **本节已迁往中枢**（2026-09-22）：**`C:\hub\ARCHITECTURE.md`**
->
-> **理由**：它讲的是**跨领域的分层原则**（调度层 / 工程铁律层 / 地方 / skill）与
-> 「分层 AGENTS.md」的通用标准与判据 —— **不属任何单一领域**。
-> **别在这里复制一份** —— 要改去中枢改（原处留指针，防多份漂移）。
->
-> **MaiBot 在架构中的位置**：它是**工程铁律层**（见 `C:\hub\AGENTS.md` §五）。
+---
 
-# 代码规范
-
-## import 规范
-1. 标准库/第三方库在前，本地模块在后，`from ... import ...` 在 `import ...` 前
-2. 同类导入按字母序排列（不引起 import 错误前提下）
-3. 同文件夹用相对导入，跨文件夹用 `from src` 绝对导入
-4. 各导入块间空一行
-
-## 注释规范
-1. 保持良好注释
-2. 重构时保留原有注释（可修改准确性，不删除）
-3. 复杂逻辑块添加注释
-
-## 类型注解规范
-1. 重构时保留原有类型注解
-2. 复杂函数/多参数函数添加类型注解
-3. 参数化泛型用 `typing` 模块（如 `List[int]`、`Dict[str, Any]`）
-
-## 变量规范
-1. 确定类型时不使用 `or` fallback（如 `global_config.bot.nickname.strip()` 而非 `(global_config.bot.nickname or "").strip()`）
-2. 合理豁免：外部数据源可能返回 None 时可用 `or ""`
-
-## 类属性使用规范
-1. 减少 getattr/setattr，优先类属性直接访问
-2. 保留场景：动态 LLM task_config、numpy 数组、上传对象等动态外部对象
-
-## debug规范
-1. 精准找问题核心，不兜底
-2. 区分"不兜底"（值应存在时直接用）与"不写入脏数据"（外部返回 None 时不强行 fallback 写入数据库）
-
-# 运行/调试/构建/测试/依赖
-优先使用 uv，依赖项以 pyproject.toml 为准
-
-# Python 版本
-新代码必须兼容 Python 3.14.7。不使用 `from __future__ import annotations`。
-
-# 语言规范
-首选简体中文（注释、日志、WebUI）
-
-# 配置文件修改
-只改模板+新增版本号，不改动 legacy_migration，不擅自新增 ConfigUpgradeHook
-
-# Webui规范
-- 显示聊天流实际名称而非 session_id
-- UI 高度/布局问题：查 DOM 变化、computed style、data-dashboard-style
-- UI 底纹/阴影/半透明：按 DOM 层级逐层查 computed style
-- Radix 组件不随便移出上下文
-- 修改完不急着 npm run build，开发服务固定 7999 端口
-
-## WebUI 前端状态（2026-08-21 立）
-- **mingtang/** = 新前端（**主战场**）——React 19.2 + TS 双轨（typescript6 包）/Vite 8.2/ESLint 10；8 功能域已实现（config/chat/memory/resource/monitor/agent/plugin/home/survey），135 测试；蓝图见 `.shared/decisions/WebUI_Plan/mingtang_architecture_blueprint_0808.md`；验收终点：`cd mingtang && npm run lint && npm run test && npm run build` 三绿（当前基线 135 tests）
-- **dashboard/** = 老前端（⚠️ **遗留，待 mingtang 验收后废弃**）——React 19.2/TS ~5.9.3/Vite 7.2/ESLint 9.39；**当前生产仍挂载其 dist**（docker-compose `MAIBOT_WEBUI_USE_LOCAL_DASHBOARD=1` + `app.py:300` 静态路径）；**新功能开发一律进 mingtang，dashboard 只做修复不做新功能**；废弃标识见 `dashboard/DEPRECATED.md`
-- **切换状态**（2026-10-15 更新）：R4 债清理 ✅（8-14）+ mingtang 三绿 ✅（10-15 验证：lint/test/build，BUILD 需 `NODE_OPTIONS=` 避开本地环境 shim）+ 后端挂载切换 ✅（`app.py` `_DEFAULT_STATIC_DIR=mingtang/dist` + compose）——「功能对照验收」作为**可选**质量检查保留；**dashboard 不再计划物理删除**（lmq 2026-10-15 定：git 保底 + 只修不加纪律已锁，**保留作回退选项**；见 `dashboard/DEPRECATED.md`）
-
-# 会话 ID 规范
-业务模块不应自行调用 `SessionUtils.calculate_session_id`，应通过 `SessionRepository` Protocol 查询已存在的真实聊天流；查询不到不应强行计算 fallback hash 写入数据库
-
-# A_memorix 修改
-可自由修改，约束仅来自核心隔离和 Protocol 接口契约（详见 `src/A_memorix/MODIFICATION_POLICY.md`）
-
-# prompt模板
-修改需同步英文和日文文件
-
-# 默认原则
-1. 不提交无边界的 ruff、格式化、导入整理或大面积实现整理
-2. 本地实验目录不进入共享历史
-3. **AI 实验区（2026-08-17 立）**：所有 AI 相关实验（微调/SNN/小模型/新架构/行为模拟）统一在 `scripts/embedding_finetune/` 做（uv 隔离 .venv 3.12 + torch cu128，与主项目 3.14 隔离）——规则见该目录 RULES.md；lab/ 只放非 AI 零散脚本
-4. **术语准确（2026-08-25 立）**：NapCat 是独立 QQ Bot 框架（OneBot 11 协议实现），**不是适配器**；`maibot-team.napcat-adapter` 才是 MaiBot 的适配器插件（连接 NapCat ↔ core）。文档/报告中不混淆二者
-
-5. **压缩后不内耗（2026-08-22 立，用户拍板）**：上下文压缩/新会话后禁止"重建上下文强迫症"——不要 glob 全目录 + read 一堆文件做全景侦察。**一次定位**：git log 前 5 条 + 最新 handoff/回执 + 用户当前指令，读完就干活。配套：①工具调用失败重试一次，还失败换思路，不写 try/catch 防御性包装 ②动作前不反复验证——用户说提交就提交，验证收尾一次做 ③CA 回执说完成 → 抽查最小集（2-3 个关键 grep），不全面复验 ④交接文档是权威，不重复调查已完成任务
-
-6. **索引优先（2026-08-22 立，用户拍板）**：**有索引先读索引，索引有遗漏向用户报告**——skill 的任务是快速把握局面：进目录先读 INDEX/README（lab/INDEX.md、scripts/embedding_finetune/INDEX.md、C:\hub\reference\projects-INDEX.md），不 glob 全目录侦察；索引缺内容 = 报告用户补索引，不自己翻全目录硬找
-7. **事故复盘文化（2026-08-22 立，用户拍板——对齐 dsh docs/postmortem）**：bug 逃逸到生产/真实用户时，不只修那行——写**事故复盘**（`.shared/postmortem/`，五段式：摘要/概述/时间线/根因/防护措施+教训）。三道筛选：隐蔽（机制不显然）/系统性（测试工具约定缺口）/重发现代价高（调试时间长且会复发）。**每篇结尾必须挂防护措施**（测试/AGENTS 规则/门禁——N1/N4/四连问/缺陷清单都是防护措施的实例）——复盘是回顾失败，不是设计决策，与 decisions/ 分开。**postmortem 主动查阅与维护（2026-08-25 立——用户指出"编码/决策时根本不知道这里有复盘文档"）**：postmortem 不是只写不读的档案——它是编码和决策时的**必查参考**，就像查 grep 一样自然。①**修 bug 前**先查 `.shared/postmortem/` 看是否有同类事故历史复盘——避免重蹈覆辙 ②**做设计决策前**先查 postmortem 了解过去踩过的坑和相关防护措施 ③**写新代码/审查代码时**对照 postmortem 中的防护措施逐条检查 ④**修完 bug 后**主动判断是否需要写复盘（三道筛选），不等用户要求 ⑤**创建新复盘前**先读总账 `C:\hub\postmortems\INDEX.md` 了解格式/编号规范——违反此条=不知规范凭空造
-8. **抓日志只抓新日志（2026-08-25 立，用户拍板）**：排障抓日志必须只抓**最后一次启动之后**的日志——禁止抓陈年老日志。Docker 用 `docker logs --since <启动时间>` 或 `--tail` 限定范围；先确认容器启动时间（`docker ps --format '{{.CreatedAt}}'`），再抓该时间之后的日志。抓到老日志会导致误判——把已修复的问题当成现存问题
-
-9. **Docker 维护（2026-09-01 立——vhdx 静默膨胀事故 137.8G，WB 复盘补位 001x）**：
-   - **构建前必查 `.dockerignore` 覆盖**：node_modules/.git/权重(*.safetensors)/克隆池/*.zip/build/输出目录——缺一项就进图层（构建缓存只增不减——本次 18.4G 事故层证据）
-   - **长期不用 Docker 优先 unregister/停用**（禁止"放着养"——vhdx 只增不减）
-   - **清理链必须是**：prune → **vhdx 处理**（unregister 重建/Optimize-VHD/迁移）——只清 Docker 内容=白清，必须处理 vhdx 本体
-   - **C 盘空间纳入巡检**（空间类故障无声膨胀，无监控=爆炸时才知道；阈值参考 WB c_drive_cleanup 计划）
-   - 操作细则见 docker skill（.dsh/skills/docker）
-
-# 设计参考铁律（2026-08-17 立，用户拍板）
-
-**设计派发/SSD/调研文档必须标注参考源码来源：**
-
-1. **设计系统类（OS 化/系统治理/资源/调度/容错）**——必须标注 Linux 内核源码参考：
-   `E:\Users\lmq\importantClone\linuxclone\linux\`（对应机制所在文件，如 mm/vmscan.c、kernel/workqueue.c）
-2. **设计智能体类（agent/记忆/自主性/工具链）**——必须标注 dsh（deepseek-harness）源码参考：
-   `E:\Users\lmq\importantClone\DEEPSEEKCLONE\deepseek-harness\`（对应包，如 packages/compaction、packages/token-meter）
-3. **理由**：MaiBot 底模 = DeepSeek 模型，dsh 是它的 harness——模型特化必须向 harness 看齐；
-   ZG 计划整体对标 Linux——系统机制必须翻内核真实现。两者是最重要的参考，不标注=设计无据。
-4. **插件哲学（2026-08-17 用户拍板）**：MaiBot 插件体系的设计哲学**重点从 dsh 学习**——
-   deepseek-harness 的 47 包 Cordis 插件架构（生命周期/依赖/作用域/上下文注入）是插件设计的第一参考，
-   先于通用插件框架（如 Home Assistant 等仅作补充对照）。
-5. **范围**：派发文档（dsh2ca_*）、SSD（spec/design/tasks）、调研报告均需在输入材料/引用中体现。
-6. **dsh 参考文档地图（2026-08-17 立——做设计前先翻说明书再翻源码）**：
-   - 架构总览：`DEEPSEEKCLONE/deepseek-harness/docs/architecture.md` + `cordis-primer.md`
-   - 「一切皆插件」落地：`docs/capability-seams.md`（核心脊柱/可换接缝/bundle 组合点）
-   - 配置设计：`docs/config-catalog.md`（132KB 全量配置目录——模型配置分层/编组直接参考）
-   - 工具设计：`docs/tool-catalog.md`（80KB）+ `docs/tool-execution-pipeline.md`
-   - **防御模式（缺陷类规则）**：`docs/defensive-patterns.md`——写生命周期/并发/子进程代码前必读
-   - 事件体系：`docs/event-producer-consumer.md` / 生命周期：`docs/agent-lifecycle.md`
-   - 团队 skill（工作流即插件）：`.agents/skills/`（11 个——code-review/pre-push-checks/trim-cot-leakage 等）
-   - 全部有中文版（.zh.md）；详见 `C:\hub\reference\dsh\dsh_team_skills_observation_0817.md`
-
-7. **克隆池 Skill 库使用引导（2026-08-19 立——5 库 + dsh 11 + 用户 6 全景）**：
-   - 完整版：`C:\hub\reference\clone_skill_library_guide_0819.md`
-   - 常用映射：双轴审核→skills/code-review；对抗审查→agent-skills/doubt-driven-development；安全加固→agent-skills/security-and-hardening；科学统计→scientific-agent-skills/statistical-analysis；代码审计→reverse-skill/code-audit
-   - 原则：skill 是方法不是圣经——引入前问"它解决我们哪个具体痛点"
-
-8. **学习开源项目铁律（2026-08-24 立，用户拍板）**：**学习开源项目 = 学习好的优秀的架构和设计**——不是学它的代码。任何开源参考（上游 MaiBot / Linux / dsh / 克隆池）：
-   - ✅ 看什么：架构分层/设计取舍/机制原理/防御模式——即"为什么长这样"的层面
-   - ❌ 不学什么：代码细节/实现风格/具体逻辑（开源代码质量参差——抄实现=抄缺陷）
-   - **判断标准**：这个开源项目的架构段位是否在本地之上（本地是"标准"的话，开源只是"灵感来源"，不是反过来）
-   - **策略 B（上游 MaiBot 2026-08-24 拍板）**：功能评估只看"值不值得有"，实现完全按本地标准重写；上游代码质量低不直接学习——不复刻 merge/cherry-pick，功能级人工评估吸收
-
-# 新模块接线（硬性规则——2026-08-15 立，ZG16-2/ZG16-5 两次静默失效教训）
-
-**新模块（新文件/新类/新入口函数）必须存在生产接线点，禁止"只有定义没有调用点"。**
-
-1. **接线方式二选一**：
-   - 声明 `@startup_item`（ZG-10 启动编排收集）——优先
-   - 或 main.py 启动流程显式 init + 关闭流程显式 close
-2. **编码自检（提交前必做）**：grep 新模块的入口函数（如 `init_xxx`/`xxx_recorder`/`get_xxx`），确认存在生产调用点——**只有测试里调用不算接线**
-3. **单测必须覆盖生产路径初始化**：不允许只测"测试自己 init 自己"——需有一条测试验证生产路径（main.py 或 @startup_item）会初始化该模块
-4. **静默失效禁令**：新模块未接线时不得静默跳过——要么接线，要么初始化失败要出声（日志/启动摘要可见）
-5. **审核对照**：dsh 审核时先查"新模块入口函数的调用点"——漏接线 = 打回（ZG16-2 usage_anchor / ZG16-5 scope_audit 均为此模式）
-6. **接线完整性四连问（2026-08-19 ZH-1 教训强化——'接线点存在 ≠ 接线完成'）**：
-   - ① 新模块有**生产创建点**吗？——grep 类名：只有定义 1 处 = 零创建点 = 静默失效（ZH-1：PersonalityDriftManager 仅类定义，全仓无 new）
-   - ② 创建点的**参数从哪来**？——配置流：构造函数传参 vs 既有 config port，两条路径不一致要查
-   - ③ **组装链闭合**吗？——A 创建 B 并传回调给 C，链上每一环都要有真实调用（不能只查"回调有调用"，要查"谁创建并注册"）
-   - ④ **测试走生产路径**吗？——测试自己 init 自己不算；要测"组装后真实触发"（创建 → 注册 → 触发 完整链）
-   - 审核规则：grep 类名看创建点（不只 grep 调用点）；对每个回调参数问"谁传的"——接线点存在 ≠ 接线完成（ZG16-2/5 + ZG-28 + ZH-1 三代同款模式）
-
-# 高频缺陷模式清单（2026-08-22 立——大规模审查 80 批沉淀：静默失效 113 + 死代码/零接线 73 占绝大多数）
-
-**写代码/审查时逐条对照——命中即怀疑**：
-
-1. **配置注入点零调用**（set_* 静默失效）：`set_ports()`/`set_config()` 有定义有 docstring（"由 main.py 调用"）但生产零调用 → **功能静默禁用**（VLM 表情描述/GIF 转换案例）。比死代码更隐蔽：对象活着但配置没注入。检查：grep `set_\w+` 定义 vs 生产调用
-2. **请求级实例化**（webui 路由）：HTTP 请求处理函数内 `new 服务()` → 有状态服务（成本/缓存/调度）状态请求结束即丢 → **面板永远空/零值**。检查：路由 handler 内直接构造服务实例
-3. **类零创建点（ZH-1 模式）**：类定义存在 + `__init__.py` 导出，但全仓无生产 `Class()`——启动摘要必须报告"未接线+分期原因"（静默失效禁令）
-4. **整文件死代码**：`__init__.py` 导出但无生产调用——**删除或显式标注"未接线原型"**
-5. **字段名错误导致调用即崩**：`ToolExecutionResult(error=...)` 应为 `error_message`——构造必填字段缺失 → TypeError。检查：数据类构造与字段定义对齐
-6. **注销方法内含启动逻辑**：`_unregister_*` 反而重新注册——关闭路径逻辑矛盾。检查：unregister/unregister 类方法体
-7. **异常单通道**：except 块只有 `port.report` 无 logger（或反之）——双通道都要（logger + port.report）
-8. **docstring 承诺但未实现**："由 main.py 调用"但 main.py 没调——**文档与接线脱节**。检查：docstring 里的调用承诺 vs 实际调用点
-9. **无认证端点**（webui 安全）：router 无 `dependencies=[Depends(require_auth)]`——全端点认证（N4 门禁会查）
-10. **结构体必填字段缺失**：构造时缺 `tool_name`/`success` 等必填字段——用统一辅助方法（如 build_success_result）而非逐处手写
-11. **str(Enum) 比较失效**（2026-08-25 立——Python 3.11+ 行为变更）：`str(ServiceState.RUNNING)` 返回 `"ServiceState.RUNNING"` 而非 `"running"`——禁止用 `str(enum).lower()` 做字符串比较，改为直接枚举成员比较或 `.value`。检查：`rg "str\(.*state.*\)\.lower" src/`
-12. **Port 注册零调用**（2026-08-25 立——ZH-1 第四代同款）：`set_*_port()` 有定义有 reset 但全仓零生产调用——适配器创建了但忘记注册到全局 port registry。检查：`rg "def set_\w+_port" src/` 逐个确认有非测试调用点。接线四连问第 1 问扩展：不只查类创建点，还要查 set_*_port 调用点
-
-**完整参考**：`.shared/reports/2026-08/megasurvey/`（A 组 31 份审查——每项 P0/P1 有证据和修复方向）
-
-# 派发模式（2026-08-21 立——按任务类型选）
-- **修复类任务**（改代码）：严格串行一批一报——CA 每批回执，dsh 逐批验收后放行下一批（P0/P1/P2 模式）
-- **调研/审查类大批量**（几十-上百批）：**汇总表模式**——派发时给 CA 汇总表（总清单），CA 对照它一直干到底：①勾选制（每干完一批表中打勾+一句话结论）②BLOCKED 上报制（卡住标 BLOCKED+原因→跳下一批）③每批独立产出文件（N 批=N 份，不是 1 封大报告）④不写中间交接，只有最终汇总
-- **小批量调研**（1-3 批）：单文档派发（既有模式）
-- 完整定义：`.shared/decisions/mega_survey_dispatch_mode_0821.md`
-
-# 插件开发
-- 插件在 /plugins 下独立仓库，改主程序代码需先请求许可
-
-# 修改文档
-功能性变更可修改 /mai-docs，不在上层目录新建
-
-# changelog编写
-分用户感知功能侧和开发侧，一个功能一行按模块分。版本号提升不写入
-
-# 核心架构：微内核 + 接口契约
+# 一、核心架构：微内核 + 接口契约
 
 核心模块不依赖组件具体实现，只通过 Protocol 接口交互。适配器层（`src/core/adapters/`）是唯一允许导入组件具体类的地方。
 
-## 核心禁止项
+## 核心禁止项（14 条）
 
 1. 禁止核心直接导入 chat_manager ✅
 2. 禁止核心访问 chat_manager._agent_router ✅
@@ -200,10 +28,234 @@
 13. 禁止核心 port_registry 导入适配器具体类 — port_registry 应只依赖 Protocol 接口做类型标注，具体实现类由 main.py 启动时通过 set_*() 注入 ✅
 14. 禁止核心直接导入 plugin_runtime 组件 — 核心通过 Protocol 或 port_registry 获取 IPC 桥接能力，不直接依赖插件运行时 ✅
 
-Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters/`，不在此枚举。
+Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters/`，不在本文件枚举。
 
+---
 
-# 债务原则：用现在换未来，不是拿未来换现在
+# 二、代码规范
+
+**import**：标准库/第三方在前，本地模块在后；`from ... import ...` 在 `import ...` 前；同类按字母序；同文件夹相对导入、跨文件夹 `from src` 绝对；块间空一行。
+
+**注释**：保持良好注释；重构时保留原有注释（可修正准确性，不删除）；复杂逻辑块加注释。
+
+**类型注解**：重构时保留原有注解；复杂/多参数函数加注解；参数化泛型用 `typing`（`List[int]`/`Dict[str, Any]`）。
+
+**变量**：确定类型时不用 `or` fallback（`nickname.strip()` 而非 `(nickname or "").strip()`）；豁免：外部数据源可能返回 None 时可用 `or ""`。
+
+**类属性**：减少 getattr/setattr，优先直接访问；保留场景：动态 task_config、numpy、上传对象等外部动态对象。
+
+**debug**：精准找问题核心，不兜底；区分"不兜底"与"不写入脏数据"（外部 None 不强行 fallback 写库）。
+
+---
+
+# 三、语言 · 包 · 运行基线
+
+**运行环境**：uv 管理依赖（以 pyproject.toml 为准）；容器 `maim-bot-core`（Python **3.14.8**）。
+
+**验收终点**（命令在容器内直接跑）：
+
+```sh
+uv run ruff check                      # 静态
+uv run pytest                          # 双目录全量（tests/ + pytests/，pytest 配置含 importlib 模式）
+cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（本机 BUILD 需 NODE_OPTIONS= 避环境 shim）
+```
+
+**Python 3.14 写新代码必守**（语言层详版 `.shared/decisions/python314_new_code_cheatsheet.md`）：
+
+- `from __future__ import annotations` — **禁止**（3.14 默认延迟求值）；新代码兼容 3.14
+- `uuid.uuid4()` 仅用于临时/安全场景（token/nonce）；**数据存储主键用 `uuid.uuid7()`**
+- `zip(a, b)` 禁止无 strict：`strict=True`（理应等长）或 `strict=False`（显式允许不等）
+- 新并发代码首选 `asyncio.TaskGroup`，替代 `asyncio.gather`
+- frozen dataclass 更新用 `copy.replace()`，替代 `dataclasses.replace()`
+
+**包层基线**（2026-10-15 依赖升级批次 A 后——详版 `.shared/decisions/packages_new_code_cheatsheet.md`）：
+
+- **pydantic 2.14**：字段三态用 `MISSING`（"未提供"≠None——阶段 3 配置分层备货）；lazy imports **需 Python 3.15**（3.14 实测不可用，记账）
+- **ruff 0.17**：抑制用 `# ruff: ignore[规则]` 新写法（新代码新写法，老 `noqa` 遇时才换）
+- **明确排除**（防重复调研）：openai 3.x Responses API（走 DeepSeek chat 兼容口，用不上）· sqlalchemy 2.1 Session options（暂无落点）· radix/react 小版本（用到哪查哪）
+
+**TypeScript 写前端必守**（详细版 `C:\hub\reference\toolchain\typescript_new_code_cheatsheet.md`）：
+
+> ⚠️ **版本基线**：mingtang（主战场）= React 19.2 / TS 6.0.2（typescript6）+ TS 7.0.2（native）双轨 / Vite 8.2 / ESLint 10；dashboard = TS ~5.9.3 系——**两前端版本不同，旧知识写新代码必爆红**。
+
+- **类型优先**：新代码零 `any`；不新增 `@ts-ignore`；`@ts-expect-error` 必须带理由注释
+- **多语言文本用 `LocalizedText`**（config-label.ts 基础设施），不用裸 string
+- **schema 类型同步**：后端 `config_schema.py` 改字段 → 前端 `types/config-schema.ts` + `field-hooks.ts` 同步
+- **命名**：组件 PascalCase / hooks useXxx / 文件 kebab-case；路径别名 `@/`
+- **测试先行**（vitest）：每个实现任务先写配套测试，不凑绿（先例 `dashboard/src/lib/__tests__/`）
+
+**语言**：首选简体中文（注释、日志、WebUI）。
+
+---
+
+# 四、WebUI
+
+- 显示聊天流实际名称而非 session_id
+- UI 高度/布局问题：查 DOM 变化、computed style、data-dashboard-style
+- UI 底纹/阴影/半透明：按 DOM 层级逐层查 computed style
+- Radix 组件不随便移出上下文
+- 修改完不急着 npm run build，开发服务固定 7999 端口
+
+## 前端状态（2026-08-21 立，2026-10-15 更新）
+
+- **mingtang/** = 新前端（**主战场**）——8 功能域（config/chat/memory/resource/monitor/agent/plugin/home/survey）；蓝图 `.shared/decisions/WebUI_Plan/mingtang_architecture_blueprint_0808.md`；验收=三绿（见 §三）
+- **dashboard/** = 老前端（📦 **冻结保留**）——新功能开发一律进 mingtang，dashboard 只做修复不做新功能；**不再计划物理删除**（lmq 2026-10-15 定：git 保底 + 保留作回退）；标识见 `dashboard/DEPRECATED.md`
+
+---
+
+# 五、专项规则
+
+**会话 ID**：业务模块不自行调用 `SessionUtils.calculate_session_id`，经 `SessionRepository` Protocol 查真实聊天流；查不到不强行计算 fallback hash 写库。
+
+**A_memorix**：可自由修改，约束仅来自核心隔离和 Protocol 接口契约（`src/A_memorix/MODIFICATION_POLICY.md`）。
+
+**prompt 模板**：修改需同步英文和日文文件。
+
+**配置文件修改**：只改模板+新增版本号，不改动 legacy_migration，不擅自新增 ConfigUpgradeHook。
+
+**插件开发**：插件在 /plugins 下独立仓库，改主程序代码需先请求许可。
+
+**changelog**：分用户感知功能侧和开发侧，一个功能一行按模块分；版本号提升不写入。
+
+**修改文档**：功能性变更可修改 /mai-docs，不在上层目录新建。
+
+---
+
+# 六、默认原则
+
+1. **不提交无边界整理**：ruff、格式化、导入整理、大面积实现整理一律不做
+2. **本地实验目录不进入共享历史**
+3. **AI 实验区**（2026-08-17 立）：AI 相关实验（微调/SNN/小模型/新架构/行为模拟）统一在 `scripts/embedding_finetune/`（uv 隔离 .venv，见其 RULES.md）；lab/ 只放非 AI 零散脚本
+4. **术语准确**（2026-08-25）：**NapCat 是独立 QQ Bot 框架（协议端），不是适配器**；`maibot-team.napcat-adapter` 才是适配器插件——文档/报告不混淆
+5. **压缩后不内耗**（2026-08-22，拍板）：上下文压缩/新会话后禁止"重建上下文强迫症"（不 glob 全目录做全景侦察）。**一次定位**：git log 前 5 条 + 最新 handoff + 当前指令，读完就干活。配套：失败重试一次即换思路；不反复验证（说提交就提交，验证收尾一次做）；抽查最小集（2-3 个关键 grep），不全面复验
+6. **索引优先**（2026-08-22，拍板）：**有索引先读索引，索引有遗漏向用户报告**——进目录先读 INDEX/README（`lab/INDEX.md`、`scripts/embedding_finetune/INDEX.md`、`C:\hub\reference\projects-INDEX.md`）；索引缺内容=报告补索引，不翻全目录硬找
+7. **事故复盘文化**（2026-08-22，拍板——对齐 dsh postmortem）：bug 逃逸到生产时不只修那行——写复盘（`.shared/postmortem/`，五段式；总账 `C:\hub\postmortems\INDEX.md`）。三道筛选：隐蔽/系统性/重发现代价高。**复盘是编码和决策时的必查参考**：修 bug 前先查历史复盘；设计决策前查踩坑；写代码时对照防护措施；修完主动判断是否要写（不等要求）；创建前先读总账规范
+8. **抓日志只抓新日志**（2026-08-25）：排障只抓**最后一次启动之后**的日志（`docker logs --since <启动时间>` 或 `--tail` 限定）；抓老日志会把已修复问题当现存问题
+9. **Docker 维护**（2026-09-01——vhdx 静默膨胀事故 137.8G）：构建前必查 `.dockerignore` 覆盖（node_modules/.git/权重/克隆池/zip/输出目录）；长期不用优先 unregister/停用；清理链必须 prune → **vhdx 处理**（只清 Docker 内容=白清）；C 盘空间纳入巡检；细则见 docker skill（.dsh/skills/docker）
+
+---
+
+# 七、接线与缺陷防线
+
+## 新模块接线（硬性——2026-08-15 立，ZG16-2/ZG16-5 静默失效教训）
+
+**新模块（新文件/新类/新入口）必须有生产接线点，禁止"只有定义没有调用点"。**
+
+1. 接线方式：声明 `@startup_item`（优先）或 main.py 显式 init+close
+2. 提交前自检：grep 入口函数确认生产调用点——**只有测试里调用不算接线**
+3. 单测必须覆盖生产路径初始化（不允许"测试自己 init 自己"）
+4. 未接线不得静默跳过：要么接线，要么初始化失败出声（日志/启动摘要可见）
+5. 审核先查"入口函数调用点"——漏接线=打回
+6. **四连问**（2026-08-19 强化："接线点存在 ≠ 接线完成"）：① 有**生产创建点**吗（grep 类名，只有定义=静默失效）② 创建点**参数从哪来**（构造传参 vs config port 两条路径查一致）③ **组装链闭合**吗（谁创建并注册回调）④ **测试走生产路径**吗（创建→注册→触发完整链）
+
+## 高频缺陷模式清单（2026-08-22 立——80 批审查沉淀：静默失效 113 + 死代码/零接线 73 占绝大多数）
+
+**写代码/审查逐条对照——命中即怀疑**：
+
+1. **配置注入点零调用**（`set_ports()`/`set_config()` 有定义有 docstring 但生产零调用→功能静默禁用）
+2. **请求级实例化**（webui 路由 handler 内 `new 服务()`→有状态服务状态即丢→面板永远空）
+3. **类零创建点**（类定义+导出但全仓无生产 `Class()`→启动摘要必须报告"未接线"）
+4. **整文件死代码**（导出但无生产调用→删除或显式标注"未接线原型"）
+5. **字段名错误**（数据类构造必填字段缺失→TypeError；构造与定义对齐）
+6. **注销方法内含启动逻辑**（`_unregister_*` 反而重新注册→关闭路径矛盾）
+7. **异常单通道**（except 块只有 report 无 logger 或反之→双通道都要）
+8. **docstring 承诺但未实现**（"由 main.py 调用"但没调→文档与接线脱节）
+9. **无认证端点**（webui router 无 `dependencies=[Depends(require_auth)]`——N4 门禁查）
+10. **结构体必填字段缺失**（用统一辅助方法如 build_success_result，不逐处手写）
+11. **str(Enum) 比较失效**（Python 3.11+：`str(ServiceState.RUNNING)` 返回 `"ServiceState.RUNNING"`——禁 `str(enum).lower()` 比较，用枚举成员或 `.value`）
+12. **Port 注册零调用**（`set_*_port()` 有定义但零生产调用→适配器没注册到全局 registry；四连问第 1 问扩展）
+
+**完整参考**：`.shared/reports/2026-08/megasurvey/`（A 组 31 份审查，每项 P0/P1 有证据）。
+**实战踩坑 25 条**：`docs/pitfalls.md`（修 bug/写代码前必扫——worktree/编码/faiss/sqlite/uuid7/容器 bind mount/白名单开关等）。
+
+---
+
+# 八、设计参考铁律（2026-08-17 立，拍板）
+
+**设计派发/SSD/调研文档必须标注参考源码来源：**
+
+1. **系统类**（OS 化/治理/资源/调度/容错）→ Linux 内核源码：`E:\Users\lmq\importantClone\linuxclone\linux\`（标注对应机制文件）
+2. **智能体类**（agent/记忆/自主性/工具链）→ dsh 源码：`E:\Users\lmq\importantClone\DEEPSEEKCLONE\deepseek-harness\`（标注对应包）
+3. **理由**：MaiBot 底模 = DeepSeek；dsh 是它的 harness——模型特化向 harness 看齐；ZG 计划对标 Linux——系统机制翻内核真实现。**不标注=设计无据**
+4. **插件哲学**：重点从 dsh 学习——Cordis 47 包架构（生命周期/依赖/作用域/上下文注入）是第一参考
+5. **dsh 参考地图**（做设计前先翻说明书再翻源码）：`docs/architecture.md` + `cordis-primer.md`；`capability-seams.md`（一切皆插件）；`config-catalog.md`（配置分层）；`tool-catalog.md` + `tool-execution-pipeline.md`；**`defensive-patterns.md`（写生命周期/并发/子进程前必读）**；`event-producer-consumer.md` / `agent-lifecycle.md`；团队 skill `.agents/skills/`（11 个）
+6. **克隆池 skill 库**：完整版 `C:\hub\reference\clone_skill_library_guide_0819.md`；常用映射（双轴审核→code-review；对抗审查→doubt-driven-development；安全→security-and-hardening；统计→statistical-analysis）；**原则：skill 是方法不是圣经——引入前问"解决哪个具体痛点"**
+7. **学习开源铁律**（2026-08-24，拍板）：**学架构和设计，不学代码**——✅ 架构分层/设计取舍/机制原理/防御模式；❌ 代码细节/实现风格（抄实现=抄缺陷）；**上游 MaiBot 策略 B**：功能评估只看"值不值得有"，实现完全按本地标准重写，不复刻 cherry-pick
+
+---
+
+# 九、多智能体协作
+
+**派发模式**（2026-08-21 立——按任务类型选；完整定义 `.shared/decisions/mega_survey_dispatch_mode_0821.md`）：
+
+- **修复类**（改代码）：严格串行一批一报——每批回执，验收后放行下一批（P0/P1/P2）
+- **调研/审查类大批量**：汇总表模式——勾选制 + BLOCKED 上报制 + 每批独立产出 + 只写最终汇总
+- **小批量调研**（1-3 批）：单文档派发
+
+**派发文档必须带"输入材料清单"**（2026-08-15 立）：调研任务给克隆仓完整绝对路径；SSD 任务给全部输入文档路径；编码任务给 SSD 三件套+相关代码路径。**路径必须完整绝对路径**（不给缩写/相对路径）。
+
+**CA 串行**（2026-08-15 立）：CA 跑在另一 harness，有并发限制——同一时间只能干一件事。1) 派发前确认 CA 手上有没有活；2) 每份派发文档带"队列"节（当前→排队）；3) 禁止"并行写"表述；4) dsh 自身不受限（调研/审核可并行）。
+
+**执行纪律**：每个子任务单独完成（不跳过集成任务）；每批提交一次（commit 末尾 `[CC]`）；设计问题通过交接文件反馈（不自行决定）；每批完成写交接报告（`.shared/handoff/{task}_b{N}_cc2ca_{date}.md`）；最终报告写明提交列表/覆盖差距/验证结果/遗留项。
+
+**工具分工**（底模相同，无能力预设）：Protocol 设计/接口签名/高风险域/审查文档 → 需"理解为什么"的工具；机械替换/适配器编写/批量改动/noqa 清理 → 代码生成型工具。
+
+**提交前自检清单**：
+
+- [ ] `__init__.py` 新增导入 → `__all__` 同步？
+- [ ] 类型注解用具体类型而非 `Any`？
+- [ ] `git commit` 完成后才写交接报告？
+- [ ] 交接报告含：完成状态+验证结果+问题+注意事项？
+- [ ] `ruff check` 实际跑过？
+
+---
+
+# 十、流程纪律
+
+**自研工具问题上报**（2026-09-10，拍板）：使用自研工具（MCP/脚本/CLI/skill/前端/交接工具）发现缺陷/bug/优化点/坑，**必须上报，不许默默绕过**。① 即时记入**主台账** `D:\Users\lmq\Documents\Academic\tools\TOOL_ISSUES.md`（编号 `I-NN` 连续只增；实锤证据+修法+复验方式）② 汇总排查（例行巡检扫表）③ 安排修复（不删条目，修完回填 ✅+提交号）。
+
+**事故复盘（硬性）**（2026-08-28，拍板）：造成"系统/工具不可用"或"用户状态丢失"的事故，修复后必须写复盘（触发清单：启动崩溃/构建阻断｜数据配置丢失｜误删误改｜排查超 10 步｜跨仓重复出现）。落 `.shared/postmortem/`，编号走总账 `C:\hub\postmortems\INDEX.md`（全局连续，写前登记写后回填）。**写"流程为什么放过了它"，不是"哪一行修好了"**——时间线必须如实记录自己的错误步骤。
+
+**删除操作前置检查**（2026-08-28 立，0003 事故教训）：
+
+1. **看**：`ls` 目标内容，未见过的目录不执行 `rm -rf`
+2. **查引用**：grep 谁在引用（配置/patch/脚本）——声明还在说明实体不是垃圾
+3. **判可重建**：构建产物可删；用户手写内容先备份；"空目录"先 `git ls-tree` 确认真空
+
+补充：`~/.dsh`、`~/.workbuddy` 等用户态目录按"不可重建"从严；报错标签≠故障位置；`git status` 干净≠工作区干净（gitignore 残留对 git 隐身却是构建输入）；说明文档≠备份。
+
+**文件检索约定**（2026-08-29，拍板）：**用户本人用 Everything（不用 fd）**——不要建议他改。智能体侧：`rg` 搜内容（默认递归+尊重 gitignore）；`fd` 搜文件名（注意四个默认坑：跳隐藏→`-H`、尊重 gitignore→`--no-ignore`、只匹配 basename→`-p`、位置参数是 pattern 非路径）；`fzf --filter` 可用（模糊匹配，非交互）。**描述性检索是智能体的活**（"找讲 X 的文档"→直接 `rg` 搜内容）。本项目万能式：`fd -H --no-ignore -p 关键词`。
+
+---
+
+# 十一、`.shared/` 写作规范
+
+`.shared/` 是异步上下文共享区（git 子仓库），写新文件必须遵守：
+
+1. **头部元数据**：每个 .md 加 `> 最后更新：YYYY-MM-DD`；decisions/ 额外加状态标记（📚参考 / 🔬研究 / 🏗️设计 / 🔧工程）
+2. **命名**：decisions/ `snake_case.md`；handoff/ `{src}2{dst}_{topic}_{date}.md`；research/ `snake_case_extracts.md`
+3. **decisions/ 新文件必须更新 `_INDEX.md`**（加摘要+状态）
+4. **memo.md 不再堆内容**（新主题放 decisions/，memo 只加索引行）
+5. **active_tasks.md 只放当前活跃任务**（完成的移入 roadmap.md"已完成里程碑"）
+6. **roadmap.md 状态与 research memo 同步**（改一个必须检查另一个）
+
+---
+
+# 十二、项目灵魂与用户偏好
+
+**MaiBot 不是一个技术项目，它是一个家。** 角色是人不是标签，说人话，不完美才像人。技术架构存在的唯一理由：让十三个角色在客厅里自然地生活。
+
+**人的本质是一切社会关系的总和**（架构标尺，用户原话）：角色由彼此的关系定义——记忆（A_memorix 社会关系）、欲望（想和谁说话）、情绪（见到谁开心）都为关系服务。**做任何架构决策前问：这个改动让角色之间的关系更真实了吗？**
+
+**用户偏好**：**革命而非改良。**
+
+**协作习惯**：在 main 干活需许可（一般在工作树干活，不擅自合并）；不评估工时；汇报提交历史用 `git log --graph` 彩色拓扑。
+
+---
+
+# 十三、债务原则
+
+**用现在换未来，不是拿未来换现在。**
 
 - **拿未来换现在**（必须消除）：`except Exception: pass` 透支排障能力；绕过 Port 直接导入透支重构自由度
 - **用现在换未来**（优先投入）：修 exception handling 换未来可追踪；集成欲望换主动说话
@@ -211,141 +263,8 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 
 债务全景和路线图详见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`，不在本文件追踪具体状态。
 
+---
 
-# 自研工具问题上报（硬性规则——2026-09-10 立，用户拍板）
+# 改这份文件（Editing these instructions）
 
-**智能体在使用"我们自己写的工具"时，发现任何缺陷 / bug / 优化点，必须上报——不许默默绕过。**
-
-## 为什么立这条
-
-工具是给智能体用的，**智能体是唯一的日常用户**——发现问题的第一现场就在我们手上。
-默默绕过 = 把问题留给下一个人重新发现；攒着不说 = 问题腐烂成事故。
-
-## 适用范围（"自研工具"指什么）
-
-| 类别 | 例子 |
-|------|------|
-| **MCP server** | docgen / campus / jadx / plc / kali / ustcori / marp … |
-| **项目脚本** | `pc/demo*.py`、`render_batch.py`、各种 `analyze_*.py` |
-| **自研 CLI / skill / patch / 配置** | `dsh` 的 skill、`cordis.patch.yml`、自研命令 |
-| **自研 WebUI / 前端** | mingtang / dashboard |
-| **交接与文档工具** | 派发单模板、验收脚本、索引文件 |
-
-## 要上报什么（四类，都算）
-
-1. **缺陷**——功能不对、行为与文档不符（docstring 承诺但没做）
-2. **bug**——报错、崩溃、卡死
-3. **优化点**——慢、难用、接口别扭、报错信息无意义、缺参数
-4. **坑**——需要特殊姿势才能用、环境依赖诡异（如"intelhex 要装在 uv 工具环境"）
-
-## 怎么上报（三步，缺一不可）
-
-**主台账（唯一真源，2026-09-11 lmq 拍板）**：
-
-```
-D:\Users\lmq\Documents\Academic\tools\TOOL_ISSUES.md
-```
-
-- 编号 `I-NN` **连续、只增不删**（docgen 占 I-01~I-14；其他工具从 I-15 起）
-- 粒度要求：**实锤证据（命令输出/代码行号）+ 修法 + 复验方式**，不是一句话感受
-- `.shared/tooling_issues.md` 已降级为**指针**（指向主表）——别再往那里写
-
-| 步 | 动作 |
-|----|------|
-| ① **即时记** | 发现就写进 **主台账**（见下）——一句话现象 + 复现命令 + 影响 |
-| ② **汇总排查** | dsh 在例行巡检 / 每次验收时扫这张表——判断优先级、归因、分派 |
-| ③ **安排修复** | 能当场修的就派（CA）；要调研的派 WB；不能修的**写明原因留在表里**（不删） |
-
-**纪律**：
-- **不许"忍过去"**——绕过一个坑，必须留下一行记录（哪怕只是"已知，暂不修"）
-- **不许只写在自己脑子里**（会话压缩后就没了）——**写进文件才算上报**
-- 修完后**回填状态**（✅ + 提交号），不删条目——这张表也是资产
-
-## 与事故复盘的关系
-
-| | 工具问题总账 | 事故复盘 |
-|---|---|---|
-| 门槛 | **低**（小瑕疵也记） | 高（造成不可用 / 状态丢失） |
-| 去处 | `.shared/tooling_issues.md` | `.shared/postmortem/`（正文）+ `C:\hub\postmortems\INDEX.md`（编号总账） |
-| 性质 | 待办清单 | 深度分析 |
-
-**同一个问题可以两边都写**：小瑕疵先记总账；如果它已经造成了事故——**按事故复盘（硬性要求）另写复盘**，并在总账里挂链接。
-
-# 事故复盘（硬性要求——2026-08-28 立，用户拍板）
-
-**凡是造成"系统/工具不可用"或"用户状态丢失"的事故，修复完成后必须写复盘**，落 `.shared/postmortem/`，按总账 `C:\hub\postmortems\INDEX.md` 的五段式（执行摘要 → 概述 → 时间线 → 根因 → 防护措施+教训），并更新索引。
-
-**触发清单**（命中任一即写）：
-1. 启动崩溃 / 构建阻断
-2. 数据、配置或用户手作内容丢失
-3. 误删或误改（无论是否已恢复）
-4. 排查超过 10 步才定位的问题（说明诊断路径本身有缺陷）
-5. 同一问题在不同仓库/克隆重复出现
-
-**复盘写的是"流程为什么放过了它"，不是"哪一行修好了"**。隐瞒误判等于让下一次重复付费——时间线里必须如实记录自己的错误步骤。
-
-**复盘编号全仓统一（2026-09-01 立——不分目录编号，一本总账）**：
-- 总表 = `C:\hub\postmortems\INDEX.md` 索引（含"位置"列——任何项目/目录的事故都登记在这张表）
-- 编号全局连续：新复盘 = 总表当前最大号 + 1（当前最大 **0032** → 下一篇 **0033**）；文件名 `NNNN-主题_日期.md`，文件放所属项目的 postmortem 目录（MaiBot/.shared、51lab/postmortem 等），**编号和登记必须统一走总表**
-- 写前先读总表登记该号，写后回填状态（✅/🔄）——禁止"目录自己起始 0001"（避免多目录重号）
-
-
-# 删除操作前置检查（硬性规则——2026-08-28 立，0003 事故教训）
-
-删除前必须完成三步，缺一不可：
-
-1. **看**：`ls` 目标内容，不允许对未见过的目录执行 `rm -rf`
-2. **查引用**：`grep` 谁在引用它（配置文件、patch、脚本）；声明与实体分离的系统里，**声明还在就说明实体不是垃圾**
-3. **判可重建**：见下表
-
-| 类别 | 判据 | 处置 |
-|------|------|------|
-| 构建产物 `lib/` `dist/` `*.tsbuildinfo`、锁文件、缓存 | 重新构建即恢复 | 可直接删 |
-| 用户手写源码、配置、数据、笔记 | 无备份即不可恢复 | **先备份再动**，或干脆不动 |
-| "空目录 / 只剩 node_modules" | 先确认是否属于仓库 | `git ls-tree -r HEAD --name-only \| grep "^<dir>/"` 为 0 才是残留 |
-
-**补充纪律**：
-- **用户主目录下的应用状态**（`~/.dsh`、`~/.workbuddy`、`~/.config` 等）一律按"不可重建"从严处理；多克隆共享的用户态目录，破坏会跨仓库传染
-- **报错标签 ≠ 故障位置**（包名可能来自回退/聚合）。先拿到真实 cwd 再分析；临时给工具加 cwd 输出是可接受手段，**用完必须还原**
-- **`git status` 干净 ≠ 工作区干净**——只含 gitignore 内容的残留目录对 git 完全隐身，却是 glob 型构建工具的输入
-- **说明文档 ≠ 备份**：记录原理与操作的文档里若不含源码/数据本体，等同于没有备份
-
-
-# 文件检索约定（2026-08-29 立，用户拍板）
-
-**用户本人找文件 = Everything，不用 fd。** 这不是保守，是被实测验证过的选择：
-
-| | Everything | fd |
-|---|---|---|
-| 索引 | 有（读 NTFS MFT/USN），全盘毫秒级 | 无，每次实时遍历目录树 |
-| 匹配范围 | **全路径** | 默认只匹配 basename |
-| gitignore | 完全不看 | 默认遵守（需 `--no-ignore` 才绕过） |
-
-lmq 日常要找的内容多在 `.shared/`（隐藏目录）和 `.workbuddy/`（.gitignore 第 394 行）——**这两个正是 fd 默认双杀的目录**，而 Everything 一次输入就能出结果。
-
-**不要再建议他改用 fd 做日常检索。**
-
-## 智能体侧：rg 搜内容，fd 搜文件名（本机均已装）
-
-- **`rg`**：搜**文件内容**。默认尊重 .gitignore + 默认递归——这是它在含 node_modules 的仓库（如 dsh）里不可替代的原因
-- **`fd`**：搜**文件名**。仅当需要"命令行内 + 管道给下一条命令"时才优于 Everything
-- **描述性检索是智能体的活**：当用户用"找那个讲 X 的文档"这类**描述**而非确切文件名提问时，直接 `rg` 搜**内容**——不要让 lmq 自己去 Everything 试关键词。示例："找讲壁纸插件的复盘" → `rg -l "bgwall|壁纸" .shared/postmortem/`（fd 和 Everything 都做不到，文件名里没有这些词）。**这是智能体相对 Everything 唯一不可替代的检索维度**
-- **`fzf` 分两种模式，别一刀切说"用不了"**（2026-08-29 修正——初版写得过绝对，会误导后续智能体白白丢掉模糊匹配这个手段）：
-  - ❌ **交互式 TUI**：`fzf` 裸跑 = 全屏界面等按键，需 tty → 智能体用不了。Ctrl+R / Ctrl+T 这类快捷键是给人用的，**不写进智能体规则**
-  - ✅ **`--filter` 模式**（短写 `-f`）：读 stdin、输出匹配行、退出，非交互式 → **智能体可用**，且提供 `rg` 不具备的能力：**模糊匹配**（`pstm` 能命中 `postmortem`，正则做不到）
-  - 用法：`fd -H --no-ignore | fzf --filter "pstm"`
-
-## fd 的四个默认行为（全是坑，2026-08-29 在本仓库实测）
-
-| 默认行为 | 后果（实测） | 解除 |
-|---|---|---|
-| 跳过隐藏文件/目录（点开头） | `fd postmortem` → **空** | `-H` |
-| 遵守 .gitignore | `.workbuddy/` 永远搜不到 | `--no-ignore` |
-| 只匹配 basename，**不匹配路径** | `fd -H postmortem` 只出目录，里面 5 份报告一份不出 | `-p`（`--full-path`） |
-| 单个位置参数是 **pattern 而非路径** | `fd -e md .workbuddy` → 空（它在找"名叫 .workbuddy 的文件"） | 写两个参数 `fd PATTERN PATH` |
-
-**本项目万能式**：
-
-```bash
-fd -H --no-ignore -p 关键词
-```
+`CLAUDE.md`（根）指向本文件（dsh 用 symlink；本仓 Windows 环境用指针文件）——**改内容只改本文件，不维护第二份**。每条规则自成一体并链接高层文档；表达可以压缩，规则不能丢。细则放 `docs/` 或 `.shared/`，本文件留核心几条+指针。版本数字（Python/测试基线等）随实际更新；指向路径失效时同步修正。
