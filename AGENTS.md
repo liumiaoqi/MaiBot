@@ -88,6 +88,7 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 - **pydantic 2.14**：字段三态用 `MISSING`（"未提供"≠None——阶段 3 配置分层备货）；lazy imports **需 Python 3.15**（3.14 实测不可用，记账）
 - **ruff 0.17**：抑制用 `# ruff: ignore[规则]` 新写法（新代码新写法，老 `noqa` 遇时才换）
 - **明确排除**（防重复调研）：openai 3.x Responses API（走 DeepSeek chat 兼容口，用不上）· sqlalchemy 2.1 Session options（暂无落点）· radix/react 小版本（用到哪查哪）
+- **grpcio 1.84 / asyncio 取消语义**（2026-10-15 pv2 实证）：`except asyncio.CancelledError` **禁止吞掉**（上层等待取消会永不返回——e2e 测试硬挂实捕获）；长跑协程（`runner.start()` 类）的终止走**标志位**（`stop()` 风格），外部不依赖 `task.cancel()`；gRPC 统一 `grpc.aio`，不分叉 sync；protobuf 由 grpcio-reflection 传递带入，**不显式声明**
 
 **TypeScript 写前端必守**（详细版 `C:\hub\reference\toolchain\typescript_new_code_cheatsheet.md`）：
 
