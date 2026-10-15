@@ -92,26 +92,6 @@ def _load_plain(config_path: Any) -> Dict[str, Any]:
         return tomlkit.load(file).unwrap()
 
 
-def _assert_secret_marker(marker: Any, *, path: str, configured: bool, kind: str | None = None) -> None:
-    """断言秘密占位是 F2 冻结的三态形状（2 段起）。
-
-    2 段把占位从 ``{path, set}`` 升级成 ``{$secret, path, set, kind}``：
-    ``$secret`` 让"这是秘密"成为显式声明，``kind`` 区分 ``literal``/``reference``
-    （引用也是秘密——值在环境变量里，照样不出站）。``path`` 保留是 F3 的要求：
-    写回时"占位自带来源路径"是认领原值的依据。
-
-    未配置态**不带** ``kind``（没有值就没有形态可言）。
-    """
-    assert isinstance(marker, dict), marker
-    assert marker["$secret"] is True, marker
-    assert marker["path"] == path, marker
-    assert marker["set"] is configured, marker
-    if configured:
-        assert marker["kind"] == (kind or "literal"), marker
-    else:
-        assert "kind" not in marker, marker
-
-
 @pytest.fixture(autouse=True)
 def _register_webui_ports():
     """注册 WebUI 所需 Port。
@@ -270,7 +250,7 @@ class TestRedactionCriterion:
 
         redacted = config_secrets.redact_config_secrets(data)
 
-        _assert_secret_marker(redacted["a"]["b"][0]["token"], path="a.b[0].token", configured=True)
+        assert redacted["a"]["b"][0]["token"] == {"path": "a.b[0].token", "set": True}
         assert redacted["a"]["b"][0]["keep"] == 1
         assert redacted["c"] == "plain"
 
@@ -278,13 +258,14 @@ class TestRedactionCriterion:
         """敏感键的值本身是容器时整块替换——不下钻，免得子键漏值。"""
         redacted = config_secrets.redact_config_secrets({"token": {"nested": "secret-value"}})
 
-        _assert_secret_marker(redacted["token"], path="token", configured=True)
+        assert redacted == {"token": {"path": "token", "set": True}}
         assert "secret-value" not in str(redacted)
 
     def test_blank_secret_reports_not_set(self) -> None:
-        marker = config_secrets.redact_config_secrets({"api_key": "   "})["api_key"]
-
-        _assert_secret_marker(marker, path="api_key", configured=False)
+        assert config_secrets.redact_config_secrets({"api_key": "   "})["api_key"] == {
+            "path": "api_key",
+            "set": False,
+        }
 
     def test_suffix_rule_covers_real_secret_fields(self) -> None:
         """精确集漏了 auth_token / allowed_api_keys —— 后缀规则补上。"""
@@ -316,12 +297,10 @@ class TestReadPathHidesSecrets:
 
         assert response.status_code == 200, response.text
         assert FAKE_LITERAL_KEY not in response.text
-        _assert_secret_marker(
-            response.json()["config"]["api_providers"][0]["api_key"],
-            path="api_providers[0].api_key",
-            configured=True,
-            kind="literal",
-        )
+        assert response.json()["config"]["api_providers"][0]["api_key"] == {
+            "path": "api_providers[0].api_key",
+            "set": True,
+        }
 
     def test_model_config_response_hides_reference_and_env_value(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -333,12 +312,10 @@ class TestReadPathHidesSecrets:
         assert response.status_code == 200, response.text
         assert FAKE_ENV_KEY_VALUE not in response.text
         assert REFERENCE_TEXT not in response.text
-        _assert_secret_marker(
-            response.json()["config"]["api_providers"][1]["api_key"],
-            path="api_providers[1].api_key",
-            configured=True,
-            kind="reference",
-        )
+        assert response.json()["config"]["api_providers"][1]["api_key"] == {
+            "path": "api_providers[1].api_key",
+            "set": True,
+        }
 
     def test_bot_config_response_hides_maim_message_auth_token(self, client: TestClient) -> None:
         """`maim_message.auth_token` 是真密钥，精确口径漏它——这里守后缀规则。"""
@@ -346,12 +323,10 @@ class TestReadPathHidesSecrets:
 
         assert response.status_code == 200, response.text
         assert FAKE_BOT_TOKEN not in response.text
-        _assert_secret_marker(
-            response.json()["config"]["maim_message"]["auth_token"],
-            path="maim_message.auth_token",
-            configured=True,
-            kind="literal",
-        )
+        assert response.json()["config"]["maim_message"]["auth_token"] == {
+            "path": "maim_message.auth_token",
+            "set": True,
+        }
         assert response.json()["config"]["chat"]["max_tokens"] == 4096
 
 
@@ -369,7 +344,7 @@ class TestWritePathFidelity:
 
         # 把 GET 到的（脱敏后的）配置原样 POST 回去 = 最忠实的往返
         read_back = client.get("/api/webui/config/model").json()["config"]
-        _assert_secret_marker(read_back["api_providers"][0]["api_key"], path="api_providers[0].api_key", configured=True)
+        assert read_back["api_providers"][0]["api_key"] == {"path": "api_providers[0].api_key", "set": True}
 
         response = client.post("/api/webui/config/model", json=read_back)
 
