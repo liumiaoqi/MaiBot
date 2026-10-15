@@ -13,7 +13,7 @@
 """
 
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 
 import pytest
 import tomlkit
@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from src.config.config import Config
 from src.webui import config_secrets, config_store
 from src.webui.app import create_app
-from src.webui.config_paths import WILDCARD, parse_declaration
+from src.webui.config_paths import WILDCARD, format_path, parse_declaration
 from src.webui.dependencies import require_auth
 
 FAKE_LITERAL_KEY = "sk-fake-seam-literal-0000deadbeef"
@@ -30,8 +30,23 @@ FAKE_ENV_KEY_VALUE = "sk-fake-seam-env-0000cafebabe"
 FAKE_BOT_TOKEN = "fake-seam-bot-token-0000feedface"
 FAKE_ALLOWED_KEY = "fake-seam-allowed-key-0000badc0de"
 FAKE_NEW_KEY = "sk-fake-seam-new-0000abc123"
+# 只被**过渡名字层**兜住的键（没人声明它，名字以 `_token` 结尾）。
+# 刻意放进夹具：真实配置里就会出现这种"还没被声明"的密钥字段，
+# 而这正是过渡层存在的理由——它必须在**每一条**读路径上都生效。
+FAKE_UNDECLARED_TOKEN = "fake-seam-undeclared-token-0000c0ffee"
 REFERENCE_ENV_VAR = "P2_SEAM_FAKE_DEEPSEEK_KEY"
 REFERENCE_TEXT = "${" + REFERENCE_ENV_VAR + "}"
+
+# 闸门要 grep 的全部假真值（含引用文本与变量名本身）
+KNOWN_FAKE_SECRETS: tuple[str, ...] = (
+    FAKE_LITERAL_KEY,
+    FAKE_ENV_KEY_VALUE,
+    REFERENCE_TEXT,
+    REFERENCE_ENV_VAR,
+    FAKE_BOT_TOKEN,
+    FAKE_ALLOWED_KEY,
+    FAKE_UNDECLARED_TOKEN,
+)
 
 READ_URL = "/api/webui/config/get"
 MUTATE_URL = "/api/webui/config/mutate"
@@ -87,6 +102,11 @@ version = "0.9.0"
 [bot]
 qq_account = "10001"
 nickname = "SeamBot"
+
+[personality]
+personality = "You are SeamBot."
+multiple_reply_style = ["style-one"]
+some_new_credential_token = "{FAKE_UNDECLARED_TOKEN}"
 
 [chat]
 max_context_size = 42
@@ -168,11 +188,15 @@ def seam_config_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(model_router, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(config_store, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(config_store, "_REVISION_STATES", {})
-    # 保存后路由会调 config_manager.reload_config()；测试里全局 config_manager 是 None
+    # 保存后路由会 **await** config_manager.reload_config()；测试里全局 config_manager 是 None，
+    # 而真实实现是 async（src/config/config.py:489）⇒ 替身也必须 async，否则 await None 会炸。
+    async def _reload(*args, **kwargs):
+        return True
+
     monkeypatch.setattr(
         config_router,
         "config_manager",
-        SimpleNamespace(reload_config=lambda *args, **kwargs: None),
+        SimpleNamespace(reload_config=_reload),
     )
     return tmp_path
 
@@ -557,6 +581,59 @@ class TestSecretsNeverLeave:
         assert isinstance(config["api_providers"][0]["api_key"], dict)
 
 
+class TestAncestorContainerRequestsDoNotLeak:
+    """**方向乙「秘密在路径里」**（对抗审查 F1）——本轮的**死线**。
+
+    上一轮我只做了「路径在秘密里」（请求 ``auth_token[0]``），没做「秘密在路径里」
+    （请求 ``maim_message``）⇒ 请求一个**祖先容器**就把整棵子树连密钥一起交出去。
+    而脱敏标记自己公布了秘密路径（``"path": "maim_message.auth_token"``），
+    所以客户端**不用猜**就知道该请求哪个祖先——一次已鉴权**读**即可触发，连写都不用。
+    """
+
+    @pytest.mark.parametrize(
+        ("namespace", "ancestor_path", "secrets"),
+        [
+            ("bot", "maim_message", (FAKE_BOT_TOKEN, FAKE_ALLOWED_KEY)),
+            ("bot", "personality", (FAKE_UNDECLARED_TOKEN,)),
+            ("model", "api_providers", (FAKE_LITERAL_KEY, REFERENCE_TEXT)),
+            ("model", "api_providers[0]", (FAKE_LITERAL_KEY,)),
+            ("model", "api_providers[1]", (REFERENCE_TEXT,)),
+        ],
+    )
+    def test_ancestor_container_request_returns_markers_not_values(
+        self,
+        client: TestClient,
+        seam_config_dir,
+        monkeypatch: pytest.MonkeyPatch,
+        namespace: str,
+        ancestor_path: str,
+        secrets: tuple[str, ...],
+    ) -> None:
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+
+        response = client.post(READ_URL, json={"namespace": namespace, "paths": [ancestor_path]})
+
+        assert response.status_code == 200, response.text
+        for secret in secrets:
+            assert secret not in response.text, f"请求祖先容器 {ancestor_path!r} 泄漏了 {secret!r}"
+        # 子树要**还在**（不是整块吞掉）——里面该有的非秘密字段照旧读得到
+        assert response.json()["entries"][0]["value"], f"{ancestor_path} 被整块吞掉了"
+
+    def test_ancestor_container_keeps_non_secret_siblings_readable(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """防过度脱敏：拿到祖先容器时，**兄弟字段**必须还是原值。"""
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+
+        entries = _entries_by_path(_read_paths(client, "model", ["api_providers[0]"]))
+        subtree = entries["api_providers[0]"]["value"]
+
+        assert subtree["organization"] == "seam-org"
+        assert subtree["timeout"] == 30
+        assert subtree["base_url"] == "https://plain.example.invalid/v1"
+        assert subtree["api_key"]["$secret"] is True, "秘密字段在子树里必须是标记"
+
+
 # ── 判据门 ④：重置语义（unset ⇒ 继承） ───────────────────────────────
 
 
@@ -732,6 +809,133 @@ class TestSeamBoundaries:
         assert written.status_code == 200, written.text
         assert _load_plain(config_path)["api_providers"][1]["api_key"] == FAKE_NEW_KEY
 
+    def test_append_at_end_of_array_writes_the_value(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """``set <数组>[len]`` = **追加这个值本身**（对抗审查 F2）。
+
+        曾经写成 ``append(_as_container(value))`` ⇒ 追加了个空表、值被丢掉，
+        用户得到的是"配置数据验证失败"，而合法操作**永远无法成功**。
+        """
+        config_path = seam_config_dir / "bot_config.toml"
+        revision = _read_paths(client, "bot")["revision"]
+
+        # maim_message.auth_token 初始为 []，所以 [0] 就是"追加到末尾"
+        written = _mutate(
+            client, "bot", revision, [{"op": "set", "path": "maim_message.auth_token[0]", "value": "TOK-APPENDED"}]
+        )
+        assert written.status_code == 200, written.text
+
+        after = _load_plain(config_path)
+        assert after["maim_message"]["auth_token"] == ["TOK-APPENDED"], "追加的必须是值本身，不是空表"
+
+    def test_append_a_new_array_of_tables_element(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``[[...]]`` 追加新表项：``set <AoT>[len].<字段>`` 走中间层补齐，值必须落地。"""
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+        config_path = seam_config_dir / "model_config.toml"
+        revision = _read_paths(client, "model")["revision"]
+
+        written = _mutate(
+            client,
+            "model",
+            revision,
+            [
+                {"op": "set", "path": "api_providers[2].name", "value": "SeamThird"},
+                {"op": "set", "path": "api_providers[2].base_url", "value": "https://third.example.invalid/v1"},
+                {"op": "set", "path": "api_providers[2].api_key", "value": FAKE_NEW_KEY},
+            ],
+        )
+        assert written.status_code == 200, written.text
+
+        providers = _load_plain(config_path)["api_providers"]
+        assert [provider["name"] for provider in providers] == ["SeamPlain", "SeamRef", "SeamThird"]
+        assert providers[2]["api_key"] == FAKE_NEW_KEY
+
+    def test_set_without_value_is_a_client_error(self, client: TestClient, seam_config_dir) -> None:
+        """`set` 不传 ``value`` ⇒ **400**（TOML 无法表达 null），不是 500（对抗审查 F7）。"""
+        config_path = seam_config_dir / "bot_config.toml"
+        before_bytes = config_path.read_bytes()
+        revision = _read_paths(client, "bot")["revision"]
+
+        response = _mutate(client, "bot", revision, [{"op": "set", "path": "chat.max_context_size"}])
+
+        assert response.status_code == 400, response.text
+        assert "value" in response.text
+        assert config_path.read_bytes() == before_bytes
+
+    def test_placeholder_cannot_be_laundered_into_a_readable_field(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """**靶子约束**（对抗审查 F3）：占位只能写回它来源的那个秘密字段。
+
+        没有这条约束时，占位是一个**任意读**原语：``set`` 到任意可读普通字段 ⇒ 原值落盘
+        ⇒ 再读那个字段就拿明文。写一次、读一次，F2 的保密承诺整条作废。
+        """
+        config_path = seam_config_dir / "bot_config.toml"
+        before_bytes = config_path.read_bytes()
+        revision = _read_paths(client, "bot")["revision"]
+
+        laundered = _mutate(
+            client,
+            "bot",
+            revision,
+            [
+                {
+                    "op": "set",
+                    "path": "personality.multiple_reply_style",
+                    "value": {"$secret": True, "set": True, "path": "maim_message.auth_token"},
+                }
+            ],
+        )
+
+        assert laundered.status_code == 400, laundered.text
+        assert "maim_message.auth_token" in laundered.text
+        assert config_path.read_bytes() == before_bytes, "洗秘密的写入必须整次作废"
+
+    def test_placeholder_from_a_non_secret_field_is_refused(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """**来源约束**：占位自称的来源必须真的是秘密字段（否则它是"任意取值"原语）。"""
+        config_path = seam_config_dir / "bot_config.toml"
+        before_bytes = config_path.read_bytes()
+        revision = _read_paths(client, "bot")["revision"]
+
+        response = _mutate(
+            client,
+            "bot",
+            revision,
+            [
+                {
+                    "op": "set",
+                    "path": "bot.nickname",
+                    "value": {"$secret": True, "set": True, "path": "bot.nickname"},
+                }
+            ],
+        )
+
+        assert response.status_code == 400, response.text
+        assert config_path.read_bytes() == before_bytes
+
+    def test_reorder_still_claims_by_origin_name(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """靶子约束**不能**把 F3 的改名/换序兜底一起掐掉：同一个秘密字段换个下标仍要认领。"""
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+        config_path = seam_config_dir / "model_config.toml"
+
+        entries = _entries_by_path(_read_paths(client, "model"))
+        # 把 1 号位（引用型）的 api_key 写到 0 号位：同一个声明字段、不同下标 ⇒ 允许
+        marker = entries["api_providers[1].api_key"]["value"]
+        revision = _read_paths(client, "model")["revision"]
+        written = _mutate(client, "model", revision, [{"op": "set", "path": "api_providers[0].api_key", "value": marker}])
+
+        assert written.status_code == 200, written.text
+        providers = _load_plain(config_path)["api_providers"]
+        assert providers[0]["api_key"] == REFERENCE_TEXT, "按名/按来源下标认领到的是引用文本本身"
+        assert providers[1]["api_key"] == REFERENCE_TEXT, "没被点名的那条不动"
+
     def test_invalid_value_is_refused_without_touching_the_file(
         self, client: TestClient, seam_config_dir
     ) -> None:
@@ -753,6 +957,276 @@ class TestSeamBoundaries:
     def test_empty_ops_is_refused(self, client: TestClient, seam_config_dir) -> None:
         revision = _read_paths(client, "bot")["revision"]
         assert _mutate(client, "bot", revision, []).status_code == 422
+
+
+class TestHotReloadAfterWrite:
+    """写盘成功之后的热重载语义（对抗审查 F14）。
+
+    ``config_manager.reload_config`` 是 ``async def``。不 await = 协程被丢掉：
+    **既不重载、又留一条 never-awaited 警告**，而且因为没有任何异常，
+    看起来像"保存成功顺便热重载了"。冻结态则是**预期**分支（启动后配置只读），
+    必须如实报告，**不许**在文件已经写成功之后回 500。
+    """
+
+    def _patch_reload(self, monkeypatch: pytest.MonkeyPatch, reload_impl) -> None:
+        import src.webui.routers.config as config_router
+
+        monkeypatch.setattr(
+            config_router, "config_manager", SimpleNamespace(reload_config=reload_impl)
+        )
+
+    def test_reload_config_is_actually_awaited(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: List[str] = []
+
+        async def _reload(*args, **kwargs):
+            calls.append("reloaded")
+            return True
+
+        self._patch_reload(monkeypatch, _reload)
+        revision = _read_paths(client, "bot")["revision"]
+        written = _mutate(client, "bot", revision, [{"op": "set", "path": "chat.max_context_size", "value": 41}])
+
+        assert written.status_code == 200, written.text
+        assert calls == ["reloaded"], "reload_config 必须被 await 到（不 await = 协程被静默丢掉）"
+        assert written.json()["hot_reload"] == "ok"
+
+    def test_frozen_reload_is_reported_not_a_500(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from src.config.config import ConfigFrozenError
+
+        async def _frozen(*args, **kwargs):
+            raise ConfigFrozenError("配置已冻结（启动完成），运行时修改被拒绝")
+
+        self._patch_reload(monkeypatch, _frozen)
+        config_path = seam_config_dir / "bot_config.toml"
+        revision = _read_paths(client, "bot")["revision"]
+        written = _mutate(client, "bot", revision, [{"op": "set", "path": "chat.max_context_size", "value": 41}])
+
+        # 文件**已经写成功**了 ⇒ 不许让客户端以为"没保存"
+        assert written.status_code == 200, written.text
+        assert written.json()["hot_reload"] == "refused_frozen"
+        assert "冻结" in written.json()["message"]
+        assert _load_plain(config_path)["chat"]["max_context_size"] == 41
+
+
+# 全部保存路径（收尾令：同类未清 = 修了一处留五处）
+LEGACY_SAVE_HTTP_CALLS: tuple[tuple[str, str, Dict[str, Any]], ...] = (
+    ("POST", "/api/webui/config/bot", {}),
+    ("POST", "/api/webui/config/model", {}),
+    ("POST", "/api/webui/config/bot/section/personality", {"personality": "You are SeamBot v2."}),
+    ("POST", "/api/webui/config/model/section/models", []),
+)
+
+
+class TestAllSavePathsReloadAndReport:
+    """① 收尾令：**六条**保存路径全部走同一个重载机制。
+
+    原来只有新接缝（`mutate`）await 了热重载，另外 5 处遗留调用点全都把协程丢掉。
+    同类缺陷留 5 处 = 没修。这里逐条驱动一次真实保存，断言：
+    ① 无 ``RuntimeWarning``（协程没被丢）② 无 500 ③ 盘上确实落盘。
+    """
+
+    def _drive_all_paths(self, client: TestClient, seam_config_dir) -> List[str]:
+        """让每条保存路径各落一次盘，返回 ``"<路径> ⇒ <状态码>"`` 记录。"""
+        model_config = client.get("/api/webui/config/model").json()["config"]
+        bot_config = client.get("/api/webui/config/bot").json()["config"]
+        model_models = model_config["models"]
+
+        results: List[str] = []
+        for method, url, payload in LEGACY_SAVE_HTTP_CALLS:
+            body = payload
+            if url.endswith("/config/bot"):
+                body = bot_config
+            elif url.endswith("/config/model"):
+                body = model_config
+            elif url.endswith("/section/models"):
+                body = model_models
+            response = client.request(method, url, json=body)
+            results.append(f"{url} ⇒ {response.status_code}")
+            assert response.status_code == 200, f"{url}: {response.status_code} {response.text[:200]}"
+
+        # 人设生成器的注入路径（同一个缺陷类的第 5 处）
+        apply_response = client.post(
+            "/api/webui/config/prompt-generator/apply",
+            json={
+                "blocks": [
+                    {
+                        "id": "seam-block",
+                        "section": "personality",
+                        "field": "personality",
+                        "title": "人格",
+                        "value": "You are SeamBot v3.",
+                        "toml": "",
+                    }
+                ]
+            },
+        )
+        results.append(f"/prompt-generator/apply ⇒ {apply_response.status_code}")
+        assert apply_response.status_code == 200, apply_response.text[:300]
+
+        # 新接缝那条也一起跑（总共 6 条）
+        revision = _read_paths(client, "bot")["revision"]
+        mutate_response = _mutate(
+            client, "bot", revision, [{"op": "set", "path": "chat.max_context_size", "value": 43}]
+        )
+        results.append(f"/config/mutate ⇒ {mutate_response.status_code}")
+        assert mutate_response.status_code == 200, mutate_response.text[:300]
+        return results
+
+    def test_every_save_path_awaits_reload_without_warning_or_500(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import gc
+        import warnings
+
+        # 模型平面夹具里有 `${VAR}` 引用 ⇒ 变量必须存在，否则 ModelConfig 校验会拒（那是 F4 的预期行为）
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = self._drive_all_paths(client, seam_config_dir)
+            gc.collect()  # 未 await 的协程是在回收时才发 RuntimeWarning 的
+
+        never_awaited = [str(item.message) for item in caught if "never awaited" in str(item.message)]
+        assert never_awaited == [], f"仍有协程被丢掉：{never_awaited}"
+        # 4 条遗留配置端点 + 人设生成器注入 + 新接缝 mutate = 6 条保存路径，全部 200
+        assert len(results) == 6, results
+
+        # ③ 盘上确实落盘（不是"200 了但没写"）
+        bot_plain = _load_plain(seam_config_dir / "bot_config.toml")
+        assert bot_plain["personality"]["personality"] == "You are SeamBot v3."
+        assert bot_plain["chat"]["max_context_size"] == 43
+        assert _load_plain(seam_config_dir / "model_config.toml")["models"][0]["name"] == "seam-model"
+
+    def test_no_unawaited_reload_call_site_remains(self) -> None:
+        """机械闸：模块里不许再出现未 await 的 ``config_manager.reload_config()``。
+
+        这条不依赖"我记得有哪几处"——它扫源码。将来谁再写一处未 await 的，这里就红。
+        """
+        import inspect
+
+        import src.webui.routers.config as config_router
+
+        source = inspect.getsource(config_router)
+        offenders = [
+            f"{number}: {line.strip()}"
+            for number, line in enumerate(source.splitlines(), start=1)
+            if "config_manager.reload_config()" in line and "await" not in line
+        ]
+
+        assert offenders == [], f"仍存在未 await 的重载调用点：{offenders}"
+
+
+class TestArrayWildcardDeclaration:
+    """F5（已复现）：以 ``[]`` 结尾的声明必须整块脱敏——``_redact`` 的 list 分支曾漏判。"""
+
+    def test_declaration_ending_with_wildcard_redacts_the_whole_array(self) -> None:
+        data = {"a": ["SECRET-1", "SECRET-2"]}
+
+        redacted = config_secrets.redact_config_secrets(data, secret_paths={"a[]"})
+
+        assert "SECRET-1" not in str(redacted), "声明以 [] 结尾时元素必须脱敏（曾经逐元素原样出站）"
+        # 判据挂在**元素**路径上（与 find_secret_root 同口径），不是整个数组一个标记：
+        # `a[]` 的语义就是"a 的每个元素都是秘密"，所以是逐元素的标记。
+        assert [item["$secret"] for item in redacted["a"]] == [True, True]
+        assert [item["path"] for item in redacted["a"]] == ["a[0]", "a[1]"]
+        assert all(item["set"] is True for item in redacted["a"])
+
+    def test_read_seam_and_whole_file_agree_on_the_wildcard_form(self) -> None:
+        """两条读路径口径必须一致（F4 的教训：口径分叉本身就是缺陷）。"""
+        declared = frozenset({"a[]"})
+
+        assert config_secrets.find_secret_root(("a", 0), declared) == ("a", 0)
+        assert "SECRET-1" not in str(config_secrets.redact_config_secrets({"a": ["SECRET-1"]}, secret_paths=declared))
+
+    def test_derived_channel_structurally_cannot_emit_a_trailing_wildcard(self) -> None:
+        """F5 的**可达性边界**：派生通道产不出尾部 ``[]``。
+
+        依据（读代码 + 这里钉住）：``derive_secret_field_paths`` 给子路径用的前缀永远是
+        ``f"{path}[]."``（带点），末段一定是**字段名** ⇒ 结果不可能以 ``[]`` 结尾。
+        所以尾部 `[]` 只可能来自**手写**的声明表条目——上面那条用例守的就是这个口子。
+        """
+        for namespace in sorted(config_store.NAMESPACES):
+            spec = config_store.namespace_spec(namespace)
+            for path in config_secrets.derive_secret_field_paths(spec.model):
+                assert not path.endswith("[]"), f"派生通道产出了尾部 []：{namespace}:{path}"
+
+
+class TestOrdinaryTablesAreNotMistakenForSentinels:
+    """F6（已复现）：``{path: str, set: bool}`` 形状的**普通数据表**不能被当成占位。
+
+    可达面：``ModelInfo.extra_params: dict[str, Any]``。只比形状的后果是
+    新接缝里合法数据被 400、遗留整份写里被参考值**静默替换**。
+    """
+
+    LEGIT_TABLE: Dict[str, Any] = {"path": "outputs", "set": True}
+
+    def test_shape_alone_collides_but_claim_needs_a_secret_source(self) -> None:
+        declared = config_store.secret_field_paths("model")
+
+        assert config_secrets.is_redaction_sentinel(self.LEGIT_TABLE) is True, "形状确实撞上了"
+        assert config_secrets.is_secret_claim(self.LEGIT_TABLE, declared) is False, "但来源不是秘密"
+
+    def test_legacy_merge_keeps_the_users_table(self) -> None:
+        declared = config_store.secret_field_paths("model")
+
+        merged = config_secrets.merge_payload_with_reference(
+            {"extra_params": self.LEGIT_TABLE}, {"extra_params": {"path": "ORIGINAL"}}, declared=declared
+        )
+
+        assert merged["extra_params"] == self.LEGIT_TABLE, "普通表必须原样保留，不能被参考值换掉"
+
+    def test_unresolved_scan_does_not_flag_it(self) -> None:
+        declared = config_store.secret_field_paths("model")
+
+        unresolved = config_secrets.find_unresolved_sentinels(
+            {"x": self.LEGIT_TABLE}, declared=declared
+        )
+
+        assert unresolved == [], "普通表不是'未还原的占位'"
+
+    def test_real_sentinel_still_claims_with_the_same_predicate(self) -> None:
+        """反例守卫：收紧判据之后，**真占位**照样认领（别把口子堵死了）。"""
+        declared = config_store.secret_field_paths("model")
+        real_sentinel = {"$secret": True, "set": True, "path": "api_providers[0].api_key"}
+
+        assert config_secrets.is_secret_claim(real_sentinel, declared) is True
+
+    def test_new_seam_writes_the_ordinary_table(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """端到端：把一张 ``{path, set}`` 普通表写进 ``models[0].extra_params`` 必须成功。"""
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+        config_path = seam_config_dir / "model_config.toml"
+        revision = _read_paths(client, "model")["revision"]
+
+        written = _mutate(
+            client,
+            "model",
+            revision,
+            [{"op": "set", "path": "models[0].extra_params", "value": self.LEGIT_TABLE}],
+        )
+
+        assert written.status_code == 200, written.text
+        assert _load_plain(config_path)["models"][0]["extra_params"] == self.LEGIT_TABLE
+
+    def test_real_placeholder_roundtrip_still_works_end_to_end(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """端到端反例：判据收紧后，秘密占位的往返（F3 认领）不能被误伤。"""
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+        config_path = seam_config_dir / "model_config.toml"
+
+        entries = _entries_by_path(_read_paths(client, "model"))
+        marker = entries["api_providers[1].api_key"]["value"]
+        revision = _read_paths(client, "model")["revision"]
+        written = _mutate(client, "model", revision, [{"op": "set", "path": "api_providers[1].api_key", "value": marker}])
+
+        assert written.status_code == 200, written.text
+        assert _load_plain(config_path)["api_providers"][1]["api_key"] == REFERENCE_TEXT
 
 
 # ── 秘密判定通道的自检（声明表 / 派生 / 过渡层 / 与 F4 的对拍） ────────
@@ -789,20 +1263,18 @@ class TestSecretDeclarationChannels:
         # 派生通道也能认出那两个（字段已声明）⇒ 取并集后不减少
         assert declared_only == config_secrets.collect_secret_field_paths("bot", Config)
 
-    def test_transitional_layer_coverage_is_empty_for_the_known_config(
-        self, seam_config_dir
-    ) -> None:
-        """**过渡层台账**：本夹具里"只有后缀层兜住、没有任何声明"的键应当为空。
+    def test_transitional_layer_allows_the_known_undeclared_key(self, seam_config_dir) -> None:
+        """**过渡层台账**：报出"只有名字层兜住、没有任何声明"的键。
 
-        这就是过渡层何时能拆的证据——哪天这张表空了（且全仓配置都是这样），
-        ``is_sensitive_key`` 就可以删掉；它不为空说明还有密钥字段没被声明。
+        夹具里刻意放了一个 ``personality.some_new_credential_token`` ⇒ 这张表**必须**报出它。
+        （它就是"过渡层为什么还不能删"的证据：只要还有这种键，``is_sensitive_key`` 就得留着。）
         """
         bot_declared = config_store.secret_field_paths("bot")
         model_declared = config_store.secret_field_paths("model")
 
         assert config_secrets.undeclared_transitional_keys(
             _load_plain(seam_config_dir / "bot_config.toml"), bot_declared
-        ) == []
+        ) == ["personality.some_new_credential_token"]
         assert config_secrets.undeclared_transitional_keys(
             _load_plain(seam_config_dir / "model_config.toml"), model_declared
         ) == []
@@ -818,6 +1290,81 @@ class TestSecretDeclarationChannels:
 
         assert "leaked-if-you-remove-the-net" not in str(redacted)
         assert config_secrets.undeclared_transitional_keys(data, ()) == ["some_new_credential_token"]
+
+
+def _iter_path_prefixes(value: Any, prefix: tuple[Any, ...] = ()) -> Iterator[tuple[Any, ...]]:
+    """列出这棵树里的**每一条路径前缀**：中间层表、数组项**本身**、叶子，全都算一条。
+
+    刻意**不做任何**"什么才算可读路径"的筛选——这道闸存在的全部意义就是
+    不依赖"人想得到哪些形状"。上一轮全绿却漏掉祖先容器，就是因为用例选点是手挑的。
+    """
+    if prefix:
+        yield prefix
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from _iter_path_prefixes(item, (*prefix, str(key)))
+        return
+    if isinstance(value, list) and not isinstance(value, (str, bytes)):
+        for index, item in enumerate(value):
+            yield from _iter_path_prefixes(item, (*prefix, index))
+
+
+class TestExhaustivePrefixLeakGate:
+    """③ 后的**机械穷举闸**（lead 2026-10-16 指定）——防复发的闸，不是补几个用例。
+
+    为什么必须是穷举：上一轮四条判据门全绿，而新接缝当时有两条明文出站路径。
+    根因不是执行错，是**用例选点系统性避开了"祖先容器"**——我只请求了整平面与
+    秘密**内部**的路径，恰好没请求"秘密**外面**那一层容器"。手挑用例无法防住
+    "我又没想到的形状"，所以这里改成遍历该平面的**每一条路径前缀**逐个请求。
+
+    判据：**遍历 N 条前缀 × 2 个平面，泄漏 0 例**（N 见断言消息与用例输出）。
+    """
+
+    @pytest.mark.parametrize(
+        ("namespace", "filename"),
+        [("bot", "bot_config.toml"), ("model", "model_config.toml")],
+    )
+    def test_every_path_prefix_is_leak_free(
+        self,
+        client: TestClient,
+        seam_config_dir,
+        monkeypatch: pytest.MonkeyPatch,
+        namespace: str,
+        filename: str,
+    ) -> None:
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+        stored = _load_plain(seam_config_dir / filename)
+        prefixes = list(_iter_path_prefixes(stored))
+        assert prefixes, "前缀集合为空 ⇒ 这道闸是空跑"
+
+        leaks: List[tuple[str, str]] = []
+        for tokens in prefixes:
+            path = format_path(tokens)
+            response = client.post(READ_URL, json={"namespace": namespace, "paths": [path]})
+            assert response.status_code == 200, (
+                f"{namespace}:{path} ⇒ {response.status_code} {response.text[:200]}"
+            )
+            for secret in KNOWN_FAKE_SECRETS:
+                if secret in response.text:
+                    leaks.append((path, secret))
+
+        print(f"\n[穷举闸] {namespace} 平面：{len(prefixes)} 条路径前缀 × {len(KNOWN_FAKE_SECRETS)} 个真值探针")
+        assert leaks == [], (
+            f"{namespace} 平面泄漏 {len(leaks)} 例 / 共 {len(prefixes)} 条前缀：{leaks[:5]}"
+        )
+
+    @pytest.mark.parametrize("namespace", ["bot", "model"])
+    def test_whole_plane_read_is_leak_free(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch, namespace: str
+    ) -> None:
+        """整平面（``paths=[]``）与逐条前缀**同待遇**——两条分支不许有不同的保密性。"""
+        monkeypatch.setenv(REFERENCE_ENV_VAR, FAKE_ENV_KEY_VALUE)
+
+        response = client.post(READ_URL, json={"namespace": namespace, "paths": []})
+
+        assert response.status_code == 200, response.text
+        for secret in KNOWN_FAKE_SECRETS:
+            assert secret not in response.text, f"{namespace} 整平面读泄漏 {secret!r}"
 
 
 class TestReferenceKindAgreesWithF4:

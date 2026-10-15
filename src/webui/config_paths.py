@@ -318,8 +318,8 @@ def lookup_parent(root: Any, tokens: Sequence[PathToken]) -> tuple[Any, PathToke
 def assign_path(root: Any, tokens: Sequence[PathToken], value: Any) -> None:
     """按路径写入（``set`` op 的实现）。
 
-    中间层**自动补齐**：缺字典就补字典、缺数组就补数组；下标等于当前长度时**追加**一个空表项
-    （这正对应用户"新建一个 API 提供商"：先 ``set api_providers[N].name``，此时 ``N == len``）。
+    中间层**自动补齐**：缺字典就补字典、缺数组就补数组（那是"造容器"）；
+    下标等于当前长度时**追加这个值本身**（那是"加一条数据"）——这两件事必须分清。
     下标大于长度直接报错——不做"空洞填充"（TOML 数组不允许空洞）。
 
     Args:
@@ -343,7 +343,10 @@ def assign_path(root: Any, tokens: Sequence[PathToken], value: Any) -> None:
                 path=format_path(tokens),
             )
         if last_token == len(parent):
-            parent.append(_as_container(value))
+            # ⚠️ 必须 append **值本身**：曾误写成 `_as_container(value)`（把值当"下一段 token"
+            # 去造容器）⇒ 追加了个空表、用户的值被丢掉，而报错落在"配置数据验证失败"上，
+            # 合法操作永远无法成功（2026-10-16 对抗审查 F2）。
+            parent.append(value)
             return
         parent[last_token] = value
         return

@@ -172,11 +172,16 @@ def config_dir(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config_router, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(model_router, "CONFIG_DIR", tmp_path)
-    # 保存后路由会调 config_manager.reload_config()；测试里全局 config_manager 是 None
+    # 保存后路由会 **await** config_manager.reload_config()；测试里全局 config_manager 是 None，
+    # 而真实实现是 async（src/config/config.py:489）⇒ 替身必须也是 async，
+    # 否则 `await None` 会炸（2026-10-16 收尾令把全部保存路径改成 await 之后暴露）
+    async def _reload(*args, **kwargs):
+        return True
+
     monkeypatch.setattr(
         config_router,
         "config_manager",
-        SimpleNamespace(reload_config=lambda *args, **kwargs: None),
+        SimpleNamespace(reload_config=_reload),
     )
     return tmp_path
 

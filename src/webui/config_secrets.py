@@ -290,6 +290,42 @@ def is_redaction_sentinel(value: Any) -> bool:
     return isinstance(value[SENTINEL_PATH_KEY], str) and isinstance(value[SENTINEL_SET_KEY], bool)
 
 
+def is_secret_claim(value: Any, declared: Iterable[str] | None = None) -> bool:
+    """判断一个值是不是**可认领**的秘密占位：形状对 **且** 来源确实落在秘密字段里。
+
+    为什么必须比 ``is_redaction_sentinel`` 更严（对抗审查 F6，已复现）：
+    占位形状是 ``{path: str, set: bool}``，而**普通数据表可能恰好长这样**——
+    ``ModelInfo.extra_params: dict[str, Any]`` 就可达。只比形状的后果：
+
+    - 新写接缝：用户提交的合法表被当成占位去认领 ⇒ **400**（明明数据没问题）；
+    - 遗留整份写：``merge_payload_with_reference`` 直接把它换成参考值 ⇒ **静默吃掉用户的数据**；
+    - ``find_unresolved_sentinels`` 也会把它报成"未还原的占位" ⇒ 再补一刀 400。
+
+    这三条都不是"漏真值"，但都是真的会咬人。判据换成"形状对 + 来源是秘密"之后，
+    普通表走普通数据路径，占位走占位路径，两边不再互相冒充。
+
+    Args:
+        value: 待判断的值。
+        declared: 秘密声明路径集合；``None`` 时退化成**纯形状**判断（兼容不掌握声明的旧调用方）。
+
+    Returns:
+        是否应当按"认领秘密占位"处理。
+    """
+    if not is_redaction_sentinel(value):
+        return False
+    if declared is None:
+        return True
+
+    recorded_path = str(value.get(SENTINEL_PATH_KEY, "")).strip()
+    if not recorded_path:
+        return False
+    try:
+        source_tokens = parse_path(recorded_path)
+    except ValueError:
+        return False
+    return find_secret_root(source_tokens, declared) is not None
+
+
 # ── 读路径 ─────────────────────────────────────────────────────────────
 
 
@@ -355,10 +391,27 @@ def _redact(data: Any, tokens: tuple[PathToken, ...], declared: frozenset[str], 
         return redacted
 
     if isinstance(data, (list, tuple)) and not isinstance(data, (str, bytes)):
-        return [
-            _redact(item, (*tokens, index), declared, origin_name)
-            for index, item in enumerate(data)
-        ]
+        redacted_items: list[Any] = []
+        for index, item in enumerate(data):
+            child_tokens = (*tokens, index)
+            if is_secret_path(child_tokens, declared):
+                # 声明以 `[]` 结尾 = "这个数组的**每个元素**都是秘密" ⇒ 元素整块换标记。
+                # 判据挂在**元素**路径上（`a[]`），与 `find_secret_root` 同口径——
+                # 挂在容器路径（`a`）上是不行的：`to_declaration_key(("a",))` 给的是 `a`，
+                # 永远匹配不到声明 `a[]`（第一版就是这么写错的，用例当场抓住）。
+                # 少了这一段，list 分支会逐元素原样返回 = 声明被**静默忽略**（对抗审查 F5）。
+                # ⚠️ 今天不触发（派生通道的子路径前缀永远带一个点、末段一定是字段名 ⇒
+                # 永远不产出尾部 `[]`）；只有**手写**声明表条目才可能引入这种形态。
+                redacted_items.append(
+                    build_redaction_sentinel(
+                        format_path(child_tokens),
+                        is_configured(item),
+                        kind=secret_kind(item),
+                    )
+                )
+                continue
+            redacted_items.append(_redact(item, child_tokens, declared, origin_name))
+        return redacted_items
 
     return data
 
@@ -380,30 +433,83 @@ def describe_secret_value(stored_root: Any, tokens: Sequence[PathToken]) -> dict
     )
 
 
-def _is_secret_path(tokens: Sequence[PathToken], key: str, declared: frozenset[str]) -> bool:
-    """声明通道优先；没被声明的才轮到过渡层（后缀）兜底。"""
-    if to_declaration_key(tokens) in declared:
+def is_secret_path(tokens: Sequence[PathToken], declared: Iterable[str]) -> bool:
+    """**单条**路径算不算秘密：声明通道优先，没被声明的才轮到过渡名字层兜底。
+
+    这是全模块**唯一的**秘密判据入口——``_redact`` 与 ``find_secret_root`` 都调它，
+    否则"整份读"和"按路径读"会各自有一套口径（那正是 F4 那个洞的形态）。
+
+    ⚠️ 根是下标时（有人把**数组本身**当根丢进来，例如 ``redact_config_secrets([...])``）
+    只走名字层：声明路径一定以键名开头（``config_paths.to_declaration_key`` 也明确拒绝
+    以下标开头的路径），拿它去比对只会抛异常。
+    """
+    if not tokens:
+        return False
+    if isinstance(tokens[0], int):
+        return is_sensitive_key(tokens[-1])
+    declared_set = declared if isinstance(declared, frozenset) else frozenset(declared)
+    if to_declaration_key(tokens) in declared_set:
         return True
-    return is_sensitive_key(key)
+    return is_sensitive_key(tokens[-1])
 
 
 def find_secret_root(
     tokens: Sequence[PathToken],
     declared: Iterable[str],
 ) -> tuple[PathToken, ...] | None:
-    """返回**包含这条路径的最短秘密路径**（它自己是秘密，或它落在某个秘密字段里面）。
+    """返回**包含这条路径的最短秘密路径**——秘密判定必须**双向**做。
 
-    为什么需要它：秘密字段的值可能是**数组**（``auth_token: list[str]``），
-    而"列叶路径"会把数组摊成 ``auth_token[0]`` / ``auth_token[1]``——只按下标路径去比对
-    声明表会得到"这不是秘密"，然后**把令牌明文发出去**。所以判定必须沿着祖先链走，
-    找到秘密根就整块脱敏。
+    ⚠️ **双向语义（2026-10-16 对抗审查 F1 的教训，别只做一半）**：
+
+    - **方向甲 · "路径在秘密里"**：请求 ``maim_message.auth_token[0]``——秘密字段是**它的祖先**
+      （``auth_token`` 是数组，"列叶"会把数组摊成 ``[0]``/``[1]``）。只比对整条路径会得到
+      "这不是秘密"，然后**把令牌明文发出去**。
+    - **方向乙 · "秘密在路径里"**：请求 ``maim_message`` / ``api_providers`` / ``api_providers[0]``
+      ——秘密字段是**它的后代**。这条曾经完全没做：非秘密路径一律原样返回，
+      于是**请求一个祖先容器就把整棵子树连密钥一起交出去**。更糟的是脱敏标记自己公布了
+      秘密路径（``"path": "maim_message.auth_token"``）⇒ 客户端不用猜就知道该请求哪个祖先。
+
+    方向甲由本函数（沿**前缀链**找根）解决；方向乙由 ``redact_subtree`` 解决（把子树按同一
+    判据走一遍）。**只做甲不做乙 = 秘密照样出站**——这就是上一轮四条判据门全绿却漏掉的洞。
+
+    防复发的闸不靠"想到哪些形状"，而是机械穷举：
+    ``pytests/webui/test_config_seam.py::TestExhaustivePrefixLeakGate`` 会遍历两个平面
+    **每一条路径前缀**（含中间层、含数组项本身）逐个请求并断言零泄漏。改这里的逻辑前先看那道闸。
     """
-    declared_set = declared if isinstance(declared, frozenset) else frozenset(declared)
     for length in range(1, len(tokens) + 1):
         prefix = tuple(tokens[:length])
-        if to_declaration_key(prefix) in declared_set:
+        if is_secret_path(prefix, declared):
             return prefix
     return None
+
+
+def redact_subtree(stored_root: Any, tokens: Sequence[PathToken], declared: Iterable[str]) -> Any:
+    """取某个子树，并把它**内部**的秘密整块换成标记后再返回（方向乙，见 ``find_secret_root``）。
+
+    调用前提：``tokens`` 这条路径**自己不是秘密**（否则应该直接出标记，不必取子树）。
+    内部走的是 ``_redact``——与整份读同一套判据（``is_secret_path``：声明 ∪ 名字层），
+    所以"整份读"与"按路径读"不可能给出不同的保密性。
+
+    Args:
+        stored_root: 已存储的配置（解析基准）。
+        tokens: 要取的子树位置。
+        declared: 秘密声明路径集合。
+
+    Returns:
+        子树（秘密已换成标记）；路径不存在时返回 ``MISSING``。
+    """
+    position = tuple(tokens)
+    value = lookup_path(stored_root, position)
+    if value is MISSING:
+        return MISSING
+    # origin_name 取该位置的所属表项名，让子树里的秘密占位仍然带得上 F3 认领要用的来源名
+    return _redact(value, position, frozenset(declared), _origin_name_at(stored_root, position))
+
+
+def _is_secret_path(tokens: Sequence[PathToken], key: str, declared: frozenset[str]) -> bool:
+    """``_redact`` 内部用的适配器——判定统一走 ``is_secret_path``（单一口径）。"""
+    del key  # 键名不再单独使用：``is_secret_path`` 自己会看末段
+    return is_secret_path(tokens, declared)
 
 
 def _origin_name_of(data: Mapping[Any, Any], inherited: str | None) -> str | None:
@@ -451,22 +557,34 @@ class SecretClaimError(ValueError):
         super().__init__(message)
 
 
-def claim_secret_value(sentinel: Mapping[str, Any], stored_root: Any, *, target_path: str) -> Any:
-    """按 F3 的两级规则认领占位所指的原值。
+def claim_secret_value(
+    sentinel: Mapping[str, Any],
+    stored_root: Any,
+    *,
+    target_path: str,
+    declared: Iterable[str],
+) -> Any:
+    """按 F3 的两级规则认领占位所指的原值——**来源与靶子都必须是同一个秘密字段**。
 
+    0. **靶子约束**（2026-10-16 对抗审查 F3 补上）：占位只能写回**它来源的那个秘密字段**
+       （``to_declaration_key(来源根) == to_declaration_key(靶子根)``，下标可不同）。
+       没有这条约束时，占位是一个**任意读**原语：把它 ``set`` 到任意可读的普通字段，
+       原值就落盘了，再读那个字段就拿到明文——写一次、读一次，F2 的保密承诺整条作废。
     1. **名字唯一匹配**：占位带 ``origin_name``，且在**来源路径所在的数组**里恰好只有一个
        表项叫这个名字 ⇒ 认领该表项的对应字段（改名 + 换序都还认得出自己）。
     2. **占位自带来源路径**：按 ``path`` 直接取原值（含下标，所以换序也能认对）。
-    3. 两条都不成立 ⇒ 抛 ``SecretClaimError``，由调用方转成 400 并**拒绝整次写入**。
+    3. 以上任一不成立 ⇒ 抛 ``SecretClaimError``，由调用方转成 400 并**拒绝整次写入**。
 
     ⚠️ **已知局限（保留、不修 —— F3 明文要求）**：新建表项带着"别家"的占位、且其来源下标
     仍然有效时，会按规则②继承该位置的凭据。保留是因为改名/换序场景需要这条兜底
     （否则改名即丢密钥）；根治方向是占位强制带来源名。**不得对外表述成"增删换序都不会串"。**
+    （靶子约束不影响这条：新建表项的靶子仍是同一个秘密字段，只是下标不同。）
 
     Args:
         sentinel: 客户端回发的秘密占位。
         stored_root: **已存储的那份**配置（解析基准，不是调用者上次读到的那份）。
-        target_path: 占位被提交到的路径（报错用）。
+        target_path: 占位被提交到的路径。
+        declared: 该命名空间的秘密声明路径集合（来源/靶子都用它判身份）。
 
     Returns:
         认领到的原值（明文或 ``${VAR}`` 引用文本都原样返回——引用解析是 F4 的事）。
@@ -486,6 +604,32 @@ def claim_secret_value(sentinel: Mapping[str, Any], stored_root: Any, *, target_
             location=target_path,
             recorded_path=recorded_path,
         ) from error
+
+    source_root = find_secret_root(source_tokens, declared)
+    if source_root is None:
+        raise SecretClaimError(
+            f"秘密占位的来源 '{recorded_path}' 不是秘密字段，拒绝认领",
+            location=target_path,
+            recorded_path=recorded_path,
+        )
+
+    try:
+        target_tokens = parse_path(target_path)
+    except ValueError as error:  # pragma: no cover — 调用方已解析过一次，这里是兜底
+        raise SecretClaimError(
+            f"秘密占位的写入位置 '{target_path}' 不合法：{error}",
+            location=target_path,
+            recorded_path=recorded_path,
+        ) from error
+
+    target_root = find_secret_root(target_tokens, declared)
+    if target_root is None or to_declaration_key(target_root) != to_declaration_key(source_root):
+        raise SecretClaimError(
+            f"秘密占位只能写回它来源的秘密字段（'{recorded_path}' ⇒ '{target_path}' 不是同一个字段）；"
+            "把秘密搬到别的字段会绕过脱敏，已拒绝",
+            location=target_path,
+            recorded_path=recorded_path,
+        )
 
     # 规则①：按名认领（名字在**来源数组**里唯一）
     origin_name = sentinel.get(SENTINEL_ORIGIN_NAME_KEY)
@@ -532,13 +676,15 @@ def _claim_by_origin_name(stored_root: Any, source_tokens: Sequence[PathToken], 
     return value
 
 
-def find_unresolved_sentinels(data: Any, *, path: str = "") -> list[str]:
-    """列出仍然残留的秘密占位路径（写路径还原失败的证据）。
+def find_unresolved_sentinels(data: Any, *, path: str = "", declared: Iterable[str] | None = None) -> list[str]:
+    """列出仍然残留的**秘密占位**路径（写路径还原失败的证据）。
 
-    判断从严：只看形状，不比对路径——宁可拒绝一次落盘，也不把占位写进配置文件。
+    判断从严：宁可拒绝一次落盘，也不把占位写进配置文件。
+    ``declared`` 给了就只认"来源确实是秘密"的占位（见 ``is_secret_claim``）——
+    否则一张恰好长成 ``{path, set}`` 的**普通数据表**会被误报、连带整次保存被拒（F6）。
     报告位置优先用占位自带的来源路径（它说明密钥**本来在哪**），再附上提交位置。
     """
-    if is_redaction_sentinel(data):
+    if is_secret_claim(data, declared):
         recorded_path = str(data.get(SENTINEL_PATH_KEY, "")).strip()
         if recorded_path and path and recorded_path != path:
             return [f"{recorded_path}（提交于 {path}）"]
@@ -549,19 +695,19 @@ def find_unresolved_sentinels(data: Any, *, path: str = "") -> list[str]:
         for key, value in data.items():
             key_text = str(key)
             child_path = f"{path}.{key_text}" if path else key_text
-            unresolved.extend(find_unresolved_sentinels(value, path=child_path))
+            unresolved.extend(find_unresolved_sentinels(value, path=child_path, declared=declared))
         return unresolved
 
     if isinstance(data, (list, tuple)):
         unresolved = []
         for index, item in enumerate(data):
-            unresolved.extend(find_unresolved_sentinels(item, path=f"{path}[{index}]"))
+            unresolved.extend(find_unresolved_sentinels(item, path=f"{path}[{index}]", declared=declared))
         return unresolved
 
     return []
 
 
-def merge_payload_with_reference(payload: Any, reference: Any) -> Any:
+def merge_payload_with_reference(payload: Any, reference: Any, *, declared: Iterable[str] | None = None) -> Any:
     """写路径保真：占位还原 + 未见字段保留（**遗留整份/整节端点在用**）。
 
     新的 ``mutate`` 走路径操作，不需要这一步（没被点名的路径根本不进写路径）；
@@ -572,6 +718,8 @@ def merge_payload_with_reference(payload: Any, reference: Any) -> Any:
     - ``{path, set}`` 占位 ⇒ 用参考里对应位置的原值（明文或 ``${VAR}`` 引用文本）还原；
       位置靠"名字 → 占位自带的来源下标"认领（见 ``_align_reference_item``），
       条目改名/增删/换序都不会把 A 提供商的密钥串到 B 上。
+      ⚠️ 只认"来源确实是秘密"的占位（``is_secret_claim``）：传了 ``declared`` 之后，
+      一张恰好长成 ``{path, set}`` 的**普通数据表**不会被当成占位吃掉（F6）。
     - 字典 ⇒ 逐键递归（payload 里没有的键不参与结果；顶层由 ``_update_toml_doc`` 的合并保住原值，
       表项内由下面的列表分支显式补回）。
     - 列表 ⇒ 逐项对齐后按"参考字段打底 + payload 覆盖"重建——列表整体替换时，
@@ -581,12 +729,13 @@ def merge_payload_with_reference(payload: Any, reference: Any) -> Any:
     Args:
         payload: 前端提交的数据（可能含 ``{path, set}`` 占位）。
         reference: 配置文件里的当前数据。
+        declared: 秘密声明路径集合；``None`` 时退化成纯形状判断（旧调用方兼容）。
 
     Returns:
         还原后的数据。还原不出来的占位会**原样留在结果里**，由
         ``find_unresolved_sentinels`` 检出后拒绝落盘。
     """
-    if is_redaction_sentinel(payload):
+    if is_secret_claim(payload, declared):
         return reference
 
     if isinstance(payload, Mapping):
@@ -595,8 +744,10 @@ def merge_payload_with_reference(payload: Any, reference: Any) -> Any:
         for key, value in payload.items():
             key_text = str(key)
             if key_text in reference_mapping:
-                merged[key_text] = merge_payload_with_reference(value, reference_mapping[key_text])
-            elif is_redaction_sentinel(value):
+                merged[key_text] = merge_payload_with_reference(
+                    value, reference_mapping[key_text], declared=declared
+                )
+            elif is_secret_claim(value, declared):
                 # 参考里压根没有这个密钥叶（本来就没配）⇒ 不落盘占位符
                 continue
             else:
@@ -605,7 +756,7 @@ def merge_payload_with_reference(payload: Any, reference: Any) -> Any:
 
     if isinstance(payload, list):
         reference_list = reference if isinstance(reference, list) else []
-        return [_merge_list_item(item, reference_list) for item in payload]
+        return [_merge_list_item(item, reference_list, declared) for item in payload]
 
     return payload
 
@@ -620,7 +771,11 @@ def _recorded_list_index(item: Any) -> int | None:
 
 
 def _iter_sentinels(value: Any) -> list[Mapping[str, Any]]:
-    """递归收集一个值里出现的全部占位。"""
+    """递归收集一个值里出现的全部占位。
+
+    这里**保持纯形状判断**：它只用来"从表项里反推来源下标"，属于启发式，
+    判断错了只是认领不到（会被拒），不会把普通数据当占位吃掉。
+    """
     if is_redaction_sentinel(value):
         return [value]
     if isinstance(value, Mapping):
@@ -667,21 +822,23 @@ def _align_reference_item(item: Any, reference_list: list[Any]) -> Any:
     return None
 
 
-def _merge_list_item(item: Any, reference_list: list[Any]) -> Any:
+def _merge_list_item(item: Any, reference_list: list[Any], declared: Iterable[str] | None = None) -> Any:
     """合并单个列表项：认领到参考项的表项按"参考打底 + payload 覆盖"，否则原样放行。"""
     reference_item = _align_reference_item(item, reference_list)
     if reference_item is None:
         return item
 
     if not isinstance(item, Mapping) or not isinstance(reference_item, Mapping):
-        return merge_payload_with_reference(item, reference_item)
+        return merge_payload_with_reference(item, reference_item, declared=declared)
 
     merged: dict[str, Any] = {str(key): value for key, value in reference_item.items()}
     for key, value in item.items():
         key_text = str(key)
         if key_text in reference_item:
-            merged[key_text] = merge_payload_with_reference(value, reference_item[key_text])
-        elif is_redaction_sentinel(value):
+            merged[key_text] = merge_payload_with_reference(
+                value, reference_item[key_text], declared=declared
+            )
+        elif is_secret_claim(value, declared):
             continue
         else:
             merged[key_text] = value
