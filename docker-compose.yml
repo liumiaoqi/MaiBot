@@ -101,20 +101,8 @@ services:
     image: mlikiowa/napcat-docker:v4.18.8
     networks:
       - maim_bot
-  sqlite-web:
-    # 注意：coleifer/sqlite-web 镜像不支持arm64
-    image: coleifer/sqlite-web
-    container_name: sqlite-web
-    restart: always
-    ports:
-      - "8120:8080"
-    volumes:
-      - ./data/MaiMBot:/data/MaiMBot
-    environment:
-      - SQLITE_DATABASE=MaiMBot/MaiBot.db  # 你的数据库文件
-    networks:
-      - maim_bot
-
+  # sqlite-web 已移除（2026-10-15：从未实际使用；且其为无认证工具，不宜常驻暴露于校园网。
+  # 如需翻库：宿主 python/sqlite3 或桌面版 DB Browser 即可）
   # chat2db占用相对较高但是功能强大
   # 内存占用约600m，内存充足推荐选此
   # chat2db:
