@@ -2870,9 +2870,6 @@ class AMemorixRetrievalConfig(ConfigBase):
     )
     """ZG-28 检索缓存配置（embedding/BM25/profile/node，开关默认 False 灰度安全）"""
 
-    relation_vectorization: AMemorixRelationVectorizationConfig = Field(default_factory=AMemorixRelationVectorizationConfig)
-    """关系向量化配置"""
-
 
 class AMemorixThresholdConfig(ConfigBase):
     """A_Memorix 阈值过滤配置"""
