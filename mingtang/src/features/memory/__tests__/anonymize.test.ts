@@ -254,6 +254,9 @@ describe('downloadJsonFile', () => {
       return originalCreateElement(tag)
     })
     const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockLink as unknown as HTMLAnchorElement)
+    // jsdom 30.1 起 URL.createObjectURL 内部实现与 Blob 不再兼容（读 _buffer 抛 TypeError）——测试直接 mock
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
+    const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
 
     downloadJsonFile('test.json', { key: 'value' })
 
@@ -264,5 +267,7 @@ describe('downloadJsonFile', () => {
 
     spy.mockRestore()
     appendSpy.mockRestore()
+    createUrlSpy.mockRestore()
+    revokeUrlSpy.mockRestore()
   })
 })
