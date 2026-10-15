@@ -67,24 +67,14 @@ _HIDDEN_FIELDS = frozenset({"field_docs", "_validate_any", "suppress_any_warning
 #    别让它静默漂移（这种"静默放过"正是本契约要防的）。
 EXPECTED_POLICY_EXCLUSIONS = 67
 
-# ── 当前未覆盖项（②类交付：每条都指向 src/webui/config_schema.py 侧要补的映射） ──
-KNOWN_UNMAPPED: Dict[Tuple[str, str], str] = {
-    # G-1 · gt/lt 未映射（config_schema.py:389-395 只认 ge/le）—— `gt` 6 条
-    ("a_memorix.memory.watermark.check_interval_sec", "gt"): "G-1 gt 无映射",
-    ("mcp.servers[].http_timeout_seconds", "gt"): "G-1 gt 无映射",
-    ("mcp.servers[].read_timeout_seconds", "gt"): "G-1 gt 无映射",
-    ("plugin_runtime.render.startup_timeout_sec", "gt"): "G-1 gt 无映射",
-    ("plugin_runtime.render.render_timeout_sec", "gt"): "G-1 gt 无映射",
-    ("plugin_runtime.render.download_connection_timeout_sec", "gt"): "G-1 gt 无映射",
-    # G-2 · min_length 未映射（1 段把散落校验搬进 Field 后新暴露）—— 5 条
-    ("keyword_reaction.keyword_rules[].reaction", "min_length"): "G-2 min_length 无映射",
-    ("keyword_reaction.regex_rules[].reaction", "min_length"): "G-2 min_length 无映射",
-    ("models[].category", "min_length"): "G-2 min_length 无映射",
-    ("models[].name", "min_length"): "G-2 min_length 无映射",
-    ("models[].api_provider", "min_length"): "G-2 min_length 无映射",
-    # G-3 · pattern 未映射（1 段把散落校验搬进 Field 后新暴露）—— 1 条
-    ("mcp.servers[].name", "pattern"): "G-3 pattern 无映射",
-}
+# ── 当前未覆盖项（登记处：每条必须指向 src/webui/config_schema.py 侧要补的映射） ──
+#
+# 2026-10-16：**当前为空** —— G-1（gt 6 条）· G-2（min_length 5 条）· G-3（pattern 1 条）
+# 共 12 条已由 2 段落地（`config_schema.py` 的约束映射补齐 ge/le/gt/lt/min_length/max_length/pattern/multiple_of）
+# ⇒ 本表清空是**兑现**，不是删除判据：`test_known_unmapped_is_not_stale` 会在"豁免项已不再是缺口"时报红。
+# 若将来又有约束进不了生成 schema，**在这里新增一条并写明理由**（表空着≠可以静默放过）。
+KNOWN_UNMAPPED: Dict[Tuple[str, str], str] = {}
+
 
 
 class FieldRow(NamedTuple):

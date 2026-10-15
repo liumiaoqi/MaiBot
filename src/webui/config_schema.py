@@ -386,13 +386,43 @@ class ConfigSchemaGenerator:
         if hasattr(field_info, "json_schema_extra") and field_info.json_schema_extra:
             schema.update(field_info.json_schema_extra)
 
-        # Task 1d: Map Pydantic constraints to minValue/maxValue (frontend naming convention)
-        if hasattr(field_info, "metadata") and field_info.metadata:
-            for constraint in field_info.metadata:
-                if hasattr(constraint, "ge"):
-                    schema["minValue"] = constraint.ge
-                if hasattr(constraint, "le"):
-                    schema["maxValue"] = constraint.le
+        # Task 1d: Map Pydantic constraints to the frontend naming convention.
+        #
+        # 覆盖范围与 pytests/config_test/test_schema_constraint_contract.py 的 CONTRACT 表**同源**：
+        #   ge/le       → minValue/maxValue（含边界）
+        #   gt/lt       → minValue/maxValue + exclusiveMinValue/exclusiveMaxValue（**开区间标记**）
+        #   min_length  → minLength      max_length → maxLength
+        #   pattern     → pattern        multiple_of → multipleOf
+        # ⚠️ 新增映射后请删掉契约测试里 KNOWN_UNMAPPED 的对应行（`test_known_unmapped_is_not_stale` 会主动报红提醒）。
+        # ⚠️ 用 `is not None` 判空（原写法 `hasattr` + 无条件赋值，遇到只有 le 的字段会写出 `minValue: None`）。
+        for constraint in field_info.metadata or ():
+            ge = getattr(constraint, "ge", None)
+            le = getattr(constraint, "le", None)
+            gt = getattr(constraint, "gt", None)
+            lt = getattr(constraint, "lt", None)
+            min_length = getattr(constraint, "min_length", None)
+            max_length = getattr(constraint, "max_length", None)
+            pattern = getattr(constraint, "pattern", None)
+            multiple_of = getattr(constraint, "multiple_of", None)
+
+            if ge is not None:
+                schema["minValue"] = ge
+            if le is not None:
+                schema["maxValue"] = le
+            if gt is not None:
+                schema["minValue"] = gt
+                schema["exclusiveMinValue"] = True
+            if lt is not None:
+                schema["maxValue"] = lt
+                schema["exclusiveMaxValue"] = True
+            if min_length is not None:
+                schema["minLength"] = min_length
+            if max_length is not None:
+                schema["maxLength"] = max_length
+            if pattern is not None:
+                schema["pattern"] = pattern
+            if multiple_of is not None:
+                schema["multipleOf"] = multiple_of
 
         cls._apply_a_memorix_visibility_policy(field_path, visibility, schema)
 
