@@ -1,0 +1,10 @@
+During startup - Warning messages:
+1: Setting LC_COLLATE=C.UTF-8 failed
+2: Setting LC_CTYPE=C.UTF-8 failed
+3: Setting LC_MONETARY=C.UTF-8 failed
+4: Setting LC_TIME=C.UTF-8 failed
+top |eig| (R): 1 0.9558753 0.9510169 0.947558
+lambda2 (R) = 0.955875
+gap     (R) = 0.044125
+reported (numpy): lambda2 = 0.955875 | gap = 0.044125
+done (x80-R).

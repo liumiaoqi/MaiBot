@@ -1,0 +1,25 @@
+episodes cols: ['episode_id', 'source', 'title', 'summary', 'event_time_start', 'event_time_end', 'time_granularity', 'time_confidence', 'participants_json', 'keywords_json', 'evidence_ids_json', 'paragraph_count', 'llm_confidence', 'segmentation_model', 'segmentation_version', 'created_at', 'updated_at']
+ sample: ('b99386194404e24e6370e36c861f56eb0b11e09fed0acf0319efb0ab40ddd425', 'person_fact:4dd919ad6c78e922367fa252acdcc450', 'Character Constellation Update', 'The individual has obtained a 2+1 version of the Columbiya character.', 1778143406.525659, 1778143406.525659
+ sample: ('bc463ce4a3f40253f35bbeb22ee740aca0326d04d5975be4a379daafb9b2e5c9', 'person_fact:4dd919ad6c78e922367fa252acdcc450', '高额伤害配置', '某人的配置能够打出100万伤害。', 1778143413.343748, 1778143413.343748, None, 0.0, '["4dd919ad6c78e922367fa252acdcc450", "WebUI用户"]', '["配置", "伤害",
+
+E1 时间线: n=694
+  span: 2026-05-07 → 2026-07-22
+  2026-W19:    8  ##
+  2026-W20:   21  #######
+  2026-W21:   52  #################
+  2026-W22:   71  #######################
+  2026-W23:    7  ##
+  2026-W24:    6  ##
+  2026-W25:  184  ##################################################
+  2026-W26:  223  ##################################################
+  2026-W27:  102  ##################################
+  2026-W28:   15  #####
+  2026-W29:    4  #
+  2026-W30:    1
+
+E2 段落数分布: episodes with paragraphs = 540 | median 1.0 | min 1 max 1
+   0-4:  540
+
+pending_paragraphs status: {'done': 687, 'running': 1}
+
+done (probe37).

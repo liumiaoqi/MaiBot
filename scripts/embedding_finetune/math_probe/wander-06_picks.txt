@@ -1,0 +1,89 @@
+== wander-06 定向漫游 (source: rdrand) ==
+抽中分类: cs.IR · cs.DC · cs.HC · math.OC · q-bio.NC · physics.soc-ph
+
+### cs.IR（本批 30 条，硬抽 8）
+  - Revisiting Generative vs. Dense Retrieval: A Static Value Prior Reverses the Gap
+  - RCER: Reconstructing Cross-Evidence Relations for Iterative Retrieval-Augmented Generation
+  - XViewRank: Overlap-Conditioned Score Fusion for LLM-Augmented Sparse Retrieval
+  - UniRec: Bridging the Expressive Gap between Generative and Discriminative Recommendation via Chain-of-Attribute
+  - Computed, not Memorized: Bit-Factorized Identifiers for Efficient Generative Retrieval
+  - Ground-Truth Subgraphs for Better Training and Evaluation of Knowledge Graph Augmented LLMs
+  - GenState-AI: State-Aware Dataset for Text-to-Video Retrieval on AI-Generated Videos
+  - Gauge-Invariant, Parameter-Insensitive Regularization for Potential Recovery from Flow on Directed Graphs
+
+### cs.DC（本批 23 条，硬抽 8）
+  - JointServe: Serving Multi-Model Agents on Memory-Constrained GPUs
+  - Understanding NVIDIA Grace-Blackwell Unified Memory Through Placement-Controlled Microbenchmarks
+  - Tracing Knowledge Lineage for Federated Unlearning under Mutual Distillation
+  - Federated Unlearning of Quantum Data via Classical Shadows
+  - Delta Tokenizer: Reference-Identical Tokenization of Session Deltas and Segment-Parallelism for Long Prompts on Multicore CPUs
+  - Substep Linearizability: Relaxing Atomicity While Preserving Sequential Specification
+  - Arcturus: A Cloud Overlay Network for Global Accelerator with Enhanced Performance and Stability
+  - Real-Time GPU-Accelerated Monte Carlo Evaluation of Safety-Critical AEB Systems Under Uncertainty
+
+### cs.HC（本批 31 条，硬抽 8）
+  - Iterative Design and Evaluation of a VR Nursing Training System: Insights from Clinicians and Student Learners
+  - Understanding Goalball Training Across Roles and Team Contexts: Practices, Perceptions, Challenges, and Technological Opportunities
+  - AdaptaFace: Adversarial Assistance for Inclusive Facial Gesture Interaction
+  - Measuring and Reducing Unusable Replies of LLM Agents
+  - DeltaStreamer: Towards Human-Like Agentic Streaming Video Understanding
+  - Speculative Sampling in Interactive Video Generation
+  - Explorable Proofs: Making Written Proofs Explorable by Grounding Them in Formal Representations
+  - Better Situational Awareness in AR-HRC? A Comparative Study of Augmented Reality and Mobile Interfaces for Human-Robot Collaboration
+
+### math.OC（本批 67 条，硬抽 8）
+  - First-order Optimization Methods with Generalized Smoothness for Low-rank Matrix Factorization
+  - The Big Match under translation-invariant charges
+  - Does Policy Mirror Descent Converge in Policy with Non-Decomposable Mirror Maps? A Counterexample
+  - C1 Virtual Element Methods for the Optimal Control of Oseen Equations with Stream-Function Formulation
+  - Free-Material Optimization in a Peridynamic World
+  - Geometric Certificates for Deterministic Global Linear Convergence of Overparameterized Projected Gradient Descent
+  - Congestion-Aware Charging Coordination for Electric Ride-Hailing Fleets under Stochastic Demand
+  - Congestion Games with Heterogeneous Valuations: An Optimal Transport Approach
+
+### q-bio.NC（本批 10 条，硬抽 8）
+  - Simulating Alzheimer's amyloid-like pathology on a fly central nervous system connectome
+  - Effects of cortisol time-scales in a model of emotion regulation
+  - Reciprocity coordinates a three-way trade-off in recurrent neural circuits
+  - State Space Models Naturally Produce Time Cell and Oscillatory Behaviors and Scale to Abstract Cognitive Functions
+  - Simulation Based Inference of a Simple Neural Network Structure
+  - Position: Hippocampal Explicit Memory Is the Cornerstone for AGI
+  - NeuronDiscover: Agent-in-Twin for Mechanistic Discovery in Neuronal Microenvironments with World Action Models
+  - NeuronSifter: An Agent-in-Twin for Prioritizing Central Nervous System Interventions with World Action Models
+
+### physics.soc-ph（本批 8 条，硬抽 8）
+  - Popularity Trajectories and Mixing Patterns of Urban Venues in Two European Cities
+  - A Sociophysics Approach to Measuring Democracy in the Decision Making of a Group: Three Indices
+  - The Gompertz-Zipf city size distribution and urban allometry
+  - Uncovering higher-order interactions from memory in observed dynamics
+  - Generalized Multi-agent Social Simulation Framework
+  - Earth as a Closed Life-Support System: Finite Buffers, Dynamical Thresholds, and Planetary Sustainability
+  - Social Norm Diffusion in Societies: Simple or Complex?
+  - A Finite Bid--Ask Spread from Replenishment Displaced from the Quote
+
+### GitHub 关键词池（近两月高星）
+  池 104 个（去重）
+  - 5★ chadhurley25075-png/lasermemory: Point it at a page, a PDF or text: a laser eye reads it, a keeper decides what is worth remembering — and shows you why. A memory
+  - 2★ simson-ml/optimized-memory-agent: A privacy-focused local LLM memory system using Ollama, PostgreSQL, and ChromaDB for efficient long-term conversational memory.
+  - 2★ LeiMikasa/HarnessAgent: Modular coding agent harness with context compression, long-term memory, agent teams, and MCP.
+  - 14★ xing-kj/XingGraph: Knowledge-graph RAG for LLM agents: ontology-driven graph building (RDF/OWL), structured-doc chunking with title attribution, mult
+  - 1★ letwir/llm-memory: ご意見箱付きLLMのためのメモ帳DB CLI
+  - 0★ lgdiazf-unal/llm-memory:
+  - 0★ SRAJAN1405/LLM-Memory:
+  - 0★ danieldrumma/llm-memory:
+  - 0★ usenkovalexander-blip/LLM-Memory: Telegram-боты на aiogram 3.x и OpenAI gpt-4o-mini — демонстрация разных подходов к памяти диалога.
+  - 0★ SharathKumar-MLREPLY/movie-knowledge-graph-agent: LangGraph agent with Cypher + semantic vector search over Neo4j Movie Graph — demo for "Moving Away from Coding Agents" knowledge
+  - 0★ BorgesWrt/zzz-archive: Independent Zenless Zone Zero knowledge graph: Agents, equipment, teams, guides and locations.
+  - 0★ valeriocardoso/studies: 📚 My personal learning hub for AI / ML Engineering — RAG, GraphRAG, knowledge graphs, agents & more
+
+### HF 趋势榜（池 100 抽 8）
+  - dealignai/DeepSeek-V4.1-Flash-UNCENSORED-FP8（♥640 · transformers,safetensors,deepseek_v41,text-generation）
+  - Qwen/Qwen-Image-2.1（♥3301 · diffusers,safetensors,qwen,image-generation）
+  - HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF（♥1822 · gguf,uncensored,qwen3.8,multimodal）
+  - tencent/Youtu-Parsing-Omni（♥94 · transformers,safetensors,youtu_vita,text-generation）
+  - zai-org/GLM-5.3（♥2218 · transformers,safetensors,glm_moe_dsa,text-generation）
+  - facebook/sam3.1（♥1062 · checkpoint,sam3_video,sam3.1,mask-generation）
+  - alesha-pro/Qwen3.8-Flash-Next-abliterated-GSQ-RCO-Strata-GGUF（♥134 · gguf,gsq,rco,strata）
+  - Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold-Ablit（♥111 · safetensors,glm5_next,glm,glm-5.3）
+
+done.

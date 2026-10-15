@@ -1,0 +1,66 @@
+== wander-03 (hardware source: rdrand) ==
+分层: 热 1 / 中 5 / 冷 18（保底 ['cs.AI', 'cs.LG'] 在候选内）
+
+抽中 6 类（2/2/2 平衡）:
+
+### cs.AI（本批 1353 条）
+  - Splicing Hints into Reasoning Traces: Learning from Demonstrator Failures
+  - SciRerankBench: Benchmarking Rerankers Towards Scientific Retrieval-Augmented Generation with LLMs
+
+### quant-ph（本批 149 条）
+  - Majorana Edge Modes Reshape Kibble-Zurek Scaling in Kitaev Honeycomb Ribbons
+  - Probing critical phases in quasiperiodic systems via subsystem information capacity
+
+### stat.ME（本批 54 条）
+  - Linear regression with probabilistic networks for network-linked data
+  - The Critical Line Algorithm and the Constrained LASSO: One Curve, Two Literatures
+
+### cs.GT（本批 21 条）
+  - What You Earn from What You Learn: Characterization and Complexity of the Value of Information
+  - Price of Anarchy of First-Price Auctions in Agentic Markets
+
+### econ.GN（本批 9 条）
+  - Ideological Bias in LLMs' Economic Causal Reasoning
+  - Generative AI Availability, Grades, and Student Satisfaction at a Large University
+
+### cs.LG（本批 486 条）
+  - SKG: A Law-Induced Engine from Inference to Induction
+  - MAPLE: A Multi-Axis Parametric Knowledge Extraction Lens for LLM Evaluation
+
+### HF 趋势模型榜（hf-mirror + UA；池 100 硬抽 8）
+  - Qwen/Qwen-Image-2.1-Turbo（♥769 · trend 715 · diffusers,safetensors,qwen,image-generation）
+  - autotrust/JEV-35B（♥716 · trend 451 · transformers,safetensors,qwen3_5_moe,image-text-to-text）
+  - Cactus-Compute/whistle（♥395 · trend 219 · cactus-needle,whistle,speech-recognition,speech-to-text）
+  - facebook/sam3（♥4329 · trend 190 · transformers,safetensors,sam3_video,feature-extraction）
+  - openbmb/MiniCPM-V-4.7-35B-A3B-gguf（♥120 · trend 117 · transformers,gguf,minicpm-v,multimodal）
+  - Comfy-Org/MiniMax-H3（♥2279 · trend 67 · diffusion-single-file,comfyui,base_model:MiniMaxAI/MiniMax-H3,base_model:finetune:MiniMaxAI/MiniMax-H3）
+  - orcarouter/OrcaSAQ-2-Cyber-27B-Uncensored-GGUF（♥524 · trend 61 · llama.cpp,gguf,qwen,qwen3.8）
+  - AxiomicLabs/GPT-X3-150M（♥59 · trend 57 · transformers,safetensors,gptx3,text-generation）
+
+### GitHub 近一月高星新仓（池 100 硬抽 12）——含祛魅行
+  - 8957★ storytold/vectorcraft: VectorCraft: An open-source, vector art tool written by scratch in pure Rust
+      ↳ 祛魅: size=41904KB | lang=Rust
+  - 7632★ tamaratran/fast-jev-compaction: Claude Code plugin that replaces the compaction summary with Jev decisions: every tool call and result is scored in one
+      ↳ 祛魅: size=245KB | lang=TypeScript ⚠️红旗 | ['everything']
+  - 3999★ alchaincyf/huashu-art-motion: 艺术动画skill：35种艺术风格、9种解说语法，用代码让画动起来。
+      ↳ 祛魅: size=73699KB | lang=JavaScript
+  - 3770★ zhongerxin/iPhone-use: 让 Codex 通过 USB 操作真实 iPhone：引导安装、App 自动化、实时屏幕与截图回退。
+      ↳ 祛魅: size=45198KB | lang=Python
+  - 3396★ omnirush-ai/omnirush-gui: A desktop coding agent with free access to frontier models.
+      ↳ 祛魅: size=68337KB | lang=TypeScript
+  - 3391★ QingYunA/answer-me-with-html: Answer me with HTML — an agent skill that answers hard questions with a one-page HTML you can actually read. 让 AI Agent
+      ↳ 祛魅: size=24725KB | lang=JavaScript
+  - 3257★ edenfunf/reelmimic: Show it a video you love. Get a new video in the same style. An AI crew (Claude Code or Codex) plans, builds and reviews
+      ↳ 祛魅: size=43466KB | lang=JavaScript
+  - 2994★ jarrodwatts/jev-trader: One AI trade decision every Monad block. Jev on Kuru MON-USDC.
+      ↳ 祛魅: size=69KB | lang=TypeScript
+  - 2549★ TianyuCodings/NanoJev: A nano replica of Jev: parallel decisions, dynamic candidates, and an end-to-end training pipeline.
+      ↳ 祛魅: size=64035KB | lang=Python
+  - 2475★ bherbruck/solidcraft: SolidCraft: an open-source parametric 3D CAD application built in pure Rust. Desktop, web, and automation through MCP.
+      ↳ 祛魅: size=112714KB | lang=Rust
+  - 2412★ jhaizhou-ops/d2r-mobile: Open-source iOS / macOS compatibility layer for Diablo II: Resurrected with the Reign of the Warlock expansion. Runs you
+      ↳ 祛魅: size=5331KB | lang=C
+  - 2182★ alejandrobujan/tendedero: Screenshots, hung out to dry. A tiny native macOS app that hangs every screenshot on a line at the top of your screen.
+      ↳ 祛魅: size=39484KB | lang=Swift
+
+done.

@@ -1,0 +1,42 @@
+== wander-01 (hardware source: rdrand) ==
+抽中分类: cs.AI · cs.RO · math.DS · q-bio.NC · q-fin.ST · eess.SY
+
+### cs.AI（本批 1353 条，硬随机抽 2）
+  - When Should Enterprise Policy Decisions Be Learned, and When Should They Be Reasoned?
+  - Mission-Level Runtime Assurance for LLM-Assisted ISR Swarms over a Verification-Aware Fabric
+
+### cs.RO（本批 159 条，硬随机抽 2）
+  - PolyMorph: Learning Locomotion Policy for Cross-Embodiment Adaptation
+  - DiffGIPC: Differentiable Mixed-Coordinate Contact Dynamics on GPU
+
+### math.DS（本批 29 条，硬随机抽 2）
+  - Packing intermediate dimensions of measures and applications
+  - Effective equidistribution of polynomial trajectories in $\operatorname{SL}_3(\mathbb R)/\operatorname{SL}_3(\mathbb Z)$
+
+### q-bio.NC（本批 10 条，硬随机抽 2）
+  - Reciprocity coordinates a three-way trade-off in recurrent neural circuits
+  - Position: Hippocampal Explicit Memory Is the Cornerstone for AGI
+
+### q-fin.ST（本批 2 条，硬随机抽 2）
+  - Common Signals, Spurious Cross-Excitation, and Identification in Multivariate Hawkes Processes
+  - Regime Detection in Latent Factor Models -- A Bayesian Decision-Theoretic Approach
+
+### eess.SY（本批 51 条，硬随机抽 2）
+  - On the Mechanism of Multi-Cluster System Separation Under Extreme Events
+  - A Practical Framework for Incremental Testing and Technology Maturation of Spacecraft Autonomy
+
+### GitHub 近 7 天新仓（池 50，硬随机抽 12）
+  - 2703★ storytold/craft-launcher: The Craft App Launcher
+  - 805★ HeyPuter/everything: We're rebuilding and open-sourcing the world’s software from scratch.
+  - 769★ CoolkHz/gptibo: Self-hosted GPTibo storefront, admin and Go backend — sanitized MIT source
+  - 710★ n1tr00-10/tiktok-web-signature: tiktok web signature reverse engineer generates valid tiktok signatures for API requets
+  - 709★ outcrawlai/scout: Scout: the open-source browser agent, by Outcrawl. Mirrored automatically from Outcrawl's own repository.
+  - 681★ chenwei810/Semiconductor_Manufacturing_Introduction: Introduction to Semiconductor Manufacturing
+  - 469★ StoopwenpueNq/jackie-fmri-sim: jackie-fmri-sim
+  - 411★ threerocks/sweety-handdraw-video: 从主题或文章制作完整手绘讲解视频：按部位描线、逐字书写、VoiceStudio 配音、五项内置制作依赖。
+  - 393★ rayytor/desktop_gifs: Post GIFs in YouTube comments and replies from a desktop browser. Extension for Chrome and Firefox.
+  - 356★ AIPMAndy/how-to-survive-unemployment: 失业自救开源手册：N/N+1/2N、失业金、医保、社保、公积金、求职与现金流。50项行动任务、6份实操SOP，附北京上海政策原文。
+  - 288★ wbr664393425-lgtm/scaffold-master: Spring Boot + Vue 通用后台管理脚手架，提供认证、RBAC 与数据权限、组织管理、日志和代码生成骨架。
+  - 282★ carreypro/ict-trading-model: ICT and SMC market-structure validation skill with deterministic OHLCV scanning
+
+done.

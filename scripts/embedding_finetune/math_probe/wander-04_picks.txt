@@ -1,0 +1,66 @@
+== wander-04 (hardware source: rdrand) ==
+分层: 热 1 / 中 6 / 冷 17
+
+抽中 6 类（2/2/2）:
+
+### cs.AI（本批 1353 条）
+  - Bench2Robust: Scenario-Controlled Recovery for Tool-Using Agents
+  - RoboGaze: Evaluating Robot World Models via Structured Vision-Language Analysis
+
+### cs.LG（本批 486 条）
+  - Inverse Reasoning Models for Efficient Post-Training and Verification from Answer-Only Data
+  - When Does Depth Help? Understanding Layerwise Inference in Tabular Foundation Models
+
+### stat.ML（本批 88 条）
+  - What Information Buys in Active Inference
+  - On Global Joint Lower Bounds in Zeroth-Order Nonconvex Optimization
+
+### cond-mat.dis-nn（本批 15 条）
+  - Deep Learning of Phase Transitions for Bilinear-Biquadratic Spin-1 Chains from Correlation Aspects
+  - Probing critical phases in quasiperiodic systems via subsystem information capacity
+
+### q-fin.PM（本批 3 条）
+  - Data-Driven Dynamic Portfolio Selection with Vine Copula Simulation and Reinforcement Learning
+  - AlphaRLM: Aligning Language Models for Literature-Grounded Symbolic Factor Discovery
+
+### cs.RO（本批 159 条）
+  - Tactile-Guided Robot Learning: From Representation Learning to Foundation Models
+  - VGM-VS: Rethinking Visual Geometry Model for High-Precision Visual Servoing
+
+### HF 趋势模型榜（池 100 硬抽 8）
+  - openbmb/MiniCPM-V-4.7-35B-A3B（♥593 · trend 525 · transformers,safetensors,minicpmv4_7,image-text-to-text）
+  - pablodawson/MiniMax-H3-360-Orbit-LoRA（♥446 · trend 178 · minimax-h3,lora,image-to-video,first-last-frame）
+  - Aleph-Alpha/Kolibri-1（♥932 · trend 123 · vllm,safetensors,kolibri1,reasoning）
+  - MiniMaxAI/MiniMax-H3（♥6138 · trend 107 · minimax-h3,diffusers,safetensors,text-to-video）
+  - Viggle/Qwen-Image-2.1-viggle-turbo（♥729 · trend 63 · diffusers,safetensors,gguf,lora）
+  - KittenML/kitten-tts-2（♥89 · trend 62 · safetensors,gguf,text-to-speech,voice-cloning）
+  - openbmb/MiniCPM-V-4.7-1B-gguf（♥63 · trend 60 · transformers,gguf,minicpm-v,multimodal）
+  - mrm8488/embeddinggemma-2-ft-typed-decision（♥56 · trend 56 · transformers,safetensors,gemma_decision,feature-extraction）
+
+### GitHub 近一月高星新仓（池 100 硬抽 12）——祛魅 v2
+  - 13421★ storytold/filmcraft: FilmCraft: An open-source, nonlinear video editor written by scratch in pure Rust
+      ↳ size=30989KB | lang=Rust
+  - 8444★ Droid-Deck/DroidDeck: DroidDeck brings the SteamOS experience to Android
+      ↳ size=126749KB | lang=Kotlin
+  - 3391★ QingYunA/answer-me-with-html: Answer me with HTML — an agent skill that answers hard questions with a one-page HTML you can actually read. 让
+      ↳ size=24725KB | lang=JavaScript
+  - 3027★ nullmoth/nvidia-macos-driver: Metal driver for NVIDIA GeForce cards on macOS Sequoia
+      ↳ size=5837KB | lang=Rust
+  - 2834★ storytold/soundcraft: An open-source, clean-room reimplementation of Avid Pro Tools in pure Rust
+      ↳ size=5988KB | lang=Rust
+  - 2640★ Jakeschincariol/replica-skill: Eleven free Claude skills that clone any app: reverse-engineer it, rebuild it, test it for bugs, then fix what
+      ↳ size=66KB | lang=Python
+  - 2549★ TianyuCodings/NanoJev: A nano replica of Jev: parallel decisions, dynamic candidates, and an end-to-end training pipeline.
+      ↳ size=64035KB | lang=Python
+  - 2534★ driceroland/Search: A small, fast WebKit browser for macOS, by Office Commun.
+      ↳ size=2052KB | lang=Swift
+  - 2475★ bherbruck/solidcraft: SolidCraft: an open-source parametric 3D CAD application built in pure Rust. Desktop, web, and automation thro
+      ↳ size=113040KB | lang=Rust
+  - 2380★ lemomo-ai/lemo-opuscar: Claude Code skill for short films with no video model: 43 film styles, each a style prompt plus a demo film ma
+      ↳ size=122628KB | lang=JavaScript
+  - 1850★ Mak5er/AirCard-iOS:  Apple Wallet card skins and lock screen passcode themes on iOS 27.
+      ↳ size=133212KB | lang=Swift
+  - 1752★ Inkloom-art/inkloom: Specialised AI models for logo design — a brand-analysis model turns a business into constraints, typography a
+      ↳ size=3813KB | lang=TypeScript
+
+done.

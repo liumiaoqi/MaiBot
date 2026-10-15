@@ -1,0 +1,15 @@
+== probe38 真库图体检 (source: rdrand) ==
+
+### 图 A：关系图
+  nodes 71 | edges 184 | kbar 5.18
+  S=0.7746 comps=7 | L-gap=2.000000 (λ1=-1.0000) | t90=156.0
+
+### 图 B：共现图（建边中…）
+  unique edges: 248495  (0.2s)
+  nodes 27039 | edges 248495 | kbar 18.38
+  S=0.9501 comps=346
+  L-gap=2.000000 (λ1=-1.0000)
+  t90=91.0
+
+== 对照（合成 kNN 图 probe28）: kbar 8.51 | gap(P口径) 0.0441 | t90 26–28 ==
+done (probe38).

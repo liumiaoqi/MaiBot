@@ -1,0 +1,182 @@
+== wander-05 · 论文侧专项（source: rdrand）==
+擦边富矿池 28 个，硬抽 8 类：eess.SP · nlin.AO · physics.soc-ph · cs.SI · cs.GT · stat.TH · stat.ML · econ.TH
+
+### eess.SP（本批 45 条，硬抽 12）
+- A Wideband STAR-RIS Employing Shared-Aperture Polarization Conversion and Diagonal Switching Topology for 6G Applications
+    → Simultaneously transmitting and reflecting reconfigurable intelligent surfaces (STAR-RIS) enable programmable wave control on both sides of a surface, extending wireless coverage b
+- Carbon-Aware Joint Resource and Energy Scheduling for Cellular Base Stations
+    → Decarbonizing cellular networks requires coordinating communication-resource and battery operation with time-varying electricity prices and carbon intensity. We jointly optimize ba
+- Hybrid Monostatic and Bistatic Sensing for Target Localization in OFDM Systems under Phase Noise
+    → In hybrid monostatic-bistatic orthogonal frequency-division multiplexing (OFDM) sensing, each sensing node receives a superposition of monostatic and bistatic target returns, whose
+- Sampling Reduction for Near-Field to Far-Field Transformation of Bistatic Radar Target Measurements
+    → Accurate bistatic radar cross-section (RCS) characterization requires near-field measurements over multiple dimensions, which, under typical near-field sampling requirements, can l
+- Radar-Only Long-Term Beam Prediction in mmWave Vehicular Networks: An Empirical Study of Doppler Input and Cross-Modal Distillation
+    → Sensing-aided beam prediction could cut the beam-training overhead of millimeter-wave vehicular links, and two design choices could strengthen a radar-only predictor: a Doppler-res
+- Resilient Angle-Constrained Formation Control and Localization Under DoS Attacks (Extended Version)
+    → This paper studies resilient angle-constrained leader--follower formation control and localization of multi-agent systems under asynchronous denial-of-service (DoS) attacks, which
+- The Derivation of The Probability of Error for BPSK, 16-QAM and 64-QAM in Rayleigh Fading Channel: A Unified Approach
+    → Understanding the probability of error is paramount in the design and analysis of digital communication systems, particularly in Rayleigh fading channels where signal impairments a
+- Stochastic Analysis of Successive Interference Cancellation in a Narrow-Beam LEO Uplink
+    → This paper investigates uplink coverage probability, i.e., the SIR distribution, and SIR order statistics at a low Earth orbit satellite base station (LEO BS) with narrow Gaussian
+- Low-Complexity Channel Estimation Framework for Non-Square UPA-Assisted XL-MIMO Systems
+    → Low-complexity channel state information acquisition is crucial for extremely large-scale multiple-input multiple-output (XL-MIMO) systems. However, practical deployments of non-sq
+- A Knowledge-Centric Communication For Autonomous Cislunar Networks
+    → Future lunar infrastructure requires communication as a persistent service rather than a mission specific capability. Communication, digital twin, and artificial intelligence (AI)
+- CORTEG: Foundation Models Enable Cross-Modality Representation Transfer from Scalp to Intracranial Brain Recordings
+    → Intracranial electrocorticography (ECoG) offers high signal-to-noise access to cortical activity for brain-computer interfaces, yet limited per-patient data has led most prior work
+- Probe Sets for Nonlinear Kalman Filtering: Multi-Center Gains and Covariance Recalibration
+    → Kalman filters (KFs) choose the gain as the product of the state-measurement cross-covariance and the inverse of the innovation covariance. In nonlinear systems, the predictive dis
+
+### nlin.AO（本批 3 条，硬抽 3）
+- Online training of Echo State Networks to predict chaotic dynamical systems
+    → Echo State Networks (ESNs) are fundamentally important from the conceptual perspective of AI, because they provide simple and tractable frameworks for understanding temporal inform
+- Data-driven reconstruction of spatiotemporal phase dynamics for traveling and oscillating patterns via Bayesian inference
+    → Building on the phase reduction theory formulated for reaction-diffusion systems with spatial translational symmetry, we develop a data-driven method that reconstructs the spatiote
+- Local Geometric and Transport Properties of Networks that are Generated from Hyperuniform Point Patterns
+    → Hyperuniformity, which is a type of order that is characterized by the suppression of long-range density fluctuations in comparison to the fluctuations in standard disordered syste
+
+### physics.soc-ph（本批 8 条，硬抽 8）
+- Popularity Trajectories and Mixing Patterns of Urban Venues in Two European Cities
+    → Urban venues such as restaurants, shops, bars and parks host the daily life of a city, and their collective rise and fall signals how vibrant a neighbourhood is. The usual assumpti
+- A Sociophysics Approach to Measuring Democracy in the Decision Making of a Group: Three Indices
+    → A group does not usually consult all its members before every decision. This paper develops a quantitative framework for measuring how widely members are consulted in decision maki
+- The Gompertz-Zipf city size distribution and urban allometry
+    → This dissertation discusses the distribution of city sizes using censuses of the Brazilian Institute for Geography and Statistics (IBGE) spanning 150 years, from 1872 to 2022, as w
+- Uncovering higher-order interactions from memory in observed dynamics
+    → Many complex systems involve group interactions, which can readily be represented by higher-order structures such as hypergraphs. However, when observing a system's dynamical evolu
+- Generalized Multi-agent Social Simulation Framework
+    → Multi-agent social interaction has clearly benefited from Large Language Models. However, current simulation systems still face challenges such as difficulties in scaling to divers
+- Earth as a Closed Life-Support System: Finite Buffers, Dynamical Thresholds, and Planetary Sustainability
+    → We formulate planetary sustainability as a minimal nonequilibrium problem for coupled finite stocks and fluxes, using the operational language of closed life-support systems: inven
+- Social Norm Diffusion in Societies: Simple or Complex?
+    → Social norms are a fundamental component of society, shaping how we communicate, cooperate, and avoid conflict. Despite their ubiquitous presence and profound influence on behaviou
+- A Finite Bid--Ask Spread from Replenishment Displaced from the Quote
+    → We give a unified analytic account of a finite bid--ask spread in a two-field reaction--diffusion order book. The model retains separate bid and ask densities in operational time,
+
+### cs.SI（本批 15 条，硬抽 12）
+- Introducing the United States Secretary of State (USSOS) Speech Dataset
+    → A large number of theories in international relations attribute importance to the rhetoric of leading foreign policy actors. Moreover, in recent years, there has been a significant
+- From Content Sharing to Opinion Shaping: A Theoretical Framework for Cascade-Driven Opinion Dynamics
+    → Online social networks (OSNs) tightly couple information diffusion and opinion formation, yet most existing models treat these processes separately. Building on the Friedkin-Johnse
+- Ergodic and Metastable Behavior of Stochastic Popularity Dynamics in Social Networks
+    → This paper studies popularity dynamics in social networks, where users' engagement with competing channels is driven by intrinsic content quality, social influence, and popularity
+- Uncovering higher-order interactions from memory in observed dynamics
+    → Many complex systems involve group interactions, which can readily be represented by higher-order structures such as hypergraphs. However, when observing a system's dynamical evolu
+- Popularity Trajectories and Mixing Patterns of Urban Venues in Two European Cities
+    → Urban venues such as restaurants, shops, bars and parks host the daily life of a city, and their collective rise and fall signals how vibrant a neighbourhood is. The usual assumpti
+- PerSo: Investigating Facets of LLMs' Social Intelligence in Real-World Persuasion Scenarios
+    → Understanding the social intelligence of large language models (LLMs) is increasingly important for applications involving human-AI interaction and multi-agent environments. Social
+- Semantic Communities and Boundary-Spanning Lyrics in K-pop: A Graph-Based Unsupervised Analysis
+    → We examine how lyric representation shapes computational similarity using four 384-dimensional multilingual MiniLM representations of 7,891 K-pop songs by 1,456 artists from charts
+- Coupling Macro Dynamics and Micro States for Long-Horizon Social Simulation
+    → Social network simulation aims to model collective opinion dynamics in large populations, but existing LLM-based simulators mainly focus on aggregate dynamics while largely ignorin
+- DeTox-Fed: Detecting Toxic Conversations in the Fediverse with Federated Graph Neural Networks
+    → The rise of decentralized social networks (DSNs), and in particular the rapid uptake of the Fediverse (e.g., Pleroma, Mastodon, Lemmygrad), introduces new challenges in content mod
+- When Can Digital Personas Reliably Approximate Human Survey Findings?
+    → Digital personas powered by Large Language Models (LLMs) are increasingly proposed as substitutes for human survey respondents, yet it remains unclear when they can reliably approx
+- Blackknife: Query-Free Black-Box Rewiring Attacks on Heterogeneous Graph Neural Networks
+    → Heterogeneous graph neural networks (HGNNs) perform well on graphs with multiple node and relation types, but their robustness to attacks with restricted structural access remains
+- Filling holes in science draws collective attention, but most higher-order holes remain unexplored
+    → Most scientific discoveries justify their significance by filling holes between existing ideas and arguments. Representing knowledge as high-dimensional concept embeddings, we use
+
+### cs.GT（本批 21 条，硬抽 12）
+- Thompson Sampling for Learning in Zero-Sum Games
+    → Thompson sampling (TS) achieves logarithmic and asymptotically optimal regret in classical stochastic bandits, but its behavior in multi-agent learning remains less understood. We
+- Learning in Strategic Queuing with Geometric Recharge: From Bandits to Systems
+    → We study packet routing in queuing systems where queues act as selfish, myopic agents that use no-regret learning algorithms to select servers with unknown service rates. To model
+- PPAD-Completeness of Contiguous Envy-Free Cake Cutting with Additive Valuations
+    → We prove that computing a complete contiguous $\varepsilon$-envy-free cake allocation is PPAD-complete for normalized rational piecewise-constant additive valuations. The hardness
+- No-Regret Learning in Stackelberg Security Games with an Unknown, Bounded Set of Attacker Types
+    → In a repeated Stackelberg security game, a defender commits in every round to a randomized allocation of its resources, and an attacker, drawn from a set of types, best-responds. E
+- What Does Disagreement Mean? A Semantic Identifiability Frontier for Pairwise Preference Learning
+    → Pairwise comparison data are a standard supervision signal in preference learning, but disagreement in such data can reflect stable latent heterogeneity, ephemeral stochasticity, o
+- Exact Cut Complexity of Equal-Length Proportional Cake Cutting
+    → We study proportional cake cutting under an equal-length constraint, where each of $n$ agents must receive a bundle of length exactly $1/n$ that is worth at least $1/n$ to that age
+- Optimal Online Stochastic Matching
+    → We resolve the problem of unweighted online stochastic matching with a known arrival law by establishing its optimal competitive ratio. For Poisson arrivals, we achieve $1-e/e^e\ap
+- Auction-based allocation of routes in capacity-constrained networks
+    → We study the route-set allocation problem between end nodes in capacity-constrained flow networks with transfer costs. We introduce an origin--destination (OD) bidding language, in
+- Incentivize Contribution and Learn Parameters Too: Federated Learning with Strategic Data Owners
+    → In federated learning (FL), a center trains a shared model from updates that clients compute on their private data. Collecting and training on data is costly, so a strategic client
+- Congestion Games with Heterogeneous Valuations: An Optimal Transport Approach
+    → In emerging urban mobility and logistics applications, such as advanced air mobility, electric vehicle charging, and shared service systems, agents with heterogeneous valuations ch
+- Fair Allocation with Dichotomous Preferences over Item Complements
+    → We study the problem of fair allocation when agents have dichotomous submodular preferences over groups of, rather than individual, items. These preferences naturally extend existi
+- NePPO: Near-Potential Policy Optimization for General-Sum Multi-Agent Reinforcement Learning
+    → Multi-agent reinforcement learning (MARL) is increasingly used to design learning-enabled agents that interact in shared environments. However, training MARL algorithms in general-
+
+### stat.TH（本批 25 条，硬抽 12）
+- Pointwise minimax lower bounds under a multi-index constraint: the price of an unknown orientation
+    → We consider nonparametric regression with random design and non-Gaussian noise, where the regression function has the multi-index form $F(x)=f(\Theta x)$ with an unknown link $f:\R
+- A New Perspective on Cumulative Residual R\'enyi Entropy
+    → This paper introduces a new cumulative residual R\'enyi entropy (CRRE), which addresses limitations of the existing cumulative residual R\'enyi entropy. The conventional measure su
+- On rigidity of infinite exchangeable sequences
+    → We ask when the law of an infinite exchangeable sequence is uniquely determined by a finite-dimensional marginal. For mixtures of a probability kernel, a weak localization conditio
+- On Inherent Privacy of Posterior Sampling: A Unified R\'enyi-Divergence Framework
+    → Differential Privacy (DP) provides a rigorous framework for quantifying privacy guarantees. While most methods achieve DP by injecting calibrated random noise, the intrinsic random
+- Maximum Likelihood Degrees via One-Edge Chordal Completion
+    → The maximum likelihood degree of a Gaussian graphical model measures the algebraic complexity of its likelihood equations. This paper studies maximum likelihood degrees of Gaussian
+- Minimax estimation of the pseudo-spectral gap of continuous Markov chains, with applications to empirical concentration bounds
+    → We study the minimax estimation of the pseudo-spectral gap $\gamma_{ps}$ of a Markov chain from the observation of a single trajectory. Extending earlier works on finite-state spac
+- MCMC Can See Can't See
+    → It is folklore that passing "convergence" diagnostics does not guarantee that a Markov chain has converged. We prove this as an impossibility for any finite checklist of diagnostic
+- Random sets from the perspective of metric statistics
+    → Since the seminal work by Beresteanu and Molinari(2008), the random set theory and related inference methods have been widely applied in partially identified econometric models. Me
+- Asymptotics for likelihood ratio tests of boundary points with singular information and unidentifiable nuisance parameters
+    → We establish the asymptotic distribution of likelihood ratio tests when nuisance parameters are unidentifiable under the null hypothesis, parameters of interest lie on the boundary
+- A proximal gradient algorithm for composite log-concave sampling
+    → We propose an algorithm to sample from composite log-concave distributions over $\mathbb{R}^d$, i.e., densities of the form $\pi\propto e^{-f-g}$, assuming access to gradient evalu
+- Controlling the false discovery rate in high-dimensional linear models using model-X knockoffs and $p$-values
+    → We propose a novel multiple testing methodology for controlling the false discovery rate (FDR) in high-dimensional linear models that integrates model-X knockoff techniques with de
+- The Statistical Benefits of Multiple Responses for Learning from Demonstrations
+    → Many generative systems return multiple candidate responses and are evaluated according to the best one. Recent work shows that, when demonstrations are optimal, pass@$k$ can reduc
+
+### stat.ML（本批 88 条，硬抽 12）
+- Bayesian Causal Forests for Zero-Inflated Continuous Outcomes
+    → Estimating (heterogeneous) treatment effects is still challenging when the outcome is semicontinuous (i.e., exhibiting both a discrete point mass at zero and a skewed continuous di
+- Multi-Sensitive Distributional Fairness: Joint Wasserstein Audits and Shapley Allocation
+    → Fairness audits with several sensitive attributes are often performed one coordinate at a time. This can miss purely intersectional disparities: a score may be independent of each
+- Minimax estimation of the pseudo-spectral gap of continuous Markov chains, with applications to empirical concentration bounds
+    → We study the minimax estimation of the pseudo-spectral gap $\gamma_{ps}$ of a Markov chain from the observation of a single trajectory. Extending earlier works on finite-state spac
+- Thompson Sampling for Learning in Zero-Sum Games
+    → Thompson sampling (TS) achieves logarithmic and asymptotically optimal regret in classical stochastic bandits, but its behavior in multi-agent learning remains less understood. We
+- Linear regression with probabilistic networks for network-linked data
+    → Network-linked data combine a network with covariates and responses observed for its nodes. Common regression approaches either model dependence among neighboring responses using t
+- Subdata Selection for Measurement-Constrained Linear Regression under Model Misspecification
+    → In many modern applications, obtaining response variables is costly, time-consuming, or technically challenging, making it impractical to measure outcomes for all available units.
+- Fractional is Better: Learnable Derivative Orders in Neural Operator Learning
+    → Neural operators learn mappings between function spaces, enabling fast surrogate solutions to partial differential equations. Despite remarkable architectural diversity, these meth
+- GLL: A Differentiable Graph Learning Layer for Neural Networks
+    → Standard deep learning architectures used for classification generate label predictions with a projection head and softmax activation function. Although successful, these methods f
+- Beyond Sustainable Development Goal (SDG) Accelerators: Directed Evidence for Adaptive Sustainability Portfolios
+    → Governments and development partners often seek Sustainable Development Goal (SDG) "accelerators" whose progress can propagate gains across human well-being, institutions, resource
+- When Can Digital Personas Reliably Approximate Human Survey Findings?
+    → Digital personas powered by Large Language Models (LLMs) are increasingly proposed as substitutes for human survey respondents, yet it remains unclear when they can reliably approx
+- A proximal gradient algorithm for composite log-concave sampling
+    → We propose an algorithm to sample from composite log-concave distributions over $\mathbb{R}^d$, i.e., densities of the form $\pi\propto e^{-f-g}$, assuming access to gradient evalu
+- Gauge-Invariant, Parameter-Insensitive Regularization for Potential Recovery from Flow on Directed Graphs
+    → Recovering a latent potential from observed flow on a directed graph (a discrete Poisson problem with Dirichlet boundaries) is ill-posed, and the standard fix backfires: ridge regu
+
+### econ.TH（本批 10 条，硬抽 10）
+- Who Keeps a Bubble Alive? Skin in the Game and the Survival of Rational Bubbles
+    → We study how retained ownership supports the value of an asset that pays no dividends and is held only for resale. A sponsor chooses hidden maintenance that determines market survi
+- Rewarding Noise: Incentives in Decentralized A/B Testing
+    → Many firms that run A/B tests struggle with low statistical power, increasing the risk that launch decisions are driven by noise rather than true impact. We argue that in decentral
+- Building a Sovereign Benchmark The Limits of Private Coordination
+    → Public debt supplies liquidity and collateral services only if institutions coordinate on using the same claim. We study this coordination when use carries a recurring cost and a b
+- Auction-based allocation of routes in capacity-constrained networks
+    → We study the route-set allocation problem between end nodes in capacity-constrained flow networks with transfer costs. We introduce an origin--destination (OD) bidding language, in
+- Revealing Structured Heterogeneity
+    → In this paper, we study models of restricted heterogeneity. While the random utility model allows for arbitrary heterogeneity among rational types, we consider the case when an ana
+- Persuading an inattentive and privately informed receiver
+    → This paper studies the persuasion of a receiver who accesses information only if she exerts costly attention effort. A sender designs an experiment to persuade the receiver to take
+- Split the Yield, Share the Risk: Pricing, Hedging and Fixed rates in DeFi
+    → We present the first formal treatment of \emph{yield tokenization}, a mechanism that decomposes yield-bearing assets into principal and yield components to facilitate risk transfer
+- Improving and Balancing Task Allocation with Market Design
+    → In balanced task allocation, a firm allocates stochastically arriving tasks to workers. Balance requires that workers complete the same number of tasks or have equally difficult ta
+- Coalition-Proof Disclosure
+    → We study generalized verifiable disclosure by a sender with type-independent preferences. We first characterize all perfect Bayesian equilibria as partitions of the sender's types
+- Congestion Games with Heterogeneous Valuations: An Optimal Transport Approach
+    → In emerging urban mobility and logistics applications, such as advanced air mobility, electric vehicle charging, and shared service systems, agents with heterogeneous valuations ch
+
+合计 81 篇。done.

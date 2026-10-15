@@ -1,0 +1,125 @@
+族总数: 372
+硬随机源: rdrand | 抽样 N=40
+========================================================================
+
+[005] Irrationality of Catalan’s constant
+    Proves that Catalan's constant $`G=\sum_{j\ge0}(-1)^j/(2j+1)^2`$ is irrational. ([Lean](lean/docs/005.md))
+
+[019] The local <i>p</i>-adic section conjecture and global consequences
+    Proves that rational points on every smooth proper geometrically connected curve of genus at least two over a finite extension of ℚp
+
+[033] Iitaka subadditivity, variation, and logarithmic additivity
+    Proves Campana's orbifold Iitaka subadditivity conjecture for smooth Fujiki-class-$`\mathcal C`$ manifolds with rational simple-normal-crossing boundaries. For projective fibrations $`f:U\to V`$ of smooth complex quasi-projective
+
+[050] A counterexample to Griffiths’ positivity conjecture
+    Constructs ample rank-two bundles on $`\mathbb P^1\times\mathbb P^1`$ with no smooth Hermitian metric of strictly Griffiths-positive curvature, disproving Griffiths' positivity conjecture already on the quadric surface. ([Lean](le
+
+[065] Virasoro constraints for complete intersections and projective-bundle towers
+    Proves the full ordinary unreduced descendant Virasoro conjecture for smooth complete intersections in complex projective space, in every genus and curve class with arbitrary cohomology insertions. The constraints also pass from a
+
+[069] Global quantum geometric Langlands at irrational level
+    Proves the unramified de Rham quantum geometric Langlands equivalence for every connected simple complex algebraic group on every smooth projective connected complex curve, at every shifted level $`c\in\mathbb C\setminus\mathbb Q`
+
+[074] Kakeya in three and four dimensions
+    Resolves the Kakeya maximal conjecture in three dimensions and the Hausdorff-dimension conjecture in four. In three dimensions, the radius-δ
+
+[091] Logarithmic and <i>L</i><sub><i>p</i></sub> Brunn–Minkowski inequalities and the B-conjecture
+    Proves the logarithmic Brunn–Minkowski inequality for origin-symmetric convex bodies in every dimension, and the scalar-dilation B-conjecture for all even log-concave Radon measures. For Lebesgue volume it also proves the additive
+
+[104] Quasipolynomial algorithms for mean-payoff, stochastic and parity games
+    Gives deterministic algorithms using $`2^{O((\log(L+2))^2)}`$ bit operations, for complete binary input length L
+
+[106] Hardness of coloring three-colorable graphs
+    It is NP-hard to color a three-colorable graph using any fixed number c
+
+[115] Sampling and counting contingency tables with arbitrary margins
+    For nonnegative integer matrices with prescribed row and column sums, gives exact uniform sampling in expected polynomial bit time and almost-uniform sampling in worst-case polynomial bit time. The dimensions and binary-encoded ma
+
+[124] Polynomial-time scheduling on three identical machines
+    Resolves the three-processor unit-job scheduling problem of Garey and Johnson: a deterministic polynomial-time algorithm minimizes makespan for nonpreemptive unit-length jobs with arbitrary precedence constraints on three identica
+
+[129] Exponential state costs for two-way automata
+    Proves exponential lower bounds both for complementing two-way nondeterministic finite automata and for simulating one-way nondeterministic automata by two-way deterministic ones. The latter resolves the Sakoda–Sipser state-succin
+
+[133] The computational complexity of Weisfeiler–Leman refinement
+    Proves unconditional $`n^{\Omega(k)}`$ deterministic time lower bounds for joint and separate k
+
+[134] Generalized star height at most three
+    Every regular language over a finite alphabet has a generalized regular expression with at most three nested Kleene stars, allowing union, concatenation and complement over the same alphabet. This establishes an absolute bound ind
+
+[135] Homogeneous depth-five lower bounds for iterated matrix multiplication
+    Over every characteristic-zero field, the $`(1,1)`$ entry of a product of n
+
+[144] Banach’s simple Lebesgue-spectrum problem
+    Resolves the probability-preserving form of Banach's simple Lebesgue-spectrum problem within smooth dynamics. A smooth volume-preserving diffeomorphism of the standard-volume three-torus has simple Lebesgue spectrum on its entire
+
+[153] Arithmetic classification and non-Pisot singularity for Bernoulli convolutions
+    Classifies singular and absolutely continuous unbiased Bernoulli convolutions for every $`\lambda\in(0,1)`$ by an infinite, one-sided approximation condition using explicit finite sets of algebraic units. It also proves singularit
+
+[155] A counterexample to periodic tiling in dimension three
+    Constructs a finite translational tile in ℤ3
+
+[170] Sharp logarithmic exponents for off-diagonal Ramsey numbers
+    For every fixed integer s
+
+[176] The second Kahn–Kalai conjecture with an edge-count bound
+    Proves the second Kahn–Kalai conjecture: for every finite simple graph H
+
+[177] Bounded-degree coboundary expanders
+    Constructs arbitrarily large finite d
+
+[191] A power improvement in the Heilbronn triangle lower bound
+    For every sufficiently large n
+
+[195] A counterexample to the small Cohen–Macaulay module conjecture
+    Constructs a three-dimensional complete Noetherian normal local domain over ℂ with no nonzero finitely generated maximal Cohen–Macaulay module. A three-dimensional local domain essentially of finite type over ℂ has the same proper
+
+[203] Donovan's conjecture over fields and complete mixed-characteristic DVRs
+    Proves Donovan's conjecture: over each fixed algebraically closed field of characteristic p
+
+[204] Tensor saturation for even spin groups
+    Proves saturation factor one for $`\mathop{\mathrm{Spin}}\nolimits (2n)`$, n
+
+[216] Critical and near-critical XY scaling and BKT universality
+    For the square-lattice nearest-neighbor cosine XY model, proves critical axis correlations $`C_{\beta_c}(r)\sim Ar^{-1/4}(\log r)^{1/8}`$ and the Berezinskii–Kosterlitz–Thouless essential singularity $`\sqrt{\beta_c-\beta}\log\xi(
+
+[226] The double-dimer loop ensemble converges to CLE<sub>4</sub>
+    Resolves the half-plane Temperleyan form of the double-dimer scaling-limit conjecture: the complete loop ensemble formed by two independent dimer coverings of the Temperleyan square lattice converges to nested CLE4
+
+[229] Exact three- and four-state reconstruction thresholds and four-state tree capacity
+    Proves the exact reconstruction threshold $`d\lambda^2\gt 1`$, with nonreconstruction at equality, for three-state symmetric and four-state ferromagnetic broadcasting on regular trees (d
+
+[238] Optimal logarithmic mixing of the Thorp shuffle
+    Proves that the Thorp shuffle randomizes $`N=2^d`$ labeled cards in $`\Theta(\log N)`$ physical shuffles, settling its optimal mixing order for power-of-two deck sizes. Convergence is in total variation from the worst initial orde
+
+[257] A hyperbolic group without a geometric CAT(0) action
+    Answers negatively whether every word-hyperbolic group is a CAT(0) group. Constructs one with a finite classifying space but no proper cocompact isometric action on any proper complete $`\mathop{\mathrm{CAT}}\nolimits (0)`$ space,
+
+[261] Localization and delocalization in the Anderson model
+    Resolves the predicted spectral contrast for the lattice Anderson model with independent uniform site potentials. In dimension two, every positive disorder strength gives almost surely pure-point spectrum. In every fixed dimension
+
+[293] Invariant projections, hyperinvariant subspaces, and transitive algebras
+    Constructs a nonzero norm-quasinilpotent operator on every infinite-dimensional separable complex Hilbert space with no nonzero proper closed subspace invariant under every commuting operator. The construction also gives operators
+
+[294] Kaplansky's quasitrace conjecture and failure of tensor-product stable finiteness
+    Disproves Kaplansky's quasitrace conjecture by constructing a separable unital complex C
+
+[306] The purely cosmetic surgery conjecture
+    Distinct Dehn surgery slopes on a nontrivial smooth knot in S
+
+[321] A counterexample to Wall's finite D(2) problem
+    Constructs a finite connected three-dimensional CW complex whose universal cover has no integral homology above degree two and whose third cohomology vanishes for every local coefficient module, but which has no finite two-dimensi
+
+[327] Markov type characterizes superreflexivity
+    Proves that every real Banach space with Markov type p
+
+[338] Yau's uniformization conjecture
+    Proves Yau's uniformization conjecture: every complete connected noncompact Kähler manifold with strictly positive holomorphic bisectional curvature is biholomorphic to ℂn
+
+[358] A three-manifold without conjugate points or nonpositive curvature
+    Constructs a closed connected orientable smooth three-manifold that admits a metric without conjugate points but no metric of nonpositive sectional curvature. This answers negatively, already in dimension three, whether the first
+
+[376] Universal computation in forced Navier–Stokes flows
+    Constructs viscous incompressible flows starting from rest on a fixed flat three-dimensional domain that perform universal computation under smooth external forcing. A terminating compiler turns a Turing machine and input into a f
+
+=== done ===

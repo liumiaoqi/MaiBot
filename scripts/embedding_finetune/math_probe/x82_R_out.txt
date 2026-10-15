@@ -1,0 +1,10 @@
+During startup - Warning messages:
+1: Setting LC_COLLATE=C.UTF-8 failed
+2: Setting LC_CTYPE=C.UTF-8 failed
+3: Setting LC_MONETARY=C.UTF-8 failed
+4: Setting LC_TIME=C.UTF-8 failed
+== x82: random-arm distribution recheck (R side) ==
+A) random-drop-50% : median=0.9924  [p10,p90]=[0.9900,0.9945]  (python: 0.9924 [0.990,0.995])
+B) drop85-recover35: median=0.9932  p10=0.9918  (python: 0.9914 p10 0.9891)
+判据：中位数互落对方 [p10,p90]
+done (x82-R).

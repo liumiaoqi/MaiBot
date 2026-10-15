@@ -1,0 +1,44 @@
+========== ① llm_usage ==========
+cols: ['id', 'model_name', 'model_assign_name', 'model_api_provider_name', 'session_id', 'task_name', 'request_type', 'time_cost', 'timestamp', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'prompt_cache_enabled', 'prompt_cache_hit_tokens', 'prompt_cache_miss_tokens', 'cost']
+ sample: (1, 'deepseek-v4-flash', 'deepseek-v4-flash', 'BaiLian', '', None, 'maisaka_timing_gate', 3.228, '2026-05-06 12:20:20.630219', 894, 133, 1027, 0, 0, 0, 0.00116)
+ sample: (2, 'deepseek-v4-flash', 'deepseek-v4-flash', 'BaiLian', '', None, 'maisaka_planner', 3.426, '2026-05-06 12:20:24.177636', 1857, 331, 2188, 0, 0, 0, 0.002519)
+weekly calls:
+  2026-W19:   454  ###############
+  2026-W20:   277  #########
+  2026-W21:  1134  #####################################
+  2026-W22:  2797  ##################################################
+  2026-W23:   597  ###################
+  2026-W24:   254  ########
+  2026-W25:  5182  ##################################################
+  2026-W26:  2521  ##################################################
+  2026-W27:   842  ############################
+  2026-W28:   647  #####################
+  2026-W29:   148  ####
+  2026-W30:    63  ##
+  2026-W31:    63  ##
+  2026-W32:   351  ###########
+  2026-W34:    13
+  2026-W35:    11
+model dist: [('deepseek-v4-flash', 14177), ('deepseek-v4-pro', 893), ('qwen3.6-max-preview', 279), ('qwen3.7-max-2026-06-08', 4), ('text-embedding-v4', 1)]
+
+========== ② episode 重建管线 ==========
+== episode_rebuild_sources cols: ['source', 'status', 'retry_count', 'last_error', 'reason', 'requested_at', 'updated_at']
+  sample: ('chat_summary:231288e72ee2f16f17899362bf84cc8b', 'pending', 1, None, 'paragraph_physically_deleted', 1783761839.33161, 1783761839.33161)
+  sample: ('person_fact:4dd919ad6c78e922367fa252acdcc450', 'done', 0, None, 'paragraph_entity_linked', 1779024618.324385, 1779024622.465588)
+== episode_pending_paragraphs cols: ['paragraph_hash', 'source', 'created_at', 'status', 'retry_count', 'last_error', 'updated_at']
+  sample: ('c695246706500c5059420591117031b24a36e11ece00c7eae13903d60ff845be', 'person_fact:4dd919ad6c78e922367fa252acdcc450', 1778143406.561035, 'done', 0, None, 1778143413.271475)
+  sample: ('8b7543ca4f04ff5079e8c84fb07cb8fe0d5052726c711535f9a6379e5e9bf3cb', 'person_fact:4dd919ad6c78e922367fa252acdcc450', 1778143413.369484, 'done', 0, None, 1778143417.011018)
+  total rows: 348
+  col[0] source top: [('web_import:Minecraft', 2), ('web_import:布洛妮娅·扎伊切克', 2), ('chat_summary:231288e', 1), ('person_fact:4dd919ad', 1), ('web_import:崩坏星穹铁道完整资', 1)]
+  col[1] status top: [('pending', 343), ('done', 5)]
+  col[2] retry_count top: [('0', 347), ('1', 1)]
+  col[3] last_error top: [('None', 348)]
+
+========== ③ aliases 之谜 ==========
+cols: ['alias32', 'hash']
+  sample: ('00057e6482f7c718a7c396eb9114c1e7', '00057e6482f7c718a7c396eb9114c1e716b5c4079f86b7d58fa37c1d8a8bf0e1')
+  sample: ('000beb00b7eac2e2988d7cb442199590', '000beb00b7eac2e2988d7cb44219959000e9670ad1f02bc6f4086bd745502bbc')
+  sample: ('0014c79e4ba2166c0db62caaa9a6ab28', '0014c79e4ba2166c0db62caaa9a6ab28318c296cf6a8617becc296f7399b453f')
+distinct hash: (14984,)
+
+done (probe36).

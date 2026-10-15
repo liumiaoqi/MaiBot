@@ -1,0 +1,46 @@
+deleted: n=14868 | has inactive_since: 14868 | has deleted_at: 14868
+  inactive_since span: 2026-05-19 → 2026-07-25
+  deleted_at   span: 2026-05-21 → 2026-08-05
+  deleted_at - inactive_since (hours): n=14868 median=29.14 p10=24.35 p90=33.15 max=250.8
+  weekly side-by-side (inactive_since | deleted_at):
+    2026-W21:    363 |    357
+    2026-W22:     67 |     73
+    2026-W25:    411 |      0
+    2026-W26:      2 |    413
+    2026-W27:  11022 |   8437
+    2026-W28:   2794 |   5266
+    2026-W29:    164 |    277
+    2026-W30:     45 |     34
+    2026-W32:      0 |     11
+
+pinned n = 47
+  朋友们  --帮助了-->  哥伦比娅·希珀塞莱尼娅  (conf 1.0)
+  霜月之子  --接纳-->  哥伦比娅  (conf 1.0)
+  冰之女皇  --赐名-->  哥伦比娅  (conf 1.0)
+  冰之女皇  --给予第二个家-->  哥伦比娅  (conf 1.0)
+  哥伦比娅  --协助-->  博士  (conf 1.0)
+  哥伦比娅  --与...建立友谊-->  桑多涅  (conf 1.0)
+  哥伦比娅  --帮助-->  旅行者  (conf 1.0)
+  霜月之子  --奉为神明-->  哥伦比娅  (conf 1.0)
+  霜月之子  --提出要求-->  哥伦比娅  (conf 1.0)
+  旅行者  --在银月之庭找到-->  哥伦比娅  (conf 1.0)
+  旅行者  --与…建立了友谊-->  哥伦比娅  (conf 1.0)
+  桑多涅  --是关系最亲近的执行官同事-->  哥伦比娅  (conf 1.0)
+  提纳里  --共用QQ号-->  银狼  (conf 1.0)
+  银狼  --共享QQ号-->  提纳里  (conf 1.0)
+  提纳里  --共享QQ号-->  银狼  (conf 1.0)
+  银狼  --与...达成互不干涉偏爱协议-->  提纳里  (conf 1.0)
+  提纳里  --与...达成互不干涉偏爱协议-->  银狼  (conf 1.0)
+  兰那罗  --赠送-->  旅行者  (conf 1.0)
+  predicate dist: [('是', 6), ('合租', 3), ('与...建立友谊', 2), ('共享QQ号', 2), ('与...达成互不干涉偏爱协议', 2), ('即将与', 2), ('帮助了', 1), ('接纳', 1)]
+  created span: 05-24 → 06-19
+
+[pinned] n=47
+  pred top: [('是', 6), ('合租', 3), ('与...建立友谊', 2), ('共享QQ号', 2), ('与...达成互不干涉偏爱协议', 2), ('即将与', 2)]
+Traceback (most recent call last):
+  File "E:\Users\lmq\MaiBot\scripts\embedding_finetune\math_probe\probe34_governance.py", line 78, in <module>
+    prof('SELECT subject, predicate, object, created_at FROM relations WHERE is_pinned=1', 'pinned')
+  File "E:\Users\lmq\MaiBot\scripts\embedding_finetune\math_probe\probe34_governance.py", line 74, in prof
+    print(f"  created span: {datetime.datetime.fromtimestamp(min(cr)):%m-%d} → "
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object cannot be interpreted as an integer

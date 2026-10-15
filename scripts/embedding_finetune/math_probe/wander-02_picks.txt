@@ -1,0 +1,48 @@
+== wander-02 (hardware source: rdrand) ==
+候选分类（59 池硬抽 24）: cs.CL · cs.LG · cs.RO · cs.PL · cs.DM · cs.GT · cs.IR · cs.SD · math.DS · math.PR · math.OC · math.ST · math.AP · math.MG · stat.ME · stat.TH · cond-mat.dis-nn · nlin.AO · physics.data-an · q-bio.NC · q-bio.PE · q-fin.TR · econ.TH · astro-ph.CO
+分层结果: 热 0 / 中 7 / 冷 17（抓取失败 0）
+
+抽中 6 类（冷门优先）:
+
+### cs.RO（本批 159 条）
+  - Investigating Behavior Cloning from Few Demonstrations for Autonomous Driving based on Bird's-Eye View in Simulated Cities
+  - Monte Carlo Tree Search with Tensor Factorization for Optimization Problems in Robotics
+
+### math.PR（本批 66 条）
+  - Angles and volumes of simplices, boxes, and crosspolytopes in constant curvature
+  - Universality of the conformal anomaly
+
+### cs.SD（本批 31 条）
+  - Revise-TTS: A Non-Masking Refinement Framework for Masked Diffusion Models in Text-to-Speech
+  - ACR-Net: Mitigating Semantic Dominance via Contrastive Acoustic-Semantic Decoupling
+
+### math.DS（本批 29 条）
+  - Enumeration of one-cycle signed chord diagrams and their duals for optimal Morse flows on closed surfaces
+  - Drift and joint minimal displacement for groups acting on hyperbolic spaces
+
+### q-bio.PE（本批 4 条）
+  - Physiology-Informed Sparse Identification of Dynamic Crop Models
+  - How deterministic trajectories and their fluctuations underlie allele-frequency statistics in the strong-selection regime
+
+### math.MG（本批 12 条）
+  - Insertion and expansion of cylinders around the unit ball
+  - Quasiconformal uniformization and extension for planar trees
+
+### HF 趋势模型榜（hf-mirror；池 100 硬抽 8）
+  (HF 抓取失败: HTTP Error 403: Forbidden)
+
+### GitHub 近一月高星新仓（池 100 硬抽 12）
+  - 16954★ robbietilton/Compositor: The Photoshop alternative for Mac
+  - 16682★ Ebony-Vinyl/dsh-our-free-model: 在 dsh 里装上这个插件即可，无需登录、注册或填 API Key，就能使用包括 DeepSeek V4.1 Flash、Kimi K3 在内的前沿模型——完全免费，不限量。 All you do is install this plugin in dsh: no login, no sign-up
+  - 13421★ storytold/filmcraft: FilmCraft: An open-source, nonlinear video editor written by scratch in pure Rust
+  - 6935★ mizorewww/laya-mlx: Native MLX runtime for Laya typed decision models — 7–14 ms short decisions on M3 Max. No text generation, PyTorch, or cloud API.
+  - 4940★ storytold/gridcraft: GridCraft: an open-source, clean-room spreadsheet (Microsoft Excel-style) in pure Rust. By ArtCraft.
+  - 3396★ omnirush-ai/omnirush-gui: A desktop coding agent with free access to frontier models.
+  - 3391★ QingYunA/answer-me-with-html: Answer me with HTML — an agent skill that answers hard questions with a one-page HTML you can actually read. 让 AI Agent 用一页 HTML 回答复杂问题。
+  - 2692★ t4t5/omdrop-owl: airdrop for non-apple devices
+  - 2061★ noahdunnagan/fsearch: Whole-disk file search for macOS: fuzzy names, typo tolerance, indexed content grep. ~1 ms over 8M files.
+  - 2007★ lucasmarkes/hairline: Six isometric line figures that answer the pointer. For React and for anything with a DOM.
+  - 1775★ Avenuezensport/efjvysuz: Welcome to Shnek-Tools, a multi-tool with a multitude of options. All functions are completely free and functional. We hope you enjoy it and don't hes
+  - 1586★ mizorewww/laya-coreml: Local Laya typed decisions on Apple Core ML and Neural Engine. Validated ports, ~5 ms short decisions on M3 Max, reproducible speed and energy benchma
+
+done.

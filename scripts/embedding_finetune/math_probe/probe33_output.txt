@@ -1,0 +1,32 @@
+schema: ['hash', 'subject', 'predicate', 'object', 'vector_index', 'confidence', 'vector_state', 'vector_updated_at', 'vector_error', 'vector_retry_count', 'created_at', 'source_paragraph', 'metadata', 'is_permanent', 'last_accessed', 'access_count', 'is_inactive', 'inactive_since', 'is_pinned', 'protected_until', 'last_reinforced']
+ KEEP: ('57333c5a6a976e5dafd1bf0d0dd46c7618d3f34389b40d5939ad744756f0bf11', '朋友们', '帮助了', '哥伦比娅·希珀塞莱尼娅', 1.0, 'ready')
+ KEEP: ('a47d19f8facda3e418761e768053478cf9395c32b2d27a8c612b3a1e14fd2698', '霜月之子', '接纳', '哥伦比娅', 1.0, 'ready')
+ DEL : ('00a150c91414d8b3458567d634b6d90609b5c3b031757f86ba9cf4db0ecb990d', '阿哈', '创造', '幻月', 1.0, 'none')
+ DEL : ('00bfb06336252fcd4aed3664d458bc649c518e0570f16d936f0c556a373542d8', '流萤', '属于游戏', '崩坏：星穹铁道', 1.0, 'none')
+
+== Q1 confidence ==
+ keep: n 184 | median 1.0
+ del : n 14868 | median 1.0
+ keep hist: {'[0.9,1.01)': 184}
+ del  hist: {'[0.9,1.01)': 14868}
+
+== Q2 predicate ==
+ keep top: [('是', 10), ('合租', 5), ('与', 5), ('询问', 4), ('回应', 3), ('告知', 3), ('邀请', 2), ('让', 2)]
+ del  top: [('是', 1347), ('与', 265), ('属于', 220), ('拥有', 168), ('成为', 151), ('对抗', 120), ('合作', 100), ('曾是', 94), ('担任', 94), ('守护', 83), ('协助', 80), ('帮助', 74)]
+
+== Q3 vector_state / error ==
+ keep states: {'ready': 180, 'none': 4}
+ del  states: {'none': 840, 'ready': 14028}
+ del  errors top: [('(none)', 14868)]
+ keep errors top: [('(none)', 184)]
+
+== Q4 端点重复度 ==
+ keep top subj: [('桑多涅', 36), ('哥伦比娅', 27), ('刘妙奇1026', 22), ('银狼', 19), ('她', 7), ('提纳里', 7)]
+ del  top subj: [('旅行者', 204), ('布洛妮娅', 169), ('黑塔', 133), ('爱莉希雅', 133), ('开拓者', 130), ('景元', 128)]
+
+== Q5 双时间 ==
+ del created span: 2026-05-06 → 2026-07-12
+ del deleted span: 2026-05-21 → 2026-08-05
+ keep created span: 2026-05-24 → 2026-07-22
+
+done (probe33).

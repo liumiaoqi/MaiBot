@@ -1,0 +1,11 @@
+During startup - Warning messages:
+1: Setting LC_COLLATE=C.UTF-8 failed
+2: Setting LC_CTYPE=C.UTF-8 failed
+3: Setting LC_MONETARY=C.UTF-8 failed
+4: Setting LC_TIME=C.UTF-8 failed
+== x81: probes 29/29b/30/31 recheck (R side) ==
+A) deg50 kept: S = 0.8880   (target 0.8880)
+B) deg85 kept: S = 0.4148   (target 0.4148)
+C) deg85 剩余边低-低占比 = 1.0000   (target 1.000)
+   (校验: 剩余边数 = 1595)
+done (x81-R).

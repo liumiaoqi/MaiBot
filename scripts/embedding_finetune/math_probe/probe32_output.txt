@@ -1,0 +1,29 @@
+== persons with snapshots: 13
+  3ca4b9912b850d…: 877
+  4dd919ad6c78e9…: 83
+  b08313de632efd…: 77
+  82234682d0649b…: 70
+  7e98261044f475…: 48
+  0e7cd7db9657f9…: 24
+  c4571bcccb4ebe…: 22
+  e24aeb948a95d8…: 9
+  7b681119169f24…: 5
+  3137ef63105df7…: 2
+  2478bca2ab6b58…: 1
+  83ac96a79cfa68…: 1
+  a409b162479c30…: 1
+
+== target 3ca4b9912b850d… ==
+versions: 877 | parsed times: 0
+
+profile length: first 195 → last 330 | min 195 max 556
+adjacent diff (Jaccard): median 0.049 | mean 0.065 | p90 0.161 | max 0.485
+step-like transitions (diff>0.098): 251 / 876
+  top 8: [(807, 0.485), (872, 0.377), (808, 0.348), (305, 0.317), (810, 0.302), (355, 0.286), (306, 0.281), (404, 0.281)]
+
+relation_edges: first 0 → last 0 | min 0 max 0
+aliases: 1 → 1
+
+== v1 → v877: len 195→330 | edges 0→0 | aliases 1→1 ==
+
+done (probe32).
