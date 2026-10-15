@@ -36,6 +36,10 @@ _GRPC_CHANNEL_OPTIONS = [
     ("grpc.keepalive_timeout_ms", 10000),
     ("grpc.keepalive_permit_without_calls", 1),
     ("grpc.http2.max_pings_without_data", 0),
+    # 每 Runner 独立 TCP 连接：gRPC C core 默认全局 subchannel 池会让同进程
+    # 多个 channel 复用同一连接——host 侧 _resolve_runner_id 靠 peer 反查
+    # runner_id，复用即撞（双 runner e2e 2026-10-15 实捕）。
+    ("grpc.use_local_subchannel_pool", 1),
 ]
 
 # ── gRPC 服务端 keepalive 配置 ──

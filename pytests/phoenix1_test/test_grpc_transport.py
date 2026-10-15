@@ -52,12 +52,45 @@ def _runner_config(host_address: str, runner_id: str = "test-runner-1") -> Runne
     )
 
 
-async def _safe_stop(runner: RunnerEndpoint) -> None:
-    """安全停止 Runner，忽略异常。"""
-    try:
-        await runner.stop()
-    except Exception:
-        pass
+async def _start_and_wait_ready(
+    runner: RunnerEndpoint, timeout: float = _RUNNER_START_TIMEOUT
+) -> asyncio.Task[None]:
+    """后台启动 Runner 并轮询等待 READY。
+
+    ⚠️ start() 是长跑协程（READY 后挂接收循环、断开才重连），禁止 wait_for(start())；
+    且其 cancel 会被 _recv_loop 吞掉并消化成"重连"——终止一律走 runner.stop()（标志位）。
+    """
+    task: asyncio.Task[None] = asyncio.create_task(runner.start())
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if runner.is_ready:
+            return task
+        if task.done():
+            return task  # 终态（重连耗尽/握手拒绝）——由调用方断言
+        await asyncio.sleep(0.05)
+    await _finish_runner(runner, task)
+    raise AssertionError(f"Runner 未在 {timeout}s 内就绪（state={runner.state}）")
+
+
+async def _finish_runner(
+    runner: RunnerEndpoint | None, task: asyncio.Task[None] | None = None
+) -> None:
+    """停止 Runner 并等待其 start() 任务自然收尾。
+
+    stop() 置 _shutting_down → 接收循环结束 → start() 从循环顶返回；勿 cancel（会被消化）。
+    """
+    if runner is not None:
+        try:
+            await runner.stop()
+        except Exception:
+            pass
+    if task is not None and not task.done():
+        try:
+            await asyncio.wait_for(task, timeout=5)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -71,9 +104,10 @@ async def test_full_connection_lifecycle():
     host = HostEndpoint(_host_config())
     await host.start()
     runner: RunnerEndpoint | None = None
+    task: asyncio.Task[None] | None = None
     try:
         runner = RunnerEndpoint(_runner_config(host.listen_address))
-        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        task = await _start_and_wait_ready(runner)
         assert runner.state == ConnectionState.READY
         assert runner.is_ready
 
@@ -87,8 +121,7 @@ async def test_full_connection_lifecycle():
         await runner.stop()
         assert runner.state == ConnectionState.DISCONNECTED
     finally:
-        if runner is not None:
-            await _safe_stop(runner)
+        await _finish_runner(runner, task)
         await host.stop()
 
     assert host.get_status() == {}
@@ -105,9 +138,10 @@ async def test_heartbeat_exchange():
     host = HostEndpoint(_host_config())
     await host.start()
     runner: RunnerEndpoint | None = None
+    task: asyncio.Task[None] | None = None
     try:
         runner = RunnerEndpoint(_runner_config(host.listen_address))
-        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        task = await _start_and_wait_ready(runner)
 
         # 等待至少一次心跳交换
         await asyncio.sleep(_TEST_HEARTBEAT_INTERVAL + 1)
@@ -115,8 +149,7 @@ async def test_heartbeat_exchange():
 
         await runner.stop()
     finally:
-        if runner is not None:
-            await _safe_stop(runner)
+        await _finish_runner(runner, task)
         await host.stop()
 
 
@@ -126,9 +159,10 @@ async def test_heartbeat_timeout_disconnects():
     host = HostEndpoint(_host_config())
     await host.start()
     runner: RunnerEndpoint | None = None
+    task: asyncio.Task[None] | None = None
     try:
         runner = RunnerEndpoint(_runner_config(host.listen_address))
-        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        task = await _start_and_wait_ready(runner)
 
         # 强制停止 Runner（不优雅关停，模拟崩溃）
         await runner.stop()
@@ -143,8 +177,7 @@ async def test_heartbeat_timeout_disconnects():
         status = host.get_status()
         assert "test-runner-1" not in status
     finally:
-        if runner is not None:
-            await _safe_stop(runner)
+        await _finish_runner(runner, task)
         await host.stop()
 
 
@@ -167,10 +200,12 @@ async def test_reconnect_exhausted_stops():
             reconnect_max_delay_s=0.5,
         )
     )
-    await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+    task = await _start_and_wait_ready(runner)
 
     assert runner.state == ConnectionState.DISCONNECTED
     assert not runner.is_ready
+
+    await _finish_runner(runner, task)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -185,12 +220,14 @@ async def test_two_runners_parallel():
     await host.start()
     r0: RunnerEndpoint | None = None
     r1: RunnerEndpoint | None = None
+    t0: asyncio.Task[None] | None = None
+    t1: asyncio.Task[None] | None = None
     try:
         r0 = RunnerEndpoint(_runner_config(host.listen_address, runner_id="runner-0"))
         r1 = RunnerEndpoint(_runner_config(host.listen_address, runner_id="runner-1"))
 
-        await asyncio.wait_for(r0.start(), timeout=_RUNNER_START_TIMEOUT)
-        await asyncio.wait_for(r1.start(), timeout=_RUNNER_START_TIMEOUT)
+        t0 = await _start_and_wait_ready(r0)
+        t1 = await _start_and_wait_ready(r1)
 
         assert r0.is_ready
         assert r1.is_ready
@@ -204,9 +241,8 @@ async def test_two_runners_parallel():
         # runner-1 不受影响
         assert r1.is_ready
     finally:
-        for r in (r0, r1):
-            if r is not None:
-                await _safe_stop(r)
+        await _finish_runner(r0, t0)
+        await _finish_runner(r1, t1)
         await host.stop()
 
 
@@ -222,19 +258,20 @@ async def test_duplicate_runner_id_rejected():
     await host.start()
     r1: RunnerEndpoint | None = None
     r2: RunnerEndpoint | None = None
+    t1: asyncio.Task[None] | None = None
+    t2: asyncio.Task[None] | None = None
     try:
         r1 = RunnerEndpoint(_runner_config(host.listen_address, runner_id="dup-runner"))
-        await asyncio.wait_for(r1.start(), timeout=_RUNNER_START_TIMEOUT)
+        t1 = await _start_and_wait_ready(r1)
         assert r1.is_ready
 
         r2 = RunnerEndpoint(_runner_config(host.listen_address, runner_id="dup-runner"))
-        await asyncio.wait_for(r2.start(), timeout=_RUNNER_START_TIMEOUT)
+        t2 = await _start_and_wait_ready(r2)
         assert r2.state == ConnectionState.DISCONNECTED
         assert not r2.is_ready
     finally:
-        for r in (r1, r2):
-            if r is not None:
-                await _safe_stop(r)
+        await _finish_runner(r1, t1)
+        await _finish_runner(r2, t2)
         await host.stop()
 
 
