@@ -27,6 +27,12 @@ ENV PATH="/MaiMBot/.venv/bin:${PATH}"
 # Copy dependency metadata
 COPY pyproject.toml uv.lock ./
 
+# apt 源换清华镜像（2026-10-15 迁移补：archive.ubuntu.com 从本网络批量下载持续超时，
+# 构建因包下载大面积失败告终；清华实测快 ~6 倍且稳定。Ubuntu 26.04 为 deb822 格式源）
+# ⚠️ 必须用 http：此基础镜像内**尚无 ca-certificates**（它就是待装包之一），https 会撞证书验证失败；
+#    包完整性由 apt 的 GPG 签名验证保证，与传输加密无关。
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g; s|http://security.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+
 # Install C extension build toolchain + git, then install Python dependencies.
 # 构建期写入 .venv 的 Python 版本标记：entrypoint 以此判断是否需要重建依赖；
 # 构建期写好 ⇒ 容器首启免联网执行 uv sync（2026-10-15 迁移补）。
