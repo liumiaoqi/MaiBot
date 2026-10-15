@@ -7,6 +7,21 @@
 
 ---
 
+# 〇、目录索引（先去哪看）
+
+| 目录 | 角色 | 局部指引 |
+|---|---|---|
+| `src/core/` | 微内核契约（Protocol / 适配器 / Port 注册） | `src/core/AGENTS.md` |
+| `src/A_memorix/` | 记忆子系统 | `src/A_memorix/AGENTS.md`（+ `MODIFICATION_POLICY.md`） |
+| `mingtang/` | 前端主战场 | `mingtang/AGENTS.md` |
+| `dashboard/` | 老前端（冻结保留） | `dashboard/DEPRECATED.md` |
+| `scripts/embedding_finetune/` | AI 实验区 | `scripts/embedding_finetune/AGENTS.md`（+ RULES / INDEX） |
+| `docker-config/` | 部署配置（**`mmc/` 才生效**） | `docker-config/AGENTS.md` |
+| `docs/` | 文档（pitfalls 活件 + archive 冻结） | `docs/AGENTS.md` |
+| `.shared/` | 协作区（handoff / postmortem / decisions） | 写作规范见 §十一 |
+
+---
+
 # 一、核心架构：微内核 + 接口契约
 
 核心模块不依赖组件具体实现，只通过 Protocol 接口交互。适配器层（`src/core/adapters/`）是唯一允许导入组件具体类的地方。
