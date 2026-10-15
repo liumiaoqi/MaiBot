@@ -98,10 +98,11 @@ services:
       - ./data/MaiMBot:/MaiMBot/data # 共享目录
     container_name: maim-bot-napcat
     restart: always
-    # 2026-10-15 升 tag：v4.18.8 → v4.18.38（镜像从未拉取，零成本；NapCat 项目已迁 NapNeko 组织，镜像名不变）
+    # 2026-10-16 修正 tag：v4.18.8 → v4.18.37（原写 v4.18.38 系笔误——Docker Hub 实测该 tag 不存在（404），
+    #    最新稳定为 v4.18.37；镜像从未拉取，零成本。NapCat 项目已迁 NapNeko 组织，镜像名不变）
     # ⚠️ 启用 QQ 前先决策：上游 1.3.0 起 QQ 适配器换代——统一 QQ 连接器（SnowLuma/NapCat 双客户端合一）
     #    + adapter_policy.toml 黑白名单；我们的 fork 仍是旧适配器方案，**兼容性需先评估再接线**
-    image: mlikiowa/napcat-docker:v4.18.38
+    image: mlikiowa/napcat-docker:v4.18.37
     networks:
       - maim_bot
   # sqlite-web 已移除（2026-10-15：从未实际使用；且其为无认证工具，不宜常驻暴露于校园网。
