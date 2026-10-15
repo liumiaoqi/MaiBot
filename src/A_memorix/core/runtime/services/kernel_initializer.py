@@ -735,7 +735,7 @@ class KernelInitializer:
 
     @staticmethod
     async def start_background_tasks(kernel: SDKMemoryKernel) -> None:
-        # ⭐ 2026-09-27（社会关系线 §1.36 族级修复）：启动时把上次中断残留的 `running` 行拉回 `pending`。
+        # 2026-09-27（社会关系线 §1.36 族级修复）：启动时把上次中断残留的 `running` 行拉回 `pending`。
         # 三张队列的取件过滤只认 pending/failed，而 `mark_*_running` 置位后无路径可取回
         # ⇒ 进程中途中断的那一行**永久卡死**（真库实测 episode_pending 已卡 1 行约 46 天）。
         try:

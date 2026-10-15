@@ -91,7 +91,7 @@ class HitFilterService:
     def _episode_query_block_enabled(self) -> bool:
         """episode source 屏蔽是否生效。
 
-        ⭐ 2026-09-27 修复（social_rel §1.33/§1.41）：这两个开关此前**只被声明与展示，从未被读取**
+        2026-09-27 修复（social_rel §1.33/§1.41）：这两个开关此前**只被声明与展示，从未被读取**
         ⇒ 只要 source 留在重建队列里，用户的 episode 命中就会被**无条件**丢弃。
         真库里 `feedback_correction_enabled = false`（整条反馈纠错关闭）而队列又**没有消费者**
         （唯一取件 API 在 HEAD 调用点为 0）⇒ 屏蔽永远不解除 ⇒ 实测 552/694 条 episode 被挡住。

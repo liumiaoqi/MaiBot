@@ -61,7 +61,7 @@ class SchemaManager:
 
     @staticmethod
     def ensure_relation_feedback_schema(cursor: sqlite3.Cursor) -> None:
-        """确保「关系强度反馈事件」表存在（⭐ 申请 0004「真值回路」）。
+        """确保「关系强度反馈事件」表存在（申请 0004「真值回路」）。
 
         ⚠️ 为什么需要它：本表的 DDL 原本只写在建表路径里，而那条路径**只在数据库新建时跑**
         （`create_tables()` ← `ensure(conn, db_existed)`）⇒ **存量库永远拿不到这张表** ✗
@@ -195,7 +195,7 @@ def _create_all_tables(cursor: sqlite3.Cursor) -> None:
         )
     """)
 
-    # --- 关系强度反馈事件（⭐ 申请 0004「真值回路」的留痕表）---
+    # --- 关系强度反馈事件（申请 0004「真值回路」的留痕表）---
     # 只增不改：记录"某个显式动作改了哪条关系的强度"，是把"人的判断"写回系统的第一个落点，
     # 也是 §4.5 顺序定律里"真值先于痕迹"的那个**真值**来源。
     # ⚠️ 与 DEL-1（2026-07-28）删掉的 memory_feedback_* 一族**无关**，不复活旧子系统 ✓

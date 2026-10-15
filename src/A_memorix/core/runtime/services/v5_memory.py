@@ -111,7 +111,7 @@ class V5MemoryService:
         statuses = self._metadata_store.get_relation_status_batch(normalized)
         return {hash_value: float((statuses.get(hash_value) or {}).get("weight", 0.0) or 0.0) for hash_value in normalized}
 
-    # ⭐ 申请 0004「真值回路」：每次显式动作调整的幅度。
+    # 申请 0004「真值回路」：每次显式动作调整的幅度。
     # ⚠️ 先硬编码（§五.3：跑通再议档位）；改它是**一行**，且不涉及数据迁移。
     RELATION_FEEDBACK_DELTA = 0.1
 
@@ -123,7 +123,7 @@ class V5MemoryService:
         actor: str = "",
         source_note: str = "",
     ) -> Dict[str, Any]:
-        """⭐ 关系强度的真值回路（申请 0004）：**一个显式动作 ⇒ 改 confidence ＋ 留痕**。
+        """关系强度的真值回路（申请 0004）：**一个显式动作 ⇒ 改 confidence ＋ 留痕**。
 
         - `action`: `raise` / `lower` / `neutral`（`neutral` 只留痕、不动值）
         - 改值复用 `adjust_relation_confidence`（S1 已补 `[0,1]` 上下界 ⇒ 不会越界）
@@ -144,11 +144,11 @@ class V5MemoryService:
             self.adjust_relation_confidence([token], delta=delta)
 
         conn = self._metadata_store.get_connection()
-        # ⭐ 读回**列值**（`get_relation_status_batch` 返回的是 `weight` 等派生字段，不含 confidence ✓）
+        # 读回**列值**（`get_relation_status_batch` 返回的是 `weight` 等派生字段，不含 confidence ✓）
         row = conn.execute("SELECT confidence FROM relations WHERE hash = ?", (token,)).fetchone()
         after = float(row[0]) if row and row[0] is not None else 0.0
 
-        # ⭐ 存量库拿不到建库时的 DDL（`_create_all_tables` 只在新建库跑）⇒ 这里**用到时确保存在** ✓
+        # 存量库拿不到建库时的 DDL（`_create_all_tables` 只在新建库跑）⇒ 这里**用到时确保存在** ✓
         SchemaManager.ensure_relation_feedback_schema(conn.cursor())
         cursor = conn.cursor()
         cursor.execute(
