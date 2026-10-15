@@ -17,7 +17,14 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import clear_prompt_cache, extract_prompt_placeholders, list_prompt_templates
-from src.config.config import CONFIG_DIR, Config, ModelConfig, PROJECT_ROOT, config_manager  # noqa: TID251 — 配置管理页面需直接操作配置对象
+from src.config.config import (
+    CONFIG_DIR,
+    Config,
+    ConfigFrozenError,
+    ModelConfig,
+    PROJECT_ROOT,
+    config_manager,  # noqa: TID251 — 配置管理页面需直接操作配置对象
+)
 from src.config.config_base import AttributeData, ConfigBase
 from src.config.model_configs import (
     APIProvider,
@@ -62,6 +69,7 @@ from src.webui.config_paths import (
     parse_path,
     remove_index,
     remove_path,
+    to_declaration_key,
     to_plain,
 )
 from src.webui.config_schema import ConfigSchemaGenerator
@@ -71,9 +79,10 @@ from src.webui.config_secrets import (
     describe_secret_value,
     find_secret_root,
     find_unresolved_sentinels,
-    is_redaction_sentinel,
+    is_secret_claim,
     merge_payload_with_reference,
     redact_config_secrets,
+    redact_subtree,
 )
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
@@ -124,6 +133,45 @@ _LEGACY_CUSTOM_PROMPT_VERSION_ID = "legacy-current"
 _RESTART_REQUIRED_SECTIONS = frozenset({
     "bot", "database", "log", "webui", "debug",
 })
+
+# 热重载结果（写路径的统一语义；前端可按需展示，不必各自解释一遍）
+HOT_RELOAD_OK = "ok"
+HOT_RELOAD_REFUSED_FROZEN = "refused_frozen"
+
+
+async def _reload_config_or_report(context: str) -> str:
+    """热重载配置并返回状态（``ok`` / ``refused_frozen``）——**全模块唯一的重载入口**。
+
+    两条纪律写在这里，免得后人重犯（对抗审查 F14 + 2026-10-16 收尾令）：
+
+    1. ``config_manager.reload_config`` 是 ``async def``（``src/config/config.py:489``）：
+       **必须 await**。不 await 等于把协程丢掉——既不重载、又只留一条 ``RuntimeWarning``，
+       而接口看起来像"保存成功顺带热重载了"。本模块曾有 6 处这种写法，现已全部收敛到这里。
+    2. 冻结态（ZG-10：启动完成后配置只读）是**预期**分支，不是错误：文件**已经写成功**了，
+       所以**绝不**回 500——如实返回 ``refused_frozen``，由调用方告诉用户
+       "已落盘，热重载被拒，实际生效靠重启或文件监听"。
+
+    Args:
+        context: 日志上下文（哪个端点触发的），便于排障。
+
+    Returns:
+        ``HOT_RELOAD_OK`` 或 ``HOT_RELOAD_REFUSED_FROZEN``。
+    """
+    try:
+        await config_manager.reload_config()
+    except ConfigFrozenError as error:
+        logger.warning(f"{context}：配置已落盘，但热重载被拒（配置已冻结）：{error}")
+        return HOT_RELOAD_REFUSED_FROZEN
+    return HOT_RELOAD_OK
+
+
+def _needs_restart_flag(restart_sections: List[str], hot_reload: str) -> bool:
+    """重启提示：命中重启节，**或**热重载被拒（那说明改动还没生效）。
+
+    后者是这次收尾统一起来的口径：热重载被冻结挡下时，"是否需要重启"的诚实答案是"是"，
+    不然用户会以为改完即生效（旧代码正是这么答的）。
+    """
+    return bool(restart_sections) or hot_reload == HOT_RELOAD_REFUSED_FROZEN
 
 
 def _get_cached_schema(cache_key: str, config_class: type[ConfigBase], include_nested: bool = True) -> Dict[str, Any]:
@@ -449,7 +497,7 @@ def _read_plain_config(config_path: str) -> Any:
         return _toml_to_plain_dict(tomlkit.load(f))
 
 
-def _restore_config_secrets(payload: Any, reference: Any) -> Any:
+def _restore_config_secrets(payload: Any, reference: Any, declared: Any = None) -> Any:
     """写路径保真（P2）：还原 ``{path, set}`` 密钥占位 + 保留页面上未展示的字段。
 
     占位还原不出来时**拒绝落盘**并指明位置——把 ``{path, set}`` 写进 TOML 会让配置文件
@@ -458,6 +506,8 @@ def _restore_config_secrets(payload: Any, reference: Any) -> Any:
     Args:
         payload: 请求体里的配置数据。
         reference: 配置文件里的当前数据（键对齐用）。
+        declared: 秘密声明路径集合；给了就只把"来源确实是秘密"的表当占位
+            （否则一张恰好长成 ``{path, set}`` 的普通数据表会被吃掉 —— 对抗审查 F6）。
 
     Returns:
         还原后的配置数据。
@@ -465,8 +515,8 @@ def _restore_config_secrets(payload: Any, reference: Any) -> Any:
     Raises:
         AppError: 仍有未还原的密钥占位。
     """
-    restored = merge_payload_with_reference(payload, reference)
-    unresolved_sentinels = find_unresolved_sentinels(restored)
+    restored = merge_payload_with_reference(payload, reference, declared=declared)
+    unresolved_sentinels = find_unresolved_sentinels(restored, declared=declared)
     if unresolved_sentinels:
         raise AppError(
             ErrorCode.PARAM_INVALID,
@@ -1030,7 +1080,9 @@ def _resolve_prompt_generator_section(config_data: Dict[str, Any], section: str)
     return current
 
 
-def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBlock]) -> PromptGeneratorApplyResponse:
+async def _apply_prompt_generator_config_blocks(
+    blocks: List[PromptGeneratorConfigBlock],
+) -> PromptGeneratorApplyResponse:
     """把选中的人设生成器配置块写入 bot_config.toml。"""
 
     if not blocks:
@@ -1066,11 +1118,14 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
         raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
     save_toml_with_format(plain_config_data, config_path)
-    config_manager.reload_config()
+    hot_reload = await _reload_config_or_report("prompt-generator/apply")
     applied_sections = sorted(section_updates)
     logger.info(f"人设生成器已注入 {len(blocks)} 个配置块: {', '.join(applied_sections)}")
+    message = f"已注入 {len(blocks)} 个配置块"
+    if hot_reload == HOT_RELOAD_REFUSED_FROZEN:
+        message += "（已落盘；热重载被拒：配置已冻结，实际生效依赖重启或文件监听）"
     return PromptGeneratorApplyResponse(
-        message=f"已注入 {len(blocks)} 个配置块",
+        message=message,
         applied_blocks=len(blocks),
         sections=applied_sections,
     )
@@ -1434,7 +1489,13 @@ async def apply_prompt_generator_blocks(request: PromptGeneratorApplyRequest):
     """把人设生成器产出的配置块写入 bot_config.toml。"""
 
     try:
-        return _apply_prompt_generator_config_blocks(request.blocks)
+        # ⚠️ 必须包信封：声明是 ``ApiResponse[PromptGeneratorApplyResponse]``，
+        # 而本文件其余 14 处同形端点也都是 ``return ApiResponse(data=...)``；
+        # 前端 ``client.ts:191`` 检测到 ``code`` 字段会自动解包，所以包了才对得上两端。
+        # 原先直接返回裸模型 ⇒ 响应校验缺 ``data`` ⇒ **每次成功都 500**（存量缺陷，
+        # 收尾令要求这条路径也验"无 500"时才暴露出来；同期无任何用例覆盖它）。
+        result = await _apply_prompt_generator_config_blocks(request.blocks)
+        return ApiResponse(data=result)
     except AppError:
         raise
     except Exception as e:
@@ -1660,7 +1721,9 @@ async def update_bot_config(config_data: ConfigBody):
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径）
         reference_config = _read_plain_config(config_path) if os.path.exists(config_path) else {}
-        config_data = _restore_config_secrets(config_data, reference_config)
+        config_data = _restore_config_secrets(
+            config_data, reference_config, config_store.secret_field_paths(config_store.NAMESPACE_BOT)
+        )
         config_data = _coerce_config_numeric_values(config_data, Config)
 
         # 验证配置数据
@@ -1680,15 +1743,16 @@ async def update_bot_config(config_data: ConfigBody):
         # 保存配置文件（自动保留注释和格式）
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         save_toml_with_format(config_data, config_path)
-        config_manager.reload_config()
+        hot_reload = await _reload_config_or_report("POST /config/bot")
 
         # 判断是否需要重启
         restart_sections = [s for s in config_data if s in _RESTART_REQUIRED_SECTIONS]
         logger.info("麦麦主程序配置已更新")
         return ApiResponse(
             data=ConfigSaveResponse(
-                needs_restart=bool(restart_sections),
+                needs_restart=_needs_restart_flag(restart_sections, hot_reload),
                 restart_required_sections=restart_sections,
+                hot_reload=hot_reload,
             )
         )
     except AppError:
@@ -1710,7 +1774,9 @@ async def update_model_config(config_data: ConfigBody):
         config_path = os.path.join(CONFIG_DIR, "model_config.toml")
         # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径）
         reference_config = _read_plain_config(config_path) if os.path.exists(config_path) else {}
-        config_data = _restore_config_secrets(config_data, reference_config)
+        config_data = _restore_config_secrets(
+            config_data, reference_config, config_store.secret_field_paths(config_store.NAMESPACE_MODEL)
+        )
         config_data = _coerce_config_numeric_values(config_data, ModelConfig)
 
         # 验证配置数据
@@ -1729,7 +1795,7 @@ async def update_model_config(config_data: ConfigBody):
 
         # 保存配置文件（自动保留注释和格式）
         save_toml_with_format(config_data, config_path)
-        config_manager.reload_config()
+        hot_reload = await _reload_config_or_report("POST /config/model")
 
         logger.info("模型配置已更新")
         return ApiResponse(
@@ -1737,6 +1803,7 @@ async def update_model_config(config_data: ConfigBody):
                 message="模型配置已保存",
                 needs_restart=True,
                 restart_required_sections=["model"],
+                hot_reload=hot_reload,
             )
         )
     except AppError:
@@ -1771,7 +1838,11 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
             raise AppError(ErrorCode.BIZ_NOT_FOUND, f"配置节 '{section_name}' 不存在", http_status=404)
 
         # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径；列表节不能整段 replace）
-        section_data = _restore_config_secrets(section_data, _toml_to_plain_dict(config_data[section_name]))
+        section_data = _restore_config_secrets(
+            section_data,
+            _toml_to_plain_dict(config_data[section_name]),
+            config_store.secret_field_paths(config_store.NAMESPACE_BOT),
+        )
 
         # 使用递归合并保留注释（对于字典类型）
         # 对于数组类型（如 platforms, aliases），直接替换
@@ -1804,15 +1875,18 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
 
         # 保存配置（格式化数组为多行，保留注释）
         save_toml_with_format(config_data, config_path)
-        config_manager.reload_config()
+        hot_reload = await _reload_config_or_report(f"POST /config/bot/section/{section_name}")
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
         needs_restart = section_name in _RESTART_REQUIRED_SECTIONS
         return ApiResponse(
             data=ConfigSaveResponse(
                 message=f"配置节 '{section_name}' 已保存",
-                needs_restart=needs_restart,
+                needs_restart=_needs_restart_flag(
+                    [section_name] if needs_restart else [], hot_reload
+                ),
                 restart_required_sections=[section_name] if needs_restart else [],
+                hot_reload=hot_reload,
             )
         )
     except AppError:
@@ -1940,7 +2014,11 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
 
         # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径；`[[api_providers]]` 整段 replace
         # 会把用户没在页面上看到、也没提交的字段吃掉）
-        section_data = _restore_config_secrets(section_data, _toml_to_plain_dict(config_data[section_name]))
+        section_data = _restore_config_secrets(
+            section_data,
+            _toml_to_plain_dict(config_data[section_name]),
+            config_store.secret_field_paths(config_store.NAMESPACE_MODEL),
+        )
 
         # 使用递归合并保留注释（对于字典类型）
         # 对于数组表（如 [[models]], [[api_providers]]），直接替换
@@ -2004,10 +2082,13 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
 
         # 保存配置（格式化数组为多行，保留注释）
         save_toml_with_format(config_data, config_path)
-        config_manager.reload_config()
+        hot_reload = await _reload_config_or_report(f"POST /config/model/section/{section_name}")
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
-        return {"success": True, "message": f"配置节 '{section_name}' 已保存"}
+        message = f"配置节 '{section_name}' 已保存"
+        if hot_reload == HOT_RELOAD_REFUSED_FROZEN:
+            message += "（已落盘；热重载被拒：配置已冻结，实际生效依赖重启或文件监听）"
+        return {"success": True, "message": message, "hot_reload": hot_reload}
     except AppError:
         raise
     except Exception as e:
@@ -2040,9 +2121,10 @@ def _default_read_targets(stored: Any, declared: frozenset[str]) -> list[tuple[A
 
     两处细节都是判据级的：
 
-    - **秘密字段内部的下标路径要排除掉**：``auth_token`` 是数组，"列叶"会摊出
-      ``maim_message.auth_token[0]``——那是秘密字段**里面**，绝不能让它在 targets 里
-      以"非秘密路径"的身份出现（那条路会直出明文）。秘密根会在下面按声明统一补上。
+    - **只丢掉"落在**已声明**秘密内部的叶子"**：``auth_token`` 是数组，"列叶"会摊出
+      ``maim_message.auth_token[0]``；它们的根会由下面的声明展开统一补一个标记，所以这里丢掉
+      避免重复。⚠️ 名字层兜住的键（没人声明）**不能丢**——展开补不到它们，丢了就等于
+      这个密钥在整平面读里**根本不出现**，而它本该以一个标记出现。
     - **"未配置"要主动报告**：F2 三态里 ``set: false`` 那一态，文件里压根没有对应键，
       只遍历已存储的数据永远看不到它，所以声明路径要按实际下标展开后单独补进去。
     """
@@ -2050,8 +2132,13 @@ def _default_read_targets(stored: Any, declared: frozenset[str]) -> list[tuple[A
     seen: set[str] = set()
 
     for tokens in iter_leaf_paths(stored):
-        if find_secret_root(tokens, declared) is not None:
-            continue  # 秘密字段内部（含元素下标）——由下面的声明展开统一处理
+        secret_root = find_secret_root(tokens, declared)
+        if (
+            secret_root is not None
+            and len(secret_root) < len(tokens)
+            and to_declaration_key(secret_root) in declared
+        ):
+            continue
         path_text = format_path(tokens)
         if path_text in seen:
             continue
@@ -2075,11 +2162,16 @@ def _build_read_entry(
     revision: int,
     declared: frozenset[str],
 ) -> Dict[str, Any]:
-    """构造读接缝的一项：``{path, value | 秘密标记, inherited, revision}``。"""
+    """构造读接缝的一项：``{path, value | 秘密标记, inherited, revision}``。
+
+    ⚠️ 秘密判定必须**双向**做（见 ``config_secrets.find_secret_root`` 的 docstring）：
+    这条路径自己（或其**祖先**）是秘密 ⇒ 出标记；否则取子树时还要把**里面**的秘密
+    （它的**后代**）换成标记——只做前者 = 请求一个祖先容器就把密钥整包领走。
+    """
     path_text = format_path(tokens)
 
-    # 秘密判定沿**祖先链**走：请求的路径可能落在某个秘密字段内部（例如它的数组元素），
-    # 那种情况下发出去的是**秘密根**的标记——请求位置只回报"这里读不回来"。
+    # 方向甲「路径在秘密里」：请求的位置落在某个秘密字段**内部**（例如它的数组元素）
+    # ⇒ 发出去的是**秘密根**的标记，请求位置只回报"这里读不回来"。
     secret_root = find_secret_root(tokens, declared)
     if secret_root is not None:
         return {
@@ -2091,7 +2183,13 @@ def _build_read_entry(
 
     stored_value = lookup_path(stored, tokens)
     if stored_value is not MISSING:
-        return {"path": path_text, "value": stored_value, "inherited": False, "revision": revision}
+        # 方向乙「秘密在路径里」：子树里若有秘密字段，**按同一套判据**换成标记再出站
+        return {
+            "path": path_text,
+            "value": redact_subtree(stored, tokens, declared),
+            "inherited": False,
+            "revision": revision,
+        }
 
     # 文件里没有 ⇒ 值来自 schema 默认（`inherited` 说的就是"没被覆盖"）
     default_value = config_store.schema_default(spec.name, tokens)
@@ -2142,22 +2240,37 @@ async def read_config_paths(request: ConfigReadRequest):
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"按路径读取配置失败: {str(e)}") from e
 
 
-def _apply_operation(document: Any, operation: ConfigMutateOp, baseline: Any) -> None:
+def _apply_operation(
+    document: Any,
+    operation: ConfigMutateOp,
+    baseline: Any,
+    declared: frozenset[str],
+) -> None:
     """在 ``tomlkit`` 文档上实施一次路径操作（写完才落盘，中途异常不留半份）。
 
     Args:
         document: 待改的文档（就是"已存储的那份"，不是客户端提交的副本）。
         operation: 一次操作。
         baseline: **变更前**的已存储结构——秘密占位的认领基准（F1：对已存储的那份解析）。
+        declared: 该命名空间的秘密声明路径集合（认领时判来源/靶子身份）。
     """
     tokens = parse_path(operation.path)
 
     if operation.op == "set":
+        if operation.value is None:
+            # TOML 无法表达 null ⇒ 这是客户端请求不合法，不是服务端坏了（对抗审查 F7）
+            raise AppError(
+                ErrorCode.PARAM_INVALID,
+                f"set 必须带 value（TOML 无法表达 null）：{operation.path}",
+                http_status=400,
+            )
         value = operation.value
-        if is_redaction_sentinel(value):
+        if is_secret_claim(value, declared):
             # 客户端把读回来的占位原样写回 ⇒ 按 F3 两级规则认领原值；
-            # 认不到会抛 SecretClaimError ⇒ 整次写入作废（绝不按位置猜）
-            value = claim_secret_value(value, baseline, target_path=operation.path)
+            # 认不到（或靶子不是来源那个秘密字段）会抛 SecretClaimError ⇒ 整次写入作废。
+            # 用 is_secret_claim 而非纯形状判断：一张恰好长成 {path,set} 的**普通数据表**
+            # 必须能被正常写入，不能被当成占位吃掉（对抗审查 F6）
+            value = claim_secret_value(value, baseline, target_path=operation.path, declared=declared)
         assign_path(document, tokens, value)
         return
 
@@ -2223,11 +2336,12 @@ async def mutate_config(request: ConfigMutateRequest):
     try:
         spec = _namespace_or_400(request.namespace)
         touched_sections = _touched_sections(request.ops)
+        declared = config_store.secret_field_paths(spec.name)
 
         def _apply(document: Any, baseline: Any) -> None:
             """``baseline`` 是**锁定后、变更前**的已存储快照——秘密认领的解析基准（F1）。"""
             for operation in request.ops:
-                _apply_operation(document, operation, baseline)
+                _apply_operation(document, operation, baseline, declared)
 
         try:
             new_revision = config_store.commit(
@@ -2252,17 +2366,23 @@ async def mutate_config(request: ConfigMutateRequest):
         except (ConfigPathError, SecretClaimError) as error:
             raise AppError(ErrorCode.PARAM_INVALID, str(error), http_status=400) from error
 
-        config_manager.reload_config()
+        # 写盘已经成功 ⇒ 从这里往后**任何**失败都不能再让客户端以为"没保存"。
+        # 热重载统一走 `_reload_config_or_report`（await + 冻结态如实上报，不 500）
+        hot_reload = await _reload_config_or_report(f"POST /config/mutate ({spec.name})")
 
         restart_sections = _restart_sections_for(spec.name, touched_sections)
         logger.info(f"配置 '{spec.name}' 已按路径更新（revision={new_revision}，共 {len(request.ops)} 个操作）")
+        message = f"配置 '{spec.name}' 已保存"
+        if hot_reload == HOT_RELOAD_REFUSED_FROZEN:
+            message += "（已落盘；热重载被拒绝：配置已冻结，实际生效依赖重启或文件监听）"
         return {
             "success": True,
             "namespace": spec.name,
             "revision": new_revision,
             "applied": len(request.ops),
-            "message": f"配置 '{spec.name}' 已保存",
-            "needs_restart": bool(restart_sections),
+            "message": message,
+            "hot_reload": hot_reload,
+            "needs_restart": _needs_restart_flag(restart_sections, hot_reload),
             "restart_required_sections": restart_sections,
         }
     except AppError:

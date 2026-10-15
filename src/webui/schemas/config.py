@@ -57,6 +57,13 @@ class ConfigSaveResponse(BaseModel):
     message: str = "配置已保存"
     needs_restart: bool = Field(default=False, description="修改的配置节是否需要重启才能生效")
     restart_required_sections: List[str] = Field(default_factory=list, description="需要重启的配置节列表")
+    hot_reload: str | None = Field(
+        default=None,
+        description=(
+            "热重载结果：ok / refused_frozen；None = 该端点不触发热重载。"
+            "refused_frozen 表示**文件已落盘**、但热重载被冻结态拒绝，实际生效依赖重启或文件监听"
+        ),
+    )
 
 
 class PromptFileInfo(BaseModel):
