@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -79,11 +80,42 @@ def _runner_config(host_address: str, runner_id: str = "test-runner", events: li
     )
 
 
-async def _safe_stop(runner) -> None:
-    try:
-        await runner.stop()
-    except Exception:
-        pass
+async def _start_and_wait_ready(
+    runner: RunnerEndpoint, timeout: float = _RUNNER_START_TIMEOUT
+) -> asyncio.Task[None]:
+    """后台启动 Runner 并轮询等待 READY。
+
+    ⚠️ start() 是长跑协程（READY 后挂接收循环、断开才重连），禁止 wait_for(start())；
+    其 cancel 会被 _recv_loop 吞掉并消化成"重连"——终止一律走 runner.stop()（标志位）。
+    """
+    task: asyncio.Task[None] = asyncio.create_task(runner.start())
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if runner.is_ready:
+            return task
+        if task.done():
+            return task  # 终态（重连耗尽/握手拒绝）——由调用方断言
+        await asyncio.sleep(0.05)
+    await _finish_runner(runner, task)
+    raise AssertionError(f"Runner 未在 {timeout}s 内就绪（state={runner.state}）")
+
+
+async def _finish_runner(
+    runner: RunnerEndpoint | None, task: asyncio.Task[None] | None = None
+) -> None:
+    """停止 Runner 并等待其 start() 任务自然收尾（stop 置标志位 → task 退出；勿 cancel）。"""
+    if runner is not None:
+        try:
+            await runner.stop()
+        except Exception:
+            pass
+    if task is not None and not task.done():
+        try:
+            await asyncio.wait_for(task, timeout=5)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════
@@ -157,19 +189,20 @@ async def test_event_push_chain():
     from src.plugin_runtime_v2.mcp.event_dispatcher import EventDispatcher
 
     registry = ToolRegistry()
-    dispatcher = EventDispatcher()
+    dispatcher = EventDispatcher(get_message_port=lambda: MagicMock())
     bridge = MCPHostBridge(registry, dispatcher, MagicMock())
 
     host = HostEndpoint(_host_config(), host_bridge=bridge)
     await host.start()
     runner = None
+    task: asyncio.Task[None] | None = None
     try:
         cfg = _runner_config(
             host.listen_address,
             events=[{"name": "custom_event", "description": "测试事件", "event_schema": {}}],
         )
         runner = RunnerEndpoint(cfg)
-        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        task = await _start_and_wait_ready(runner)
         assert runner.is_ready
         with patch("src.plugin_runtime_v2.mcp.event_dispatcher.logger.info") as mock_info:
             await runner.emit_event("custom_event", {"key": "val"})
@@ -177,8 +210,7 @@ async def test_event_push_chain():
             found = any("custom_event" in str(c) for c in mock_info.call_args_list)
             assert found
     finally:
-        if runner is not None:
-            await _safe_stop(runner)
+        await _finish_runner(runner, task)
         await host.stop()
 
 
@@ -196,7 +228,9 @@ async def test_command_context_injection_chain():
     plugin = CtxInjectPlugin()
     router.register("cmd_help", plugin, plugin.cmd_help.__func__)
 
-    bridge = MCPHostBridge(ToolRegistry(), EventDispatcher(), MagicMock())
+    bridge = MCPHostBridge(
+        ToolRegistry(), EventDispatcher(get_message_port=lambda: MagicMock()), MagicMock()
+    )
     inv = ToolInvocation(tool_name="cmd_help", arguments={}, call_id="c1", session_id="")
     ctx = ToolExecutionContext(session_id="sid1", user_id="uid1", is_group_chat=True)
     bridge._inject_command_context(inv, ctx, {"pattern": "/help"})
@@ -215,7 +249,7 @@ async def test_command_context_injection_chain():
 @pytest.mark.asyncio
 async def test_homecard_push_chain():
     loader = PluginLoader(CardPlugin)
-    tools, events, cards, instance = await loader.load()
+    tools, events, cards, _gateways, instance = await loader.load()
     assert "dashboard" in cards
     assert cards["dashboard"]["title"] == "控制台"
     assert cards["dashboard"]["width"] == "wide"
@@ -240,15 +274,15 @@ async def test_runner_disconnect_cleanup():
     host = HostEndpoint(_host_config())
     await host.start()
     runner = None
+    task: asyncio.Task[None] | None = None
     try:
         runner = RunnerEndpoint(_runner_config(host.listen_address))
-        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        task = await _start_and_wait_ready(runner)
         assert runner.is_ready
         await runner.stop()
         assert not runner.is_ready
     finally:
-        if runner is not None:
-            await _safe_stop(runner)
+        await _finish_runner(runner, task)
         await host.stop()
 
 @pytest.mark.asyncio
@@ -256,20 +290,20 @@ async def test_host_stop_with_connected_runner():
     host = HostEndpoint(_host_config())
     await host.start()
     runner = None
+    task: asyncio.Task[None] | None = None
     try:
         runner = RunnerEndpoint(_runner_config(host.listen_address))
-        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        task = await _start_and_wait_ready(runner)
         assert runner.is_ready
     finally:
-        if runner is not None:
-            await _safe_stop(runner)
+        await _finish_runner(runner, task)
         await host.stop()
     assert host.get_status() == {}
 
 @pytest.mark.asyncio
 async def test_plugin_loader_collects_declarations():
     loader = PluginLoader(EchoPlugin)
-    tools, events, cards, instance = await loader.load()
+    tools, events, cards, _gateways, instance = await loader.load()
     assert len(tools) == 1
     assert tools[0]["name"] == "echo"
     assert instance is not None
@@ -277,8 +311,8 @@ async def test_plugin_loader_collects_declarations():
 @pytest.mark.asyncio
 async def test_plugin_loader_reconnect_protection():
     loader = PluginLoader(EchoPlugin)
-    tools1, _, _, inst1 = await loader.load()
+    tools1, _, _, _, inst1 = await loader.load()
     assert loader.is_loaded
-    tools2, _, _, inst2 = await loader.load()
+    tools2, _, _, _, inst2 = await loader.load()
     assert tools1 == tools2
     assert inst1 is inst2

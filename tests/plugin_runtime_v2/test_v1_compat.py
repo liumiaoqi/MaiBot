@@ -6,9 +6,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from plugins.maibot_team.v1_compat.capability_bridge import CapabilityBridge
-from plugins.maibot_team.v1_compat.component_bridge import ComponentBridge
-from plugins.maibot_team.v1_compat.config import CompatConfig
+from tests._plugin_helpers import import_plugin_module
+
+# 插件目录名含 '-'，经合成包机制导入（对齐 entrypoint._discover_plugin）
+CapabilityBridge = import_plugin_module(
+    "maibot-team.v1-compat", "capability_bridge"
+).CapabilityBridge
+ComponentBridge = import_plugin_module(
+    "maibot-team.v1-compat", "component_bridge"
+).ComponentBridge
+CompatConfig = import_plugin_module(
+    "maibot-team.v1-compat", "config"
+).CompatConfig
 
 
 class TestComponentBridgeDispatch:

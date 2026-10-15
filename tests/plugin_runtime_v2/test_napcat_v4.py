@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import hashlib
 
-from plugins.maibot_team.napcat_adapter.session_mapper import SessionIdMapper
+from tests._plugin_helpers import import_plugin_module
+
+# 插件目录名含 '-'，经合成包机制导入（对齐 entrypoint._discover_plugin）
+SessionIdMapper = import_plugin_module(
+    "maibot-team.napcat-adapter", "session_mapper"
+).SessionIdMapper
 
 
 class TestSessionIdMapper:
