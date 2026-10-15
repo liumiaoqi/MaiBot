@@ -50,6 +50,11 @@ from src.config.official_configs import (
 )
 from src.llm_models.utils_model import LLMOrchestrator
 from src.webui.config_schema import ConfigSchemaGenerator
+from src.webui.config_secrets import (
+    find_unresolved_sentinels,
+    merge_payload_with_reference,
+    redact_config_secrets,
+)
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
 from src.webui.errors.codes import ErrorCode
@@ -416,6 +421,39 @@ def _toml_to_plain_dict(obj: Any) -> Any:
     return obj
 
 
+def _read_plain_config(config_path: str) -> Any:
+    """读取配置文件为纯 Python 结构——写路径的"参考值"（密钥占位从这里还原）。"""
+    with open(config_path, "r", encoding="utf-8") as f:
+        return _toml_to_plain_dict(tomlkit.load(f))
+
+
+def _restore_config_secrets(payload: Any, reference: Any) -> Any:
+    """写路径保真（P2）：还原 ``{path, set}`` 密钥占位 + 保留页面上未展示的字段。
+
+    占位还原不出来时**拒绝落盘**并指明位置——把 ``{path, set}`` 写进 TOML 会让配置文件
+    在下一次加载时就炸，比起写坏文件宁可这一次保存失败。
+
+    Args:
+        payload: 请求体里的配置数据。
+        reference: 配置文件里的当前数据（键对齐用）。
+
+    Returns:
+        还原后的配置数据。
+
+    Raises:
+        AppError: 仍有未还原的密钥占位。
+    """
+    restored = merge_payload_with_reference(payload, reference)
+    unresolved_sentinels = find_unresolved_sentinels(restored)
+    if unresolved_sentinels:
+        raise AppError(
+            ErrorCode.PARAM_INVALID,
+            "密钥占位未能还原：" + "、".join(unresolved_sentinels) + "；请重新加载配置页后再保存",
+            http_status=400,
+        )
+    return restored
+
+
 def _coerce_numeric_value(value: Any, target_type: Any) -> Any:
     """根据配置字段类型，把旧 WebUI 可能写入的数字字符串还原为数字。"""
     if target_type is str:
@@ -525,7 +563,7 @@ def _validate_api_provider_section(section_data: Any) -> None:
         if port is not None:
             port.report(ErrorLevel.WARNING, 'API 提供商配置验证失败', exception=exc)
         logger.warning("操作异常 in config.py", exc_info=True)
-        raise AppError(ErrorCode.PARAM_INVALID, f"API 提供商配置验证失败: {str(exc, http_status=400)}") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, f"API 提供商配置验证失败: {exc}") from exc
 
     if len(provider_names) != len(set(provider_names)):
         raise AppError(ErrorCode.PARAM_INVALID, "API 提供商名称不能重复")
@@ -1523,16 +1561,15 @@ async def get_config_section_schema(section_name: str):
 
 @router.get("/bot")
 async def get_bot_config():
-    """获取麦麦主程序配置"""
+    """获取麦麦主程序配置（密钥叶脱敏：只回 `{path, set}`，真值不出浏览器）"""
     try:
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         if not os.path.exists(config_path):
             raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
-        with open(config_path, "r", encoding="utf-8") as f:
-            config_data = tomlkit.load(f)
+        config_data = _read_plain_config(config_path)
 
-        return {"success": True, "config": config_data}
+        return {"success": True, "config": redact_config_secrets(config_data)}
     except AppError:
         raise
     except Exception as e:
@@ -1547,16 +1584,19 @@ async def get_bot_config():
 
 @router.get("/model")
 async def get_model_config():
-    """获取模型配置（包含提供商和模型任务配置）"""
+    """获取模型配置（包含提供商和模型任务配置）
+
+    密钥叶脱敏：`api_key` 等替换为 `{path, set}`——`set` 只说明"配没配"，
+    真值（明文或 `${VAR}` 引用文本）都不出浏览器。
+    """
     try:
         config_path = os.path.join(CONFIG_DIR, "model_config.toml")
         if not os.path.exists(config_path):
             raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
-        with open(config_path, "r", encoding="utf-8") as f:
-            config_data = tomlkit.load(f)
+        config_data = _read_plain_config(config_path)
 
-        return {"success": True, "config": config_data}
+        return {"success": True, "config": redact_config_secrets(config_data)}
     except AppError:
         raise
     except Exception as e:
@@ -1576,6 +1616,10 @@ async def get_model_config():
 async def update_bot_config(config_data: ConfigBody):
     """更新麦麦主程序配置"""
     try:
+        config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
+        # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径）
+        reference_config = _read_plain_config(config_path) if os.path.exists(config_path) else {}
+        config_data = _restore_config_secrets(config_data, reference_config)
         config_data = _coerce_config_numeric_values(config_data, Config)
 
         # 验证配置数据
@@ -1622,6 +1666,10 @@ async def update_bot_config(config_data: ConfigBody):
 async def update_model_config(config_data: ConfigBody):
     """更新模型配置"""
     try:
+        config_path = os.path.join(CONFIG_DIR, "model_config.toml")
+        # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径）
+        reference_config = _read_plain_config(config_path) if os.path.exists(config_path) else {}
+        config_data = _restore_config_secrets(config_data, reference_config)
         config_data = _coerce_config_numeric_values(config_data, ModelConfig)
 
         # 验证配置数据
@@ -1639,7 +1687,6 @@ async def update_model_config(config_data: ConfigBody):
             raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件（自动保留注释和格式）
-        config_path = os.path.join(CONFIG_DIR, "model_config.toml")
         save_toml_with_format(config_data, config_path)
         config_manager.reload_config()
 
@@ -1681,6 +1728,9 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
         # 更新指定节
         if section_name not in config_data:
             raise AppError(ErrorCode.BIZ_NOT_FOUND, f"配置节 '{section_name}' 不存在", http_status=404)
+
+        # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径；列表节不能整段 replace）
+        section_data = _restore_config_secrets(section_data, _toml_to_plain_dict(config_data[section_name]))
 
         # 使用递归合并保留注释（对于字典类型）
         # 对于数组类型（如 platforms, aliases），直接替换
@@ -1846,6 +1896,10 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
         # 更新指定节
         if section_name not in config_data:
             raise AppError(ErrorCode.BIZ_NOT_FOUND, f"配置节 '{section_name}' 不存在", http_status=404)
+
+        # 密钥占位还原 + 页面上未展示的字段保真（P2 写路径；`[[api_providers]]` 整段 replace
+        # 会把用户没在页面上看到、也没提交的字段吃掉）
+        section_data = _restore_config_secrets(section_data, _toml_to_plain_dict(config_data[section_name]))
 
         # 使用递归合并保留注释（对于字典类型）
         # 对于数组表（如 [[models]], [[api_providers]]），直接替换

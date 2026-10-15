@@ -1,9 +1,64 @@
 from enum import Enum
 from typing import Any
 
+import os
+import re
+
 from src.common.i18n import t
 
 from .config_base import ConfigBase, Field
+
+# 密钥外部化（P2/D1）：仅识别 ${VAR} 形态的引用，不发明第二套语法。
+# 只在被引用的字段位置解析（不做全文替换），避免注释或普通字符串里的 ${...} 被误解析。
+_ENV_REFERENCE_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+class ConfigEnvReferenceError(ValueError):
+    """配置里的环境变量引用无法解析。
+
+    引用缺失时**必须报错**：静默退化成空串会被下游当成"没配 key"，排障成本高。
+
+    Attributes:
+        variable: 未设置（或为空）的环境变量名。
+        field_path: 出现该引用的配置字段路径。
+    """
+
+    def __init__(self, *, variable: str, field_path: str) -> None:
+        self.variable = variable
+        self.field_path = field_path
+        super().__init__(
+            f"配置字段 {field_path} 引用的环境变量 {variable} 未设置或为空；"
+            f"请设置该环境变量，或把 {field_path} 直接写成明文值"
+        )
+
+
+def resolve_env_references(value: str, *, field_path: str) -> str:
+    """把字段值里的 ``${VAR}`` 引用替换为环境变量的值。
+
+    - **明文值原样返回**（双模式过渡：老配置不动也能跑）。
+    - 引用的变量未设置或为空 ⇒ 抛 ``ConfigEnvReferenceError``（含变量名与字段路径）。
+    - 单趟替换，替换结果不再二次解析（引用值里再出现 ``${...}`` 不会被展开）。
+    - 不以合法变量名形态出现的 ``${...}``（如 ``${}``、``${1A}``）不是本机制认领的引用，保持字面量。
+
+    Args:
+        value: 待解析的字段值。
+        field_path: 该值所在的配置字段路径，仅用于错误信息。
+
+    Returns:
+        解析后的字段值。
+
+    Raises:
+        ConfigEnvReferenceError: 引用的环境变量未设置或为空。
+    """
+
+    def _replace_reference(match: re.Match[str]) -> str:
+        variable_name = match.group(1)
+        resolved_value = os.environ.get(variable_name)
+        if resolved_value is None or not resolved_value.strip():
+            raise ConfigEnvReferenceError(variable=variable_name, field_path=field_path)
+        return resolved_value
+
+    return _ENV_REFERENCE_PATTERN.sub(_replace_reference, value)
 
 
 class OpenAICompatibleAuthType(str, Enum):
@@ -62,7 +117,9 @@ class APIProvider(ConfigBase):
             "x-icon": "key",
         },
     )
-    """API密钥。对于不需要鉴权的兼容端点，可将 `auth_type` 设为 `none`。"""
+    """API密钥。对于不需要鉴权的兼容端点，可将 `auth_type` 设为 `none`。
+    可写成 `"${ENV_VAR}"` 从环境变量取值（密钥外部化，避免明文进配置）；明文值原样使用。
+    引用的环境变量缺失或为空会直接报错，**不会**静默变成空串。"""
 
     client_type: str = Field(
         default="openai",
@@ -207,12 +264,21 @@ class APIProvider(ConfigBase):
     def model_post_init(self, context: Any = None) -> None:
         """执行 API 提供商配置的后置校验。
 
+        密钥外部化（P2/D1）：``api_key`` 写成 ``${VAR}`` 时从环境变量取值；明文值原样工作。
+        引用解析放在"非空校验"之前——引用解出来的值才算数。
+
         Args:
             context: Pydantic 传入的上下文对象。
 
         Raises:
+            ConfigEnvReferenceError: api_key 引用的环境变量未设置或为空。
+                注意：经 pydantic 构造（`from_dict`/`cls(**data)`）时它会被包装成
+                `ValidationError`，但错误文本仍带变量名与字段路径——不静默。
             ValueError: 当配置项缺失或组合不合法时抛出。
         """
+        provider_path = f"api_providers[{self.name}].api_key" if self.name else "api_providers[].api_key"
+        self.api_key = resolve_env_references(self.api_key, field_path=provider_path)
+
         if self.auth_type != OpenAICompatibleAuthType.NONE and not self.api_key:
             raise ValueError(t("config.api_key_empty"))
         if not self.base_url and self.client_type != "gemini":  # TODO: 允许gemini使用base_url

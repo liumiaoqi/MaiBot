@@ -16,7 +16,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.config.config import CONFIG_DIR
-from src.config.model_configs import APIProvider
+from src.config.model_configs import APIProvider, ConfigEnvReferenceError, resolve_env_references
 from src.llm_models.model_client import ensure_client_type_loaded
 from src.llm_models.model_client.base_client import client_registry
 from src.llm_models.openai_compat import build_openai_compatible_client_config, normalize_openai_base_url
@@ -324,6 +324,27 @@ async def _fetch_models_from_provider(
         raise HTTPException(status_code=400, detail=f"不支持的解析器类型: {parser}")
 
 
+def _resolve_provider_api_key(provider_config: Dict) -> str:
+    """解析提供商 api_key 的环境变量引用（P2/D1）。
+
+    本模块直接读 TOML 原文，不走 `APIProvider` 解析——所以引用要在这里显式解析，
+    否则会把字面量 ``${VAR}`` 当密钥发出去（表现为"密钥无效"，但真因是没解析）。
+
+    Raises:
+        HTTPException: api_key 引用的环境变量未设置或为空（400，含变量名）。
+    """
+    raw_api_key = provider_config.get("api_key") or ""
+    if not isinstance(raw_api_key, str):
+        return ""
+    try:
+        return resolve_env_references(
+            raw_api_key,
+            field_path=f"api_providers[{provider_config.get('name', '')}].api_key",
+        )
+    except ConfigEnvReferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 def _get_provider_config(provider_name: str) -> Optional[Dict]:
     """
     从 model_config.toml 获取指定提供商的配置
@@ -580,7 +601,7 @@ async def get_provider_models(
         raise HTTPException(status_code=404, detail=f"未找到提供商: {provider_name}")
 
     base_url = provider_config.get("base_url")
-    api_key = provider_config.get("api_key")
+    api_key = _resolve_provider_api_key(provider_config)
     client_type = provider_config.get("client_type", "openai")
 
     if not base_url:
@@ -778,7 +799,7 @@ async def test_provider_connection_by_name(
         raise HTTPException(status_code=404, detail=f"未找到提供商: {provider_name}")
 
     base_url = provider.get("base_url", "")
-    api_key = provider.get("api_key", "")
+    api_key = _resolve_provider_api_key(dict(provider))
     client_type = provider.get("client_type", "openai")
 
     if not base_url:

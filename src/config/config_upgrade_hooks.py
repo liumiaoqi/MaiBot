@@ -1,12 +1,32 @@
-from dataclasses import dataclass
-from typing import Any, Callable
+"""配置迁移机制：版本链前置校验 · 链式逐步迁移 · 迁移留档 · 不支持就拒绝。
 
+契约：`.shared/decisions/phase3_config_plan.md` P1 节（D2：留档载体 = 配置文件内的 `_migrations`）。
+设计参照 dsh 的数据迁移制度（研究材料 `C:\\hub\\.scratch\\maibot-phase3-config-research.md` §四·补）：
+相邻版本一条迁移边、任何历史版本沿链升到当前；迁移永不移动/覆盖已提交的一代；
+不支持的迁移**显式拒绝**（档③：在**任何写入之前**拒绝，原文件字节保持不动）。
+"""
+
+from copy import deepcopy
+from dataclasses import dataclass, field
+from datetime import datetime
+from hashlib import sha256
+from pathlib import Path
+from shutil import copy2
+from typing import Any, Callable, Mapping, Sequence
+
+import tomlkit
+
+from src.common.i18n import t
 from src.common.logger import get_logger
 
 from .official_configs import ChatConfig
 
 logger = get_logger("config.config_upgrade_hooks")
 
+MIGRATIONS_KEY = "_migrations"
+"""迁移留档在配置文件里的顶层键名（与 [inner] 并列，紧跟版本戳——两者同生共死）。"""
+
+MIGRATIONS_COMMENT = "以下为配置迁移留档，由程序自动维护，请勿手工修改"
 
 ConfigUpgradeHookCallable = Callable[[dict[str, Any]], list[str]]
 
@@ -25,6 +45,72 @@ class ConfigUpgradeHookResult:
     data: dict[str, Any]
     migrated: bool
     reason: str = ""
+    migrations: list[dict[str, Any]] = field(default_factory=list)
+    """写回配置文件的完整留档 = 历史条目（原样）+ 本次逐级新增的条目。"""
+
+
+class ConfigVersionChainError(Exception):
+    """配置版本链错误：档③「前置拒绝」——必须在任何写入之前抛出，原文件保持不动。
+
+    消息里始终带**文件（调用方给完整路径，仓根 config/ 与 docker-config/mmc/ 两份真源靠它分辨）
+    + 旧版本 + 新版本**（现场三要素，事后不用再猜是哪份文件哪个版本）。
+    """
+
+    def __init__(self, reason: str, *, file_name: str, old_version: str, new_version: str) -> None:
+        self.reason: str = reason
+        self.file_name: str = file_name
+        self.old_version: str = old_version
+        self.new_version: str = new_version
+        super().__init__(f"配置文件 {file_name} 拒绝迁移（{old_version} -> {new_version}）：{reason}")
+
+
+class ConfigVersionParseError(ConfigVersionChainError):
+    """版本串不可解析：版本戳坏了，没法参与版本链比较。"""
+
+
+class ConfigMigrationRefusedError(ConfigVersionChainError):
+    """迁移被显式拒绝：迁移器 id 未登记 / 同一级重复登记 / 前置条件不满足。
+
+    拒绝的含义是"我读不懂这份文件的来历"——此时**不猜、不跳过、不半写**。
+    """
+
+
+@dataclass(frozen=True)
+class MigrationRecord:
+    """一条迁移留档，写入配置文件的 `_migrations`（D2 固定形状 `{id, from, to, at}`）。"""
+
+    id: str
+    from_version: str
+    to_version: str
+    at: str
+
+    def to_dict(self) -> dict[str, str]:
+        """转成落盘形状（键名 `from` 是契约规定的，Python 侧只能叫 from_version）。"""
+        return {"id": self.id, "from": self.from_version, "to": self.to_version, "at": self.at}
+
+
+@dataclass(frozen=True)
+class VersionChainPlan:
+    """版本链前置校验的结论（进 `from_dict` 之前的现场快照）。"""
+
+    old_version: str
+    """本轮迁移的起点版本；首启时等于当前版本（没有可迁移的东西）。"""
+    upgrade_needed: bool
+    """是否需要升级：文件版本 < 当前版本。"""
+    first_boot: bool
+    """配置文件没有版本戳 ⇒ 视为首启。"""
+    records: tuple[dict[str, Any], ...]
+    """磁盘上已有的留档条目（原样保留，不解析、不改写）。"""
+
+
+@dataclass(frozen=True)
+class ConfigArchive:
+    """旧配置的留档（`old/` 下的字节级副本 + 校验和）。"""
+
+    source_path: Path
+    backup_path: Path
+    sha256: str
+    size_bytes: int
 
 
 def _parse_version(version: str) -> tuple[int, ...]:
@@ -36,6 +122,297 @@ def _version_in_upgrade_range(old_ver: str, target_ver: str, new_ver: str) -> bo
     target_parts = _parse_version(target_ver)
     new_parts = _parse_version(new_ver)
     return old_parts < target_parts <= new_parts
+
+
+# ───────────────────────── 版本链前置校验（档③：任何写之前） ─────────────────────────
+
+
+def split_version(version: str) -> tuple[int, ...] | None:
+    """把 "8.10.11" 拆成 (8, 10, 11)；不可解析返回 None（怎么报错由调用方决定）。"""
+    parts = version.split(".")
+    if any(not part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def parse_config_version(version: str, *, file_name: str, old_version: str, new_version: str) -> tuple[int, ...]:
+    """解析版本串；坏了直接抛 ConfigVersionParseError（不返哨兵值，免得调用方忘了判空）。"""
+    parts = split_version(version)
+    if parts is None:
+        raise ConfigVersionParseError(
+            f"版本串不可解析: {version!r}",
+            file_name=file_name,
+            old_version=old_version,
+            new_version=new_version,
+        )
+    return parts
+
+
+def parse_migration_records(raw: Any, *, file_name: str, old_version: str, new_version: str) -> list[dict[str, Any]]:
+    """校验并取出已有留档条目，**原样保留**（含未知键——历史条目只增不改）。
+
+    留档是"这份配置怎么变成现在这样的"唯一现场：读不懂就不该接着改它 ⇒ 形状非法即拒绝。
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ConfigVersionChainError(
+            f"{MIGRATIONS_KEY} 形状非法（期望数组，实际 {type(raw).__name__}）",
+            file_name=file_name,
+            old_version=old_version,
+            new_version=new_version,
+        )
+
+    records: list[dict[str, Any]] = []
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            raise ConfigVersionChainError(
+                f"{MIGRATIONS_KEY}[{index}] 不是表（实际 {type(entry).__name__}）",
+                file_name=file_name,
+                old_version=old_version,
+                new_version=new_version,
+            )
+        for key in ("id", "from", "to", "at"):
+            if not isinstance(entry.get(key), str):
+                raise ConfigVersionChainError(
+                    f"{MIGRATIONS_KEY}[{index}].{key} 缺失或不是字符串",
+                    file_name=file_name,
+                    old_version=old_version,
+                    new_version=new_version,
+                )
+        records.append(dict(entry))
+    return records
+
+
+def validate_version_chain(
+    file_name: str, old_version: str, new_version: str, records: Sequence[Mapping[str, Any]]
+) -> None:
+    """版本链前置校验：进 `from_dict` 之前跑，且只在**确实需要升级**时跑。
+
+    拒绝的三种情形（都在任何写入之前）：
+      ① 版本串不可解析；
+      ② 留档链乱序/回退/断链 —— 每条必须 `from < to`，且与前一条首尾相接；
+      ③ 文件声明的版本落在自己留档的链尾之前 —— "版本说没迁过、留档说迁过了"。
+         两者矛盾时不能猜：猜错就是在一个自己都没弄清的结构上再迁一次。
+
+    文件版本高于当前（容器回滚到旧镜像）**不在这里拒绝**：那种情况不需要迁移、也不需要写，
+    只读不写就没有损坏面（dsh 档②：忽略但保留，不承诺降级安全）。
+    """
+    old_parts = parse_config_version(old_version, file_name=file_name, old_version=old_version, new_version=new_version)
+    parse_config_version(new_version, file_name=file_name, old_version=old_version, new_version=new_version)
+
+    previous_to: tuple[int, ...] | None = None
+    previous_raw_to: str = ""
+    for index, record in enumerate(records):
+        raw_from = record.get("from")
+        raw_to = record.get("to")
+        if not isinstance(raw_from, str) or not isinstance(raw_to, str):
+            raise ConfigVersionChainError(
+                f"{MIGRATIONS_KEY}[{index}] 缺少 from/to 版本串",
+                file_name=file_name,
+                old_version=old_version,
+                new_version=new_version,
+            )
+        from_parts = parse_config_version(
+            raw_from, file_name=file_name, old_version=old_version, new_version=new_version
+        )
+        to_parts = parse_config_version(raw_to, file_name=file_name, old_version=old_version, new_version=new_version)
+        if from_parts >= to_parts:
+            raise ConfigVersionChainError(
+                f"{MIGRATIONS_KEY}[{index}] 乱序或回退: {raw_from} -> {raw_to}",
+                file_name=file_name,
+                old_version=old_version,
+                new_version=new_version,
+            )
+        if previous_to is not None and from_parts != previous_to:
+            raise ConfigVersionChainError(
+                f"{MIGRATIONS_KEY}[{index}] 与前一条断链: {raw_from} 接不上 {previous_raw_to}",
+                file_name=file_name,
+                old_version=old_version,
+                new_version=new_version,
+            )
+        previous_to = to_parts
+        previous_raw_to = raw_to
+
+    if previous_to is not None and old_parts < previous_to:
+        raise ConfigVersionChainError(
+            f"声明版本 {old_version} 早于留档链尾 {previous_raw_to} —— 版本与留档矛盾",
+            file_name=file_name,
+            old_version=old_version,
+            new_version=new_version,
+        )
+
+
+def plan_version_chain(file_name: str, raw_version: Any, new_version: str, raw_migrations: Any) -> VersionChainPlan:
+    """版本链前置校验的总入口（在 `from_dict` 之前调用，在**任何写入之前**出结论）。
+
+    - 版本戳缺失/空 ⇒ **首启**：本轮没有可迁移的东西，不迁移也不拒绝（只留痕）；
+      但若同时存在留档条目，则说明这不是首启而是版本戳丢了 ⇒ 拒绝（版本与留档矛盾）。
+    - 版本戳在但不可解析（含类型不对）⇒ 拒绝。
+    - 需要迁移（文件版本 < 当前版本）⇒ 校验留档链，乱序/回退/断链即拒绝。
+    - 文件版本 ≥ 当前版本（镜像回滚）⇒ 不迁移、不校验、不写，只告警。
+    """
+    if raw_version is None or (isinstance(raw_version, str) and not raw_version.strip()):
+        if raw_migrations:
+            raise ConfigVersionChainError(
+                "缺少版本戳但存在迁移留档 —— 版本与留档矛盾",
+                file_name=file_name,
+                old_version="(缺失)",
+                new_version=new_version,
+            )
+        logger.warning(f"{t('config.missing_inner_version')}，按首次启动处理（本次不迁移）: {file_name}")
+        return VersionChainPlan(old_version=new_version, upgrade_needed=False, first_boot=True, records=())
+
+    if not isinstance(raw_version, str):
+        raise ConfigVersionParseError(
+            f"{t('config.invalid_inner_version')}（实际 {type(raw_version).__name__}）",
+            file_name=file_name,
+            old_version=str(raw_version),
+            new_version=new_version,
+        )
+
+    old_version = raw_version
+    old_parts = parse_config_version(old_version, file_name=file_name, old_version=old_version, new_version=new_version)
+    new_parts = parse_config_version(new_version, file_name=file_name, old_version=old_version, new_version=new_version)
+
+    if new_parts <= old_parts:
+        if new_parts < old_parts:
+            # 文件比程序新：容器回滚到旧镜像时会看到，属预期；不迁移、不写、不拒绝
+            logger.warning(f"配置版本 {old_version} 高于当前程序版本 {new_version}，本次不迁移（镜像回滚时属预期）: {file_name}")
+        return VersionChainPlan(old_version=old_version, upgrade_needed=False, first_boot=False, records=())
+
+    records = parse_migration_records(
+        raw_migrations, file_name=file_name, old_version=old_version, new_version=new_version
+    )
+    validate_version_chain(file_name, old_version, new_version, records)
+    return VersionChainPlan(
+        old_version=old_version, upgrade_needed=True, first_boot=False, records=tuple(records)
+    )
+
+
+# ───────────────────────────── 迁移器登记表（逐级走路用） ─────────────────────────────
+
+
+def build_migrator_registry(
+    config_name: str, *, old_version: str, new_version: str
+) -> dict[str, ConfigUpgradeHookCallable]:
+    """构建该配置文件的迁移器登记表：迁移级 id → 迁移器。
+
+    迁移级 id = 该级的版本边界（`target_version`）。同一级重复登记即拒绝：
+    两个迁移器争一个版本边界时"该跑哪个"没有正确答案，静默取一个就是静默跳过另一个。
+    """
+    registry: dict[str, ConfigUpgradeHookCallable] = {}
+    for hook in BOT_CONFIG_UPGRADE_HOOKS + MODEL_CONFIG_UPGRADE_HOOKS:
+        if config_name not in hook.config_names:
+            continue
+        if hook.target_version in registry:
+            raise ConfigMigrationRefusedError(
+                f"迁移器 id {hook.target_version} 重复登记（同一级只能有一个迁移器）",
+                file_name=config_name,
+                old_version=old_version,
+                new_version=new_version,
+            )
+        registry[hook.target_version] = hook.migrate
+    return registry
+
+
+def resolve_migrator(
+    config_name: str, migration_id: str, *, old_version: str, new_version: str
+) -> ConfigUpgradeHookCallable:
+    """按 id 取回登记过的迁移器；未登记即拒绝（不静默跳过、不装作没这一级）。
+
+    ⚠️ **可达性如实说明**：当前"迁移级"与"登记表"同源（都由 BOT/MODEL_CONFIG_UPGRADE_HOOKS 派生），
+    所以正常数据**走不出**"未登记"这一支——它是**防御性守卫**，靠替换登记表构造漂移才能触发
+    （测试见 `pytests/config_test/test_config_version_chain.py`）；自然可达的登记漂移形态是
+    "同一级重复登记"（见 `build_migrator_registry`），那条有独立测试。
+    """
+    migrator = build_migrator_registry(config_name, old_version=old_version, new_version=new_version).get(migration_id)
+    if migrator is None:
+        raise ConfigMigrationRefusedError(
+            f"迁移器 id {migration_id} 未登记",
+            file_name=config_name,
+            old_version=old_version,
+            new_version=new_version,
+        )
+    return migrator
+
+
+def _levels_in_upgrade_range(config_name: str, old_ver: str, new_ver: str) -> list[ConfigUpgradeHook]:
+    """该文件在 `(old, new]` 区间里登记过的迁移级，按版本升序 —— 链式迁移的行走顺序。"""
+    levels = [
+        hook
+        for hook in BOT_CONFIG_UPGRADE_HOOKS + MODEL_CONFIG_UPGRADE_HOOKS
+        if config_name in hook.config_names and _version_in_upgrade_range(old_ver, hook.target_version, new_ver)
+    ]
+    levels.sort(key=lambda hook: _parse_version(hook.target_version))
+    return levels
+
+
+# ───────────────────────────── 不碰历史：旧配置留档 ─────────────────────────────
+
+
+def archive_config_file(config_path: Path) -> ConfigArchive | None:
+    """把即将被改写的旧配置复制进 `old/`（`旧名_时间戳.toml`），并记录 SHA256。
+
+    - **复制而不是移动**：写新版本失败时原文件还在原地（dsh 制度"迁移永不移动、覆盖或删除
+      已提交的一代"——旧的 `replace` 一旦后面写失败，配置就只剩 old/ 里那一份了）；
+    - **绝不覆盖已有留档**：同一秒内二次落档就追加序号——留档只增不改。
+    """
+    if not config_path.exists():
+        return None
+
+    backup_root = config_path.parent / "old"
+    backup_root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = backup_root / f"{config_path.stem}_{timestamp}.toml"
+    sequence = 2
+    while backup_path.exists():
+        backup_path = backup_root / f"{config_path.stem}_{timestamp}_{sequence}.toml"
+        sequence += 1
+
+    copy2(config_path, backup_path)
+    digest = sha256(backup_path.read_bytes()).hexdigest()
+    archive = ConfigArchive(
+        source_path=config_path,
+        backup_path=backup_path,
+        sha256=digest,
+        size_bytes=backup_path.stat().st_size,
+    )
+    logger.info(
+        f"配置升级留档: {config_path.name} -> {archive.backup_path.name}"
+        f"（sha256={digest}, {archive.size_bytes} 字节）"
+    )
+    return archive
+
+
+def read_migrations_from_file(config_path: Path) -> list[dict[str, Any]]:
+    """读出配置文件里已有的 `_migrations`，原样返回（不解析语义、不改写）。
+
+    用途：重写配置时**保留**留档（dsh 档②"忽略但保留"）——写路径不认识它，也不能把它抹掉。
+    文件读不了时按"无留档"处理并双通道上报，**不阻断写入**（留档是审计物，不是运行前提）。
+    """
+    if not config_path.exists():
+        return []
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            document = tomlkit.load(f)
+        raw = document.get(MIGRATIONS_KEY)
+    except Exception as exc:
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "读取配置迁移留档失败，按无留档处理", exception=exc)
+        logger.warning(f"读取配置迁移留档失败，按无留档处理: {config_path.name}: {exc}")
+        return []
+
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        logger.warning(f"{MIGRATIONS_KEY} 形状非法（实际 {type(raw).__name__}），本次重写不保留留档: {config_path.name}")
+        return []
+    return [dict(entry) for entry in raw if isinstance(entry, Mapping)]
 
 
 def set_nested_config_value(data: dict[str, Any], path: tuple[str, ...], value: Any, force: bool = True) -> bool:
@@ -500,19 +877,53 @@ def apply_config_upgrade_hooks(
     config_name: str,
     old_ver: str,
     new_ver: str,
+    *,
+    migrations: Sequence[Mapping[str, Any]] = (),
+    file_name: str = "",
 ) -> ConfigUpgradeHookResult:
+    """链式逐步迁移：`old_ver -> new_ver` 逐级走**登记过的**迁移器。
+
+    - **逐级串行**：每级成功（迁移器不抛异常）即追加一条留档 `{id, from, to, at}`，
+      游标推进到该级的版本边界；留档**只追加**，历史条目原样搬运（不删改）。
+    - **每级都留档**（含"跑完没改任何字段"的级）：留档要回答的是"这段路走过没有"，
+      不只是"路上改了什么"——正是"升级为什么没成"的事后现场。
+    - **事务性**：迁移在数据的深拷贝上进行；任何一级抛异常 ⇒ 异常抛给调用方，
+      `data` 与磁盘都不留半迁移状态。
+    - 需要迁移时请先过 `plan_version_chain`（版本链前置校验）；这里不再重复校验留档链，
+      职责是"走路 + 留档"。
+    """
+    display_name = file_name or config_name
+    parse_config_version(old_ver, file_name=display_name, old_version=old_ver, new_version=new_ver)
+    parse_config_version(new_ver, file_name=display_name, old_version=old_ver, new_version=new_ver)
+
+    history: list[dict[str, Any]] = [dict(record) for record in migrations]
+    working = deepcopy(data)
     migrated_reasons: list[str] = []
-    hooks = BOT_CONFIG_UPGRADE_HOOKS + MODEL_CONFIG_UPGRADE_HOOKS
+    new_records: list[dict[str, str]] = []
+    cursor = old_ver
 
-    for hook in hooks:
-        if config_name not in hook.config_names:
-            continue
-        if not _version_in_upgrade_range(old_ver, hook.target_version, new_ver):
-            continue
+    for hook in _levels_in_upgrade_range(config_name, old_ver, new_ver):
+        level_id = hook.target_version
+        # 查登记表（防御性守卫）：今天"级"与"登记表"同源 ⇒ 正常数据构造不出未登记 id；
+        # 留着这道闸是为了将来两条来源分叉时**拒绝**而不是静默跳过（有注入式测试锁行为）。
+        migrator = resolve_migrator(config_name, level_id, old_version=old_ver, new_version=new_ver)
 
-        hook_reasons = hook.migrate(data)
+        hook_reasons = migrator(working)
         for reason in hook_reasons:
-            migrated_reasons.append(f"{hook.target_version}:{reason}")
+            migrated_reasons.append(f"{level_id}:{reason}")
+        new_records.append(
+            MigrationRecord(
+                id=level_id,
+                from_version=cursor,
+                to_version=level_id,
+                at=datetime.now().astimezone().isoformat(timespec="seconds"),
+            ).to_dict()
+        )
+        cursor = level_id
 
-    reason = ",".join(migrated_reasons)
-    return ConfigUpgradeHookResult(data=data, migrated=bool(migrated_reasons), reason=reason)
+    return ConfigUpgradeHookResult(
+        data=working,
+        migrated=bool(migrated_reasons),
+        reason=",".join(migrated_reasons),
+        migrations=history + new_records,
+    )

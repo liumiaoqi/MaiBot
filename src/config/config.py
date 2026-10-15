@@ -1,9 +1,9 @@
 import asyncio
 import copy
 import inspect
-from datetime import datetime
+import os
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence, TypeVar, cast
+from typing import Any, Callable, Mapping, MutableMapping, Sequence, TypeVar, cast
 
 import tomlkit
 
@@ -12,8 +12,17 @@ from src.common.logger import get_logger
 from src.common.version import read_project_version
 
 from .config_base import AttributeData, ConfigBase, Field
-from .config_upgrade_hooks import apply_config_upgrade_hooks
-from .config_utils import compare_versions, output_config_changes, recursive_parse_item_to_table
+from .config_upgrade_hooks import (
+    MIGRATIONS_COMMENT,
+    MIGRATIONS_KEY,
+    ConfigVersionChainError,
+    ConfigVersionParseError,
+    apply_config_upgrade_hooks,
+    archive_config_file,
+    plan_version_chain,
+    read_migrations_from_file,
+)
+from .config_utils import output_config_changes, recursive_parse_item_to_table
 from .default_model_config import create_default_model_config
 from .file_watcher import FileChange, FileWatcher
 
@@ -657,27 +666,50 @@ def load_config_from_file(
     with open(config_path, "r", encoding="utf-8") as f:
         config_data = tomlkit.load(f)
     inner_table = config_data.get("inner")
-    if not isinstance(inner_table, Mapping):
-        raise TypeError(t("config.missing_inner_version"))
-    inner_version = inner_table.get("version")
-    if not isinstance(inner_version, str):
-        raise TypeError(t("config.invalid_inner_version"))
-    old_ver: str = inner_version
-    upgrade_hook_applied: bool = False
-    config_data.remove("inner")
+    if inner_table is not None:
+        # 首启的配置没有 [inner] 段，tomlkit 的 remove 对不存在的键会直接抛 NonExistentKey
+        config_data.remove("inner")
     config_data = config_data.unwrap()
     config_data = _normalize_loaded_bot_config_dict(config_data)
-    hook_result = apply_config_upgrade_hooks(config_data, config_path.name, old_ver, new_ver)
-    upgrade_hook_applied = hook_result.migrated
+
+    # 留档先摘出来：它不在配置模型里（from_dict 会把不认识的键当"多余项"丢掉并告警），
+    # 但**不能丢**——重写时要原样写回（dsh 档②"忽略但保留"）。
+    raw_migrations = config_data.pop(MIGRATIONS_KEY, None)
+
+    # 版本链前置校验 + 链式迁移：都在进 from_dict 之前
+    # （档③：拒绝要在**任何写入之前**发生，原文件字节保持不动；拒绝路径双通道上报）
+    # 消息里给**完整路径**——这份配置可能来自仓根 config/ 或 docker-config/mmc/，只报文件名分不清是谁
+    try:
+        raw_inner_version = _read_raw_inner_version(inner_table, str(config_path), new_ver)
+        version_plan = plan_version_chain(str(config_path), raw_inner_version, new_ver, raw_migrations)
+        hook_result = apply_config_upgrade_hooks(
+            config_data,
+            config_path.name,
+            version_plan.old_version,
+            new_ver,
+            migrations=version_plan.records,
+            file_name=str(config_path),
+        )
+    except ConfigVersionChainError as exc:
+        _report_version_chain_refusal(exc)
+        raise
+
+    upgrade_hook_applied: bool = hook_result.migrated
     if hook_result.migrated:
         logger.warning(f"检测到配置升级钩子变更，已应用: {hook_result.reason}")
     config_data = hook_result.data
     try:
         updated: bool = False
         target_config = config_class.from_dict(attribute_data, config_data)
-        if compare_versions(old_ver, new_ver) or upgrade_hook_applied:
-            output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
-            write_config_to_file(target_config, config_path, new_ver, override_repr)
+        if version_plan.upgrade_needed or upgrade_hook_applied:
+            output_config_changes(attribute_data, logger, version_plan.old_version, new_ver, config_path.name)
+            write_config_to_file(
+                target_config,
+                config_path,
+                new_ver,
+                override_repr,
+                migrations=hook_result.migrations,
+            )
             updated = True
         return target_config, updated
     except Exception as e:
@@ -691,21 +723,52 @@ def load_config_from_file(
 
 
 
-def write_config_to_file(
-    config: ConfigBase, config_path: Path, inner_config_version: str, override_repr: bool = False
-) -> None:
-    """将配置写入文件
+def _read_raw_inner_version(inner_table: Any, file_name: str, new_version: str) -> Any:
+    """读出 `inner.version` 的原始值，交给版本链前置校验。
 
-    :param config: 配置对象
-    :param config_path: 配置文件路径
+    这里只剥掉 `inner` 这一层（它不是表就读不出 version）；"这个值是不是一个能比较的版本串"
+    由 `plan_version_chain` 统一判定——版本链的事只有一处说了算。
     """
-    # 创建空TOMLDocument
-    full_config_data = tomlkit.document()
+    if inner_table is None:
+        return None
+    if not isinstance(inner_table, Mapping):
+        raise ConfigVersionParseError(
+            f"{t('config.invalid_inner_version')}（inner 不是表，实际 {type(inner_table).__name__}）",
+            file_name=file_name,
+            old_version=str(inner_table),
+            new_version=new_version,
+        )
+    return inner_table.get("version")
+
+
+def _report_version_chain_refusal(exc: ConfigVersionChainError) -> None:
+    """版本链拒绝的双通道上报（债务原则：异常不得单通道 —— logger + 上报 port）。
+
+    拒绝语义的关键是"原文件不动"，所以这里只上报、不写盘、不兜底。
+    """
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.ERROR, '配置版本链拒绝迁移（原文件未改动）', exception=exc)
+    logger.error(f"配置版本链拒绝迁移，原文件未改动: {exc}")
+
+
+
+def _build_config_template(
+    config: ConfigBase, inner_config_version: str, override_repr: bool
+) -> tomlkit.TOMLDocument:
+    """按配置类生成**带字段注释的完整模板**（含 ``inner`` 版本戳，不含迁移留档）。
+
+    模板是"已知字段该长什么样"的唯一出处：首启直接落盘，升级时用来就地更新旧文件。
+    """
+    template = tomlkit.document()
 
     # 首先写入配置文件版本信息
     version_table = tomlkit.table()
     version_table.add("version", inner_config_version)
-    full_config_data.add("inner", version_table)
+    template.add("inner", version_table)
 
     # 递归解析配置项为表格
     for config_item_name, config_item in type(config).model_fields.items():
@@ -715,7 +778,7 @@ def write_config_to_file(
             continue
         config_field = getattr(config, config_item_name)
         if isinstance(config_field, ConfigBase):
-            full_config_data.add(
+            template.add(
                 config_item_name, recursive_parse_item_to_table(config_field, override_repr=override_repr)
             )
         elif isinstance(config_field, list):
@@ -724,13 +787,13 @@ def write_config_to_file(
                 if not isinstance(item, ConfigBase):
                     raise TypeError(t("config.write_unsupported_type"))
                 aot.append(recursive_parse_item_to_table(item, override_repr=override_repr))
-            full_config_data.add(config_item_name, aot)
+            template.add(config_item_name, aot)
         else:
             raise TypeError(t("config.write_unsupported_type"))
 
     if isinstance(config, Config):
         try:
-            a_memorix_web = full_config_data["a_memorix"]["web"]
+            a_memorix_web = template["a_memorix"]["web"]
             if "import_config" in a_memorix_web and "import" not in a_memorix_web:
                 a_memorix_web["import"] = a_memorix_web.pop("import_config")
         except Exception as exc:
@@ -741,17 +804,91 @@ def write_config_to_file(
                 port.report(ErrorLevel.WARNING, 'A_Memorix 配置写出时转换 web.import_config 失败', exception=exc)
             logger.warning("A_Memorix 配置写出时转换 web.import_config 失败", exc_info=True)
 
-    # 备份旧文件
-    if config_path.exists():
-        backup_root = config_path.parent / "old"
-        backup_root.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_root / f"{config_path.stem}_{timestamp}.toml"
-        config_path.replace(backup_path)
+    return template
 
-    # 写入文件
-    with open(config_path, "w", encoding="utf-8") as f:
-        tomlkit.dump(full_config_data, f)
+
+def _merge_config_template(target: MutableMapping[str, Any], template: Mapping[str, Any]) -> None:
+    """把注释模板**就地**合进已存在的配置文档（P1.1a：改写不得吃掉未知字段）。
+
+    - 模板里有的键 ⇒ 用模板（= 配置模型当前值）覆盖，旧的注释与格式由 tomlkit 留在原键上；
+    - 模板里**没有**的键 ⇒ **一律不动**——用户自定义表、旧版本字段、别的程序写的键都留下
+      （契约 §七"P1 必须保证不改写未知字段"；dsh 档②"忽略但保留"）；
+    - 只增不删：这里没有任何删除路径。
+
+    与既有件 ``toml_utils._update_toml_doc`` 的关系：那件是"把**数据**并进文档"且会跳过名为
+    ``version`` 的键（节保存的保护），用作全量改写会漏写配置里真叫 ``version`` 的字段；
+    这里要的是"把**注释模板**并进文档"，方向不同，故不硬套。
+    """
+    for key, template_value in template.items():
+        if key not in target:
+            target[key] = template_value
+            continue
+
+        target_value = target[key]
+        if isinstance(template_value, Mapping) and isinstance(target_value, Mapping):
+            _merge_config_template(target_value, template_value)
+            continue
+
+        # 既有键：值以模板为准（配置模型是已知字段的权威），原键上的注释/格式保留
+        target[key] = template_value
+
+
+def write_config_to_file(
+    config: ConfigBase,
+    config_path: Path,
+    inner_config_version: str,
+    override_repr: bool = False,
+    migrations: Sequence[Mapping[str, Any]] | None = None,
+) -> None:
+    """将配置写入文件
+
+    :param config: 配置对象
+    :param config_path: 配置文件路径
+    :param inner_config_version: 配置文件版本号
+    :param migrations: 要写入的迁移留档；``None`` = 沿用磁盘上已有的留档（档②：忽略但保留）
+
+    写入形态（P1.1）：
+      - **文件已存在 ⇒ 就地更新**：以原文件为底改已知键，模板里没有的键一律不动
+        （未知字段、用户注释与格式都留下）；
+      - 文件不存在 ⇒ 完整注释模板（首启形态）；
+      - 落盘走 **tmp + os.replace**：要么旧文件、要么新文件，不留半截配置。
+    """
+    template = _build_config_template(config, inner_config_version, override_repr)
+
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            full_config_data = tomlkit.load(f)
+        _merge_config_template(full_config_data, template)
+    else:
+        full_config_data = template
+
+    # 迁移留档紧跟版本戳（两者同生共死）：写路径不认识它，但绝不把它抹掉
+    if migrations is None:
+        migrations = read_migrations_from_file(config_path)
+    if migrations:
+        migrations_tables = tomlkit.aot()
+        for record in migrations:
+            record_table = tomlkit.table()
+            for record_key, record_value in record.items():
+                record_table.add(record_key, record_value)
+            migrations_tables.append(record_table)
+        if MIGRATIONS_KEY not in full_config_data:
+            full_config_data.add(tomlkit.comment(MIGRATIONS_COMMENT))
+        full_config_data[MIGRATIONS_KEY] = migrations_tables
+
+    # 备份旧文件（复制而非移动：写失败时原文件仍在原地；留档只增不改——见 archive_config_file）
+    archive_config_file(config_path)
+
+    # 原子写：先写临时文件再替换（写一半崩不会留半截配置——既有先例 toml_utils.py:105-115）
+    temp_path = config_path.with_name(f"{config_path.name}.tmp")
+    try:
+        with open(temp_path, "w", encoding="utf-8") as f:
+            tomlkit.dump(full_config_data, f)
+        os.replace(temp_path, config_path)
+    except Exception:
+        # 写失败：清掉半截临时文件（原文件本来就没被动过），异常照抛给调用方
+        temp_path.unlink(missing_ok=True)
+        raise
 
 
 class _ConfigProxy:
