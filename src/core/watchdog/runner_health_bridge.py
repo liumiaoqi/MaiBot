@@ -153,7 +153,11 @@ class RunnerHealthBridge:
                             source = DetectionSource.REGISTRY
                         await self._report_runner_unresponsive(runner_id, source, 1)
                     elif status_str == "running":
-                        await self._on_runner_recovered(runner_id)
+                        # 仅"故障后待恢复"态才处理恢复；常态 running 不上报
+                        # （2026-10-15 降噪：原无条件上报 ⇒ 每 5s 触发"未预期的恢复信号" warning 刷屏）
+                        bridge_status = self._bridge_status.get(runner_id)
+                        if bridge_status and bridge_status.is_recovering:
+                            await self._on_runner_recovered(runner_id)
                 except Exception as exc:
                     from src.core.error_escalation.types import ErrorLevel
                     from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -350,7 +354,9 @@ class RunnerHealthBridge:
             cooldown_until=time.monotonic() + self._config.cooldown_s,
             total_report_count=status.total_report_count + 1,
             last_report_time=time.monotonic(),
-            is_recovering=False,
+            # 2026-10-15 修复：上报故障后进入"待恢复"态——
+            # diff/poll 循环见 running 且 is_recovering 时才走恢复处理（原为 False ⇒ 恢复路径永不触发）
+            is_recovering=True,
         )
         self._skip_warning_logged.discard(runner_id)
 

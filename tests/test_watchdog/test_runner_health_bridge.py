@@ -10,7 +10,7 @@ import pytest
 
 from src.core.watchdog.config import WatchdogConfig
 from src.core.watchdog.runner_health_bridge import RunnerHealthBridge
-from src.core.watchdog.types import FaultReportEvent
+from src.core.watchdog.types import DetectionSource, FaultReportEvent
 
 
 class FakeServiceManager:
@@ -176,3 +176,42 @@ async def test_register_v2_injects_timeout_listener():
     added_rid, added_listener = hb.added[0]
     assert added_rid == "r1"
     assert added_listener == bridge._on_v2_timeout
+
+
+@pytest.mark.asyncio
+async def test_recovering_state_machine_roundtrip(monkeypatch: pytest.MonkeyPatch):
+    """2026-10-15 状态机修复：故障上报 → 待恢复(True) → 喂恢复 → 重置(False)。
+
+    背景：原 _report_runner_unresponsive 将 is_recovering 写 False ⇒ 恢复路径永不触发；
+    v2 diff 循环只得无条件上报"恢复"（每 5s 刷"未预期的恢复信号" warning）。
+    """
+    monkeypatch.setattr(
+        "src.core.watchdog.runner_health_bridge.get_service_manager_port",
+        lambda: FakeServiceManager(),
+    )
+    bridge, received = _make_bridge()
+    bridge.register_v2_supervisor(
+        "r-fsm", FakeSupervisor(), FakeHeartbeatManager(), "comp.r-fsm"
+    )
+
+    # 1) 常态（未故障）收到"恢复" → 属未预期，状态不变
+    await bridge._on_runner_recovered("r-fsm")
+    st = bridge.get_runner_bridge_status("r-fsm")
+    assert st is not None
+    assert st.is_recovering is False
+    assert st.total_report_count == 0
+
+    # 2) 上报故障 → 进入待恢复态
+    await bridge._report_runner_unresponsive("r-fsm", DetectionSource.PROCESS_POLL, 1)
+    assert len(received) == 1
+    st = bridge.get_runner_bridge_status("r-fsm")
+    assert st is not None
+    assert st.is_recovering is True
+    assert st.total_report_count == 1
+
+    # 3) 喂恢复 → 重置为常态（累计上报数保留）
+    await bridge._on_runner_recovered("r-fsm")
+    st = bridge.get_runner_bridge_status("r-fsm")
+    assert st is not None
+    assert st.is_recovering is False
+    assert st.total_report_count == 1
