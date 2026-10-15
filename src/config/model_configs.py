@@ -123,6 +123,9 @@ class APIProvider(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "key",
+            # 秘密判定走 schema 声明（F2）：WebUI 读路径据此把值换成存在标记，客户端永远收不到值。
+            # 与 `config_secrets.SECRET_FIELD_PATHS` 取并集、派生优先 ⇒ 声明后那张表的同名行可删。
+            "x-secret": True,
         },
     )
     """API密钥。对于不需要鉴权的兼容端点，可将 `auth_type` 设为 `none`。
