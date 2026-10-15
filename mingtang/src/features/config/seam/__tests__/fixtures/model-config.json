@@ -1,0 +1,218 @@
+{
+  "inner": {
+    "version": "1.17.6"
+  },
+  "models": [
+    {
+      "model_identifier": "deepseek-v4-pro",
+      "name": "deepseek-v4-pro-think",
+      "api_provider": "DeepSeek",
+      "price_in": 12.0,
+      "cache": false,
+      "cache_price_in": 0.0,
+      "price_out": 24.0,
+      "force_stream_mode": false,
+      "visual": false,
+      "extra_params": {
+        "reasoning_effort": "high",
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "model_identifier": "deepseek-v4-pro",
+      "name": "deepseek-v4-pro-nonthink",
+      "api_provider": "DeepSeek",
+      "price_in": 12.0,
+      "cache": false,
+      "cache_price_in": 0.0,
+      "price_out": 24.0,
+      "force_stream_mode": false,
+      "visual": false,
+      "extra_params": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "model_identifier": "deepseek-v4-flash",
+      "name": "deepseek-v4-flash",
+      "api_provider": "DeepSeek",
+      "price_in": 1.0,
+      "cache": false,
+      "cache_price_in": 0.0,
+      "price_out": 2.0,
+      "force_stream_mode": false,
+      "visual": false,
+      "extra_params": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "model_identifier": "qwen3.7-max-2026-06-08",
+      "name": "qwen3.7-max-2026-06-08",
+      "api_provider": "Alibaba",
+      "price_in": 0.0,
+      "cache": true,
+      "cache_price_in": 0.0,
+      "price_out": 0.0,
+      "force_stream_mode": false,
+      "visual": true,
+      "extra_params": {}
+    },
+    {
+      "model_identifier": "text-embedding-v4",
+      "name": "text-embedding-v4",
+      "api_provider": "Alibaba",
+      "price_in": 0.0,
+      "cache": false,
+      "cache_price_in": 0.0,
+      "price_out": 0.0,
+      "force_stream_mode": false,
+      "visual": false,
+      "extra_params": {}
+    }
+  ],
+  "model_task_config": {
+    "replyer": {
+      "model_list": [
+        "deepseek-v4-flash"
+      ],
+      "max_tokens": 4096,
+      "temperature": 1.2,
+      "slow_threshold": 120,
+      "selection_strategy": "random",
+      "hard_timeout": 240
+    },
+    "planner": {
+      "model_list": [
+        "deepseek-v4-flash"
+      ],
+      "max_tokens": 8000,
+      "temperature": 0.7,
+      "slow_threshold": 12,
+      "selection_strategy": "random",
+      "hard_timeout": 180
+    },
+    "memory": {
+      "model_list": [],
+      "max_tokens": 8192,
+      "temperature": 0.5,
+      "slow_threshold": 30,
+      "selection_strategy": "random",
+      "hard_timeout": 240
+    },
+    "mid_memory": {
+      "model_list": [],
+      "max_tokens": 8000,
+      "temperature": 0.7,
+      "slow_threshold": 12,
+      "selection_strategy": "random",
+      "hard_timeout": 180
+    },
+    "utils": {
+      "model_list": [
+        "deepseek-v4-flash"
+      ],
+      "max_tokens": 4096,
+      "temperature": 0.5,
+      "slow_threshold": 15,
+      "selection_strategy": "random",
+      "hard_timeout": 120
+    },
+    "learner": {
+      "model_list": [],
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "slow_threshold": 15,
+      "selection_strategy": "balance",
+      "hard_timeout": 120
+    },
+    "expression_use": {
+      "model_list": [],
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "slow_threshold": 15,
+      "selection_strategy": "balance",
+      "hard_timeout": 240
+    },
+    "emoji": {
+      "model_list": [],
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "slow_threshold": 15,
+      "selection_strategy": "balance",
+      "hard_timeout": 120
+    },
+    "vlm": {
+      "model_list": [
+        "qwen3.7-max-2026-06-08"
+      ],
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "slow_threshold": 15,
+      "selection_strategy": "balance",
+      "hard_timeout": 240
+    },
+    "voice": {
+      "model_list": [],
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "slow_threshold": 15,
+      "selection_strategy": "balance",
+      "hard_timeout": 120
+    },
+    "embedding": {
+      "model_list": [
+        "text-embedding-v4"
+      ],
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "slow_threshold": 15,
+      "selection_strategy": "balance",
+      "hard_timeout": 60
+    }
+  },
+  "api_providers": [
+    {
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com",
+      "api_key": "sk-FIXTURE-NOT-A-REAL-KEY",
+      "client_type": "openai",
+      "auth_type": "bearer",
+      "auth_header_name": "Authorization",
+      "auth_header_prefix": "Bearer",
+      "auth_query_name": "api_key",
+      "model_list_endpoint": "/models",
+      "reasoning_parse_mode": "auto",
+      "tool_argument_parse_mode": "auto",
+      "max_retry": 3,
+      "timeout": 1000,
+      "retry_interval": 8,
+      "default_headers": {},
+      "default_query": {}
+    },
+    {
+      "name": "Alibaba",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_key": "sk-FIXTURE-NOT-A-REAL-KEY",
+      "client_type": "openai",
+      "auth_type": "bearer",
+      "auth_header_name": "Authorization",
+      "auth_header_prefix": "Bearer",
+      "auth_query_name": "api_key",
+      "model_list_endpoint": "/models",
+      "reasoning_parse_mode": "auto",
+      "tool_argument_parse_mode": "auto",
+      "max_retry": 2,
+      "timeout": 30,
+      "retry_interval": 10,
+      "default_headers": {},
+      "default_query": {}
+    }
+  ]
+}

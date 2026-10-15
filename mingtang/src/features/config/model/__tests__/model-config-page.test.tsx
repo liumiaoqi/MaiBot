@@ -20,14 +20,26 @@ const { mockConfigData } = vi.hoisted(() => ({
 
 vi.mock('@/lib/config-api', () => ({
   getModelConfig: vi.fn().mockResolvedValue(mockConfigData),
+  readConfigPaths: vi.fn().mockResolvedValue({ namespace: 'model', revision: 1, entries: [] }),
+  mutateConfig: vi.fn().mockResolvedValue({
+    namespace: 'model',
+    revision: 2,
+    applied: 1,
+    message: 'ok',
+    needs_restart: false,
+    restart_required_sections: [],
+    hot_reload: null,
+  }),
   updateModelConfig: vi.fn().mockResolvedValue({ success: true, message: 'ok', needs_restart: false, restart_required_sections: [] }),
   updateModelConfigSection: vi.fn().mockResolvedValue({ success: true, message: 'ok', needs_restart: false, restart_required_sections: [] }),
   testProviderConnection: vi.fn().mockResolvedValue({ network_ok: true, api_key_valid: true, latency_ms: 100, error: null, http_status: 200 }),
   testModelCapability: vi.fn().mockResolvedValue({ success: true, model_name: 'test', visual_tested: false, tool_call_ok: true, response: '', reasoning: '', tool_calls: [], latency_ms: 50, error: null, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }),
 }))
 
+// `i18n` 必须给：真实的 useTranslation() 一定返回它，SecretStateField 要拿 i18n.language
+// 去解析 LocalizedText 文案；只 mock `t` 会让组件在渲染期崩（不是组件的问题，是 mock 不完整）
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'zh-CN' } }),
 }))
 
 function createWrapper() {

@@ -7,6 +7,8 @@ import { Plus, Search, AlertTriangle, Save } from 'lucide-react'
 import { useModelConfig } from '../components/use-model-config'
 import { ConnectionTestBadge } from '../components/connection-test-badge'
 import { MultiSelect } from '../components/multi-select'
+import { SecretStateField } from '../components/secret-state-field'
+import { providerSecretPath } from '../seam/secret-state'
 
 type ModelTab = 'providers' | 'models' | 'tasks'
 
@@ -81,6 +83,47 @@ export function ModelConfigPage() {
             </div>
           )}
 
+          {/* 版本冲突（409）：**不静默重试、不自动合并**——只提示 + 给「重新加载」，
+              重放由用户点按钮触发（自动重试＝把用户的改动盖到别人的新版本上） */}
+          {model.conflict && (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+              data-testid="model-revision-conflict"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <span>
+                配置已被别处修改，<strong>本次未保存</strong>（读到版本{' '}
+                {model.conflict.expectedRevision ?? '未知'}，当前{' '}
+                {model.conflict.currentRevision ?? '未知'}）。
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void model.reloadFromServer()}
+                data-testid="model-reload-after-conflict"
+              >
+                重新加载
+              </Button>
+            </div>
+          )}
+
+          {/* 其它保存失败（含后端**认领被拒**的原文）——如实显示，不吞 */}
+          {model.saveError && (
+            <div
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+              data-testid="model-save-error"
+            >
+              保存失败：{model.saveError}
+            </div>
+          )}
+
+          {/* 保存成功回执 */}
+          {model.saveMessage && !model.saveError && (
+            <div className="rounded-md border p-3 text-sm text-muted-foreground" data-testid="model-save-message">
+              {model.saveMessage}
+            </div>
+          )}
+
           {/* Tab 按钮组 */}
           <div className="flex items-center gap-1 border-b pb-2" data-testid="model-tabs">
             {tabs.map((tab) => (
@@ -125,32 +168,51 @@ export function ModelConfigPage() {
                     <tr>
                       <th className="px-3 py-2 text-left">名称</th>
                       <th className="px-3 py-2 text-left">Base URL</th>
+                      <th className="px-3 py-2 text-left">密钥</th>
                       <th className="px-3 py-2 text-left">状态</th>
                       <th className="px-3 py-2 text-left">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {model.filteredProviders.map((provider, index) => (
-                      <tr key={index} className="border-b last:border-0" data-testid={`provider-row-${index}`}>
-                        <td className="px-3 py-2">{provider.name}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{provider.base_url}</td>
-                        <td className="px-3 py-2">
-                          <ConnectionTestBadge
-                            result={model.testResults.get(provider.name)}
-                            isTesting={model.testingProviders.has(provider.name)}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() => model.testProvider(provider.name)}
-                            className="text-xs text-blue-600 hover:underline"
-                            data-testid={`provider-test-${index}`}
-                          >
-                            测试
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {model.filteredProviders.map((provider) => {
+                      // ⚠️ 这里必须取**原数组下标**，不能用 map 的下标：
+                      // 搜索过滤后 map 下标是过滤后的序号，拿它拼路径 = 把密钥写到**别的厂商**上。
+                      const providerIndex = model.providers.indexOf(provider)
+                      const secretPath = providerSecretPath(providerIndex)
+                      return (
+                        <tr key={providerIndex} className="border-b last:border-0" data-testid={`provider-row-${providerIndex}`}>
+                          <td className="px-3 py-2">{provider.name}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{provider.base_url}</td>
+                          <td className="px-3 py-2">
+                            {providerIndex >= 0 && (
+                              <SecretStateField
+                                path={secretPath}
+                                state={model.providerSecretStates[providerIndex] ?? 'unset'}
+                                value={provider.api_key ?? ''}
+                                onChange={(nextKey) =>
+                                  model.updateProvider(providerIndex, { ...provider, api_key: nextKey })
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <ConnectionTestBadge
+                              result={model.testResults.get(provider.name)}
+                              isTesting={model.testingProviders.has(provider.name)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => model.testProvider(provider.name)}
+                              className="text-xs text-blue-600 hover:underline"
+                              data-testid={`provider-test-${providerIndex}`}
+                            >
+                              测试
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
