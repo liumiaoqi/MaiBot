@@ -5,6 +5,7 @@ from typing import Awaitable, Callable, Iterable, Sequence
 from watchfiles import Change, awatch
 
 import asyncio
+import inspect
 import uuid
 
 from src.common.logger import get_logger
@@ -226,7 +227,7 @@ class FileWatcher:
                 logger.warning(f"文件变更回调执行失败（subscription_id={subscription.subscription_id}）: {exc}")
 
     async def _invoke_callback(self, callback: ChangeCallback, changes: Sequence[FileChange]) -> None:
-        if asyncio.iscoroutinefunction(callback):
+        if inspect.iscoroutinefunction(callback):
             await callback(changes)
             return
         await asyncio.to_thread(callback, changes)
