@@ -1,6 +1,53 @@
-from typing import Any, List
+from typing import Any, List, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+
+class ConfigReadRequest(BaseModel):
+    """读接缝请求（F1）：``get(paths)``。
+
+    ``paths`` 留空 = 该命名空间下已存储的全部叶路径（表单首屏用）；
+    给了路径就只回这些路径——**客户端不再需要整份文件**，这正是 raw 端点失去存在理由的地方。
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    namespace: str = Field(..., description="配置平面：bot / model")
+    paths: List[str] = Field(default_factory=list, description="要读的路径；空 = 该平面已存储的全部叶路径")
+
+
+class ConfigMutateOp(BaseModel):
+    """一次路径操作（F1）：``set`` / ``unset`` / ``remove_at``。
+
+    ``unset`` 表示"重置为继承"（真删键），**不是**"写一个等于默认值的值"（F5）——
+    后者会让 ``inherited`` 永远是 false，此后再改 schema 默认值也追不上。
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    op: Literal["set", "unset", "remove_at"] = Field(..., description="操作类型")
+    path: str = Field(..., description="配置路径，如 chat.max_tokens、api_providers[0].api_key")
+    value: Any = Field(default=None, description="set 的新值；可以是原值，也可以是读回来的秘密占位")
+    index: int | None = Field(default=None, ge=0, description="remove_at 的下标")
+
+
+class ConfigMutateRequest(BaseModel):
+    """写接缝请求（F1/F5）：``mutate(ns, ops, expectedRevision)``。
+
+    ``expectedRevision`` 是**必填**的——乐观锁的意义在于"写之前先证明你读到的是最新的"，
+    可省略的锁等于没有锁。
+    """
+
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
+
+    namespace: str = Field(..., description="配置平面：bot / model")
+    expected_revision: int = Field(
+        ...,
+        ge=1,
+        validation_alias=AliasChoices("expectedRevision", "expected_revision"),
+        description="客户端读到的 revision；与当前不符即 409 拒绝",
+    )
+    ops: List[ConfigMutateOp] = Field(..., min_length=1, description="要实施的路径操作；未点名的字段根本不进写路径")
 
 
 class ConfigSaveResponse(BaseModel):
