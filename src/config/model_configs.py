@@ -1,4 +1,5 @@
 from enum import Enum
+from pydantic import PrivateAttr
 from typing import Any
 
 import os
@@ -10,6 +11,11 @@ from .config_base import ConfigBase, Field
 
 # 密钥外部化（P2/D1）：仅识别 ${VAR} 形态的引用，不发明第二套语法。
 # 只在被引用的字段位置解析（不做全文替换），避免注释或普通字符串里的 ${...} 被误解析。
+# 解析位（3 段冻结的边界，**别顺手扩**）：本轮只有 `APIProvider.api_key` 这一处。
+#   - `auth_header_name` / `auth_query_name` / `default_headers` / `default_query` 里的
+#     `${VAR}` **按契约不解析**，保持字面量（要不要扩位是独立决定，不是顺手加）；
+#   - 注入链（唯一答案）：宿主 `.env`（或宿主 shell 环境，先有值者胜）→ compose
+#     `environment:` → 容器进程环境 → 本模块在读取配置时解析。
 _ENV_REFERENCE_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
@@ -29,6 +35,8 @@ class ConfigEnvReferenceError(ValueError):
         super().__init__(
             f"配置字段 {field_path} 引用的环境变量 {variable} 未设置或为空；"
             f"请设置该环境变量，或把 {field_path} 直接写成明文值"
+            f"（Docker 部署：在仓根 `.env` 补上 {variable}=…，再 `docker compose up -d` 重建容器——"
+            f"`restart` 不会重读环境变量）"
         )
 
 
@@ -120,6 +128,12 @@ class APIProvider(ConfigBase):
     """API密钥。对于不需要鉴权的兼容端点，可将 `auth_type` 设为 `none`。
     可写成 `"${ENV_VAR}"` 从环境变量取值（密钥外部化，避免明文进配置）；明文值原样使用。
     引用的环境变量缺失或为空会直接报错，**不会**静默变成空串。"""
+
+    # 盘上那一行 api_key 的**原文**（引用 `${VAR}` 或明文），与解析后的 `api_key` 分开存。
+    # 解析是"就地改写"⇒ 不留原文，写回时只能拿到真密钥（3 段实测到的写回洞）。
+    # 只读访问点见模块级 `raw_api_key_of`：类体里不能加方法（`AttrDocBase` 的字段说明
+    # 提取会拒绝除 model_post_init 以外的方法）。`None` = 未经解析路径构造、没留原文。
+    _raw_api_key: str | None = PrivateAttr(default=None)
 
     client_type: str = Field(
         default="openai",
@@ -266,6 +280,8 @@ class APIProvider(ConfigBase):
 
         密钥外部化（P2/D1）：``api_key`` 写成 ``${VAR}`` 时从环境变量取值；明文值原样工作。
         引用解析放在"非空校验"之前——引用解出来的值才算数。
+        解析**就地改写** ``api_key``，所以先把盘上原文留在 ``_raw_api_key``（写回路径要用，
+        见 ``raw_api_key_of``）；否则"配置自动升级改写"会把解析后的明文写回文件。
 
         Args:
             context: Pydantic 传入的上下文对象。
@@ -277,6 +293,7 @@ class APIProvider(ConfigBase):
             ValueError: 当配置项缺失或组合不合法时抛出。
         """
         provider_path = f"api_providers[{self.name}].api_key" if self.name else "api_providers[].api_key"
+        self._raw_api_key = self.api_key
         self.api_key = resolve_env_references(self.api_key, field_path=provider_path)
 
         if self.auth_type != OpenAICompatibleAuthType.NONE and not self.api_key:
@@ -290,6 +307,21 @@ class APIProvider(ConfigBase):
         if self.auth_type == OpenAICompatibleAuthType.QUERY and not self.auth_query_name.strip():
             raise ValueError("当 auth_type=query 时，auth_query_name 不能为空")
         super().model_post_init(context)
+
+
+def raw_api_key_of(provider: APIProvider) -> str | None:
+    """取 ``provider.api_key`` 在**盘上的原文**（``${VAR}`` 引用或明文）——写回路径专用。
+
+    ``APIProvider.api_key`` 是**解析后**的值（可能就是真密钥），不能当写回源：配置自动
+    升级改写走 ``_build_config_template``（逐字段 ``getattr``）⇒ 不加区分就会把解析后的
+    明文写回 ``model_config.toml``（3 段实测的写回洞）。写回方拿到 ``None`` 表示这个对象
+    没经过解析路径构造（没留原文），此时应**拒绝写出并出声**，不许静默写明文。
+
+    注：做成模块级函数而不是 ``@property``，是因为 ``ConfigBase`` 的字段说明提取
+    （``AttrDocBase._extract_field_docs(allow_extra_methods=False)``）**拒绝**配置类体里
+    除 ``model_post_init`` 以外的方法——加属性会让 ``APIProvider`` 构造即报错。
+    """
+    return provider._raw_api_key
 
 
 class ModelInfo(ConfigBase):
