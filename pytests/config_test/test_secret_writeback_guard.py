@@ -58,8 +58,8 @@ class _SkippingProvider(APIProvider):
     """**跳过解析路径**的 provider（故意不调 super）——用来造"取不到 raw"那一态。
 
     ``model_construct`` 不足以造这一态：实测它**仍会**触发 ``model_post_init``，
-    raw 照样留下。类体里只能有 ``model_post_init``（``AttrDocBase`` 的字段说明提取会拒绝
-    除它以外的方法），故不定义别的。
+    raw 照样留下。类体里不加别的方法（``AttrDocBase`` 的字段说明提取只放行
+    ``model_post_init`` 与 ``@field_validator`` / ``@model_validator``），故不定义别的。
     """
 
     def model_post_init(self, context: Any = None) -> None:
