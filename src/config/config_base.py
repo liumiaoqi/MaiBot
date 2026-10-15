@@ -23,6 +23,31 @@ class AttributeData:
     """多余的属性列表"""
 
 
+#: 允许出现在配置类体里的 pydantic 校验器装饰器名 —— **只有这两个**。
+#: 判据是"允许 `@field_validator`/`@model_validator` 装饰的函数"，**不是**"允许任意方法"。
+_PYDANTIC_VALIDATOR_DECORATORS: frozenset[str] = frozenset({"field_validator", "model_validator"})
+
+
+def _is_allowed_validator_method(body_item: ast.FunctionDef) -> bool:
+    """该函数是 `@field_validator` / `@model_validator` 装饰出来的吗？
+
+    只看**装饰器名字**（`ast.Name` 或 `ast.Attribute`，故 `@pydantic.field_validator` 也算），
+    与是否叠加 `@classmethod` 无关（两种写法 pydantic 都接受）。
+
+    白名单为什么只到这里：配置类表达的是"配置的形状与边界"，字段级/模型级校验器是**声明式约束**
+    的合法载体，且是 pydantic 的官方写法。而 `@property`、私有辅助方法、工具函数属于**实现**——
+    一旦开口子，"配置类只声明不实现"这条纪律就没有判据了
+    （先例：`model_configs.py` 的 `raw_api_key_of` 就是为绕开本限制才做成模块级函数的）。
+    """
+    for decorator in body_item.decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Name) and target.id in _PYDANTIC_VALIDATOR_DECORATORS:
+            return True
+        if isinstance(target, ast.Attribute) and target.attr in _PYDANTIC_VALIDATOR_DECORATORS:
+            return True
+    return False
+
+
 class AttrDocBase:
     """解析字段说明的基类"""
 
@@ -90,12 +115,21 @@ class AttrDocBase:
             body_item = class_body[i]
 
             if not allow_extra_methods:
-                # 检查是否有非 model_post_init 的方法定义，如果有则抛出异常
-                # 这个限制确保 AttrDocBase 子类只包含字段定义和 model_post_init 方法
-                if isinstance(body_item, ast.FunctionDef) and body_item.name != "model_post_init":
-                    """检验ConfigBase子类中是否有除model_post_init以外的方法，规范配置类的定义"""
+                # 白名单：`model_post_init`（pydantic 后置钩子）+ `@field_validator` / `@model_validator`
+                # （字段级/模型级**声明式约束**的载体）。
+                # 2026-10-16 放开：原先的一刀切把 pydantic 官方的约束写法堵在门外，逼得约束只能写成
+                # `model_post_init` 里的 if/raise —— 而那种写法**进不了生成的 schema**，与"schema 单源"
+                # 直接冲突（0 段盘底的"0 validator 装饰器"就是它造成的）。
+                # 仍然禁止：`@property`、普通辅助方法、内部函数 —— 配置类只声明，不实现。
+                if (
+                    isinstance(body_item, ast.FunctionDef)
+                    and body_item.name != "model_post_init"
+                    and not _is_allowed_validator_method(body_item)
+                ):
+                    """检验ConfigBase子类中是否有不在白名单里的方法，规范配置类的定义"""
                     raise AttributeError(
-                        f"Methods are not allowed in AttrDocBase subclasses except model_post_init, found {str(body_item.name)}"
+                        "Methods are not allowed in AttrDocBase subclasses except model_post_init / "
+                        f"@field_validator / @model_validator, found {str(body_item.name)}"
                     ) from None
 
             # 检查当前语句是否为带注解的赋值语句 (类型注解的字段定义)
