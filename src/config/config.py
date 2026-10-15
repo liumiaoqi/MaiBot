@@ -296,6 +296,14 @@ class ConfigFrozenError(RuntimeError):
     """配置冻结异常 — 启动完成后配置被冻结，运行时修改被拒绝（ZG-10 T19）。"""
 
 
+class ConfigWriteRefusedError(RuntimeError):
+    """配置写回被拒绝 — 盘上是密钥引用、但取不到原文，拒绝把解析后的明文写回文件。
+
+    触发条件见 ``_restore_secret_references_before_write``：宁可这次升级不写，
+    也不能把 ``api_key = "${VAR}"`` 换成明文（那等于把密钥外部化白做一遍）。
+    """
+
+
 class ConfigManager:
     """总配置管理类"""
 
@@ -807,6 +815,38 @@ def _build_config_template(
     return template
 
 
+def _is_array_of_mappings(value: Any) -> bool:
+    """是不是"表组成的数组"（TOML 的 ``[[table]]`` / AoT）。
+
+    只认**非空且元素全是映射**的序列——空数组无从判断元素类型，交给调用方按整体替换处理。
+    """
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        return False
+    if not len(value):
+        return False
+    return all(isinstance(item, Mapping) for item in value)
+
+
+def _merge_array_of_mappings(target: Sequence[Any], template: Sequence[Any]) -> None:
+    """按**下标**逐项递归合并两个"表数组"（``[[models]]`` / ``[[api_providers]]``）。
+
+    为什么需要它：合并整表数组时若直接整体替换，会吃掉盘上"模板里没有的键"——
+    ``api_key`` 是 ``repr=False`` 字段，``override_repr=False`` 时**整键不出现**在模板里，
+    整体替换会把盘的 ``api_key = "${VAR}"`` 一起换掉（3 段实测：引用被抹成空）。
+
+    边界：只合并两边都有的下标；**模板多出的项照加，盘上多出的项保留**（只增不删）。
+    """
+    for index, template_item in enumerate(template):
+        if index >= len(target):
+            target.append(template_item)
+            continue
+        target_item = target[index]
+        if isinstance(target_item, MutableMapping):
+            _merge_config_template(target_item, template_item)
+        else:
+            target[index] = template_item
+
+
 def _merge_config_template(target: MutableMapping[str, Any], template: Mapping[str, Any]) -> None:
     """把注释模板**就地**合进已存在的配置文档（P1.1a：改写不得吃掉未知字段）。
 
@@ -825,12 +865,110 @@ def _merge_config_template(target: MutableMapping[str, Any], template: Mapping[s
             continue
 
         target_value = target[key]
+
+        # 结构相同 ⇒ **逐层递归合并**，而不是整体替换
+        # （整体替换会吃掉盘上"模板里没有的键"：`repr=False` 的 api_key 在
+        #  `override_repr=False` 时整键不出现在模板里，照旧法会把整张 provider 表换掉 ⇒ 引用被抹）
         if isinstance(template_value, Mapping) and isinstance(target_value, Mapping):
             _merge_config_template(target_value, template_value)
+            continue
+        if _is_array_of_mappings(template_value) and _is_array_of_mappings(target_value):
+            _merge_array_of_mappings(target_value, template_value)
+            continue
+
+        # 模板值为空、盘上非空 ⇒ 保留盘上值（同上：不吃被跳过的字段）
+        if template_value in ("", None) and target_value not in ("", None):
             continue
 
         # 既有键：值以模板为准（配置模型是已知字段的权威），原键上的注释/格式保留
         target[key] = template_value
+
+
+def _collect_reference_api_keys(
+    config: ConfigBase,
+    full_config_data: MutableMapping[str, Any],
+) -> list[tuple[int, str, str | None]]:
+    """**合并之前**采集：盘上是引用、而对象里是解析值的那些 ``api_key``。
+
+    为什么必须在合并前采集：合并（``_merge_config_template``）会把模板里的值盖到盘上文档上，
+    之后就**分不清**"盘上原本是什么"。采集件三元组 = ``(下标, 盘上原文, 对象上的 raw 原文)``。
+
+    判据（三条都只看"盘上 vs 待写"是否同一）：
+      - 盘上 == 待写 ⇒ 无需处理（明文、空串、两次都写引用都走这支）；
+      - 盘上是引用、待写不同 ⇒ 记入采集件，等合并后回放；
+      - 拿不到 raw（``None``）⇒ 也记入，回放时**拒绝写出**（写明文换"这次升级成功"是本末倒置）。
+    """
+    from .model_configs import raw_api_key_of
+
+    if not isinstance(config, ModelConfig):
+        return []
+
+    providers = getattr(config, "api_providers", None)
+    providers_table = full_config_data.get("api_providers")
+    if not providers or providers_table is None:
+        return []
+
+    collected: list[tuple[int, str, str | None]] = []
+    for index, provider in enumerate(providers):
+        try:
+            provider_table = providers_table[index]
+        except (IndexError, KeyError, TypeError):
+            continue  # 盘上与内存的表长度不一致：不猜，交给合并逻辑按既有规则处理
+
+        on_disk_value = provider_table.get("api_key") if isinstance(provider_table, Mapping) else None
+        pending_value = getattr(provider, "api_key", None)
+        if not isinstance(pending_value, str) or on_disk_value == pending_value:
+            continue
+        collected.append((index, str(on_disk_value), raw_api_key_of(provider)))
+
+    return collected
+
+
+def _restore_secret_references(
+    config: ConfigBase,
+    full_config_data: MutableMapping[str, Any],
+    collected: Sequence[tuple[int, str, str | None]],
+    config_path: Path,
+) -> None:
+    """**合并之后**回放：把采集到的盘上引用放回去（否则模板里的解析值就留在文件里了）。
+
+    顺序是关键（3 段实测）：守卫若放在合并**之前**，合并会立刻把它覆盖掉；生产路径
+    ``load_config_from_file(..., override_repr=True)`` 的模板里**带解析后的明文**，
+    于是"放回 → 覆盖"→ 明文照样落盘。⇒ 采集在前、回放在后。
+
+    :raises ConfigWriteRefusedError: 采集件里 raw 为 ``None``（盘上是引用但取不到原文）。
+    """
+    providers = getattr(config, "api_providers", None)
+    providers_table = full_config_data.get("api_providers")
+    if not providers or providers_table is None:
+        return
+
+    for index, _on_disk_value, raw_value in collected:
+        try:
+            provider_table = providers_table[index]
+        except (IndexError, KeyError, TypeError):
+            continue
+        provider = providers[index]
+        provider_label = getattr(provider, "name", None) or f"#{index}"
+
+        if raw_value is None:
+            message = (
+                f"配置写回被拒绝：{config_path.name} 的 api_providers[{provider_label}].api_key "
+                f"盘上是引用、但取不到原文（未经理析路径构造）——拒绝把解析后的明文写回文件"
+            )
+            logger.error(message)
+            raise ConfigWriteRefusedError(message)
+
+        if not isinstance(provider_table, MutableMapping):
+            continue
+        if provider_table.get("api_key") == raw_value:
+            continue  # 合并后的值已经等于原文：无需回放（明文场景，或模板本就带引用）
+
+        logger.warning(
+            f"配置写回：{config_path.name} 的 api_providers[{provider_label}].api_key "
+            f"盘上是引用，写回时以盘上原文为准（不把解析后的明文落盘）"
+        )
+        provider_table["api_key"] = raw_value
 
 
 def write_config_to_file(
@@ -858,7 +996,11 @@ def write_config_to_file(
     if config_path.exists():
         with open(config_path, "r", encoding="utf-8") as f:
             full_config_data = tomlkit.load(f)
+        # 写回守卫（顺序要紧）：**合并前**采集盘上引用 ⇒ 合并 ⇒ **合并后**回放
+        # （放在合并之前会被合并立刻覆盖——3 段实测的假绿根因）
+        collected_references = _collect_reference_api_keys(config, full_config_data)
         _merge_config_template(full_config_data, template)
+        _restore_secret_references(config, full_config_data, collected_references, config_path)
     else:
         full_config_data = template
 

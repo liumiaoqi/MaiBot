@@ -30,6 +30,13 @@ services:
       - MAIBOT_WEBUI_STATIC_DIR=mingtang/dist # WebUI 静态资源目录（默认 mingtang/dist；回退旧前端设为 dashboard/dist）
       - MAIBOT_STATISTICS_REPORT_PATH=/MaiMBot/data/maibot_statistics.html # 统计数据输出到共享目录，首次运行可自动创建文件
       - WEBUI_HOST=0.0.0.0 # Docker 中需要监听全部容器网卡，宿主机才能通过端口映射访问 WebUI
+      # === 密钥外部化（3 段 · 2026-10-16）===
+      # 值来自宿主：compose 项目目录下的 `.env`（自动加载）或宿主 shell 环境变量——**先有值者胜**。
+      # 容器内只拿到"进程环境"；配置里写 `api_key = "${VAR}"`，应用读配置时解析（缺变量即响亮报错，不静默空串）。
+      # 用 `:-` 而不是 `:?`：双读期明文配置仍然合法，不能因为"环境变量没设"就让 compose 拒绝起容器。
+      # ⚠️ 迁移顺序：先让这两个键有值（.env 就位）→ 再改 model_config.toml → 最后 up -d 重建。
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
 #      - EULA_AGREE=8e6e7d647f7f82d6ea98456b73908656 # 同意EULA
 #      - PRIVACY_AGREE=91e5db7659c560bc3545e63859b6ebc0 # 同意隐私条款
     ports:
