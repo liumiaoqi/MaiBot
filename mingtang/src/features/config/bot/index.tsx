@@ -6,6 +6,7 @@ import { PageShell } from '@/components/biz/page-shell'
 import { LoadingSkeleton } from '@/components/biz/loading-skeleton'
 import { Button } from '@/components/ui/button'
 import { CodeEditor } from '../components/code-editor'
+import { DynamicConfigForm } from '../components/dynamic-config-form'
 import { DynamicConfigTabs } from '../components/dynamic-config-tabs'
 import { registerAllConfigHooks } from '../hooks'
 import {
@@ -18,6 +19,14 @@ import {
 import type { ConfigSchema } from '@/types/config-schema'
 
 type ConfigMode = 'core' | 'detail' | 'source'
+
+/** 取某个域的字段值字典——配置数据是 `section → 字段值` 的嵌套对象 */
+function sectionFieldValues(section: unknown): Record<string, unknown> {
+  if (section && typeof section === 'object' && !Array.isArray(section)) {
+    return section as Record<string, unknown>
+  }
+  return {}
+}
 
 /** 麦麦主配置页（/config/bot）——三模式 Tabs + 自动保存 + 25 fieldHooks */
 export function BotConfigPage() {
@@ -104,6 +113,26 @@ export function BotConfigPage() {
     queryClient.invalidateQueries({ queryKey: ['api', 'botConfigRaw'] })
   }, [queryClient])
 
+  // ── 详细模式 · bot 域字段（有界接线：**只有 bot 域**渲染字段，其余域待定）──
+  // 服务端数据变化时同步草稿——与 rawDraft 同一套"渲染期调整模式"。
+  // 比较的是 `config.bot` 的对象引用：react-query 默认 structural sharing ⇒ 引用稳定，不会自激。
+  const botSectionSource = config?.['bot']
+  const [botDraft, setBotDraft] = useState<Record<string, unknown>>({})
+  const [prevBotSectionSource, setPrevBotSectionSource] = useState(botSectionSource)
+  if (botSectionSource !== prevBotSectionSource) {
+    setPrevBotSectionSource(botSectionSource)
+    setBotDraft(sectionFieldValues(botSectionSource))
+  }
+
+  // 编辑只进页面 state（本任务是"约束链可达"的有界证明）；
+  // 落盘走 `scheduleSectionSave('bot', …)` 那条 2s 防抖路径——**故意没接**：
+  // 读/写接缝正在 2 段换形，写路径不该由本任务顺手改。见回执遗留。
+  const handleBotFieldChange = useCallback((field: string, value: unknown) => {
+    setBotDraft((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const botSectionSchema = schema?.nested?.['bot']
+
   // 核心模式三卡片
   const coreSections = [
     { key: 'personality', label: '人格', color: 'border-purple-500/40' },
@@ -179,9 +208,21 @@ export function BotConfigPage() {
 
           {/* 详细模式 */}
           {mode === 'detail' && (
-            <div data-testid="bot-detail-mode">
+            <div data-testid="bot-detail-mode" className="space-y-4">
               {schema ? (
-                <DynamicConfigTabs schema={schema as ConfigSchema} />
+                <>
+                  {/* 节导航（现状保留：只出按钮，不改其它域的渲染） */}
+                  <DynamicConfigTabs schema={schema as ConfigSchema} />
+                  {botSectionSchema ? (
+                    <div data-testid="bot-domain-form">
+                      <DynamicConfigForm
+                        schema={botSectionSchema}
+                        values={botDraft}
+                        onChange={handleBotFieldChange}
+                      />
+                    </div>
+                  ) : null}
+                </>
               ) : (
                 <LoadingSkeleton />
               )}
