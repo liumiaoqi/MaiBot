@@ -127,9 +127,9 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 2. **本地实验目录不进入共享历史**
 3. **AI 实验区**（2026-08-17 立）：AI 相关实验（微调/SNN/小模型/新架构/行为模拟）统一在 `scripts/embedding_finetune/`（uv 隔离 .venv，见其 RULES.md）；lab/ 只放非 AI 零散脚本
 4. **术语准确**（2026-08-25）：**NapCat 是独立 QQ Bot 框架（协议端），不是适配器**；`maibot-team.napcat-adapter` 才是适配器插件——文档/报告不混淆
-5. **压缩后不内耗**（2026-08-22，拍板）：上下文压缩/新会话后禁止"重建上下文强迫症"（不 glob 全目录做全景侦察）。**一次定位**：git log 前 5 条 + 最新 handoff + 当前指令，读完就干活。配套：失败重试一次即换思路；不反复验证（说提交就提交，验证收尾一次做）；抽查最小集（2-3 个关键 grep），不全面复验
-6. **索引优先**（2026-08-22，拍板）：**有索引先读索引，索引有遗漏向用户报告**——进目录先读 INDEX/README（`lab/INDEX.md`、`scripts/embedding_finetune/INDEX.md`、`C:\hub\reference\projects-INDEX.md`）；索引缺内容=报告补索引，不翻全目录硬找
-7. **事故复盘文化**（2026-08-22，拍板——对齐 dsh postmortem）：bug 逃逸到生产时不只修那行——写复盘（`.shared/postmortem/`，五段式；总账 `C:\hub\postmortems\INDEX.md`）。三道筛选：隐蔽/系统性/重发现代价高。**复盘是编码和决策时的必查参考**：修 bug 前先查历史复盘；设计决策前查踩坑；写代码时对照防护措施；修完主动判断是否要写（不等要求）；创建前先读总账规范
+5. **压缩后不内耗**（判据：`C:\hub\CONVENTIONS.md` **§13.1**）——压缩/新会话后**一次定位**（git log 前 5 条 + 最新 handoff + 当前指令）即干活，不 glob 全景侦察
+6. **索引优先**（判据：`C:\hub\CONVENTIONS.md` **§9.5 索引纪律**）——进目录先读 INDEX/README（`lab/`、`scripts/embedding_finetune/`、`C:\hub\reference\projects-INDEX.md`）；索引缺内容=报告补索引，不翻全目录硬找
+7. **事故复盘文化**（编号总账：`C:\hub\postmortems\INDEX.md`）：bug 逃逸到生产时不只修那行——写复盘（`.shared/postmortem/`，五段式；三道筛选：隐蔽/系统性/重发现代价高）；**复盘是编码/决策时的必查参考**——修前先查历史复盘、修完主动判断是否要写
 8. **抓日志只抓新日志**（2026-08-25）：排障只抓**最后一次启动之后**的日志（`docker logs --since <启动时间>` 或 `--tail` 限定）；抓老日志会把已修复问题当现存问题
 9. **Docker 维护**（2026-09-01——vhdx 静默膨胀事故 137.8G）：构建前必查 `.dockerignore` 覆盖（node_modules/.git/权重/克隆池/zip/输出目录）；长期不用优先 unregister/停用；清理链必须 prune → **vhdx 处理**（只清 Docker 内容=白清）；C 盘空间纳入巡检；细则见 docker skill（.dsh/skills/docker）
 
@@ -137,7 +137,9 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 
 # 七、接线与缺陷防线
 
-## 新模块接线（硬性——2026-08-15 立，ZG16-2/ZG16-5 静默失效教训）
+> **判据在中枢**（`C:\hub\CONVENTIONS.md` **§13.4**：接线必须完整 + 四连问 + 配套缺陷清单）——本节产出的是**本仓落地形态**。
+
+## 本仓接线落地（ZG16-2/ZG16-5 静默失效教训）
 
 **新模块（新文件/新类/新入口）必须有生产接线点，禁止"只有定义没有调用点"。**
 
@@ -170,7 +172,9 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 
 ---
 
-# 八、设计参考铁律（2026-08-17 立，拍板）
+# 八、设计参考铁律
+
+> **判据在中枢**：设计须标注参考来源 → `C:\hub\CONVENTIONS.md` **§13.3**；学习开源=学架构不学代码 → **§13.2**。本节保留**本仓的参考地图**。
 
 **设计派发/SSD/调研文档必须标注参考源码来源：**
 
@@ -252,13 +256,11 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 
 # 十三、债务原则
 
-**用现在换未来，不是拿未来换现在。**
+> **判据在中枢**：`C:\hub\CONVENTIONS.md` **§13.5**（"这笔投入是让以后更容易，还是更难？"）。本仓债务全景见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`（不在本文件追踪状态）。
 
 - **拿未来换现在**（必须消除）：`except Exception: pass` 透支排障能力；绕过 Port 直接导入透支重构自由度
 - **用现在换未来**（优先投入）：修 exception handling 换未来可追踪；集成欲望换主动说话
 - **不影响未来**（低优先）：V1 getattr 残留、TODO 清理
-
-债务全景和路线图详见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`，不在本文件追踪具体状态。
 
 ---
 
