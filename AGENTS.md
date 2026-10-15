@@ -3,7 +3,7 @@
 > **硬性规则 + 路由策略。本文件是唯一正本**——`CLAUDE.md`（原 `.claude/CLAUDE.md` 工作手册）已于 2026-10-15 合并入此，根目录 `CLAUDE.md` 仅留指针（dsh 标准）。
 > 架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`；债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`；决策/复盘/交接见 `.shared/`（总账见 `C:\hub\`）。
 > **分层位置**：本仓 = 工程铁律层（跨领域分层原则见 `C:\hub\ARCHITECTURE.md`）。
-> ⚠️ **写代码 / 审查前必扫**：§七 高频缺陷模式 + `docs/pitfalls.md`（25 条实战踩坑）。
+> ⚠️ **写代码 / 审查前必扫**：§七 高频缺陷模式 + `docs/pitfalls.md`（实战踩坑——**条数不在此登记**：条数是会腐的登记，2026-10-16 实测三处各写 25/26/32 而实际 33）。
 
 ---
 
@@ -184,7 +184,7 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 12. **Port 注册零调用**（`set_*_port()` 有定义但零生产调用→适配器没注册到全局 registry；四连问第 1 问扩展）
 
 **完整参考**：`.shared/reports/2026-08/megasurvey/`（A 组 31 份审查，每项 P0/P1 有证据）。
-**实战踩坑 25 条**：`docs/pitfalls.md`（修 bug/写代码前必扫——worktree/编码/faiss/sqlite/uuid7/容器 bind mount/白名单开关等）。
+**实战踩坑**：`docs/pitfalls.md`（修 bug/写代码前必扫——worktree/编码/faiss/sqlite/uuid7/容器 bind mount/白名单开关等）。⚠️ **本条不登记条数**：条数是会腐的登记（2026-10-16 实测三处各写 25/26/32，而实际 33）——要引用就给路径。
 
 ---
 
