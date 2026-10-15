@@ -1847,56 +1847,11 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小"""
 
-    def model_post_init(self, context: Optional[dict] = None) -> None:
-        """验证配置值"""
-        if not 0 <= self.fuzzy_modify_confirm_threshold <= 1:
-            raise ValueError(
-                "fuzzy_modify_confirm_threshold 必须在 [0, 1] 之间，"
-                f"当前值: {self.fuzzy_modify_confirm_threshold}"
-            )
-        if self.fuzzy_modify_candidate_limit < 1:
-            raise ValueError(
-                "fuzzy_modify_candidate_limit 必须至少为1，"
-                f"当前值: {self.fuzzy_modify_candidate_limit}"
-            )
-        if self.fuzzy_modify_max_targets < 1:
-            raise ValueError(
-                f"fuzzy_modify_max_targets 必须至少为1，当前值: {self.fuzzy_modify_max_targets}"
-            )
-        if self.feedback_correction_window_hours <= 0:
-            raise ValueError(
-                f"feedback_correction_window_hours 必须大于0，当前值: {self.feedback_correction_window_hours}"
-            )
-        if self.feedback_correction_check_interval_minutes < 1:
-            raise ValueError(
-                "feedback_correction_check_interval_minutes 必须至少为1，"
-                f"当前值: {self.feedback_correction_check_interval_minutes}"
-            )
-        if self.feedback_correction_batch_size < 1:
-            raise ValueError(
-                f"feedback_correction_batch_size 必须至少为1，当前值: {self.feedback_correction_batch_size}"
-            )
-        if not 0 <= self.feedback_correction_auto_apply_threshold <= 1:
-            raise ValueError(
-                "feedback_correction_auto_apply_threshold 必须在 [0, 1] 之间，"
-                f"当前值: {self.feedback_correction_auto_apply_threshold}"
-            )
-        if self.feedback_correction_max_feedback_messages < 1:
-            raise ValueError(
-                "feedback_correction_max_feedback_messages 必须至少为1，"
-                f"当前值: {self.feedback_correction_max_feedback_messages}"
-            )
-        if self.feedback_correction_reconcile_interval_minutes < 1:
-            raise ValueError(
-                "feedback_correction_reconcile_interval_minutes 必须至少为1，"
-                f"当前值: {self.feedback_correction_reconcile_interval_minutes}"
-            )
-        if self.feedback_correction_reconcile_batch_size < 1:
-            raise ValueError(
-                "feedback_correction_reconcile_batch_size 必须至少为1，"
-                f"当前值: {self.feedback_correction_reconcile_batch_size}"
-            )
-        return super().model_post_init(context)
+    # 本类原先有一组 model_post_init 手工范围校验（fuzzy_modify_* / feedback_correction_* 共 10 条），
+    # 与上面各字段 Field(...) 的 ge/le 声明**逐条重复**（等价，或比 Field 更宽）；
+    # 其中 `feedback_correction_window_hours <= 0` 一条**永不可达**——该字段 Field 写的是 ge=0.1，更严。
+    # 约束必须单一真源（写进 Field 才会进生成的 schema）⇒ 整组删除，不保留第二处。
+    # 基类 ConfigBase.model_post_init 的注解规范校验不依赖本类覆写，经 MRO 照常执行。
 
 
 class AMemorixPluginConfig(ConfigBase):
@@ -4427,7 +4382,8 @@ class ExpressionConfig(ConfigBase):
             "x-widget": "select",
             "x-icon": "route",
             "advanced": False,
-            "options": ["legacy", "vector", "vector_intent"],
+            # options 由 annotation 的 Literal 派生（config_schema._extract_options）——
+            # 此处曾手写一份同样的列表，合并时**覆盖**派生值，会让两份真源各自漂移，故删除。
             "x-option-labels": {
                 "legacy": "随手",
                 "vector": "精细",
@@ -4789,6 +4745,9 @@ class KeywordRuleConfig(ConfigBase):
 
     reaction: str = Field(
         default="",
+        min_length=1,
+        # default 也必须过校验：缺键取到 "" 要与"显式写空串"一样报错（原先由 model_post_init 兜）
+        validate_default=True,
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "message-circle",
@@ -4801,9 +4760,12 @@ class KeywordRuleConfig(ConfigBase):
         if not self.keywords and not self.regex:
             raise ValueError("关键词规则必须至少包含keywords或regex中的一个")
 
-        if not self.reaction:
-            raise ValueError("关键词规则必须包含reaction")
-
+        # `reaction` 的非空约束已上移到本字段的 Field(min_length=1, validate_default=True)。
+        # 剩下这条"keywords 或 regex 至少一个"是**跨字段**条件，`Field(...)` 表达不了。
+        # `@model_validator` 现在**可以写了**（config_base.py 的字段文档提取已放行
+        # @field_validator/@model_validator），但**别指望它进 schema**：ConfigSchemaGenerator
+        # 只读 `model_fields`，不读任何 validator ⇒ 校验器不会在生成的 schema 里留下痕迹。
+        # 所以留在 model_post_init 里即可（改了不会让约束"变可见"，只是换个写法）。
         for pattern in self.regex:
             try:
                 re.compile(pattern)
@@ -4835,12 +4797,9 @@ class KeywordReactionConfig(ConfigBase):
     )
     """命中正则规则后，给麦麦追加一段固定反应提示。"""
 
-    def model_post_init(self, context: Optional[dict] = None) -> None:
-        """验证配置"""
-        for rule in self.keyword_rules + self.regex_rules:
-            if not isinstance(rule, KeywordRuleConfig):
-                raise ValueError(f"规则必须是KeywordRuleConfig类型，而不是{type(rule).__name__}")
-        return super().model_post_init(context)
+    # 本类原有的 model_post_init 只做 `isinstance(rule, KeywordRuleConfig)` 检查——**永不可达**：
+    # 字段类型已是 `list[KeywordRuleConfig]`，pydantic 在字段校验阶段就完成实例化/报错，
+    # 进到 model_post_init 时元素必然已是该类型。约束由类型注解自身表达，不需要第二处。
 
 
 class ResponsePostProcessConfig(ConfigBase):
@@ -5435,6 +5394,16 @@ class ExtraPromptItem(ConfigBase):
         return super().model_post_init(context)
 
 
+# `ChatReplyStyleConfig.chat_prompts` 的元素类型 `ExtraPromptItem` 定义在本文件靠后位置，类创建时
+# 解析不到：pydantic 把 ChatReplyStyleConfig（及其宿主 ChatConfig）标成 `__pydantic_complete__ = False`，
+# annotation 停在裸字符串 `list['ExtraPromptItem']`，要等**首次实例化**才 model_rebuild。而
+# ConfigSchemaGenerator 只读 model_fields、从不实例化 ⇒ 只要"生成 schema"发生在"配置被加载"之前，
+# 该字段的嵌套块会整个丢失、items.type 误报成 string（派生 schema 与类型不一致，且**与调用顺序有关**）。
+# 与本文件既有的 `ExperimentalConfig.model_rebuild()` 同一手法：元素类定义就位后补完（不写行号——会漂）。
+ChatReplyStyleConfig.model_rebuild()
+ChatConfig.model_rebuild()
+
+
 class MaimMessageConfig(ConfigBase):
     """maim_message配置类"""
 
@@ -5478,6 +5447,7 @@ class MaimMessageConfig(ConfigBase):
             },
             "x-widget": "custom",
             "x-icon": "key",
+            "x-secret": True,
         },
     )
     """旧版 API 的认证令牌；为空表示不验证。"""
@@ -5576,6 +5546,7 @@ class MaimMessageConfig(ConfigBase):
             },
             "x-widget": "custom",
             "x-icon": "shield",
+            "x-secret": True,
         },
     )
     """允许访问新版 API 的 Key 列表；为空表示不限制。"""
@@ -5976,6 +5947,10 @@ class MCPServerItemConfig(ConfigBase):
 
     name: str = Field(
         default="",
+        # 与原先 `not self.name.strip()` 等价：pattern 用 search 语义，`\S` 命中任意非空白字符
+        pattern=r"\S",
+        # default 也必须过校验：缺键取到 "" 要报错（原先由 model_post_init 兜）
+        validate_default=True,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "tag",
@@ -6079,9 +6054,8 @@ class MCPServerItemConfig(ConfigBase):
             None
         """
 
-        if not self.name.strip():
-            raise ValueError("MCPServerItemConfig.name 不能为空")
-
+        # name 的非空（含全空白）约束已上移到 Field(pattern=r"\S", validate_default=True)。
+        # 余下三条都是**跨字段**的 transport 条件式要求，Field 表达不了。
         if self.transport == "stdio" and not self.command.strip():
             raise ValueError(f"MCP 服务器 {self.name} 使用 stdio 时必须填写 command")
 

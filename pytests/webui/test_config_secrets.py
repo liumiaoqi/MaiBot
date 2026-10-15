@@ -92,6 +92,26 @@ def _load_plain(config_path: Any) -> Dict[str, Any]:
         return tomlkit.load(file).unwrap()
 
 
+def _assert_secret_marker(marker: Any, *, path: str, configured: bool, kind: str | None = None) -> None:
+    """断言秘密占位是 F2 冻结的三态形状（2 段起）。
+
+    2 段把占位从 ``{path, set}`` 升级成 ``{$secret, path, set, kind}``：
+    ``$secret`` 让"这是秘密"成为显式声明，``kind`` 区分 ``literal``/``reference``
+    （引用也是秘密——值在环境变量里，照样不出站）。``path`` 保留是 F3 的要求：
+    写回时"占位自带来源路径"是认领原值的依据。
+
+    未配置态**不带** ``kind``（没有值就没有形态可言）。
+    """
+    assert isinstance(marker, dict), marker
+    assert marker["$secret"] is True, marker
+    assert marker["path"] == path, marker
+    assert marker["set"] is configured, marker
+    if configured:
+        assert marker["kind"] == (kind or "literal"), marker
+    else:
+        assert "kind" not in marker, marker
+
+
 @pytest.fixture(autouse=True)
 def _register_webui_ports():
     """注册 WebUI 所需 Port。
@@ -152,11 +172,16 @@ def config_dir(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config_router, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(model_router, "CONFIG_DIR", tmp_path)
-    # 保存后路由会调 config_manager.reload_config()；测试里全局 config_manager 是 None
+    # 保存后路由会 **await** config_manager.reload_config()；测试里全局 config_manager 是 None，
+    # 而真实实现是 async（src/config/config.py:489）⇒ 替身必须也是 async，
+    # 否则 `await None` 会炸（2026-10-16 收尾令把全部保存路径改成 await 之后暴露）
+    async def _reload(*args, **kwargs):
+        return True
+
     monkeypatch.setattr(
         config_router,
         "config_manager",
-        SimpleNamespace(reload_config=lambda *args, **kwargs: None),
+        SimpleNamespace(reload_config=_reload),
     )
     return tmp_path
 
@@ -250,7 +275,7 @@ class TestRedactionCriterion:
 
         redacted = config_secrets.redact_config_secrets(data)
 
-        assert redacted["a"]["b"][0]["token"] == {"path": "a.b[0].token", "set": True}
+        _assert_secret_marker(redacted["a"]["b"][0]["token"], path="a.b[0].token", configured=True)
         assert redacted["a"]["b"][0]["keep"] == 1
         assert redacted["c"] == "plain"
 
@@ -258,14 +283,13 @@ class TestRedactionCriterion:
         """敏感键的值本身是容器时整块替换——不下钻，免得子键漏值。"""
         redacted = config_secrets.redact_config_secrets({"token": {"nested": "secret-value"}})
 
-        assert redacted == {"token": {"path": "token", "set": True}}
+        _assert_secret_marker(redacted["token"], path="token", configured=True)
         assert "secret-value" not in str(redacted)
 
     def test_blank_secret_reports_not_set(self) -> None:
-        assert config_secrets.redact_config_secrets({"api_key": "   "})["api_key"] == {
-            "path": "api_key",
-            "set": False,
-        }
+        marker = config_secrets.redact_config_secrets({"api_key": "   "})["api_key"]
+
+        _assert_secret_marker(marker, path="api_key", configured=False)
 
     def test_suffix_rule_covers_real_secret_fields(self) -> None:
         """精确集漏了 auth_token / allowed_api_keys —— 后缀规则补上。"""
@@ -297,10 +321,12 @@ class TestReadPathHidesSecrets:
 
         assert response.status_code == 200, response.text
         assert FAKE_LITERAL_KEY not in response.text
-        assert response.json()["config"]["api_providers"][0]["api_key"] == {
-            "path": "api_providers[0].api_key",
-            "set": True,
-        }
+        _assert_secret_marker(
+            response.json()["config"]["api_providers"][0]["api_key"],
+            path="api_providers[0].api_key",
+            configured=True,
+            kind="literal",
+        )
 
     def test_model_config_response_hides_reference_and_env_value(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -312,10 +338,12 @@ class TestReadPathHidesSecrets:
         assert response.status_code == 200, response.text
         assert FAKE_ENV_KEY_VALUE not in response.text
         assert REFERENCE_TEXT not in response.text
-        assert response.json()["config"]["api_providers"][1]["api_key"] == {
-            "path": "api_providers[1].api_key",
-            "set": True,
-        }
+        _assert_secret_marker(
+            response.json()["config"]["api_providers"][1]["api_key"],
+            path="api_providers[1].api_key",
+            configured=True,
+            kind="reference",
+        )
 
     def test_bot_config_response_hides_maim_message_auth_token(self, client: TestClient) -> None:
         """`maim_message.auth_token` 是真密钥，精确口径漏它——这里守后缀规则。"""
@@ -323,10 +351,12 @@ class TestReadPathHidesSecrets:
 
         assert response.status_code == 200, response.text
         assert FAKE_BOT_TOKEN not in response.text
-        assert response.json()["config"]["maim_message"]["auth_token"] == {
-            "path": "maim_message.auth_token",
-            "set": True,
-        }
+        _assert_secret_marker(
+            response.json()["config"]["maim_message"]["auth_token"],
+            path="maim_message.auth_token",
+            configured=True,
+            kind="literal",
+        )
         assert response.json()["config"]["chat"]["max_tokens"] == 4096
 
 
@@ -344,7 +374,7 @@ class TestWritePathFidelity:
 
         # 把 GET 到的（脱敏后的）配置原样 POST 回去 = 最忠实的往返
         read_back = client.get("/api/webui/config/model").json()["config"]
-        assert read_back["api_providers"][0]["api_key"] == {"path": "api_providers[0].api_key", "set": True}
+        _assert_secret_marker(read_back["api_providers"][0]["api_key"], path="api_providers[0].api_key", configured=True)
 
         response = client.post("/api/webui/config/model", json=read_back)
 

@@ -134,8 +134,9 @@ class APIProvider(ConfigBase):
 
     # 盘上那一行 api_key 的**原文**（引用 `${VAR}` 或明文），与解析后的 `api_key` 分开存。
     # 解析是"就地改写"⇒ 不留原文，写回时只能拿到真密钥（3 段实测到的写回洞）。
-    # 只读访问点见模块级 `raw_api_key_of`：类体里不能加方法（`AttrDocBase` 的字段说明
-    # 提取会拒绝除 model_post_init 以外的方法）。`None` = 未经解析路径构造、没留原文。
+    # 只读访问点见模块级 `raw_api_key_of`：类体里不能加 `@property`（`AttrDocBase` 的字段说明
+    # 提取只放行 model_post_init 与 @field_validator / @model_validator，属性仍会被顶回去）。
+    # `None` = 未经解析路径构造、没留原文。
     _raw_api_key: str | None = PrivateAttr(default=None)
 
     client_type: str = Field(
@@ -321,8 +322,9 @@ def raw_api_key_of(provider: APIProvider) -> str | None:
     没经过解析路径构造（没留原文），此时应**拒绝写出并出声**，不许静默写明文。
 
     注：做成模块级函数而不是 ``@property``，是因为 ``ConfigBase`` 的字段说明提取
-    （``AttrDocBase._extract_field_docs(allow_extra_methods=False)``）**拒绝**配置类体里
-    除 ``model_post_init`` 以外的方法——加属性会让 ``APIProvider`` 构造即报错。
+    （``AttrDocBase._extract_field_docs(allow_extra_methods=False)``）只放行
+    ``model_post_init`` 与 ``@field_validator`` / ``@model_validator`` —— ``@property``
+    仍不在白名单里，加属性会让 ``APIProvider`` 构造即报错。
     """
     return provider._raw_api_key
 
@@ -335,9 +337,15 @@ class ModelInfo(ConfigBase):
 
     category: str = Field(
         default="llm",
+        min_length=1,
+        # default 也必须过校验：缺键取到 "" 要报错（原先由 model_post_init 兜）
+        validate_default=True,
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "folder",
+            # ⚠️ 本字段的 annotation 是 `str`，允许值**只存在于这里**（类型侧没有 Literal）——
+            # 于是 UI 只给 3 个选项、模型侧却接受任意字符串。收成 Literal 属**行为收紧**
+            # （旧配置可能带自定义 category），需拍板；1 段只记录，不改。
             "options": ["llm", "embedding", "voice"],
         },
     )
@@ -365,6 +373,9 @@ class ModelInfo(ConfigBase):
 
     name: str = Field(
         default="",
+        min_length=1,
+        # default 也必须过校验：缺键取到 "" 要报错（原先由 model_post_init 兜）
+        validate_default=True,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "tag",
@@ -374,6 +385,9 @@ class ModelInfo(ConfigBase):
 
     api_provider: str = Field(
         default="",
+        min_length=1,
+        # default 也必须过校验：缺键取到 "" 要报错（原先由 model_post_init 兜）
+        validate_default=True,
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "link",
@@ -486,12 +500,9 @@ class ModelInfo(ConfigBase):
         self.model_identifier = self.model_identifier.strip()
         if not self.model_identifier:
             raise ValueError(t("config.model_identifier_empty_generic"))
-        if not self.name:
-            raise ValueError(t("config.model_name_empty"))
-        if not self.api_provider:
-            raise ValueError(t("config.model_api_provider_empty"))
-        if not self.category:
-            raise ValueError(t("config.model_category_empty"))
+        # name / api_provider / category 的非空约束已上移到各自 Field(min_length=1, validate_default=True)。
+        # model_identifier 留在这里：它判的是 **strip 之后**非空，Field 的 min_length 只管原始长度，
+        # `"   "` 这类全空白值只有 strip 后才能判出来。
         # visual=True 自动迁移为 vision 能力（T14）
         if getattr(self, "visual", False) and "vision" not in self.capabilities:
             self.capabilities.add("vision")
