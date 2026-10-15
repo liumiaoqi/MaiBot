@@ -385,9 +385,9 @@ client = OpenAI(
 )
 
 system_prompt = """
-The user will provide some exam text. Please parse the "question" and "answer" and output them in JSON format. 
+The user will provide some exam text. Please parse the "question" and "answer" and output them in JSON format.
 
-EXAMPLE INPUT: 
+EXAMPLE INPUT:
 Which is the highest mountain in the world? Mount Everest.
 
 EXAMPLE JSON OUTPUT:
@@ -561,7 +561,7 @@ maxLength
         "user_email": {
             "type": "string",
             "description": "The user's email address",
-            "format": "email" 
+            "format": "email"
         },
         "zip_code": {
             "type": "string",

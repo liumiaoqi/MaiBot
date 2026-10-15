@@ -1,0 +1,14 @@
+[project]
+name = "officeartworks"
+version = "0.1.0"
+description = "PDF 生成工具 - 方案一: PPT→PDF / 方案二: HTML→PDF"
+requires-python = "==3.14.7"
+dependencies = [
+    # 方案一：PPT → PDF
+    "python-pptx",    # 生成 .pptx 文件
+    "comtypes",       # 调用 PowerPoint COM 转 PDF
+
+    # 方案二：HTML → PDF
+    "jinja2",         # HTML 模板渲染
+    "playwright",     # 浏览器内核渲染 HTML → PDF
+]
