@@ -22,5 +22,7 @@ Dockerfile text eol=lf
 Dockerfile.* text eol=lf
 docker-compose*.yml text eol=lf
 .dockerignore text eol=lf
+# 工具生成文件（uv 写出即 LF；防 checkout 转 CRLF 来回跳）—— 2026-10-15
+uv.lock text eol=lf
 # 行尾纪律文件自身也守纪律
 .gitattributes text eol=lf
