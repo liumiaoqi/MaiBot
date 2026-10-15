@@ -10,7 +10,8 @@ services:
     #### dev ####
     # image: sengokucola/maibot:dev
     # image: infinitycat/maibot:dev
-    entrypoint: ["/bin/sh", "/MaiMBot/docker-entrypoint-wrapper.sh"]
+    # 入口脚本：使用镜像内 ENTRYPOINT（/MaiMBot/docker-entrypoint.sh）；
+    # 2026-10-15 移除 wrapper 包装（原 wrapper 的 sed 补丁/去重段已并入或删除，见 docker-entrypoint.sh 头注释）
 
     # === ZG-9 资源控制 ===
     mem_limit: 4g
@@ -43,7 +44,6 @@ services:
       - ./data/MaiMBot/emoji:/data/emoji # 持久化表情包
       # ZG-32: v1 挂载已删除（2026-08-18），收敛到 v2 单一挂载
       - ./plugins:/MaiMBot/plugins-v2 # v2 插件目录（宿主机修改即时生效）
-      - ./docker-entrypoint-wrapper.sh:/MaiMBot/docker-entrypoint-wrapper.sh:ro # 去重入口包装
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
 
       - ./depends-data:/MaiMBot/depends-data # 运行时资源文件
@@ -56,8 +56,8 @@ services:
       - ./bot.py:/MaiMBot/bot.py:ro # 主入口脚本
       - ./mingtang/dist:/MaiMBot/mingtang/dist:ro # WebUI构建产物（宿主机npm run build后即时生效）
       - ./locales:/MaiMBot/locales:ro # i18n 翻译文件（宿主机修改即时生效，无需重建镜像）
-      - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失
-      - hf-cache:/root/.cache/huggingface # 持久化HuggingFace模型缓存
+      # 2026-10-15：移除 site-packages / hf-cache 两个命名卷（旧设计残留：
+      # 依赖由镜像内 uv sync 提供、HF 缓存实为仓内 model_cache/，卷已不存在）
     healthcheck:
       test: ["CMD", "test", "-f", "/MaiMBot/mingtang/dist/index.html"]
       interval: 30s
@@ -127,10 +127,10 @@ services:
   #     - ./data/MaiMBot:/data/MaiMBot
   #   networks:
   #     - maim_bot
-  
-volumes:
-  site-packages:
-  hf-cache:
+
+# 2026-10-15：site-packages / hf-cache 两卷已移除（旧设计残留）；
+# 当前无命名卷——启用 Caddy 时取消下面注释
+# volumes:
 #   caddy_data:
 #   caddy_config:
 networks:

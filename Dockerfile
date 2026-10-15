@@ -1,6 +1,6 @@
 # Stage 1: Extract Python 3.14 runtime from official image
 # Pin 具体补丁版本（可复现构建；升级 Python 时手动改此标签，如 3.14.8）
-FROM python:3.14.7-slim AS python-builder
+FROM python:3.14.8-slim AS python-builder
 
 # Stage 2: Build on Ubuntu 26.04 LTS
 FROM ubuntu:26.04
@@ -27,11 +27,14 @@ ENV PATH="/MaiMBot/.venv/bin:${PATH}"
 # Copy dependency metadata
 COPY pyproject.toml uv.lock ./
 
-# Install C extension build toolchain + git, then install Python dependencies
+# Install C extension build toolchain + git, then install Python dependencies.
+# 构建期写入 .venv 的 Python 版本标记：entrypoint 以此判断是否需要重建依赖；
+# 构建期写好 ⇒ 容器首启免联网执行 uv sync（2026-10-15 迁移补）。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git build-essential libffi-dev libssl-dev libsqlite3-dev ca-certificates ripgrep \
     && rm -rf /var/lib/apt/lists/* \
     && uv sync --frozen --no-dev --no-install-project \
+    && echo "$(python3 --version | cut -d' ' -f2 | cut -d. -f1,2)" > /MaiMBot/.venv/.python-version \
     && rm -rf /root/.cache/uv \
     && apt-get purge -y build-essential \
     && apt-get autoremove -y \

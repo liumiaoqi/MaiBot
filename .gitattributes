@@ -13,3 +13,14 @@ webui/dist/** binary
 # ⚠️ 上面那条 `*.sh text eol=lf` 覆盖不到它们（没有 .sh 扩展名）；
 #    一旦被写成 CRLF，`#!/bin/sh\r` 会 **bad interpreter**，门与 LFS 钩子一起静默失效。
 .githooks/** text eol=lf
+
+# Docker 系构建文件 —— 必须 LF（2026-10-15 WB 补）
+# ⚠️ 动机：① Dockerfile 续行 `\` + CRLF 是已知坑源；② .dockerignore 的 CRLF 会让忽略模式匹配错；
+#    ③ 二者此前无显式 eol ⇒ 落在 `* text=auto` 上，**实测检出为 CRLF**，工作区行尾不稳定。
+#    与 `*.sh` / `.githooks/**` 同族：**构建与脚本文件一律 LF**。
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+docker-compose*.yml text eol=lf
+.dockerignore text eol=lf
+# 行尾纪律文件自身也守纪律
+.gitattributes text eol=lf

@@ -44,3 +44,32 @@ dashboard/
 # 工具/实验数据（构建不需要）
 tools/
 scripts/embedding_finetune/
+# === 2026-10-15 迁移审补（R5-C 草案 + 现场核补）===
+# 敏感与配置：**含 API 密钥，绝不能进镜像层**（被 gitignore 保护 ≠ 被 dockerignore 保护）
+docker-config/
+# agent 工具目录（163M，绝不进构建上下文）
+.codeartsdoer/
+.codemate/
+# 上游遗产（fork 不再使用）
+requirements.txt
+crowdin.yml
+Dockerfile.freethreaded
+changelogs/
+# 本地残渣 / 工具残留
+nul
+dummy
+build/
+NVIDIA Corporation/
+check_logger.py
+check_logger2.py
+check_stderr.py
+fix_import_logging.py
+saka.py
+remove_setup_i18n.js
+remove_setup_i18n.ps1
+qq_user_memory.db
+# 工具产物目录（空壳 / 工具数据）
+deliverables/
+files/
+reports/
+research/
