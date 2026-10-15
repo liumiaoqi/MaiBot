@@ -81,7 +81,7 @@ describe('R2-1-2：StyleSelector 界面风格选择 + 双通道同步', () => {
     expect(localStorage.getItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE)).toBe('modern')
     expect(document.documentElement.dataset.dashboardStyle).toBe('modern')
     await waitFor(() => {
-      expect(mockUpdateBotConfigSection).toHaveBeenCalledWith('webui', { webui_style: 'modern' })
+      expect(mockUpdateBotConfigSection).toHaveBeenCalledWith('webui', { webui_style: 0 })
     })
   })
 
@@ -92,7 +92,7 @@ describe('R2-1-2：StyleSelector 界面风格选择 + 双通道同步', () => {
     expect(localStorage.getItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE)).toBe('future-retro')
     expect(document.documentElement.dataset.dashboardStyle).toBe('future-retro')
     await waitFor(() => {
-      expect(mockUpdateBotConfigSection).toHaveBeenCalledWith('webui', { webui_style: 'future-retro' })
+      expect(mockUpdateBotConfigSection).toHaveBeenCalledWith('webui', { webui_style: 1 })
     })
   })
 

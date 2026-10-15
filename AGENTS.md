@@ -62,7 +62,7 @@
 ## WebUI 前端状态（2026-08-21 立）
 - **mingtang/** = 新前端（**主战场**）——React 19.2 + TS 双轨（typescript6 包）/Vite 8.2/ESLint 10；8 功能域已实现（config/chat/memory/resource/monitor/agent/plugin/home/survey），135 测试；蓝图见 `.shared/decisions/WebUI_Plan/mingtang_architecture_blueprint_0808.md`；验收终点：`cd mingtang && npm run lint && npm run test && npm run build` 三绿（当前基线 135 tests）
 - **dashboard/** = 老前端（⚠️ **遗留，待 mingtang 验收后废弃**）——React 19.2/TS ~5.9.3/Vite 7.2/ESLint 9.39；**当前生产仍挂载其 dist**（docker-compose `MAIBOT_WEBUI_USE_LOCAL_DASHBOARD=1` + `app.py:300` 静态路径）；**新功能开发一律进 mingtang，dashboard 只做修复不做新功能**；废弃标识见 `dashboard/DEPRECATED.md`
-- **切换条件**（未到）：R4 债清理收尾 + mingtang 三绿验收通过 + 后端挂载切换（app.py 加 mingtang 静态路径 + docker-compose 换挂载）+ 功能对照验收——全完成后才废弃 dashboard
+- **切换状态**（2026-10-15 更新）：R4 债清理 ✅（8-14）+ mingtang 三绿 ✅（10-15 验证：lint/test/build，BUILD 需 `NODE_OPTIONS=` 避开本地环境 shim）+ 后端挂载切换 ✅（`app.py` `_DEFAULT_STATIC_DIR=mingtang/dist` + compose）——「功能对照验收」作为**可选**质量检查保留；**dashboard 不再计划物理删除**（lmq 2026-10-15 定：git 保底 + 只修不加纪律已锁，**保留作回退选项**；见 `dashboard/DEPRECATED.md`）
 
 # 会话 ID 规范
 业务模块不应自行调用 `SessionUtils.calculate_session_id`，应通过 `SessionRepository` Protocol 查询已存在的真实聊天流；查询不到不应强行计算 fallback hash 写入数据库

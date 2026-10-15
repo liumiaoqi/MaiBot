@@ -115,8 +115,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const config = await getBotConfig()
         const webui = config.webui as Record<string, unknown> | undefined
         const webuiStyle = webui?.webui_style
-        if (webuiStyle === 'modern' || webuiStyle === 'future-retro') {
-          const backendStyle = webuiStyle as DashboardStyle
+        // 后端 webui_style 为 int（0=modern，1=future-retro）——映射与 dashboard 时代一致
+        // （原 dashboard/src/components/theme-provider.tsx 的 configValueToDashboardStyle；
+        //  2026-10-15 修复：mingtang 移植时漏了这层转换，导致写入字符串被后端 pydantic 拒绝）
+        const styleValue = Number(webuiStyle)
+        if (styleValue === 0 || styleValue === 1) {
+          const backendStyle: DashboardStyle = styleValue === 1 ? 'future-retro' : 'modern'
           if (backendStyle !== themeConfig.dashboardStyle) {
             updateThemeConfig({ dashboardStyle: backendStyle })
           }
@@ -168,7 +172,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     updateThemeConfig({ dashboardStyle: newStyle })
     document.documentElement.dataset.dashboardStyle = newStyle
     try {
-      await updateBotConfigSection('webui', { webui_style: newStyle })
+      // 后端 webui_style 为 int（0=modern，1=future-retro）——映射与 dashboard 时代一致
+      await updateBotConfigSection('webui', { webui_style: newStyle === 'future-retro' ? 1 : 0 })
     } catch (error) {
       console.error('后端风格同步失败:', error)
     }
