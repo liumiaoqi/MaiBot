@@ -54,6 +54,7 @@ __all__ = [
     "load_document",
     "load_stored",
     "namespace_spec",
+    "read_snapshot",
     "schema_default",
     "schema_field_info",
     "secret_field_paths",
@@ -178,10 +179,72 @@ def secret_field_paths(namespace: str) -> frozenset[str]:
 
 
 def current_revision(namespace: str) -> int:
-    """读当前 revision；读配置**之前**先拿它，写的时候原样带回来。"""
+    """读当前 revision；读配置**之前**先拿它，写的时候原样带回来。
+
+    ⚠️ 单读 revision 是安全的；但**"读内容 + 读 revision"必须走 ``read_snapshot``**——
+    分两次调用会在中间留下撕裂窗口（见该函数的说明，F11）。
+    """
     namespace_spec(namespace)  # 先校验命名空间，再动锁
     with _REVISION_LOCK:
         return _refresh_locked(namespace).revision
+
+
+def read_snapshot(namespace: str) -> tuple[Any, int]:
+    """**一次取回 ``(内容, revision)`` 且两者同源**——读接缝唯一该用的取数口（F11）。
+
+    **为什么必须是一个口**：读接缝原先分两步调 ``load_stored()`` 与 ``current_revision()``，
+    两次各自进出锁。写者插在中间，客户端就拿到 **(旧内容, 新 revision)**——它以为自己是
+    最新的，带着这个 revision 去 ``mutate`` 会**被接受** ⇒ 乐观锁的保护失效
+    （基于旧内容算出来的写被当成最新写）。窗口不小：``load_stored`` 既不持锁、
+    又做文件 I/O，正好把 GIL 让出去。**实测：双线程下 40 次读 ⇒ 40 次撕裂**。
+    生产上具备双线程条件：``src/main.py`` 里 WebUI 跑在**独立线程**（``ThreadedWebUIServer``）。
+
+    **锁只覆盖"一致性所需的最小范围"**（F13 的教训：别持锁做重活）：
+    锁内只做 **读字节 + sha256**（实测 0.28ms），**解析 TOML 与 ``to_plain`` 都在锁外**。
+    能这么做的原因：revision 是由**内容指纹**派生的，而这一版把指纹**算在同一批字节上**，
+    于是 "内容 ↔ revision" 由构造保证同源，不需要靠"把解析也锁住"来换。作为对照，
+    若把 ``load_stored`` 也塞进锁内，锁的持有时长会从 0.3ms 涨到 ~30ms（bot 平面实测
+    解析 27.5ms）——那正是 F13 抱怨的那类写法。
+
+    **残余边界（如实说，不假装闭合）**：本锁只序列化**经过 config_store 的**读写。
+    ``chat_session_service_web.py`` 等处直接调 ``save_toml_with_format`` 写同一份配置，
+    它们**不持这把锁** ⇒ 仍有一个"读文件本身"级别的窄窗口（微秒量级，且方向保守：
+    客户端会拿到比 revision 更新的内容，带旧 revision 去写会被 409 拒）。要彻底闭合得让那些
+    写者也走本锁，属"删旧写路径"那一批（待 lmq 拍板），不在本段。
+
+    Args:
+        namespace: 命名空间。
+
+    Returns:
+        ``(已存储的纯 Python 结构, 与这份内容同源的 revision)``。
+
+    Raises:
+        UnknownNamespaceError: 命名空间不存在。
+        ConfigFileMissingError: 配置文件不存在。
+    """
+    namespace_spec(namespace)  # 先校验命名空间，再动锁
+    path = config_file_path(namespace)
+    if not path.exists():
+        raise ConfigFileMissingError(namespace, path)
+
+    with _REVISION_LOCK:
+        raw = path.read_bytes()
+        revision = _refresh_locked(namespace, fingerprint=hashlib.sha256(raw).hexdigest()).revision
+
+    # 锁外解析：重活不占锁
+    return to_plain(tomlkit.loads(_decode_config_bytes(raw))), revision
+
+
+def _decode_config_bytes(raw: bytes) -> str:
+    """配置文件字节 → 文本，**与 ``open(..., "r", encoding="utf-8")`` 的换行语义对齐**。
+
+    为什么要显式折行：本仓 ``config/bot_config.toml`` 是 **CRLF**（实测 661 个 CRLF），
+    而 ``open(..., "r")`` 默认做 universal newlines（``\\r\\n`` → ``\\n``），
+    ``read_bytes().decode()`` **不做**。两条路解出来的文本如果在多行字符串上分叉，
+    就成了"读接缝看到的配置与写路径看到的配置不是同一份"——那是最难查的一类不一致。
+    这里把 ``open`` 的语义显式复刻一遍，并有用例在真配置上对拍两条路的结果。
+    """
+    return raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def commit(
@@ -305,9 +368,17 @@ def _default_validator(spec: NamespaceSpec) -> Callable[[Any], None]:
     return _validate
 
 
-def _refresh_locked(namespace: str) -> _RevisionState:
-    """锁内刷新 revision（调用方必须已持锁）。"""
-    fingerprint = _fingerprint(config_file_path(namespace))
+def _refresh_locked(namespace: str, *, fingerprint: str | None = None) -> _RevisionState:
+    """锁内刷新 revision（调用方必须已持锁）。
+
+    Args:
+        namespace: 命名空间。
+        fingerprint: 已算好的内容指纹。``read_snapshot`` 会传进来——它必须在**锁内**读字节、
+            又不想读两遍（读+哈希实测 0.28ms，是锁可以覆盖的最小代价）。
+            ``None`` = 自己现算（``commit`` / ``current_revision`` 走这条）。
+    """
+    if fingerprint is None:
+        fingerprint = _fingerprint(config_file_path(namespace))
     state = _REVISION_STATES.get(namespace)
     if state is None:
         state = _RevisionState(revision=_INITIAL_REVISION, fingerprint=fingerprint)

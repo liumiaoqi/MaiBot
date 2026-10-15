@@ -76,6 +76,7 @@ from src.webui.config_schema import ConfigSchemaGenerator
 from src.webui.config_secrets import (
     SENTINEL_SET_KEY,
     SecretClaimError,
+    SecretDeclarationError,
     claim_secret_value,
     describe_secret_value,
     find_secret_root,
@@ -2147,7 +2148,14 @@ def _default_read_targets(stored: Any, declared: frozenset[str]) -> list[tuple[A
         targets.append(tokens)
 
     for declared_path in sorted(declared):
-        for concrete in expand_declaration(parse_declaration(declared_path), stored):
+        try:
+            declared_tokens = parse_declaration(declared_path)
+        except ConfigPathError as error:
+            # 声明表是**服务端自己的数据**：它写错了是**我们的** bug，不是客户端请求错。
+            # 混进下面的 PARAM_INVALID(400) 会把服务端故障报成"你参数不对"（F12）——
+            # 排障的人于是去查请求，而问题在声明表里。单独抛类型，由端点映射成 5xx + 上报。
+            raise SecretDeclarationError(declared_path, error) from error
+        for concrete in expand_declaration(declared_tokens, stored):
             path_text = format_path(concrete)
             if path_text in seen:
                 continue
@@ -2228,8 +2236,10 @@ async def read_config_paths(request: ConfigReadRequest):
     """
     try:
         spec = _namespace_or_400(request.namespace)
-        stored = config_store.load_stored(spec.name)
-        revision = config_store.current_revision(spec.name)
+        # F11：内容与 revision **必须同源取回**。分两步调（load_stored → current_revision）
+        # 会让写者插在中间，客户端拿到 (旧内容, 新 revision)，带着它去写还会被**接受**
+        # ⇒ 乐观锁失效。实测双线程下 40 次读 40 次撕裂。
+        stored, revision = config_store.read_snapshot(spec.name)
         declared = config_store.secret_field_paths(spec.name)
 
         targets = [parse_path(path) for path in request.paths] if request.paths else _default_read_targets(
@@ -2242,6 +2252,17 @@ async def read_config_paths(request: ConfigReadRequest):
         raise
     except config_store.ConfigFileMissingError as error:
         raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在", http_status=404) from error
+    except SecretDeclarationError as error:
+        # F12：**服务端**声明表写错了 ⇒ 5xx + 双通道上报，绝不是"客户端参数不合法"。
+        # 注意这条必须排在下面的 (ConfigPathError, SecretClaimError) 之前/之外——
+        # SecretDeclarationError 不是 ConfigPathError 的子类，刻意如此。
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.ERROR, "服务端秘密声明表配置错误", exception=error)
+        logger.error(f"服务端秘密声明表配置错误：{error}")
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, str(error)) from error
     except (ConfigPathError, SecretClaimError) as error:
         raise AppError(ErrorCode.PARAM_INVALID, str(error), http_status=400) from error
     except Exception as e:

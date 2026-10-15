@@ -540,6 +540,28 @@ def _origin_name_at(stored_root: Any, tokens: Sequence[PathToken]) -> str | None
     return origin
 
 
+# ── 服务端自身的配置错误（不是客户端的错）────────────────────────────
+
+
+class SecretDeclarationError(ValueError):
+    """**服务端**的秘密声明表里有一条非法路径（F12）。
+
+    为什么要单独一个类型，而不是复用 ``ConfigPathError``：``SECRET_FIELD_PATHS`` 是
+    **服务端自己的数据**，它写错了是**我们的** bug；而 ``ConfigPathError`` 的语义是
+    "客户端给的路径不合法"。两者混用会把服务端故障报成 400（客户端参数错），
+    排障的人于是去查请求，而问题在代码/声明表里——这正是 F12。
+
+    Attributes:
+        declared_path: 出错的那条声明（报错要指名道姓，否则没法改）。
+        cause: 原始解析异常。
+    """
+
+    def __init__(self, declared_path: str, cause: Exception) -> None:
+        self.declared_path = declared_path
+        self.cause = cause
+        super().__init__(f"服务端秘密声明表里有非法路径 {declared_path!r}：{cause}")
+
+
 # ── 写路径（认领规则 · F3）────────────────────────────────────────────
 
 

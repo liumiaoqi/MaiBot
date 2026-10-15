@@ -12,6 +12,7 @@
 不动 ``src.config.config`` 的全局，也不碰别人的模块。
 """
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List
 
@@ -1597,3 +1598,221 @@ class TestRawEndpointRetirementEvidence:
         assert entries["inner.version"]["value"] == "0.9.0"
         assert entries["maim_message.auth_token"]["value"]["set"] is True
         assert FAKE_BOT_TOKEN not in str(entries)
+
+
+# ── F11：读接缝的「内容 / revision」必须同源 ──────────────────────────
+#
+# 为什么原实现会撕裂（写清楚，别让后人再踩）：
+#   读接缝原先分两步 —— `load_stored()` 然后再 `current_revision()`，两次各自进出
+#   `_REVISION_LOCK`。写者只要插在两步之间，客户端就拿到 **(旧内容, 新 revision)**：
+#   revision 说"你看到的是最新的"，内容却不是。带着这个 revision 去 `mutate` 会**被接受**
+#   ⇒ 乐观锁的意义（"写之前证明你读到的是最新的"）整个失效。
+#   窗口不小：`load_stored` 既不持锁、又做文件 I/O，正好把 GIL 让给别的线程。
+#   而生产上**确实有两个线程** —— `src/main.py` 的注释明写 WebUI 跑在独立线程
+#   （`ThreadedWebUIServer`）。
+#
+# 修法：`config_store.read_snapshot()` 一个口取回 (内容, revision)，
+#   且 revision 由**同一批字节**的指纹派生 ⇒ 两者同源。锁只覆盖"读字节 + sha256"（实测 0.28ms），
+#   解析 TOML 与 to_plain 留在锁外（F13 的教训：别持锁做重活）。
+
+
+def _run_contention_reader(reader_fn, *, iterations: int, seconds: float = 3.0) -> List[tuple[int, int]]:
+    """跑一个"读者 vs 写者"的并发实验，返回读者观察到的 (内容值, revision) 不一致样本。
+
+    不变式：写者每次 commit 把 ``chat.max_context_size`` 设成它带的 ``expected_revision``，
+    commit 之后 revision = 值 + 1 ⇒ **一致的快照必须满足 ``值 == revision - 1``**。
+    读者观察到别的组合，就是撕裂。
+    """
+    import threading
+    import time
+
+    namespace = config_store.NAMESPACE_BOT
+    stop = threading.Event()
+    seen: List[tuple[int, int]] = []
+
+    def writer() -> None:
+        while not stop.is_set():
+            try:
+                revision = config_store.current_revision(namespace)
+
+                def _apply(document: Any, baseline: Any, revision: int = revision) -> None:
+                    document["chat"]["max_context_size"] = revision
+
+                config_store.commit(namespace, revision, _apply)
+            except config_store.RevisionConflictError:
+                continue
+
+    worker = threading.Thread(target=writer, daemon=True)
+    worker.start()
+    try:
+        time.sleep(0.05)  # 让写者先跑起来（首轮 commit 之后不变式才开始成立）
+        for _ in range(iterations):
+            seen.append(reader_fn())
+    finally:
+        stop.set()
+        worker.join(timeout=5)
+    return [(value, revision) for value, revision in seen if value != revision - 1]
+
+
+class TestReadSnapshotAtomicity:
+    """F11：``read_snapshot`` 必须让"内容 ↔ revision"同源，并发下零撕裂。"""
+
+    def test_read_snapshot_has_zero_tears_under_contention(
+        self, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """**修后的行为**：并发下 0 撕裂（修前同一形状实测 40 次读 40 次撕裂）。"""
+        namespace = config_store.NAMESPACE_BOT
+
+        def reader() -> tuple[int, int]:
+            stored, revision = config_store.read_snapshot(namespace)
+            return stored["chat"]["max_context_size"], revision
+
+        tears = _run_contention_reader(reader, iterations=200)
+
+        assert tears == [], f"read_snapshot 出现撕裂：{tears[:5]}"
+
+    def test_the_old_two_step_pattern_tears(self, seam_config_dir, monkeypatch: pytest.MonkeyPatch) -> None:
+        """**特性化用例**：证明"分两步"确实会撕裂——修复不是空转。
+
+        这条刻意复刻**旧实现**的取数方式（``load_stored`` 然后 ``current_revision``）。
+        它红了才说明上面那条绿的有意义：否则"0 撕裂"可能只是并发没压上。
+        若哪天有人把读接缝改回两步，这条会继续绿——所以还有下面那条**端点级**的守门用例。
+        """
+        namespace = config_store.NAMESPACE_BOT
+
+        def reader() -> tuple[int, int]:
+            stored = config_store.load_stored(namespace)
+            revision = config_store.current_revision(namespace)
+            return stored["chat"]["max_context_size"], revision
+
+        tears = _run_contention_reader(reader, iterations=200)
+
+        assert tears, "旧两步法本应撕裂；没撕裂说明这个并发实验压不上，请加大 iteration"
+
+    def test_read_endpoint_returns_content_and_revision_from_one_version(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """**端点级**守门（覆盖口径 = 被判定的对象）：HTTP 读接缝在并发写之下不许自相矛盾。
+
+        为什么要有这条：上面两条测的是 ``config_store`` 的两个函数，
+        而"读接缝有没有用对"的判据在**端点**上。只要有人把端点改回两步取数，这条就红。
+        写者在**另一个线程**里 commit —— 这正是生产形态（WebUI 独立线程 + 别的写者）。
+        """
+        import threading
+
+        namespace = config_store.NAMESPACE_BOT
+        stop = threading.Event()
+        ready = threading.Event()
+
+        def writer() -> None:
+            while not stop.is_set():
+                try:
+                    revision = config_store.current_revision(namespace)
+
+                    def _apply(document: Any, baseline: Any, revision: int = revision) -> None:
+                        document["chat"]["max_context_size"] = revision
+
+                    config_store.commit(namespace, revision, _apply)
+                    ready.set()
+                except config_store.RevisionConflictError:
+                    continue
+
+        worker = threading.Thread(target=writer, daemon=True)
+        worker.start()
+        try:
+            assert ready.wait(timeout=10), "写者没跑起来"
+            inconsistencies: List[tuple[Any, int]] = []
+            for _ in range(60):
+                body = _read_paths(client, "bot", ["chat.max_context_size"])
+                value = _entries_by_path(body)["chat.max_context_size"]["value"]
+                if value != body["revision"] - 1:
+                    inconsistencies.append((value, body["revision"]))
+        finally:
+            stop.set()
+            worker.join(timeout=5)
+
+        assert inconsistencies == [], f"端点返回了 (旧内容, 新 revision)：{inconsistencies[:5]}"
+
+    def test_snapshot_parse_matches_load_document_on_real_configs(self) -> None:
+        """``read_snapshot`` 的解析结果必须与 ``load_document`` **逐字段一致**。
+
+        风险点是我在 F11 里换掉的读法：``read_bytes().decode()`` 不像
+        ``open(..., "r")`` 那样做 universal newlines，而本仓 ``bot_config.toml`` 是 **CRLF**。
+        两条路若在多行字符串上分叉，就成了"读接缝看到的配置与写路径看到的不是同一份"。
+        这里直接拿**真配置**（一个 CRLF、一个 LF）对拍。
+        """
+        repo_root = Path(__file__).resolve().parents[2]
+        for filename in ("bot_config.toml", "model_config.toml"):
+            source = repo_root / "config" / filename
+            if not source.exists():  # 裸 worktree 可能缺资源，跳过而不是假绿
+                continue
+            assert config_store._decode_config_bytes(source.read_bytes()) == source.read_text(
+                encoding="utf-8"
+            ), f"{filename}: 两种读法的文本不一致（换行语义分叉）"
+
+
+# ── F12：服务端声明表写错 ≠ 客户端请求错 ─────────────────────────────
+
+
+class TestServerSideDeclarationErrors:
+    """F12：``SECRET_FIELD_PATHS`` 是**服务端自己的数据**，写错了不能报成客户端 400。
+
+    旧行为：声明表里一条非法路径 ⇒ ``parse_declaration`` 抛 ``ConfigPathError`` ⇒
+    被端点的 ``except (ConfigPathError, SecretClaimError)`` 接住 ⇒ **400 PARAM_INVALID**。
+    排障的人于是去查请求，而问题在服务端声明表里。
+    """
+
+    def _inject_bad_declaration(self, monkeypatch: pytest.MonkeyPatch, bad_path: str) -> None:
+        """把一条非法声明注入读接缝（模拟"有人改坏了声明表"）。"""
+        real = config_store.secret_field_paths
+
+        def _patched(namespace: str) -> frozenset[str]:
+            return frozenset(real(namespace) | {bad_path})
+
+        monkeypatch.setattr(config_store, "secret_field_paths", _patched)
+
+    def test_bad_declaration_is_a_server_error_not_a_client_400(
+        self, client: TestClient, seam_config_dir, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._inject_bad_declaration(monkeypatch, "bad..path")
+
+        response = client.post(READ_URL, json={"namespace": "bot", "paths": []})
+
+        assert response.status_code == 500, f"服务端声明错误不该是 {response.status_code}：{response.text[:200]}"
+        body = response.json()
+        assert body["error_code"] == "SYS_INTERNAL_ERROR"
+        assert "bad..path" in body["error_message"], "报错要指名道姓说哪条声明坏了"
+
+    def test_client_side_bad_path_is_still_a_400(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """反向守卫：**客户端**给错路径仍必须是 400——两类状态要真的分开，不是一律 500。"""
+        response = client.post(READ_URL, json={"namespace": "bot", "paths": ["chat..max_context_size"]})
+
+        assert response.status_code == 400, response.text[:200]
+        assert response.json()["error_code"] == "PARAM_INVALID"
+
+    def test_unknown_path_is_still_a_400(self, client: TestClient, seam_config_dir) -> None:
+        """另一类客户端错：路径合法但字段不存在 ⇒ 仍是 400。"""
+        response = client.post(READ_URL, json={"namespace": "bot", "paths": ["chat.not_a_field"]})
+
+        assert response.status_code == 400, response.text[:200]
+        assert response.json()["error_code"] == "PARAM_INVALID"
+
+    def test_declaration_error_is_not_a_config_path_error(self) -> None:
+        """结构守卫：``SecretDeclarationError`` **不能**是 ``ConfigPathError`` 的子类。
+
+        它一旦成了子类，就会被端点那条 400 分支接走——F12 原样复发。
+        （这条不需要跑服务，改类型的人会立刻看到它红。）
+        """
+        from src.webui.config_paths import ConfigPathError
+
+        assert not issubclass(config_secrets.SecretDeclarationError, ConfigPathError)
+
+    def test_valid_declaration_table_produces_no_server_error(
+        self, client: TestClient, seam_config_dir
+    ) -> None:
+        """反例守卫：正常声明表下整平面读必须 200——别把"防误报"写成"一律 500"。"""
+        response = client.post(READ_URL, json={"namespace": "bot", "paths": []})
+
+        assert response.status_code == 200, response.text[:200]
