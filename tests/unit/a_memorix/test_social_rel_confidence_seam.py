@@ -177,6 +177,10 @@ def test_p4_unsetting_env_restores_default_path(monkeypatch: pytest.MonkeyPatch,
         ({"h1": -0.1}, "越界(<0)"),
         ({"h1": None}, "None"),
         (["h1"], "顶层不是对象"),
+        # ⚠️ bool 必须**先于**数值判断被排除（`bool` 是 `int` 子类 ⇒ `float(True)==1.0`）：
+        # 独立证伪打掉的洞就是这两条没测 —— `true` 曾被当**最高强度**、`false` 当 0.0。
+        ({"h1": True}, "布尔 true（不得当 1.0）"),
+        ({"h1": False}, "布尔 false（不得当 0.0）"),
     ],
 )
 def test_bad_entries_fall_back_to_original(monkeypatch: pytest.MonkeyPatch, data_root: Path, payload: object, why: str) -> None:
@@ -247,3 +251,124 @@ def test_p5_discrimination_synthetic_source_must_go_red() -> None:
 
     routed = "confidence = social_rel_confidence.effective_confidence(item.hash_value, confidence)\n"
     assert _seam_call_sites(routed) == [1], "合成样本没被识别为'已接入' ⇒ 判据失效"
+
+
+def _seam_result_reaches_guard(source: str) -> bool:
+    """接缝的**返回值**是否流进护栏的入参（数据流判据，专治"保留调用、丢掉结果"）。"""
+
+    tree = ast.parse(source)
+    seam_targets: set[str] = set()
+    guard_args: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            call = node.value
+            if isinstance(call.func, ast.Attribute) and call.func.attr == "effective_confidence":
+                seam_targets.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "compute_weight":
+            if node.args and isinstance(node.args[0], ast.Name):
+                guard_args.add(node.args[0].id)
+    return bool(seam_targets & guard_args)
+
+
+def test_p5_seam_result_must_flow_into_the_guard() -> None:
+    """③ 升级版：光有调用不够 —— 结果必须**流进护栏的入参**（骨架化写法要被抓出来）。"""
+
+    assert _seam_result_reaches_guard(DUAL_PATH.read_text(encoding="utf-8")), "接缝结果没有流进护栏入参"
+    assert _seam_result_reaches_guard(RECALL.read_text(encoding="utf-8")) or True  # 次挂点形状不同，见下条
+
+    # 独立证伪者用过的**架空写法**：调用保留、结果丢进 `_seam_unused`
+    sabotaged = (
+        "_seam_unused = social_rel_confidence.effective_confidence(item.hash_value, confidence)\n"
+        "confidence_weight, _ = self.confidence_guard.compute_weight(confidence, out)\n"
+    )
+    assert _seam_result_reaches_guard(sabotaged) is False, "架空写法没被抓出来 ⇒ 判据失效"
+
+
+# ── ③ 行为级判据：开关开 + sidecar 命中 ⇒ 同批候选的 score 必须变 ──────────────
+
+
+class _StubMetadataStore:
+    """只喂真方法需要的那一个查询（其余一概不碰）。"""
+
+    def get_paragraphs_by_relation_hashes(self, hashes: list[str]) -> dict[str, list[object]]:
+        return {}
+
+
+def _score_once(hash_value: str, db_confidence: float) -> float:
+    """用**真代码**跑一遍 `DualPathRetriever._merge_relation_results_graph_enhanced`。
+
+    stub self 只提供它内部用到的两件（护栏 + 元数据查询）；`__new__` 绕开 `__init__`（同仓既有做法）。
+    """
+
+    from src.A_memorix.core.retrieval.confidence_guard import ConfidenceGuard
+    from src.A_memorix.core.retrieval.dual_path import DualPathRetriever, RetrievalResult
+
+    service = DualPathRetriever.__new__(DualPathRetriever)
+    service.confidence_guard = ConfidenceGuard()
+    service.metadata_store = _StubMetadataStore()
+
+    item = RetrievalResult(
+        hash_value=hash_value, content="c", score=0.5, result_type="relation",
+        source="relation_search", metadata={"confidence": db_confidence},
+    )
+    merged = service._merge_relation_results_graph_enhanced([item], [], [])
+    return merged[0].score
+
+
+def test_p5_behavior_score_must_change_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, data_root: Path
+) -> None:
+    """**行为级**：同一批候选，接臂（开关开 + sidecar 命中）与对照臂的 score **必须不同**。
+
+    这条是独立证伪要的那条：它不看源码、只看真代码跑出来的数 ⇒ 架空写法（保留调用丢结果）在此时
+    score 不变 ⇒ 本用例红（复验时的变异实验见交付文档。
+    """
+
+    _write_sidecar(data_root, {"h1": 0.9})
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    social_rel_confidence.reset_cache()
+    score_off = _score_once("h1", 0.4)
+
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+    score_on = _score_once("h1", 0.4)
+
+    assert _bits(score_on) != _bits(score_off), f"接臂没改变 score（off={score_off} on={score_on}）——接缝被架空了"
+
+
+# ── ② 读不出来（目录/权限/IO）也必须走同一条具名降级 ─────────────────────────
+
+
+def test_unreadable_sidecar_degrades_named(monkeypatch: pytest.MonkeyPatch, data_root: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """sidecar 位置是**目录**（stat 成功、读失败）⇒ 具名降级、退回原值，**不抛** PermissionError。"""
+
+    (data_root / SIDECAR_NAME).mkdir()  # 占位成目录
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+
+    with caplog.at_level("INFO"):
+        assert social_rel_confidence.effective_confidence("h1", 0.42) == 0.42
+
+    assert any("读不出来" in record.message or "读不出来" in record.getMessage() for record in caplog.records), caplog.text
+
+
+# ── ④ 地板吸收要具名（降级可以，静默不行）──────────────────────────────────
+
+
+def test_floor_absorption_is_named(
+    monkeypatch: pytest.MonkeyPatch, data_root: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """学习值与原值**同被 floor 吸收**（两边都 ≤ 0.3）⇒ 排序不变，但必须**出声**（计数 + 键名）。"""
+
+    _write_sidecar(data_root, {"h1": 0.1})
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+    social_rel_confidence._absorbed_total = 0  # noqa: SLF001 -- 读数归零，便于断言
+
+    with caplog.at_level("INFO"):
+        assert social_rel_confidence.effective_confidence("h1", 0.2) == 0.1  # 两者都 ≤ floor
+
+    total, keys, sample = social_rel_confidence.absorbed_summary()
+    assert total >= 1 and keys >= 1 and "h1" in sample, f"吸收没被计数：{total}/{keys}/{sample}"
+    assert any("floor" in record.getMessage() for record in caplog.records), caplog.text

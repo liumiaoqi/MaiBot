@@ -37,6 +37,8 @@ from typing import Any, Iterable, List, Mapping
 from src.common.logger import get_logger
 from src.common.runtime_paths import resolve_data_file
 
+from .confidence_guard import CONFIDENCE_FLOOR
+
 logger = get_logger("social_rel_confidence")
 
 ENV_VAR = "MAIBOT_SOCIAL_REL_CONFIDENCE"
@@ -63,6 +65,10 @@ class SocialRelConfidenceSeam:
         self._cache_key: tuple[str, int, int] | None = None
         self._cache: dict[str, float] = {}
         self._logged_state: str = ""
+        # 地板吸收（④）：计数 + 摘要，**不逐条刷屏**
+        self._absorbed_total: int = 0
+        self._absorbed_keys: set[str] = set()
+        self._absorbed_logged: int = 0
 
     # ── 对外 ────────────────────────────────────────────────────────────
 
@@ -83,7 +89,14 @@ class SocialRelConfidenceSeam:
         if key == self._cache_key:
             return self._cache
 
-        raw = path.read_text(encoding="utf-8")
+        # ⚠️ 读也要在 try 里：sidecar 位置可能是**目录**（stat 成功、读失败）或缺权限
+        # ⇒ 落到**同一条具名降级**上，而不是抛 PermissionError/IsADirectoryError 打断检索。
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            self._log_state(f"sidecar 读不出来（{path}，{type(exc).__name__}）⇒ 不覆盖，走默认路径")
+            self._cache_key, self._cache = key, {}
+            return {}
         table = self._parse(raw, path)
         self._cache_key, self._cache = key, table
         self._log_state(f"已载入 sidecar（{path}）：{len(table)} 条强度")
@@ -97,15 +110,47 @@ class SocialRelConfidenceSeam:
         return self.strengths().get(str(hash_value))
 
     def effective_confidence(self, hash_value: str, fallback: float) -> float:
-        """接缝的**唯一取数语义**：有学习强度用它，否则返回 `fallback` **原值**（不做任何变换）。"""
+        """接缝的**唯一取数语义**：有学习强度用它，否则返回 `fallback` **原值**（不做任何变换）。
+
+        ⚠️ 地板吸收的可区分性（④）：接缝给的学习值若与**原值同被 `CONFIDENCE_FLOOR` 吸收**
+        （`max(x, floor)` 两边相等），排序**不会被这次接入改变** —— 那与"接缝没生效"在现场
+        **不可区分**。按"降级可以、静默不行"，这里**计数 + 摘要出声**（不逐条刷屏）。
+        """
 
         learned = self.override(hash_value)
-        return fallback if learned is None else learned
+        if learned is None:
+            return fallback
+        if max(learned, CONFIDENCE_FLOOR) == max(float(fallback), CONFIDENCE_FLOOR):
+            self._note_floor_absorbed(str(hash_value))
+        return learned
+
+    def absorbed_summary(self) -> tuple[int, int, list[str]]:
+        """地板吸收的读数（测试/巡检用）：(总次数, 已被吸收的键数, 键样例)。"""
+
+        return self._absorbed_total, len(self._absorbed_keys), sorted(self._absorbed_keys)[:5]
+
+    def _note_floor_absorbed(self, hash_value: str) -> None:
+        """记一次"学习值被地板吸收"；**每 100 次或首次**报一条具名摘要（计数 + 键名样例）。"""
+
+        self._absorbed_total += 1
+        self._absorbed_keys.add(hash_value)
+        if self._absorbed_total == 1 or self._absorbed_total - self._absorbed_logged >= 100:
+            self._absorbed_logged = self._absorbed_total
+            logger.info(
+                "social_rel 强度接缝：本次学习值被 floor(%.1f) 吸收、未影响排序 —— "
+                "累计 %d 次 / %d 个键（样例：%s）",
+                CONFIDENCE_FLOOR, self._absorbed_total, len(self._absorbed_keys),
+                ", ".join(sorted(self._absorbed_keys)[:3]),
+            )
 
     def snapshot_items(self, items: Iterable[Any]) -> List[Any]:
-        """同刻对照的候选快照：**深拷贝**（原因见模块 docstring 的 C-2 段）。
+        """⚠️ **未接线原型（供未来 A/B 实验用）——生产零调用点**（`rg snapshot_items` 只有本模块定义
+        与一处测试；按 `AGENTS §七 #4`：零接线的东西必须显式标注，别让它看起来像生产防护）。
 
-        在 `dual_path.py:992`（候选已定、尚未打分）处调用一次，两臂共用同一份内容。
+        它的用途是 C-2 记下的那个坑：同刻对照要在 `dual_path.py:992`（候选已定、尚未打分）取一次快照，
+        而 `:1020-1023` **就地改写 `meta`**、`:1030` 写 `item.score` ⇒ 快照必须**深拷贝**，
+        否则第二臂读到被第一臂改过的对象、对照作废。
+        **阶段 C 首件只做接缝本身；两臂实验的调用点尚未接线** —— 接线时按上面这句话用。
         """
 
         return copy.deepcopy(list(items))
@@ -138,6 +183,11 @@ class SocialRelConfidenceSeam:
         table: dict[str, float] = {}
         skipped: list[str] = []
         for key, value in payload.items():
+            # ⚠️ **bool 必须先排**：Python 的 `bool` 是 `int` 子类 ⇒ `float(True) == 1.0`，
+            # 会把 `{"k": true}` 吃成**最高强度**（false ⇒ 0.0）—— 正好是"绝不把『没学到』当高置信"的反面。
+            if isinstance(value, bool):
+                skipped.append(str(key))
+                continue
             try:
                 number = float(value)
             except (TypeError, ValueError):
@@ -149,7 +199,7 @@ class SocialRelConfidenceSeam:
             table[str(key)] = number
         if skipped:
             logger.warning(
-                "social_rel 强度 sidecar 有 %d 条非法条目（非数值/越界）已跳过：%s",
+                "social_rel 强度 sidecar 有 %d 条非法条目（布尔/非数值/越界）已跳过：%s",
                 len(skipped), ", ".join(skipped[:5]),
             )
         return table
