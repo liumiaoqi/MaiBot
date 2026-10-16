@@ -2258,6 +2258,33 @@ class IpcBridgePort(Protocol):
         """
 
 
+@dataclass(frozen=True)
+class PluginRuntimeV2State:
+    """v2 插件状态快照（2026-10-17 新案）— 宿主侧**可取**的插件状态投影。
+
+    ⚠️ 与 `PluginStateSnapshot` 是两类东西，勿混：那个是 v1 `IpcBridgePort` 的
+    词表（loaded/initialized/running/stopped/error）。本类是 v2 宿主端点投影出来的
+    事实面：**激活/跳过登记**（`ActivationCoordinator`）+ **Runner 连接**（`RunnerRegistry`）。
+
+    字段说明（全部来自宿主内存，无 RPC、无 I/O）：
+    - `plugin_id`: 插件 ID（激活/跳过/连接三处同一命名空间）
+    - `state`: 投影状态，取值闭集 `running` / `connecting` / `skipped` / `error`
+      （`running`=激活且有 READY 连接；`connecting`=激活但连接未就绪；
+      `skipped`=被激活编排跳过；`error`=激活但连接已断）
+    - `activated`: 是否在 `ActivationCoordinator.activated` 中
+    - `skipped_reason`: 被跳过时的原因（未跳过为空串）
+    - `connection_state`: Runner 连接状态原文（`ConnectionState.value`，无连接为空串）
+    - `tool_count`: 该连接注册的工具数（无连接为 0）
+    """
+
+    plugin_id: str
+    state: str  # running/connecting/skipped/error
+    activated: bool = False
+    skipped_reason: str = ""
+    connection_state: str = ""
+    tool_count: int = 0
+
+
 @runtime_checkable
 class PluginRuntimeV2Port(Protocol):
     """生产插件运行时（v2 宿主端点）存活端口 — 核心据此判定运行时是否真的在跑。
@@ -2271,6 +2298,19 @@ class PluginRuntimeV2Port(Protocol):
     @property
     def is_running(self) -> bool:
         """v2 宿主端点是否正在监听（活体状态，不是"对象已构造"）。"""
+
+    def list_plugin_states(self) -> List[PluginRuntimeV2State]:
+        """查询宿主侧全部插件状态快照（内存投影，无 RPC、无 I/O）。
+
+        ⚠️ 数据源边界（硬）：只准投影 `ActivationCoordinator.activated/skipped`
+        + `RunnerRegistry` 连接快照。**不许**拿 `PluginRefcount.state`
+        （LIVE/COMING/GOING/UNFORMED/ERROR）当数据源——它活在 **Runner 子进程**
+        （`runner/endpoint.py`），宿主无 RPC 可取，拿它做数据源就是伪造。
+
+        Returns:
+            PluginRuntimeV2State 列表；一个插件都没登记时返回**空列表**，
+            调用方（健康检查）必须据此**具名出声**，不得静默绿。
+        """
 
 
 @runtime_checkable

@@ -153,6 +153,7 @@ def _load_whitelist(path: Path) -> list[WhitelistRule]:
 def _build_call_index(
     root: Path,
     extra_roots: list[Path] | None = None,
+    stats: dict[str, int] | None = None,
 ) -> dict[str, set[str]]:
     """全仓库调用索引：函数/类名 → 调用文件集合。
 
@@ -160,15 +161,29 @@ def _build_call_index(
     供检查 1（类构造）/检查 2/3（入口函数）跨文件比对。
 
     v3 精化：extra_roots 支持扫描 src/ 外的目录（如 scripts/）。
+    stats（可选出参）：回填 scanned_files / call_nodes 两个计数，供空数据源断言用。
     """
     index: dict[str, set[str]] = {}
+    call_nodes = 0
+    # ⚠️ root_* 只数**主根**：extra_roots（scripts/）里必然一堆调用，
+    # 拿"全局计数"当空数据源判据会被 scripts/ 直接喂饱 ⇒ 闸永远不响（假阴性）。
+    root_call_nodes = 0
+    root_scanned_files = 0
+    scanned_files = 0
     scan_roots = [root]
     if extra_roots:
         scan_roots.extend(extra_roots)
     for scan_root in scan_roots:
+        # ⚠️ 必须比 **resolve 后**的路径：rglob 在绝对 root 上返回绝对路径、
+        # 在相对 root 上返回相对路径，而调用方可能混着传 ⇒ 直接 `==` 会悄悄判错。
+        root_resolved = root.resolve()
+        is_root = scan_root.resolve() == root_resolved
         for path in sorted(scan_root.rglob("*.py")):
             if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts or "node_modules" in path.parts:
                 continue
+            scanned_files += 1
+            if is_root:
+                root_scanned_files += 1
             try:
                 source = path.read_text(encoding="utf-8", errors="replace")
                 tree = ast.parse(source)
@@ -177,6 +192,9 @@ def _build_call_index(
             for node in ast.walk(tree):
                 # 直接调用：ClassName() 或 func()
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    call_nodes += 1
+                    if is_root:
+                        root_call_nodes += 1
                     index.setdefault(node.func.id, set()).add(str(path))
                     # 注册函数：register(ClassName) → 索引 ClassName
                     if node.func.id in _REGISTRY_FUNCTIONS and node.args:
@@ -185,14 +203,50 @@ def _build_call_index(
                             index.setdefault(first_arg.id, set()).add(str(path))
                 # 属性调用：obj.method() → 索引 method（供检查 9 set_* 跨文件调用检测）
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    call_nodes += 1
+                    if is_root:
+                        root_call_nodes += 1
                     index.setdefault(node.func.attr, set()).add(str(path))
                 # 注册表赋值：_REGISTRY['foo'] = ClassName → 索引 ClassName
+                # ⚠️ 同时认 `ast.AnnAssign`（2026-10-17 修）：注解式写法
+                # `_REGISTRY['foo']: type = FooClass` 只有 AnnAssign 节点，
+                # 旧版只认 Assign ⇒ 这类间接构造**整个索引不到** ⇒ 检查 1 误报
+                # 零创建（或反过来，把有构造的类看漏）——"抽取器太窄"那族。
                 if isinstance(node, ast.Assign):
                     for t in node.targets:
-                        if isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name):
-                            if isinstance(node.value, ast.Name) and node.value.id not in ("self", "cls"):
-                                index.setdefault(node.value.id, set()).add(str(path))
+                        _index_registry_target(t, node.value, index, str(path))
+                elif isinstance(node, ast.AnnAssign):
+                    # AnnAssign 的 value 可能是 None（纯注解 `x: int`）——必须挡掉
+                    if node.value is not None:
+                        _index_registry_target(node.target, node.value, index, str(path))
+    # 空数据源自检：扫了主根文件、却一个调用节点都没抽到 ⇒ 主根索引面失效，
+    # 跨文件判定全都会"没查到 ⇒ 不报"（静默绿）。索引空不是"仓库没调用"，是抽取器没在看。
+    if root_scanned_files > 0 and root_call_nodes == 0:
+        print(
+            f"[n1] 空数据源告警：主根扫了 {root_scanned_files} 个 .py，"
+            "调用节点抽取为 0 条（跨文件接线判定因此全部失效）",
+            file=sys.stderr,
+        )
+    if stats is not None:
+        stats["scanned_files"] = scanned_files
+        stats["call_nodes"] = call_nodes
+        stats["root_call_nodes"] = root_call_nodes
+        stats["root_scanned_files"] = root_scanned_files
     return index
+
+
+def _index_registry_target(
+    target: ast.AST, value: ast.AST, index: dict[str, set[str]], path_str: str,
+) -> None:
+    """把 `TARGET[...] = ClassName` 里的 ClassName 记进调用索引。
+
+    供 `ast.Assign` / `ast.AnnAssign` 两种赋值共用（注解式写法越来越多，
+    抽取器只认一种就会静默漏掉另一种）。
+    """
+    if not (isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name)):
+        return
+    if isinstance(value, ast.Name) and value.id not in ("self", "cls"):
+        index.setdefault(value.id, set()).add(path_str)
 
 
 def _scan_file(
@@ -486,6 +540,11 @@ def main() -> int:
     parser.add_argument("--whitelist", default="scripts/.n1_whitelist.json", help="白名单文件路径")
     parser.add_argument("--ci", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="空数据源断言：扫了 .py 却没抽到任何调用节点即 exit(1)",
+    )
     args = parser.parse_args()
 
     whitelist = _load_whitelist(Path(args.whitelist))
@@ -497,12 +556,25 @@ def main() -> int:
     checks = {"2", "4", "5", "6"} if not args.ci else {"1", "2", "3", "4", "5", "6", "7", "8", "9"}
 
     violations = []
+    file_total = 0
+    empty_index_roots: list[str] = []
     for scan in args.scan:
         root = Path(scan)
         if not root.exists():
             print(f"[n1] 扫描目录不存在: {root}", file=sys.stderr)
             return 1
         violations.extend(_scan_dir(root, checks, whitelist))
+        file_total += len(list(root.rglob("*.py")))
+        if args.strict:
+            stats: dict[str, int] = {}
+            _build_call_index(root, extra_roots=[Path("scripts")], stats=stats)
+            if stats.get("root_scanned_files", 0) > 0 and stats.get("root_call_nodes", 0) == 0:
+                empty_index_roots.append(str(root))
+                print(
+                    f"[n1] 空数据源：{root} 主根扫了 {stats['root_scanned_files']} 个 .py，"
+                    "调用节点 0 条",
+                    file=sys.stderr,
+                )
 
     violations = _dedup(violations)
 
@@ -514,7 +586,10 @@ def main() -> int:
         if args.ci and violations:
             print(f"[n1] 接线检查失败：{len(violations)} 个违反", file=sys.stderr)
             return 1
-        print(f"[n1] 接线检查通过：{len(violations)} 个违反 / 仓库扫描 {len(list(root.rglob('*.py')))} 个文件")
+        if args.strict and empty_index_roots:
+            print("[n1] 接线检查失败：调用索引为空（抽取器没在看 ≠ 接线正常）", file=sys.stderr)
+            return 1
+        print(f"[n1] 接线检查通过：{len(violations)} 个违反 / 仓库扫描 {file_total} 个文件")
 
     return 0
 

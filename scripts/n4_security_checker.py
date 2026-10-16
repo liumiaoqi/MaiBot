@@ -131,14 +131,38 @@ def _get_kwarg_names(call: ast.Call) -> set[str]:
 
 
 def _find_router_defs(tree: ast.AST) -> list[tuple[ast.Call, int]]:
-    """找所有 APIRouter(...) 调用，返回 (call_node, lineno) 列表。"""
+    """找所有 APIRouter(...) 调用，返回 (call_node, lineno) 列表。
+
+    ⚠️ 同时认 `ast.Assign` 与 `ast.AnnAssign`（2026-10-17 修）：
+    `router: APIRouter = APIRouter(...)` 是注解式写法，**只有 AnnAssign 节点**。
+    旧版只认 Assign ⇒ 整个文件抽到 0 个 router ⇒ `_check_no_auth` 直接 return ⇒
+    **抽到 0 条、照样绿**（"空数据源"那族）。
+    """
     result = []
     for node in ast.walk(tree):
+        # AnnAssign 的 value 可能是 None（纯注解 `x: int`）——必须挡掉
         if isinstance(node, ast.Assign):
-            for val in [node.value]:
-                if isinstance(val, ast.Call) and _get_call_name(val) == "APIRouter":
-                    result.append((val, node.lineno))
+            values = [node.value]
+        elif isinstance(node, ast.AnnAssign):
+            values = [node.value] if node.value is not None else []
+        else:
+            continue
+        for val in values:
+            if isinstance(val, ast.Call) and _get_call_name(val) == "APIRouter":
+                result.append((val, node.lineno))
     return result
+
+
+def _has_apirouter_call_node(tree: ast.AST) -> bool:
+    """树里是否**出现** APIRouter(...) 调用（不看被赋给谁，只看调用了）。
+
+    用于"空数据源"自检：源里有 APIRouter 调用但 `_find_router_defs` 抽到 0 个
+    ⇒ 抽取器漏了某写法，必须出声（而不是静静地什么都不查）。
+    """
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _get_call_name(node) == "APIRouter":
+            return True
+    return False
 
 
 def _router_has_auth(router_call: ast.Call) -> bool:
@@ -465,6 +489,25 @@ def _scan_dir(root: Path, checks: set[str], whitelist: list[WhitelistRule]) -> l
     return all_violations
 
 
+def _find_empty_extraction(root: Path) -> list[str]:
+    """空数据源自检：源里有 APIRouter 调用、抽取器却抽到 0 个 → 返回那些文件。
+
+    这是"抽取器太窄 ⇒ 抽到 0 条 ⇒ 静默绿"那族的通用闸（2026-10-17）。
+    只看抽取事实，不判"该不该有 router"。
+    """
+    offenders: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if ".venv" in path.parts or "__pycache__" in path.parts or ".git" in path.parts:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        if _has_apirouter_call_node(tree) and not _find_router_defs(tree):
+            offenders.append(str(path))
+    return offenders
+
+
 def _dedup(vc: list[SecurityViolation]) -> list[SecurityViolation]:
     """按 (file, line, check, message) 去重。"""
     seen = set()
@@ -485,20 +528,39 @@ def main() -> int:
     parser.add_argument("--whitelist", default="scripts/.n4_whitelist.json", help="白名单文件路径")
     parser.add_argument("--ci", action="store_true", help="CI 模式：P0 违反即 exit(1)")
     parser.add_argument("--json", action="store_true", help="JSON 报告输出")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="空数据源自检：源里有 APIRouter 调用却抽到 0 个 router 即 exit(1)",
+    )
     args = parser.parse_args()
 
     whitelist = _load_whitelist(Path(args.whitelist))
     checks = _ALL_CHECKS
 
     violations = []
+    file_total = 0
+    empty_extraction: list[str] = []
     for scan in args.scan:
         root = Path(scan)
         if not root.exists():
             print(f"[n4] 扫描目录不存在: {root}", file=sys.stderr)
             return 1
         violations.extend(_scan_dir(root, checks, whitelist))
+        file_total += len(list(root.rglob("*.py")))
+        if args.strict:
+            empty_extraction.extend(_find_empty_extraction(root))
 
     violations = _dedup(violations)
+
+    if empty_extraction:
+        # 空数据源出声：抽到 0 条不是"没问题"，是"没在看"。
+        print(
+            f"[n4] 空数据源告警：{len(empty_extraction)} 个文件有 APIRouter 调用但抽取到 0 个 router",
+            file=sys.stderr,
+        )
+        for f in empty_extraction[:10]:
+            print(f"  - {f}", file=sys.stderr)
 
     if args.json:
         print(json.dumps([v.to_dict() for v in violations], ensure_ascii=False, indent=2))
@@ -510,7 +572,10 @@ def main() -> int:
         if args.ci and p0_count > 0:
             print(f"[n4] 安全门禁失败：{p0_count} 个 P0 违反 + {p1_count} 个 P1 候选", file=sys.stderr)
             return 1
-        print(f"[n4] 安全门禁通过：{p0_count} 个 P0 + {p1_count} 个 P1 候选 / 扫描 {len(list(root.rglob('*.py')))} 个文件")
+        if args.strict and empty_extraction:
+            print("[n4] 安全门禁失败：存在空数据源（抽取器抽不到 ≠ 没风险）", file=sys.stderr)
+            return 1
+        print(f"[n4] 安全门禁通过：{p0_count} 个 P0 + {p1_count} 个 P1 候选 / 扫描 {file_total} 个文件")
 
     return 0
 

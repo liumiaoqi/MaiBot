@@ -136,6 +136,143 @@ class TestHostEndpointReload:
         sv.reload_all.assert_awaited_once_with(100)
 
 
+class TestHostEndpointPluginStates:
+    """get_plugin_states() 投影（2026-10-17）— 宿主侧可取事实，不碰 Runner 侧 refcount。"""
+
+    def test_empty_when_nothing_registered(self):
+        """一个插件都没登记 ⇒ 空列表（健康检查据此具名出声）。"""
+        ep = HostEndpoint()
+        assert ep.get_plugin_states() == []
+
+    def test_running_when_activated_and_ready(self):
+        """激活 + READY 连接 ⇒ state=running，带 tool_count。"""
+        ep = HostEndpoint()
+        coord = MagicMock()
+        coord.activated = {"p1"}
+        coord.skipped = {}
+        ep.set_activation_coordinator(coord)
+        conn = _make_connection("r1", ConnectionState.READY)
+        conn.plugin_id = "p1"
+        conn.tools = [object(), object()]
+        ep._registry.register(conn)
+
+        states = ep.get_plugin_states()
+        assert len(states) == 1
+        s = states[0]
+        assert s.plugin_id == "p1"
+        assert s.state == "running"
+        assert s.activated is True
+        assert s.connection_state == "ready"
+        assert s.tool_count == 2
+
+    def test_skipped_when_activation_failed(self):
+        """spawn 失败落 skipped ⇒ state=skipped，reason 透传（运维可见）。"""
+        ep = HostEndpoint()
+        coord = MagicMock()
+        coord.activated = set()
+        coord.skipped = {"p_bad": "激活失败: spawn 失败: spawn_timeout"}
+        ep.set_activation_coordinator(coord)
+
+        states = ep.get_plugin_states()
+        assert len(states) == 1
+        assert states[0].plugin_id == "p_bad"
+        assert states[0].state == "skipped"
+        assert states[0].activated is False
+        assert "spawn_timeout" in states[0].skipped_reason
+
+    def test_connecting_when_activated_without_connection(self):
+        """已激活但连接面还没登记 ⇒ state=connecting（不假称 running）。"""
+        ep = HostEndpoint()
+        coord = MagicMock()
+        coord.activated = {"p1"}
+        coord.skipped = {}
+        ep.set_activation_coordinator(coord)
+
+        states = ep.get_plugin_states()
+        assert len(states) == 1
+        assert states[0].state == "connecting"
+        assert states[0].connection_state == ""
+
+    def test_error_when_connection_disconnected(self):
+        """连接已断 ⇒ state=error（只报事实，不猜原因）。"""
+        ep = HostEndpoint()
+        conn = _make_connection("r1", ConnectionState.DISCONNECTED)
+        conn.plugin_id = "p1"
+        ep._registry.register(conn)
+
+        states = ep.get_plugin_states()
+        assert len(states) == 1
+        assert states[0].state == "error"
+        assert states[0].connection_state == "disconnected"
+
+    def test_no_coordinator_still_projects_connections(self):
+        """未注入 coordinator 时仍投影连接面（不因缺一件就全空）。"""
+        ep = HostEndpoint()
+        conn = _make_connection("r1", ConnectionState.READY)
+        conn.plugin_id = "p1"
+        ep._registry.register(conn)
+
+        states = ep.get_plugin_states()
+        assert [s.plugin_id for s in states] == ["p1"]
+        assert states[0].state == "running"
+
+
+class TestPluginStatesSpawnFailureE2E:
+    """spawn 失败 → 真 ActivationCoordinator → 投影可见（走生产链，非手搓 skipped）。"""
+
+    async def test_spawn_failed_plugin_lands_in_skipped(self, tmp_path):
+        from src.plugin_runtime_v2.host.activation_coordinator import ActivationCoordinator
+        from tests.plugin_runtime_v2.zg16_3_helpers import MockSupervisor, write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.good")
+        write_plugin_dir(tmp_path, "org.bad")
+        supervisor = MockSupervisor(fail_ids={"org.bad"}, reason="spawn_timeout")
+        coordinator = ActivationCoordinator(supervisor)
+
+        ep = HostEndpoint()
+        ep.set_activation_coordinator(coordinator)
+        plan = await coordinator.plan_startup(tmp_path)
+
+        assert set(plan.waves[0]) == {"org.bad", "org.good"}
+        assert coordinator.activated == {"org.good"}
+        assert "org.bad" in coordinator.skipped
+
+        states = {s.plugin_id: s for s in ep.get_plugin_states()}
+        assert states["org.good"].state == "connecting"   # 已激活但无连接
+        assert states["org.good"].activated is True
+        assert states["org.bad"].state == "skipped"
+        assert states["org.bad"].activated is False
+        assert "spawn_timeout" in states["org.bad"].skipped_reason
+
+    async def test_all_skipped_still_non_empty(self, tmp_path):
+        """全部 spawn 失败 ⇒ 状态面仍非空（0 条的含义留给"真没插件"）。"""
+        from src.plugin_runtime_v2.host.activation_coordinator import ActivationCoordinator
+        from tests.plugin_runtime_v2.zg16_3_helpers import MockSupervisor, write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.bad")
+        supervisor = MockSupervisor(fail_ids={"org.bad"}, reason="spawn_timeout")
+        coordinator = ActivationCoordinator(supervisor)
+        ep = HostEndpoint()
+        ep.set_activation_coordinator(coordinator)
+        await coordinator.plan_startup(tmp_path)
+
+        states = ep.get_plugin_states()
+        assert len(states) == 1
+        assert states[0].state == "skipped"
+
+    async def test_no_plugin_dir_yields_empty(self, tmp_path):
+        """插件目录一个都没有 ⇒ 0 条（健康检查据此具名 UNKNOWN，不是静默绿）。"""
+        from src.plugin_runtime_v2.host.activation_coordinator import ActivationCoordinator
+        from tests.plugin_runtime_v2.zg16_3_helpers import MockSupervisor
+
+        coordinator = ActivationCoordinator(MockSupervisor())
+        ep = HostEndpoint()
+        ep.set_activation_coordinator(coordinator)
+        await coordinator.plan_startup(tmp_path / "nonexistent")
+
+        assert ep.get_plugin_states() == []
+
+
 class TestHostEndpointStop:
     """stop 生命周期：逆序卸载/fallback/无 server/cleanup_task。"""
 

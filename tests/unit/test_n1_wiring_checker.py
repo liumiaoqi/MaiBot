@@ -179,3 +179,83 @@ class TestIndirectConstruction:
         p = _write_fixture(tmp_path, "plugins/foo.py", "class Foo:\n    pass\n")
         violations = _scan_check1(p)
         assert not any("Foo" in v.message for v in violations)
+
+
+# ── 注解式注册表赋值（ast.AnnAssign）：抽取器不得静默漏掉 ──────
+
+
+class TestAnnotatedRegistryAssign:
+    """`_REGISTRY['foo']: type = FooClass` —— 只有 ast.AnnAssign 节点。
+
+    2026-10-17 修：旧 `_build_call_index` 只认 `ast.Assign` ⇒ 注解式写法索引不到
+    ⇒ 检查 1 抽到 0 条间接构造、静默放过或误报（"抽取器太窄"那族）。
+    """
+
+    def test_annotated_registry_assign_indexed(self, tmp_path):
+        """⭐ 反向自检钉：注解式注册表赋值必须被索引（否则下面那条会红）。"""
+        p = _write_fixture(
+            tmp_path, "src/foo.py",
+            "class FooClass:\n    pass\n\n_REGISTRY: dict = {}\n_REGISTRY['foo']: type = FooClass\n",
+        )
+        idx = _build_call_index(p.parent)
+        assert "FooClass" in idx
+
+    def test_annotated_indirect_construction_not_reported(self, tmp_path):
+        """注解式间接构造 ⇒ 检查 1 不报「零创建候选: FooClass」。"""
+        p = _write_fixture(
+            tmp_path, "src/foo.py",
+            "class FooClass:\n    pass\n\n_REGISTRY: dict = {}\n_REGISTRY['foo']: type = FooClass\n",
+        )
+        violations = _scan_check1(p, call_index=_build_call_index(p.parent))
+        assert not any("FooClass" in v.message for v in violations)
+
+    def test_plain_registry_assign_still_indexed(self, tmp_path):
+        """回归：老写法 `_REGISTRY['foo'] = FooClass` 仍被索引（别把闸弄成恒红）。"""
+        p = _write_fixture(
+            tmp_path, "src/foo.py",
+            "class FooClass:\n    pass\n\n_REGISTRY = {}\n_REGISTRY['foo'] = FooClass\n",
+        )
+        assert "FooClass" in _build_call_index(p.parent)
+
+    def test_bare_annotation_not_indexed(self, tmp_path):
+        """纯注解 `FooClass: type`（AnnAssign.value is None）不得炸/不得瞎索引。"""
+        p = _write_fixture(tmp_path, "src/foo.py", "class FooClass:\n    pass\n\n_OTHER: type\n")
+        idx = _build_call_index(p.parent)
+        assert "_OTHER" not in idx
+
+    def test_self_annotated_registry_assign_not_indexed(self, tmp_path):
+        """`self._registry['k']: X = self` 不得把 self 索引进去。"""
+        p = _write_fixture(
+            tmp_path, "src/foo.py",
+            "class Foo:\n    def bar(self):\n        self._registry: dict = {}\n"
+            "        self._registry['k']: object = self\n",
+        )
+        assert "self" not in _build_call_index(p.parent)
+
+
+class TestEmptyCallIndexGate:
+    """空数据源闸：扫了文件却抽不到任何调用节点 ⇒ 必须出告警（不是静默绿）。"""
+
+    def test_warning_when_no_call_nodes(self, tmp_path, capsys):
+        """合成"索索引面失效"：文件里没有任何 Call 节点 ⇒ stderr 出告警。"""
+        _write_fixture(tmp_path, "src/foo.py", "X = 1\nY = 2\n")
+        idx = _build_call_index(tmp_path)
+        captured = capsys.readouterr()
+        assert idx == {}
+        assert "空数据源告警" in captured.err
+
+    def test_no_warning_when_call_nodes_present(self, tmp_path, capsys):
+        """正常路径静默：有调用节点 ⇒ 不出告警、索引非空。"""
+        _write_fixture(tmp_path, "src/foo.py", "def bar():\n    pass\n\nbar()\n")
+        idx = _build_call_index(tmp_path)
+        captured = capsys.readouterr()
+        assert idx
+        assert "空数据源告警" not in captured.err
+
+    def test_stats_out_param_reports_counts(self, tmp_path):
+        """stats 出参回报真实计数（供 --strict 断言用）。"""
+        _write_fixture(tmp_path, "src/foo.py", "def bar():\n    pass\n\nbar()\n")
+        stats: dict = {}
+        _build_call_index(tmp_path, stats=stats)
+        assert stats["scanned_files"] == 1
+        assert stats["call_nodes"] == 1

@@ -12,6 +12,8 @@ import pytest
 
 from scripts.n4_security_checker import (
     WhitelistRule,
+    _find_empty_extraction,
+    _find_router_defs,
     _scan_file_n4,
     _ALL_CHECKS,
 )
@@ -313,3 +315,101 @@ async def get_key():
         violations = _scan_n4(p, checks={"n4-apikey-empty"})
         key_violations = [v for v in violations if v.check_id == "n4-apikey-empty"]
         assert len(key_violations) == 0
+
+
+# ── 注解式写法（ast.AnnAssign）：抽取器不得"抽到 0 条、照样绿" ──────
+
+
+class TestAnnotatedRouterDefs:
+    """`router: APIRouter = APIRouter(...)` —— 只有 ast.AnnAssign 节点。
+
+    2026-10-17 修：旧 `_find_router_defs` 只认 `ast.Assign` ⇒ 注解式写法整个文件
+    抽到 0 个 router ⇒ `_check_no_auth` 直接 return ⇒ **抽到 0 条、照样绿**。
+    """
+
+    _ANNOTATED_DEFECT = '''\
+from fastapi import APIRouter
+
+router: APIRouter = APIRouter(prefix="/test", tags=["test"])
+
+@router.get("/items")
+async def list_items():
+    return {"items": []}
+'''
+
+    _ANNOTATED_FIXED = '''\
+from fastapi import APIRouter, Depends
+from src.webui.dependencies import require_auth
+
+router: APIRouter = APIRouter(prefix="/test", tags=["test"], dependencies=[Depends(require_auth)])
+
+@router.get("/items")
+async def list_items():
+    return {"items": []}
+'''
+
+    def test_annotated_router_def_extracted(self, tmp_path):
+        """抽取层：注解式写法必须被抽到（非 0 条）。"""
+        import ast
+
+        p = _write_fixture(tmp_path, "routers/test.py", self._ANNOTATED_DEFECT)
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        assert len(_find_router_defs(tree)) == 1
+
+    def test_annotated_defect_is_red(self, tmp_path):
+        """⭐ 反向自检：注解式 + 无认证 ⇒ 检查器必须**红**（P0）。"""
+        p = _write_fixture(tmp_path, "routers/test.py", self._ANNOTATED_DEFECT)
+        violations = _scan_n4(p, checks={"n4-no-auth"})
+        auth_violations = [v for v in violations if v.check_id == "n4-no-auth"]
+        assert len(auth_violations) == 1
+        assert auth_violations[0].severity == "P0"
+
+    def test_annotated_fixed_stays_green(self, tmp_path):
+        """正常路径仍绿：注解式 + 有 dependencies=[Depends(require_auth)] → 0 条。"""
+        p = _write_fixture(tmp_path, "routers/test.py", self._ANNOTATED_FIXED)
+        violations = _scan_n4(p, checks={"n4-no-auth"})
+        assert [v for v in violations if v.check_id == "n4-no-auth"] == []
+
+    def test_bare_annotation_value_none_not_crash(self, tmp_path):
+        """纯注解 `X: int`（AnnAssign.value is None）不得炸抽取器。"""
+        import ast
+
+        src = "from fastapi import APIRouter\n\nCOUNT: int\nrouter = APIRouter()\n"
+        tree = ast.parse(src)
+        assert len(_find_router_defs(tree)) == 1
+
+    def test_plain_assign_still_extracted(self, tmp_path):
+        """回归：老写法 `router = APIRouter(...)` 仍被抽到（别把闸弄成恒红）。"""
+        import ast
+
+        src = "from fastapi import APIRouter\n\nrouter = APIRouter()\n"
+        assert len(_find_router_defs(ast.parse(src))) == 1
+
+    def test_empty_extraction_detected(self, tmp_path):
+        """空数据源自检：源里有 APIRouter 调用却抽到 0 ⇒ 具名报出该文件。"""
+        d = tmp_path / "routers"
+        d.mkdir()
+        _write_fixture(tmp_path, "routers/test.py", self._ANNOTATED_DEFECT)
+        assert _find_empty_extraction(d) == []
+
+
+class TestEmptyExtractionGate:
+    """空数据源闸：抽取器抽不到但源里有 APIRouter ⇒ 必须出声。"""
+
+    def test_gate_silent_when_extraction_works(self, tmp_path):
+        d = tmp_path / "routers"
+        d.mkdir()
+        _write_fixture(tmp_path, "routers/test.py", "from fastapi import APIRouter\nrouter = APIRouter()\n")
+        assert _find_empty_extraction(d) == []
+
+    def test_gate_flags_when_apirouter_present_but_not_extracted(self, tmp_path, monkeypatch):
+        """合成"抽取器坏了"：`_find_router_defs` 返回空 ⇒ 闸必须报出该文件。"""
+        d = tmp_path / "routers"
+        d.mkdir()
+        _write_fixture(tmp_path, "routers/test.py", "from fastapi import APIRouter\nrouter = APIRouter()\n")
+        monkeypatch.setattr(
+            "scripts.n4_security_checker._find_router_defs", lambda tree: [],
+        )
+        offenders = _find_empty_extraction(d)
+        assert len(offenders) == 1
+        assert offenders[0].endswith("test.py")
