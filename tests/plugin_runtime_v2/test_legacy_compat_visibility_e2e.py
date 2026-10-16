@@ -48,13 +48,13 @@ V2_PLUGIN_ID = "e2e.v2-demo"
 # 夹具 manifest：**按宿主校验器认的 v2 schema 写**（`manifest_validator.PluginManifest`）。
 #
 # ⚠️ 两个现场事实（都不是本用例引入，但都会拦住夹具，故写在这里）：
-#   ① 本基点宿主的校验器只收 `manifest_version = 2`
-#      （`manifest_validator.py:616 Literal[2]` / `:809 SUPPORTED_MANIFEST_VERSIONS = [2]`），
-#      而**树里自带的插件 manifest 全写 3**（`plugins/hello_world_plugin/_manifest.json`、
-#      `plugins/maibot-team.v1-compat/_manifest.json`）⇒ 它们在本基点会在 manifest 校验就被拒
-#      （实测原文：`manifest 校验失败: Manifest 版本不兼容: manifest_version=3，仅支持 2`）；
-#   ② v2 是**另一套 schema**（`_StrictManifestModel` 禁未知字段）：要 `capabilities` / `i18n` /
-#      两个 `max_version`，而 **`scopes` 是 v3 的字段、在 v2 里属"存在未声明字段"** ⇒ 不能照抄 hello_world。
+#   ① 宿主校验器的版本门收 `[2, 3]`（v2 仍是本用例夹具走的**那条分支**）
+#      （`manifest_validator.py:619 manifest_version: Literal[2]` /
+#      `:918 SUPPORTED_MANIFEST_VERSIONS = [2, 3]`），
+#      `plugins/hello_world_plugin/_manifest.json`、`plugins/maibot-team.v1-compat/_manifest.json`）⇒ 它们过得了版本门、走的是 v3 那套模型
+#      （旧版面只有 `[2]` 时它们才会红在版本门：`Manifest 版本不兼容: manifest_version=3，仅支持 2`）；
+#   ② v2 是**另一套 schema**（`_StrictManifestModel` 禁未知字段）：要 `capabilities` / `i18n` / 两条 `max_version`——v3 里这三样都可省，照抄写 v3 的会在这里多出未知字段；
+#      而 `scopes` 是 v3 的字段（v3 那边 `capabilities` = 二者并集；v2 载荷里该键直接被丢）⇒ 不能照抄 hello_world。
 #
 # 本用例要测的是**兼容层缺席那条链**，故夹具按宿主接受的版本写；① 是另一条线的缺陷，这里只标不改。
 _MANIFEST_V2_TEMPLATE: dict[str, Any] = {
