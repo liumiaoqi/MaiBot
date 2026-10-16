@@ -2,7 +2,6 @@ import asyncio
 import base64
 import hashlib
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, Optional
 
 from rich.traceback import install
@@ -12,6 +11,7 @@ from src.common.data_models.image_data_model import MaiImage
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_root
 from src.llm_models.model_requirement import model_requirement
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.core.model_config_port_registry import get_model_config_port
@@ -20,8 +20,8 @@ from src.core.adapters.llm_service_port import get_llm_service
 
 install(extra_lines=3)
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.absolute().resolve()
-DATA_DIR = PROJECT_ROOT / "data"
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）：本文件不再自推仓根
+DATA_DIR = resolve_data_root()
 IMAGE_DIR = DATA_DIR / "images"
 
 logger = get_logger("image")

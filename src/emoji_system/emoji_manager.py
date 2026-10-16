@@ -16,6 +16,7 @@ from src.common.data_models.image_data_model import MaiEmoji
 from src.common.database.database import get_db_session, get_db_session_manual
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_root
 from src.llm_models.model_requirement import model_requirement
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.common.utils.utils_image import ImageUtils
@@ -32,8 +33,9 @@ logger = get_logger("emoji")
 # 全局副作用：模块导入时安装 rich 增强异常回显（修改 sys.excepthook），历史沿用。
 install(extra_lines=3)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data"
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）。本文件曾用 `parents[2]` 自己推一份
+# "未经对账的副本"：`MAIBOT_DATA_DIR` 一旦生效，只有收敛过的点会跟动 ⇒ 与主库劈叉。
+DATA_DIR = resolve_data_root()
 EmojiRegisterStatus = Literal["registered", "skipped", "failed"]
 EMOJI_DIR = DATA_DIR / "emoji"  # 表情包存储目录
 MAX_EMOJI_FOR_PROMPT = 20  # 最大允许的表情包描述数量于图片替换的 prompt 中
@@ -1021,7 +1023,7 @@ class EmojiManager:
         emoji_replace_prompt_template.add_context("description", new_emoji.description or "无描述")
         emoji_replace_prompt = await prompt_manager.render_prompt(emoji_replace_prompt_template)
 
-        decision_result = await get_llm_service().generate_response("utils", 
+        decision_result = await get_llm_service().generate_response("utils",
             emoji_replace_prompt,
             session_id=session_id,
             capabilities=["text_generation", "tool_calling"],
@@ -1090,7 +1092,7 @@ class EmojiManager:
         try:
             review_prompt_template = prompt_manager.get_prompt("emoji_content_filtration")
             review_prompt = await prompt_manager.render_prompt(review_prompt_template)
-            filtration_result = await get_llm_service().generate_response_for_image("vlm", 
+            filtration_result = await get_llm_service().generate_response_for_image("vlm",
                 review_prompt,
                 image_base64,
                 image_format,
@@ -1155,7 +1157,7 @@ class EmojiManager:
                     "使用逗号分隔，标签可为中文或英文，不要附带解释。"
                 )
                 image_base64 = ImageUtils.image_bytes_to_base64(image_bytes)
-                description_result = await get_llm_service().generate_response_for_image("vlm", 
+                description_result = await get_llm_service().generate_response_for_image("vlm",
                     prompt,
                     image_base64,
                     "jpg",
@@ -1167,7 +1169,7 @@ class EmojiManager:
                     "这是一个表情包图片，请提取该表情主要表达的情绪或语气标签，"
                     "最多 5 个，使用逗号分隔，返回纯文本标签列表，不要解释，不要输出其他内容。"
                 )
-                description_result = await get_llm_service().generate_response_for_image("vlm", 
+                description_result = await get_llm_service().generate_response_for_image("vlm",
                     prompt,
                     image_base64,
                     image_format,

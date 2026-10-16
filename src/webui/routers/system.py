@@ -19,6 +19,7 @@ import time
 
 from src.common.database.database import get_db_session
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_root, resolve_project_root
 from src.config.config import MMC_VERSION
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
@@ -66,8 +67,11 @@ router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(requ
 logger = get_logger("webui_system")
 
 _start_time = time.time()
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_DATA_DIR = _PROJECT_ROOT / "data"
+# 仓根与数据根都从唯一来源取（`src/common/runtime_paths.py`）。旧写法 `parents[3]` 是本文件
+# 自己推的一份"未经对账的副本"：`MAIBOT_DATA_DIR` 一旦生效，只有收敛过的点会跟动，
+# 没收敛的仍指旧根 ⇒ 造出新的劈叉。`_PROJECT_ROOT` 仍供 `logs/` 与磁盘占用统计用（非 data 域）。
+_PROJECT_ROOT = resolve_project_root()
+_DATA_DIR = resolve_data_root()
 _IMAGE_DIR = _DATA_DIR / "images"
 _EMOJI_DIR = _DATA_DIR / "emoji"
 _EMOJI_THUMBNAIL_DIR = _DATA_DIR / "emoji_thumbnails"

@@ -10,6 +10,7 @@ import json
 import secrets
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 
 logger = get_logger("webui")
 
@@ -29,9 +30,10 @@ class TokenManager:
             config_path: 配置文件路径，默认为项目根目录的 data/webui.json
         """
         if config_path is None:
-            # 获取项目根目录 (src/webui/core -> src/webui -> src -> 根目录)
-            project_root = Path(__file__).parent.parent.parent.parent
-            config_path = project_root / "data" / "webui.json"
+            # 数据根只从唯一来源取（`src/common/runtime_paths.py`）——本文件不再自己推仓根：
+            # `data/webui.json` 与主库（MaiBot.db）必须同根，各推一次就会在 `MAIBOT_DATA_DIR`
+            # 生效后各自跟动一半。
+            config_path = resolve_data_file("webui.json")
 
         self.config_path = config_path
         self.config_path.parent.mkdir(parents=True, exist_ok=True)

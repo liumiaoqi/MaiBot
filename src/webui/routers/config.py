@@ -17,6 +17,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import clear_prompt_cache, extract_prompt_placeholders, list_prompt_templates
+from src.common.runtime_paths import resolve_data_file
 from src.config.config import (
     CONFIG_DIR,
     Config,
@@ -123,7 +124,7 @@ router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(requ
 compat_router = APIRouter(prefix="/api/config", tags=["config-compat"], dependencies=[Depends(require_auth)])
 
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
-CUSTOM_PROMPTS_DIR = PROJECT_ROOT / "data" / "custom_prompts"
+CUSTOM_PROMPTS_DIR = resolve_data_file("custom_prompts")  # 数据根只从唯一来源取（runtime_paths）
 MAISAKA_PROMPT_PREVIEW_DIR = (PROJECT_ROOT / "logs" / "maisaka_prompt").resolve()
 _SCHEMA_CACHE: Dict[str, Dict[str, Any]] = {}
 _PROMPT_VERSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")

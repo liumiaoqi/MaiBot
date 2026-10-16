@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 
 from typing import Literal
 from urllib.request import Request, urlopen
@@ -16,8 +17,8 @@ logger = get_logger("auto.avatar")
 
 router = APIRouter(prefix="/avatar", tags=["avatar"], dependencies=[Depends(require_auth)])
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AVATAR_CACHE_ROOT = (PROJECT_ROOT / "data" / "avatar").resolve()
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）：本文件不再自推仓根
+AVATAR_CACHE_ROOT = resolve_data_file("avatar").resolve()
 MAX_AVATAR_BYTES = 5 * 1024 * 1024
 QQ_AVATAR_URL_TEMPLATE = "https://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
 QQ_GROUP_AVATAR_URL_TEMPLATE = "https://p.qlogo.cn/gh/{group_id}/{group_id}/640"

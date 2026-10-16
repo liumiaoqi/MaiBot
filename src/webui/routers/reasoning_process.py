@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, select
 
+from src.common.runtime_paths import resolve_data_file, resolve_project_root
 from src.core.session_port_registry import get_session_name as _get_session_name_via_port, get_session_query_port
 from src.common.data_models.llm_service_data_models import LLMServiceRequest
 from src.common.database.database import get_db_session
@@ -31,13 +32,15 @@ logger = get_logger("auto.reasoning_process")
 
 router = APIRouter(prefix="/reasoning-process", tags=["reasoning-process"], dependencies=[Depends(require_auth)])
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# 仓根与数据根都从唯一来源取（`src/common/runtime_paths.py`）。`PROJECT_ROOT` 仍供
+# `logs/` 与"相对图片引用"（下方 `candidate = PROJECT_ROOT / candidate`）用，值不变。
+PROJECT_ROOT = resolve_project_root()
 PROMPT_LOG_ROOT = (PROJECT_ROOT / "logs" / "maisaka_prompt").resolve()
 REPLAY_IMAGE_ROOTS = (
-    (PROJECT_ROOT / "data" / "images").resolve(),
-    (PROJECT_ROOT / "data" / "emoji").resolve(),
-    (PROJECT_ROOT / "data" / "prompt_imgs").resolve(),
-    (PROJECT_ROOT / "data" / "html_imgs").resolve(),
+    resolve_data_file("images").resolve(),
+    resolve_data_file("emoji").resolve(),
+    resolve_data_file("prompt_imgs").resolve(),
+    resolve_data_file("html_imgs").resolve(),
 )
 ALLOWED_SUFFIXES = {".txt", ".html", ".json"}
 SESSION_CHAT_TYPES = ("group", "private")

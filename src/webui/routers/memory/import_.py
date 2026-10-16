@@ -11,6 +11,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, Query, UploadFile
 
 from src.common.database.database import get_db_session
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.services.memory_service import memory_service
 from src.webui.dependencies import require_auth
 from src.webui.schemas.base import ApiResponse
@@ -24,7 +25,8 @@ from src.webui.routers.memory_helpers import _unwrap_payload
 logger = get_logger("auto.memory")
 
 router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(require_auth)])
-STAGING_ROOT = Path(__file__).resolve().parents[4] / "data" / "memory_upload_staging"
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）：上传暂存必须与主库同根
+STAGING_ROOT = resolve_data_file("memory_upload_staging")
 
 
 # ---------------------------------------------------------------------------

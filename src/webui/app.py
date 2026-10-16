@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from src.common.i18n import t
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_project_root
 from src.core.webui_chat_port_registry import register_webui_chat_broadcast
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
@@ -41,7 +42,8 @@ def _resolve_safe_static_file_path(static_path: Path, full_path: str) -> Path | 
 
 
 def _get_project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    """仓根 —— 从唯一来源取（`src/common/runtime_paths.py` 是全仓唯一的 `__file__` 推导点）。"""
+    return resolve_project_root()
 
 
 def _resolve_statistics_report_path() -> Path:

@@ -12,12 +12,13 @@ import asyncio
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.common.utils.image_path import StoredImagePathError, resolve_stored_image_path
 
 logger = get_logger("image_cache_cleanup")
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.absolute().resolve()
-IMAGE_DIR = PROJECT_ROOT / "data" / "images"
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）：本文件不再自推仓根
+IMAGE_DIR = resolve_data_file("images")
 _CACHE_IMAGE_EXTENSIONS = {
     ".avif",
     ".bmp",

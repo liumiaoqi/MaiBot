@@ -10,6 +10,7 @@ from src.common.i18n import get_locale
 from src.common.i18n.loaders import DEFAULT_LOCALE, normalize_locale
 from src.common.logger import get_logger
 from src.common.prompt_i18n import get_prompt_cache_revision, list_prompt_templates, load_prompt_template
+from src.common.runtime_paths import resolve_data_root, resolve_project_root
 
 
 logger = get_logger("Prompt")
@@ -17,9 +18,9 @@ logger = get_logger("Prompt")
 _LEFT_BRACE = chr(0xFDE9)
 _RIGHT_BRACE = chr(0xFDEA)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = resolve_project_root()  # 仓根：唯一来源（本文件不再自推）
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = resolve_data_root()  # 数据根：唯一来源（`MAIBOT_DATA_DIR` 生效后与主库同根）
 CUSTOM_PROMPTS_DIR = DATA_DIR / "custom_prompts"
 PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
 CUSTOM_PROMPTS_DIR.mkdir(parents=True, exist_ok=True)

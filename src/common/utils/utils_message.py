@@ -1,5 +1,4 @@
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from maim_message import MessageBase, Seg
@@ -29,6 +28,7 @@ from src.common.data_models.message_component_data_model import (
     VoiceComponent,
 )
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.core.app_config_port_registry import get_app_config_port
 
@@ -295,7 +295,8 @@ class MessageUtils:
             session.add(existing_record)
             return
 
-        image_dir = Path(__file__).parent.parent.parent.parent / "data" / "images"
+        # 数据根只从唯一来源取（`src/common/runtime_paths.py`）：本处曾用 `parents[3]` 自己推一份
+        image_dir = resolve_data_file("images")
         image_dir.mkdir(parents=True, exist_ok=True)
         image_format = MessageUtils._detect_image_format(component.binary_data)
         image_path = image_dir / f"{image_hash}.{image_format}"
