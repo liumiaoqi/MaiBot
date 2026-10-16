@@ -10,8 +10,37 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _init_config():
-    """config_manager 显式初始化 + utils_config 端口注入（测试环境不经过 main()）。"""
+def _init_config(tmp_path, monkeypatch):
+    """config_manager 显式初始化 + utils_config 端口注入（测试环境不经过 main()）。
+
+    ⚠️ **必须把配置路径换成 tmp 副本**（2026-10-17 修）：`initialize_config()` 走的是
+    **生产路径**，当 `CONFIG_VERSION` 高于盘上版本时它会**正常升级并写回**
+    （写盘 `src/config/config.py:1110-1114`：留档 `config/old/` + `os.replace` 原子写）
+    ⇒ 直接用真实路径会把**仓库里的活配置**改脏（实测 8.29.0 → 8.29.1，并留下 17 份留档）。
+
+    做法：把 `src.config.config` 的模块级路径常量 `monkeypatch` 到 tmp 副本 ——
+    `ConfigManager.__init__` 是**调用时**读这些常量（`src/config/config.py:312-314`），
+    所以重定向立刻生效。**只换路径、不动任何迁移语义**：升级照旧发生，只是发生在副本上。
+    """
+    import shutil
+
+    from src.config import config as config_module
+
+    tmp_config_dir = tmp_path / "config"
+    tmp_config_dir.mkdir(parents=True, exist_ok=True)
+    for const_name, filename in (
+        ("BOT_CONFIG_PATH", "bot_config.toml"),
+        ("MODEL_CONFIG_PATH", "model_config.toml"),
+    ):
+        source = getattr(config_module, const_name)
+        if source.exists():
+            shutil.copy2(source, tmp_config_dir / filename)
+        # 无论源在不在，都把常量指向 tmp：读写一律落在副本里（不在仓库里）
+        monkeypatch.setattr(
+            config_module, const_name, (tmp_config_dir / filename).resolve().absolute(), raising=False
+        )
+    monkeypatch.setattr(config_module, "CONFIG_DIR", tmp_config_dir, raising=False)
+
     from src.config.config import initialize_config
     from src.core.adapters.app_config_port import GlobalConfigAppConfigPort
     from src.core.adapters.chat_config_port import GlobalConfigChatConfigPort
