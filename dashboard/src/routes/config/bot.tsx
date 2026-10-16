@@ -5,20 +5,15 @@ import {
   ChevronDown,
   Code2,
   ExternalLink,
-  Info,
   Layout,
   RefreshCw,
   Save,
-  X,
 } from 'lucide-react'
-import { parse as parseToml } from 'smol-toml'
 
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
-import { CodeEditor } from '@/components/CodeEditor'
 import { ConfigSectionNav } from '@/components/dynamic-form/ConfigSectionNav'
 import type { ConfigSection } from '@/components/dynamic-form/ConfigSectionNav'
 import { DynamicConfigForm } from '@/components/dynamic-form'
@@ -27,10 +22,8 @@ import { useToast } from '@/hooks/use-toast'
 import {
   getBotConfig,
   getBotConfigCached,
-  getBotConfigRaw,
   getBotConfigSchema,
   updateBotConfig,
-  updateBotConfigRaw,
 } from '@/lib/config-api'
 import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
@@ -65,7 +58,6 @@ type ConfigSectionData = Record<string, unknown>
 // ==================== 常量定义 ====================
 /** Toast 显示前的延迟时间 (毫秒) */
 const TOAST_DISPLAY_DELAY = 500
-const FILE_MODE_NOTICE_DISMISSED_KEY = 'bot-config-file-mode-notice-dismissed'
 
 // ==================== Tab 分组类型与构建 ====================
 interface TabGroup {
@@ -160,12 +152,6 @@ function BotConfigPageContent() {
   const [autoSaving, setAutoSaving] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [editMode, setEditMode] = useState<'visual' | 'source'>('visual')
-  const [sourceCode, setSourceCode] = useState<string>('')
-  const [hasTomlError, setHasTomlError] = useState(false)
-  const [tomlErrorMessage, setTomlErrorMessage] = useState<string>('')
-  const [showFileModeNotice, setShowFileModeNotice] = useState(
-    () => localStorage.getItem(FILE_MODE_NOTICE_DISMISSED_KEY) !== 'true'
-  )
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
 
@@ -185,72 +171,6 @@ function BotConfigPageContent() {
   const configRef = useRef<Record<string, unknown>>({})
 
   // ==================== 辅助函数 ====================
-
-  /**
-   * 翻译 TOML 错误信息为中文
-   */
-  const translateTomlError = (errorMessage: string): string => {
-    // 分行处理，保留多行格式
-    const lines = errorMessage.split('\n')
-
-    // 翻译第一行（主要错误信息）
-    let firstLine = lines[0]
-
-    // 移除 "Error: " 前缀（如果有）
-    firstLine = firstLine.replace(/^Error:\s*/, '')
-
-    // 常见 TOML 错误模式匹配和翻译
-    const translations: Array<[RegExp, string | ((match: RegExpMatchArray) => string)]> = [
-      // Invalid TOML document 系列
-      [
-        /Invalid TOML document: unrecognized escape sequence/,
-        'TOML 文档错误：无法识别的转义序列（提示：在双引号字符串中使用 \\\\ 转义反斜杠，或使用单引号字符串）',
-      ],
-      [
-        /Invalid TOML document: only letter, numbers, dashes and underscores are allowed in keys/,
-        'TOML 文档错误：键名只能包含字母、数字、短横线和下划线',
-      ],
-      [/Invalid TOML document: (.+)/, 'TOML 文档错误：$1'],
-
-      // 位置错误系列
-      [/Unexpected character.*at line (\d+), column (\d+)/, '第 $1 行第 $2 列：意外的字符'],
-      [/Expected.*at line (\d+), column (\d+)/, '第 $1 行第 $2 列：缺少必要的字符'],
-      [/Invalid.*at line (\d+), column (\d+)/, '第 $1 行第 $2 列：无效的语法'],
-      [/Unterminated string at line (\d+)/, '第 $1 行：字符串未正常结束（缺少引号）'],
-      [/Duplicate key.*at line (\d+)/, '第 $1 行：重复的键名'],
-      [
-        /Invalid escape sequence at line (\d+)/,
-        '第 $1 行：无效的转义序列（提示：在双引号字符串中使用 \\\\ 转义反斜杠）',
-      ],
-      [/Expected.*but got.*at line (\d+)/, '第 $1 行：类型不匹配'],
-      [/line (\d+), column (\d+)/, '第 $1 行第 $2 列'],
-
-      // 通用错误系列
-      [/Unexpected end of input/, '意外的文件结束（可能缺少闭合符号）'],
-      [/Unexpected token/, '意外的标记'],
-      [/Invalid number/, '无效的数字'],
-      [/Invalid date/, '无效的日期格式'],
-      [/Invalid boolean/, '无效的布尔值（应为 true 或 false）'],
-      [/Unexpected character/, '意外的字符'],
-      [/unrecognized escape sequence/, '无法识别的转义序列'],
-    ]
-
-    // 尝试翻译第一行
-    for (const [pattern, replacement] of translations) {
-      if (pattern.test(firstLine)) {
-        firstLine = firstLine.replace(pattern, replacement as string)
-        break
-      }
-    }
-
-    // 重组多行错误信息
-    if (lines.length > 1) {
-      lines[0] = firstLine
-      return lines.join('\n')
-    }
-
-    return firstLine
-  }
 
   /**
    * 解析并设置所有配置状态
@@ -283,33 +203,6 @@ function BotConfigPageContent() {
       ...cleanSectionValues,
     }
   }, [sectionValues])
-
-  // 加载源代码
-  const loadSourceCode = useCallback(async () => {
-    try {
-      const result = await getBotConfigRaw()
-      const raw = (result as unknown as Record<string, unknown>).content as string
-      // 将 TOML 基本字符串中的转义序列转换为实际字符以便在编辑器中正确显示
-      // 使用正则表达式只处理双引号字符串内的转义序列，不影响单引号字符串
-      const unescaped = raw.replace(/"([^"]*)"/g, (_match, content) => {
-        const decoded = content
-          .replace(/\\n/g, '\n') // 换行符
-          .replace(/\\t/g, '\t') // 制表符
-          .replace(/\\r/g, '\r') // 回车符
-          .replace(/\\"/g, '"') // 双引号
-          .replace(/\\\\/g, '\\') // 反斜杠（必须放在最后）
-        return `"${decoded}"`
-      })
-      setSourceCode(unescaped)
-      setHasTomlError(false)
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: '加载失败',
-        description: error instanceof Error ? error.message : '加载源代码失败',
-      })
-    }
-  }, [toast])
 
   // 加载配置
   const loadConfig = useCallback(async () => {
@@ -398,74 +291,6 @@ function BotConfigPageContent() {
     setHasUnsavedChanges
   )
 
-  const dismissFileModeNotice = useCallback(() => {
-    localStorage.setItem(FILE_MODE_NOTICE_DISMISSED_KEY, 'true')
-    setShowFileModeNotice(false)
-  }, [])
-
-  // 保存源代码
-  const saveSourceCode = async () => {
-    try {
-      setSaving(true)
-      // 编辑器展示时会把 basic string 内的 \n 展开成真实换行；保存前先转回 TOML 转义序列。
-      const escapedSourceCode = sourceCode.replace(/"([^"]*)"/g, (_match, content) => {
-        const encoded = content
-          .replace(/\\/g, '\\\\') // 反斜杠必须先转义，避免 \s 等序列被 TOML 当作非法转义
-          .replace(/"/g, '\\"')
-          .replace(/\n/g, '\\n')
-          .replace(/\t/g, '\\t')
-          .replace(/\r/g, '\\r')
-        return `"${encoded}"`
-      })
-
-      // 前端验证 TOML 格式
-      try {
-        parseToml(escapedSourceCode)
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'TOML 格式错误'
-        const translatedMsg = translateTomlError(errorMsg)
-        setHasTomlError(true)
-        setTomlErrorMessage(translatedMsg)
-        toast({
-          variant: 'destructive',
-          title: 'TOML 格式错误',
-          description: translatedMsg,
-        })
-        setSaving(false)
-        return
-      }
-
-      const result = await updateBotConfigRaw(escapedSourceCode)
-      setHasUnsavedChanges(false)
-      setHasTomlError(false)
-      setTomlErrorMessage('')
-      if (result.needs_restart) {
-        toast({
-          title: '保存成功',
-          description: '部分配置需要重启生效，可点击重启按钮应用更改',
-        })
-      } else {
-        toast({
-          title: '保存成功',
-          description: '配置已保存',
-        })
-      }
-      // 重新加载可视化配置
-      await loadConfig()
-    } catch (error) {
-      setHasTomlError(true)
-      const errorMsg = error instanceof Error ? error.message : '保存配置失败'
-      setTomlErrorMessage(errorMsg)
-      toast({
-        variant: 'destructive',
-        title: '保存失败',
-        description: errorMsg,
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // 处理模式切换
   const handleModeChange = async (mode: 'visual' | 'source') => {
     if (hasUnsavedChanges) {
@@ -478,9 +303,9 @@ function BotConfigPageContent() {
     }
 
     setEditMode(mode)
-    if (mode === 'source') {
-      await loadSourceCode()
-    } else {
+    // ⚠️ 「文件」模式已于 5 段**下线**（见下方说明占位）⇒ 不再有"要加载的原文"这一步。
+    // 保留"切回可视化时重新拉取配置"的既有行为；切到「文件」只切视图、不发请求。
+    if (mode === 'visual') {
       // 切换回可视化时,直接重新加载配置但不显示全局 loading
       try {
         const result = await getBotConfig()
@@ -531,9 +356,6 @@ function BotConfigPageContent() {
   const handleReloadFromFile = async () => {
     cancelPendingAutoSave()
     await loadConfig()
-    if (editMode === 'source') {
-      await loadSourceCode()
-    }
     setHasUnsavedChanges(false)
     toast({
       title: '已刷新',
@@ -641,7 +463,7 @@ function BotConfigPageContent() {
                 <RefreshCw className="h-4 w-4" />
               </Button>
               <Button
-                onClick={editMode === 'visual' ? saveConfig : saveSourceCode}
+                onClick={saveConfig}
                 disabled={saving || autoSaving || !hasUnsavedChanges || isRestarting}
                 size="sm"
                 variant="outline"
@@ -679,60 +501,19 @@ function BotConfigPageContent() {
           </div>
         </div>
 
-        {/* 源代码模式 */}
+        {/* 「文件」模式 —— 已于 5 段下线，保留**说明性占位**（不留会报错的按钮） */}
         {editMode === 'source' && (
-          <div className="space-y-4">
-            {(showFileModeNotice || (hasTomlError && tomlErrorMessage)) && (
-              <Alert className={showFileModeNotice ? 'pr-10' : undefined}>
-                <Info className="h-4 w-4" />
-                {showFileModeNotice && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-2 right-2 h-6 w-6 px-0"
-                    aria-label="关闭文件模式提示"
-                    title="关闭文件模式提示"
-                    onClick={dismissFileModeNotice}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-                <AlertDescription>
-                  {showFileModeNotice && (
-                    <>
-                      <strong>文件模式：</strong>直接编辑原始配置文件。此功能仅适用于熟悉 TOML
-                      语法的用户。只有格式完全正确才能保存。
-                    </>
-                  )}
-                  {hasTomlError && tomlErrorMessage && (
-                    <div className="text-destructive bg-destructive/10 mt-3 rounded-md p-3 font-semibold">
-                      <div className="mb-2 font-bold">⚠️ TOML 格式错误：</div>
-                      <pre className="font-mono text-sm break-words whitespace-pre-wrap">
-                        {tomlErrorMessage}
-                      </pre>
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <CodeEditor
-              value={sourceCode}
-              onChange={(value) => {
-                setSourceCode(value)
-                setHasUnsavedChanges(true)
-                // 清除之前的错误状态
-                if (hasTomlError) {
-                  setHasTomlError(false)
-                  setTomlErrorMessage('')
-                }
-              }}
-              language="toml"
-              height="calc(100vh - 280px)"
-              minHeight="500px"
-              placeholder="TOML 配置内容"
-            />
+          <div className="space-y-3 rounded-lg border p-4" data-testid="bot-file-mode-retired">
+            <h2 className="text-base font-semibold">「文件」模式已下线</h2>
+            <p className="text-muted-foreground text-sm">
+              原先这个页签让你在网页里直接编辑整份配置的 TOML 原文，它依赖
+              <code className="mx-1">/config/bot/raw</code>
+              端点；该端点会把整份文件（含密钥真值）原样发给浏览器，是配置面上已知的明文密钥出站路径，因此已于 5 段移除。
+            </p>
+            <p className="text-muted-foreground text-sm">
+              配置编辑能力没有减少：「可视化」模式照旧；逐字段的改动走新的按路径读写接缝。
+              若确实需要手工改 TOML 原文，请直接编辑服务器上的配置文件后重启。
+            </p>
           </div>
         )}
 
