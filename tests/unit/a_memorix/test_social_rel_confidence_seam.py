@@ -181,6 +181,9 @@ def test_p4_unsetting_env_restores_default_path(monkeypatch: pytest.MonkeyPatch,
         # 独立证伪打掉的洞就是这两条没测 —— `true` 曾被当**最高强度**、`false` 当 0.0。
         ({"h1": True}, "布尔 true（不得当 1.0）"),
         ({"h1": False}, "布尔 false（不得当 0.0）"),
+        # ⚠️ 数值域第三个成员：**JSON 合法的巨整数**（`10**400`）⇒ `float()` 抛 OverflowError
+        # （`ArithmeticError`，不在 (TypeError, ValueError) 里）——独立证伪打掉的洞。
+        ({"h1": 10**400}, "巨整数（OverflowError）"),
     ],
 )
 def test_bad_entries_fall_back_to_original(monkeypatch: pytest.MonkeyPatch, data_root: Path, payload: object, why: str) -> None:
@@ -258,30 +261,47 @@ def _seam_result_reaches_guard(source: str) -> bool:
 
     tree = ast.parse(source)
     seam_targets: set[str] = set()
-    guard_args: set[str] = set()
+    reaches = False
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
             call = node.value
             if isinstance(call.func, ast.Attribute) and call.func.attr == "effective_confidence":
                 seam_targets.update(t.id for t in node.targets if isinstance(t, ast.Name))
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "compute_weight":
-            if node.args and isinstance(node.args[0], ast.Name):
-                guard_args.add(node.args[0].id)
-    return bool(seam_targets & guard_args)
+            if not node.args:
+                continue
+            first = node.args[0]
+            if isinstance(first, ast.Name) and first.id in seam_targets:
+                reaches = True
+            elif (
+                isinstance(first, ast.Call)
+                and isinstance(first.func, ast.Attribute)
+                and first.func.attr == "effective_confidence"
+            ):
+                reaches = True  # 次挂点形状：护栏首个实参**就是**接缝调用（嵌套）
+    return reaches
 
 
 def test_p5_seam_result_must_flow_into_the_guard() -> None:
-    """③ 升级版：光有调用不够 —— 结果必须**流进护栏的入参**（骨架化写法要被抓出来）。"""
+    """③ 升级版：光有调用不够 —— 结果必须**流进护栏的入参**（两个挂点各按自己的形状查）。
 
-    assert _seam_result_reaches_guard(DUAL_PATH.read_text(encoding="utf-8")), "接缝结果没有流进护栏入参"
-    assert _seam_result_reaches_guard(RECALL.read_text(encoding="utf-8")) or True  # 次挂点形状不同，见下条
+    ⚠️ 上一版这里对次挂点写了 `... or True` —— **恒真等于没查**（独立证伪打掉，比没有断言更坏：
+    它看起来像保证）。现在两个挂点都走**真断言**，并给出**各自的架空写法**都必须判假。
+    """
 
-    # 独立证伪者用过的**架空写法**：调用保留、结果丢进 `_seam_unused`
-    sabotaged = (
+    assert _seam_result_reaches_guard(DUAL_PATH.read_text(encoding="utf-8")), "主挂点：接缝结果没进护栏入参"
+    assert _seam_result_reaches_guard(RECALL.read_text(encoding="utf-8")), "次挂点：接缝结果没进护栏入参"
+
+    # 主挂点的架空写法（证伪者用过）：调用保留、结果丢进 `_seam_unused`
+    sabotaged_main = (
         "_seam_unused = social_rel_confidence.effective_confidence(item.hash_value, confidence)\n"
         "confidence_weight, _ = self.confidence_guard.compute_weight(confidence, out)\n"
     )
-    assert _seam_result_reaches_guard(sabotaged) is False, "架空写法没被抓出来 ⇒ 判据失效"
+    assert _seam_result_reaches_guard(sabotaged_main) is False, "主挂点架空写法没被抓出来 ⇒ 判据失效"
+
+    # 次挂点的架空写法：护栏入参仍用裸 `c.confidence`
+    sabotaged_secondary = "w = [self.confidence_guard.compute_weight(c.confidence, candidates)[0] for c in candidates]\n"
+    assert _seam_result_reaches_guard(sabotaged_secondary) is False, "次挂点架空写法没被抓出来 ⇒ 判据失效"
 
 
 # ── ③ 行为级判据：开关开 + sidecar 命中 ⇒ 同批候选的 score 必须变 ──────────────
@@ -372,3 +392,107 @@ def test_floor_absorption_is_named(
     total, keys, sample = social_rel_confidence.absorbed_summary()
     assert total >= 1 and keys >= 1 and "h1" in sample, f"吸收没被计数：{total}/{keys}/{sample}"
     assert any("floor" in record.getMessage() for record in caplog.records), caplog.text
+
+
+def test_invalid_utf8_sidecar_degrades_named(
+    monkeypatch: pytest.MonkeyPatch, data_root: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """读那条路的**第二个成员**：非法 UTF-8（半截写 / 二进制 / 非 utf-8 编码）。
+
+    `UnicodeDecodeError` 是 `ValueError` 子类、**不是** `OSError` ⇒ 只收 OSError 接不住。
+    """
+
+    (data_root / SIDECAR_NAME).write_bytes(b"\xff\xfe\x00\x01 not utf-8")
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+
+    with caplog.at_level("INFO"):
+        assert social_rel_confidence.effective_confidence("h1", 0.42) == 0.42
+
+    assert any("读不出来" in record.getMessage() for record in caplog.records), caplog.text
+
+
+def test_floor_absorption_uses_effective_floor(
+    monkeypatch: pytest.MonkeyPatch, data_root: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """④ 对齐**生效值**：护栏实例 floor=0.5 时，learned=0.4 / fallback=0.2 实际被吸收 ⇒ 必须具名。
+
+    上一版按**模块常量 0.3** 判（0.4 ≠ 0.3）⇒ 这种情况**漏报**（独立证伪指出）。
+    """
+
+    from src.A_memorix.core.retrieval.confidence_guard import ConfidenceGuard
+
+    _write_sidecar(data_root, {"h_abs2": 0.4})
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+    social_rel_confidence._absorbed_total = 0  # noqa: SLF001 -- 读数归零，便于断言
+
+    with caplog.at_level("INFO"):
+        got = social_rel_confidence.effective_confidence("h_abs2", 0.2, ConfidenceGuard(floor=0.5))
+
+    assert got == 0.4, "接缝应原样给出学习值（吸收判定不改取值）"
+    total, keys, _sample = social_rel_confidence.absorbed_summary()
+    assert total >= 1 and keys >= 1, f"非默认 floor 下漏报了：{total}/{keys}"
+    assert any("floor" in record.getMessage() for record in caplog.records), caplog.text
+
+
+# ── ③ 次挂点的行为级判据：同批候选的**预排序顺序**必须真的变 ────────────────────
+
+
+def _recall_order(hash_value: str, confidences: dict[str, float]) -> list[str]:
+    """用**真代码**跑 `GraphRelationRecallService.recall` 并返回候选顺序。
+
+    stub self：`__new__` 绕开 `__init__`；只遮住"从图里收集候选"那一步（本用例要验的是它**之后的排序**）。
+    **单 seed** ⇒ 走 `_collect_one_hop_seed_candidates`（两 seed 会走直连那条、还要图侧更多接口）。
+    """
+
+    from src.A_memorix.core.retrieval.confidence_guard import ConfidenceGuard
+    from src.A_memorix.core.retrieval.graph_relation_recall import (
+        GraphRelationCandidate,
+        GraphRelationRecallConfig,
+        GraphRelationRecallService,
+    )
+
+    service = GraphRelationRecallService.__new__(GraphRelationRecallService)
+    service.graph_store = object()
+    service.metadata_store = object()
+    service.config = GraphRelationRecallConfig(enabled=True, candidate_k=24)
+    service.confidence_guard = ConfidenceGuard()
+    service._normalize_seed_entities = lambda seeds: list(seeds)  # noqa: SLF001 -- 本用例只需排序段
+
+    def _collect(**kwargs: object) -> None:
+        out = kwargs["out"]
+        for hash_key, confidence in confidences.items():
+            out.append(
+                GraphRelationCandidate(
+                    hash_value=hash_key, subject="s", predicate="p", object="o", confidence=confidence,
+                    graph_seed_entities=[], graph_hops=1, graph_candidate_type="one_hop_seed",
+                    supporting_paragraph_count=1,
+                )
+            )
+
+    service._collect_one_hop_seed_candidates = _collect  # noqa: SLF001 -- 同上
+    return [c.hash_value for c in service.recall(seed_entities=[hash_value])]
+
+
+def test_p5_secondary_hook_order_must_change_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, data_root: Path
+) -> None:
+    """**次挂点的行为级判据**：开关开 + sidecar 命中 ⇒ 同批候选的预排序**顺序必须变**。
+
+    独立证伪把次挂点改成"保留调用、丢掉结果"时，本用例必须红（复验时的变异实验见交付文档）。
+    """
+
+    # h1 原值 0.4（低），h2 原值 0.9（高）⇒ 对照臂里 h2 在前；sidecar 给 h1 → 0.95 ⇒ 接臂里 h1 在前
+    confidences = {"h1": 0.4, "h2": 0.9}
+    _write_sidecar(data_root, {"h1": 0.95})
+
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    social_rel_confidence.reset_cache()
+    order_off = _recall_order("seed", confidences)
+
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+    order_on = _recall_order("seed", confidences)
+
+    assert order_off != order_on, f"接臂没改变候选预排序顺序（off={order_off} on={order_on}）——接缝被架空了"

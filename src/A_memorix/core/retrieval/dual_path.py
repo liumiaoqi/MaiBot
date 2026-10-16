@@ -1030,7 +1030,10 @@ class DualPathRetriever:
             # 逆熵 · 阶段 C 首件：`social_rel` 学习强度接到**这一个** confidence 位上（默认关）。
             # 未设 MAIBOT_SOCIAL_REL_CONFIDENCE 时 effective_confidence 原样返回上一行的值 ⇒ 这条
             # 接入对默认路径**逐位无影响**（预登记 P1）；护栏照旧，不因接入而放宽。
-            confidence = social_rel_confidence.effective_confidence(item.hash_value, confidence)
+            # 第三个实参＝护栏实例：地板吸收的判据按**它生效的 floor** 算（非默认 floor 也对齐）。
+            confidence = social_rel_confidence.effective_confidence(
+                item.hash_value, confidence, self.confidence_guard
+            )
             confidence_weight, _degraded = self.confidence_guard.compute_weight(confidence, out)
             item.score = (0.60 * semantic_norm + 0.30 * graph_score + 0.10 * evidence_score) * confidence_weight
 

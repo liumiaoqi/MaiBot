@@ -89,11 +89,13 @@ class SocialRelConfidenceSeam:
         if key == self._cache_key:
             return self._cache
 
-        # ⚠️ 读也要在 try 里：sidecar 位置可能是**目录**（stat 成功、读失败）或缺权限
-        # ⇒ 落到**同一条具名降级**上，而不是抛 PermissionError/IsADirectoryError 打断检索。
+        # ⚠️ "读"这条路上的异常族一次收齐（IO / 编码两类）：
+        #   · `OSError`：不存在 / 无权限 / **位置是目录**（stat 成功、读失败）；
+        #   · `UnicodeDecodeError`：非法 UTF-8（半截写 / 二进制 / 非 utf-8 编码）——
+        #     它是 `ValueError` 子类、**不是** `OSError` ⇒ 只收 OSError 接不住（证伪打掉的洞）。
         try:
             raw = path.read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             self._log_state(f"sidecar 读不出来（{path}，{type(exc).__name__}）⇒ 不覆盖，走默认路径")
             self._cache_key, self._cache = key, {}
             return {}
@@ -109,18 +111,27 @@ class SocialRelConfidenceSeam:
             return None
         return self.strengths().get(str(hash_value))
 
-    def effective_confidence(self, hash_value: str, fallback: float) -> float:
+    def effective_confidence(self, hash_value: str, fallback: float, guard: Any = None) -> float:
         """接缝的**唯一取数语义**：有学习强度用它，否则返回 `fallback` **原值**（不做任何变换）。
 
-        ⚠️ 地板吸收的可区分性（④）：接缝给的学习值若与**原值同被 `CONFIDENCE_FLOOR` 吸收**
-        （`max(x, floor)` 两边相等），排序**不会被这次接入改变** —— 那与"接缝没生效"在现场
+        ⚠️ 地板吸收的可区分性（④）：接缝给的学习值若与**原值同被 floor 吸收**
+        （`apply_floor(x)` 两边相等），排序**不会被这次接入改变** —— 那与"接缝没生效"在现场
         **不可区分**。按"降级可以、静默不行"，这里**计数 + 摘要出声**（不逐条刷屏）。
+
+        ⚠️ `guard` 参数决定"用哪个 floor 判吸收"：**传护栏实例**时用**它生效的 floor**
+        （`guard.apply_floor`，非默认 floor 也对齐）；不传则退回模块常量 `CONFIDENCE_FLOOR`
+        —— 那种情况下**非默认 floor 的护栏实例会漏报**（今天两个挂点都传实例，见调用点）。
         """
 
         learned = self.override(hash_value)
         if learned is None:
             return fallback
-        if max(learned, CONFIDENCE_FLOOR) == max(float(fallback), CONFIDENCE_FLOOR):
+        absorbed = (
+            guard.apply_floor(learned) == guard.apply_floor(float(fallback))
+            if guard is not None
+            else max(learned, CONFIDENCE_FLOOR) == max(float(fallback), CONFIDENCE_FLOOR)
+        )
+        if absorbed:
             self._note_floor_absorbed(str(hash_value))
         return learned
 
@@ -188,9 +199,14 @@ class SocialRelConfidenceSeam:
             if isinstance(value, bool):
                 skipped.append(str(key))
                 continue
+            # ⚠️ "解析"这条路上的异常族一次收齐（数值域三类）：
+            #   · `TypeError`：list/dict 之类不可转 float；
+            #   · `ValueError`：字符串非数值；
+            #   · `OverflowError`：**JSON 合法**的巨整数（`10**400`）转 float 溢出 ——
+            #     它是 `ArithmeticError`，不在 (TypeError, ValueError) 里（证伪打掉的洞）。
             try:
                 number = float(value)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 skipped.append(str(key))
                 continue
             if not 0.0 <= number <= 1.0:

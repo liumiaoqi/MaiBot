@@ -122,8 +122,12 @@ class GraphRelationRecallService:
         if candidates:
             confidence_weights = [
                 # 逆熵 · 阶段 C 首件 · 次挂点：与主挂点同一个取数语义（默认关 ⇒ 原样 c.confidence）
+                # 第三个实参＝护栏实例：地板吸收按它生效的 floor 判（非默认 floor 也对齐）。
                 self.confidence_guard.compute_weight(
-                    social_rel_confidence.effective_confidence(c.hash_value, c.confidence), candidates
+                    social_rel_confidence.effective_confidence(
+                        c.hash_value, c.confidence, self.confidence_guard
+                    ),
+                    candidates,
                 )[0]
                 for c in candidates
             ]
