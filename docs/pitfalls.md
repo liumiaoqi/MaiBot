@@ -54,3 +54,11 @@
     规则：① **验证前端别在主 checkout 里 build**——在 **worktree** 里 build（各树有各自的 `dist`，不挂进容器）；② 确需在主 checkout build 时，**先确认容器后端已含前端要用的路由**（`docker exec maim-bot-core sh -c "curl -s localhost:<port>/openapi.json | grep -c config/mutate"`）；③ **前端改动与后端路由上线必须同批**：**后端先重启、前端后 build**；④ 排查"页面 404/405 但源码明明有那个端点"时，先问**"跑的是哪份代码"**——**挂载只解决文件，不解决进程**。
 36. **`ruff check <显式文件>` 的判据必须绑定文件集——`ruff check x.json` 会把它按 Python 解析 ⇒ 全是假阳性**（2026-10-17 消息接缝轮 · P2① 段一验收）— 把生成物 `src/common/utils/session_id_vectors.json` 显式传给 ruff ⇒ **89 条假阳性**（88 条 `F821 undefined name: null` + 1 条 `B018 useless expression`）——**ruff 对显式传入的文件按 Python 解析，不看扩展名**。当时验收清单写的是"ruff 无新增"，而**这条命令本身不成立**（**是我们的检查清单错了，不是 ruff 的错**）。
     规则：① 验收口径里的"ruff 干净"**必须写明文件集**（`ruff check <列出的 .py>`），不许写成泛指的"ruff 干净"——否则换个文件集就不成立；② **别把生成物/数据文件喂给 linter**（`.json`/`.csv`/`.txt` 不在判据面内）；③ 命中数**离谱地大**时，先怀疑"**喂错了文件集**"，再怀疑代码（与 §七"**过滤器命中数太少要当症状查**"是同一条纪律的两端）；④ 本条属"**用法坑**"⇒ 记 `docs/pitfalls.md`，不进 `TOOL_ISSUES.md`（后者记工具缺陷，且由 WB 统一提交）。
+37. **`git -C <未初始化的 submodule 目录>` 静默落回父仓 ⇒ 给的是"好看的假绿"**（2026-10-17 消息接缝轮 · P2① 段三）— worktree 里的 `plugins/maibot-team.napcat-adapter` 是 **gitlink（mode 160000）且该树里 submodule 未初始化（无 `.git`）**。往里写了两个新文件后：
+    ```powershell
+    git -C <wt>\plugins\maibot-team.napcat-adapter rev-parse --show-toplevel   # → 父仓路径（!.agents\worktrees\sessionid-vectors）
+    git -C <wt>\plugins\maibot-team.napcat-adapter status --porcelain          # → 只有父仓的两行 M；那两个新文件一行都没有
+    git -C <真插件仓> status --porcelain                                        # → 空
+    ```
+    **一句话**：它**静默落回父仓** ⇒ `status --porcelain` **看起来像"那仓干净"，其实根本没在看那仓**；⚠️ **更坏的是它会返回父仓的其它改动**——所以"**有输出也不等于在看目标仓**"。
+    规则：① 判"某个子仓/子目录的状态"**先 `rev-parse --show-toplevel` 确认它在看谁**（这一步直接暴露）；② 对比两个仓的状态时**两边都要显式给路径**并**各自核 toplevel**；③ **未初始化 gitlink 目录里写东西 = 写进一个对宿主 git 隐身的副本**（`git status` 看不见 ⇒ **别拿它当"已落地"的证据**）；④ 与"扫描面取空的门禁"同族，**但多一层迷惑性：它给的是一个好看的假绿，而不是一个响的错**（凡"检查器返回干净"当真时，先问它**看的是谁**）。
