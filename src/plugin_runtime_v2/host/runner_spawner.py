@@ -37,7 +37,21 @@ class RunnerSpawner:
         self._restart_counts: dict[str, int] = {}
 
     async def spawn(self, runner_id: str, plugin_dir: str) -> subprocess.Popen:
-        """spawn 一个 Runner 子进程。"""
+        """spawn 一个 Runner 子进程。
+
+        ⚠️ **先过装载期守卫**（P1③）：插件 manifest 声明的 `sdk.min_version` 若**满足不了**，
+        这里**拒装载**（fail-closed + 具名），不落进程。
+        """
+        rejection = _check_manifest_sdk_min_version(plugin_dir, runner_id)
+        if rejection is not None:
+            logger.error(
+                "拒绝装载 Runner（插件声明的 SDK 版本要求无法满足）: %s | plugin_dir=%s runner=%s",
+                rejection,
+                plugin_dir,
+                runner_id,
+            )
+            raise SDKVersionRequirementUnsatisfied(rejection)
+
         session_token = ""
         if self._token_service is not None:
             plugin_id = _read_plugin_id(plugin_dir, runner_id)
@@ -121,6 +135,89 @@ class RunnerSpawner:
         self._processes.clear()
         self._plugin_dirs.clear()
         logger.info("所有 Runner 进程已停止")
+
+
+class SDKVersionRequirementUnsatisfied(RuntimeError):
+    """插件 manifest 声明的 `sdk.min_version` 无法被宿主满足 ⇒ **拒绝装载**（P1③）。"""
+
+
+def _read_manifest_json(plugin_dir: str) -> dict[str, object] | None:
+    """读插件 manifest（`_manifest.json` 优先，与本文件既有读法一致）；读不到/不是对象 ⇒ None。"""
+    for name in ("_manifest.json", "manifest.json"):
+        path = Path(plugin_dir) / name
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return None
+            return data if isinstance(data, dict) else None
+    return None
+
+
+def _check_manifest_sdk_min_version(plugin_dir: str, runner_id: str) -> str | None:
+    """装载期守卫：插件 manifest 声明的 `sdk.min_version` 能否被宿主满足（P1③）。
+
+    Returns:
+        None = 通过（可继续装载）；否则是**具名的拒绝原因**（含**要求值**与宿主**支持区间**）。
+
+    ⚠️ **方向性 —— 别以为漏写了半边判断**：
+        `min_version` 是**最小**要求 ⇒ **宿主更新就能满足它**。所以只有
+        「声明值 ≥ 宿主支持的上界」才是**真冲突**（插件要的比我们能给的还新）；
+        「声明值**低于**宿主下界」**不算冲突**（插件向后兼容，我们满足得了）。
+
+    **与 v1 的差异（有意为之，不是漏抄）**：v1
+    `src/plugin_runtime/manifest_validator.py:1067` 把 `manifest.sdk.min_version` 送进
+    `is_in_range(...)`（`:119-138`，具名消息"版本 X 低于最小要求 Y"）——那是**严格区间
+    [min, max)** 语义。本处**故意不照抄那半边**：按严格区间硬卡，会让"声明 `4.0.0`、
+    而宿主下界更高"的旧插件成批坏掉（真例：`plugins/hello_world_plugin/_manifest.json:21`
+    声明的正是 `4.0.0`）。⇒ v1 有这道守卫、v2 搬家时漏了，这里按装载期补回来，但取方向性语义。
+
+    为什么落在 `spawn`：**"要不要起这个 runner"就是"要不要装载这个插件"** —— 天然是"拒装载"
+    该落的地方（`dependency_resolver` 管插件间依赖、`activation_coordinator` 管发现，都不是这个语义）。
+    """
+    # 延迟 import：复用宿主既有的版本常量与解析器（不另立一套，避免两处漂移）；
+    # 放函数内是为了不与 servicer 形成模块级循环 import。
+    from src.plugin_runtime_v2.host.servicer import (
+        _MAX_SDK_VERSION,
+        _MIN_SDK_VERSION,
+        _parse_version_tuple,
+    )
+
+    manifest = _read_manifest_json(plugin_dir)
+    if manifest is None:
+        # manifest 读不到的处理**不归本守卫**（别在这兜底：那会把"读不到"伪装成"版本 OK"）
+        return None
+
+    sdk_section = manifest.get("sdk")
+    if not isinstance(sdk_section, dict) or "min_version" not in sdk_section:
+        # ④ 兼容性：旧插件**没写**这个键 ⇒ **具名回落**
+        # （判的是**原始 JSON 的键在不在**，所以能与"显式写了 4.0.0"区分开）
+        logger.info(
+            "插件未声明 sdk.min_version，按宿主支持下界 %s 处理（回退路径，不是正常态）"
+            " | plugin_dir=%s runner=%s",
+            _MIN_SDK_VERSION,
+            plugin_dir,
+            runner_id,
+        )
+        return None
+
+    declared_raw = str(sdk_section.get("min_version", "") or "").strip()
+    declared = _parse_version_tuple(declared_raw)
+    if not declared:
+        # 写了却解析不了 ⇒ fail-closed（"声明了但不可判"不许当通过）
+        return (
+            f"SDK_MIN_VERSION_UNPARSABLE: 插件声明 sdk.min_version={declared_raw!r} 无法解析（要求值）；"
+            f"宿主支持 [{_MIN_SDK_VERSION}, {_MAX_SDK_VERSION})（实际值）"
+        )
+
+    ceiling = _parse_version_tuple(_MAX_SDK_VERSION)
+    if declared >= ceiling:
+        return (
+            f"SDK_MIN_VERSION_UNSATISFIED: 插件要求 sdk>={declared_raw}（要求值），"
+            f"而宿主支持 [{_MIN_SDK_VERSION}, {_MAX_SDK_VERSION})"
+            f"（实际可提供的最高版本 < {_MAX_SDK_VERSION}）"
+        )
+    return None
 
 
 def _read_plugin_id(plugin_dir: str, fallback: str) -> str:
