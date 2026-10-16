@@ -4,7 +4,7 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import asyncio
 import json
@@ -1250,45 +1250,147 @@ def initialize_logging(verbose: bool = True):
 
     LOG_CONFIG = load_log_config()
 
+    # 2026-10-16（日志路线图段 1）：**保留策略必须接线才存在**。
+    # 此前这里只"把配置读进来"，而年龄清理的入口 `start_log_cleanup_task()` **全仓零调用**
+    # ⇒ 容器里 53 天的 `app_*.log.jsonl` 一直没被清过（§七「有定义零调用」）。
+    # 放这里而不是 bot.py：凡是真的初始化了日志、真的在写日志目录的进程，
+    # 都该承担保留策略（daemon 线程；多进程并发删除由 unlink 的 OSError 分支兜住并出声）。
+    start_log_cleanup_task()
 
-def cleanup_old_logs():
-    """清理过期的日志文件"""
+
+#: 年龄保留策略覆盖的文件族：**主日志**（生命周期由 `log_cleanup_days` 决定）。
+#: 旧实现把这三个模式硬编码在循环里；提出来是为了让「覆盖面」可被引用、可被测试、可被报告。
+CLEANUP_PATTERNS: tuple[str, ...] = ("app_*.log.jsonl", "maibot_*.log.jsonl", "think_cycles_*.log.jsonl")
+
+#: **只登记、不删除**的族：2026-10-16 裁定 `.html/.json/.txt`（158.9 MB / 4,239 个）是「非日志文件」，
+#: 去留待 lmq 拍板 ⇒ 本函数只让它们**可被识别、可被统计**（进报告、出声），**绝不在这里删**。
+CLEANUP_REGISTER_ONLY_SUFFIXES: tuple[str, ...] = (".html", ".json", ".txt")
+
+
+def _cleanup_logger():
+    """保留策略专用 logger（旧实现每次都在循环里 `get_logger`，这里收成一处）。"""
+    return get_logger("logger")
+
+
+def cleanup_old_logs(*, dry_run: bool = False) -> dict[str, Any]:
+    """按**年龄**清理日志目录，并返回一份**可复算**的报告（调用方负责出声）。
+
+    为什么要返回报告（2026-10-16 日志路线图段 1）：
+    · 判据要可复算 —— 报告是机器可读的，容器里一条 `python -c` 就能取到数（不必翻日志）；
+    · 出声要求 —— 删没删都要有一行交代（见 `_log_cleanup_report`）。
+
+    口径：
+    · 覆盖面 = `CLEANUP_PATTERNS`（主日志三族）；`CLEANUP_REGISTER_ONLY_SUFFIXES` **只统计不删**；
+    · 年龄 = 文件 `mtime` vs **本进程本地时钟**（容器内实测两者同为 UTC，一致 ⇒ 本故障**不是**时钟问题）；
+    · `dry_run=True` 只算不删（容器内做只读取证用）。
+    """
+    report: dict[str, Any] = {
+        "dir": str(LOG_DIR),
+        "cleanup_days": None,
+        "cutoff": None,
+        "dry_run": dry_run,
+        "scanned": 0,
+        "deleted": 0,
+        "freed_bytes": 0,
+        "kept": 0,
+        "errors": 0,
+        "register_only": {},
+    }
     try:
         cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
         cutoff_date = datetime.now() - timedelta(days=cleanup_days)
-        deleted_count = 0
-        deleted_size = 0
+        report["cleanup_days"] = cleanup_days
+        report["cutoff"] = cutoff_date.isoformat(timespec="seconds")
 
         # 遍历日志目录（显式三模式，天然排除 dump_* 独立命名空间）
-        for pattern in ("app_*.log.jsonl", "maibot_*.log.jsonl", "think_cycles_*.log.jsonl"):
-            for log_file in LOG_DIR.glob(pattern):
+        for pattern in CLEANUP_PATTERNS:
+            for log_file in sorted(LOG_DIR.glob(pattern)):
+                report["scanned"] += 1
                 try:
-                    file_time = datetime.fromtimestamp(log_file.stat().st_mtime)
-                    if file_time < cutoff_date:
-                        file_size = log_file.stat().st_size
-                        log_file.unlink()
-                        deleted_count += 1
-                        deleted_size += file_size
-                except Exception as e:
-                    logger = get_logger("logger")
-                    logger.warning(f"清理日志文件 {log_file} 时出错: {e}")
+                    file_stat = log_file.stat()
+                except OSError as exc:
+                    # 竞态：别的进程（每个写日志的进程都起了保留任务）刚删掉它 —— 出声，但不是失败
+                    report["errors"] += 1
+                    _cleanup_logger().warning("清理日志文件 %s 时读不到状态: %s", log_file, exc)
+                    continue
 
-        if deleted_count > 0:
-            logger = get_logger("logger")
-            logger.info(f"清理了 {deleted_count} 个过期日志文件，释放空间 {deleted_size / 1024 / 1024:.2f} MB")
+                if datetime.fromtimestamp(file_stat.st_mtime) >= cutoff_date:
+                    report["kept"] += 1
+                    continue
 
-    except Exception as e:
-        logger = get_logger("logger")
-        logger.error(f"清理旧日志文件时出错: {e}")
+                if dry_run:
+                    report["deleted"] += 1
+                    report["freed_bytes"] += file_stat.st_size
+                    continue
+
+                try:
+                    log_file.unlink()
+                except OSError as exc:
+                    report["errors"] += 1
+                    _cleanup_logger().warning("清理日志文件 %s 失败: %s", log_file, exc)
+                    continue
+                report["deleted"] += 1
+                report["freed_bytes"] += file_stat.st_size
+
+        # 只登记不删的族：让「这个目录里还有多少不是日志」可被看见（去留待拍板）
+        for suffix in CLEANUP_REGISTER_ONLY_SUFFIXES:
+            files = 0
+            size = 0
+            for path in LOG_DIR.rglob(f"*{suffix}"):
+                try:
+                    size += path.stat().st_size
+                    files += 1
+                except OSError:
+                    continue
+            report["register_only"][suffix] = {"files": files, "bytes": size}
+
+        _log_cleanup_report(report)
+    except Exception as exc:
+        _cleanup_logger().error("清理旧日志文件时出错: %s", exc, exc_info=True)
+        report["errors"] += 1
+    return report
 
 
-def start_log_cleanup_task():
-    """启动日志清理任务"""
+def _log_cleanup_report(report: dict[str, Any]) -> None:
+    """**总出声**：删了要说，没删也要说（裁定：降级可以，静默不行）。
+
+    旧实现只在 `deleted_count > 0` 时打一行 ⇒ 「跑了但一个没删」与「根本没跑」在日志里
+    **长得一模一样**，这正是 53 天没清理却没人发现的原因之一。
+    """
+    register_only = "、".join(
+        f"{suffix} {info['files']} 个 / {info['bytes'] / 1048576:.2f} MB（未纳入删除，待拍板）"
+        for suffix, info in report["register_only"].items()
+    )
+    _cleanup_logger().info(
+        "日志保留：目录=%s 规则=%s 天 dry_run=%s | 扫描主日志 %d 个 → 删除 %d 个（释放 %.2f MB）"
+        "、保留 %d 个、失败 %d 个 | 只登记不删：%s",
+        report["dir"],
+        report["cleanup_days"],
+        report["dry_run"],
+        report["scanned"],
+        report["deleted"],
+        report["freed_bytes"] / 1048576,
+        report["kept"],
+        report["errors"],
+        register_only,
+    )
+
+
+def start_log_cleanup_task(interval_s: float = 24 * 60 * 60) -> bool:
+    """启动**日志保留**后台任务；返回本次是否真的启动（已启动过则 `False`）。
+
+    ⚠️ 2026-10-16 段 1 修的正是这里：本函数此前**全仓零调用**（`grep start_log_cleanup_task`
+    只有定义本身），于是年龄清理**从未运行过**。三条互相印证的现场：
+    ① 容器 PID 1 只有 **1 个线程**（本任务若在，会多一个 `log-retention` daemon 线程）；
+    ② 容器 `app_*.log.jsonl` 最老的 **53 天** > 规则 30 天；
+    ③ 最后一次启动后的 stdout 里**没有任何清理输出**。
+    接线点 = `initialize_logging()`（每个真的在写日志的进程各起一次）。
+    """
     global _cleanup_task_started
 
     # 防止重复启动清理任务
     if _cleanup_task_started:
-        return
+        return False
 
     _cleanup_task_started = True
 
@@ -1297,8 +1399,9 @@ def start_log_cleanup_task():
             cleanup_old_logs()
             time.sleep(24 * 60 * 60)  # 每24小时执行一次
 
-    cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
+    cleanup_thread = threading.Thread(target=cleanup_task, name="log-retention", daemon=True)
     cleanup_thread.start()
+    return True
 
 
 def shutdown_logging():
