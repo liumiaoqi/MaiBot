@@ -98,3 +98,40 @@
       ⇒ **`__del__` 里排不进协程 = 这对象的收尾就没人做了**（`shutdown` 从未 await）；它身上挂着 C-core 的真资源 ⇒ 收尾交给**另一个线程**（C-core 或解释器退出）时，Windows 上就可能变成 access violation —— 而**崩点在后续用例或解释器退出**，出错现场没有任何本用例的痕迹。
     - **实测边界（别把话说满）**：本机 2026-10-17 用裸 `grpc.aio.server()` 复现：① 绑定失败 + 悬挂（跨 loop）⇒ 4 用例全过；② 真 start + 不 stop ⇒ 4 用例全过、只在退出时打上面那段 `Server.__del__`；③ 40 轮混合压力 ⇒ 全过。**稳定复现的硬崩在本轮未取得** ⇒ 记的是"**机制 + 观测到的 deallocator 告警**"，不是"**每次必崩**"。⚠️ 另有一条**独立**的环境现象（同轮实测）：真 `HostEndpoint.start()` 用例在本机探针里**挂起 >45s**，卡在 `asyncio.run` 起新 loop 的 `socketpair/self-pipe`（`asyncio/windows_events.py` → `proactor_events._make_self_pipe` → `socket.py`），与 grpc 无关——**别把它当本条的复现**。
     - **规则**：① 测试**别真开真关网络资源**——用 mock/假 server，或把真实 server 放在**用例外**的 loop / fixture 里并保证成对清理；② **失败路径也必须停**（绑定失败 ≠ 不用收尾）——例外是**绑定都没成功时**：`grpc.aio.server()` 的构造函数**不建 native 对象**，`add_insecure_port` 抛（端口被占）时 server 也还不是"真 server"（实测 `HostEndpoint.start()` 此时 `Server.__del__` **不会**触发）；③ 别指望 `__del__` 收尾（它只能"尽力"，失败就是上面那条 ignored-exception）——**收尾必须是显式 await**；④ **别把"加固"说成"修好"**：`_discard_unstarted_server` 的定位保持"加固"，判据门说清是"哪一条不再崩"；⑤ 顺手一条**生产代码**发现（同轮实读）：`src/plugin_runtime_v2/host/endpoint.py:93-101` 的 `try` **只包住 `add_insecure_port` 之后的调用**，而 `add_insecure_port` 自己是抛点 ⇒ 端口被占时**根本不会走 `_discard_unstarted_server()`**，半建 server 就留在 `self._server` 上；按本条①③，这个端点若被长期持有并在解释器退出时才回收，收尾就归 `__del__` 管 —— **"加固"与"真收尾"之间还差这一行**。
+43. **"扫空"会被误读成"不存在"——`rg` 默认看不见 gitignore 路径，而 `.agents/worktrees/.gitignore` 的内容就是 `*`**（2026-10-17 插件运行时轮 · compat-e2e；⚠️ **取证工具自身的盲区**）— 拿 `rg` 从 `.agents/worktrees` 往下扫一个符号 ⇒ "无命中"（退出码 1）⇒ 据此下了"全盘不存在"的结论；而那个符号其实就在其中一棵树的工作区里（另一条腿 `git log --all -S` 也空，因为它是**未提交**的）。两条腿看着互相印证，其实**同一类不可见**。
+    - **机制（实测复现）**：`git check-ignore -v .agents/worktrees/<树>/src/.../plugin_loader.py` ⇒ 命中的是 **`.agents/worktrees/.gitignore:1:*`** ⇒ **每棵 worktree 的工作区都在 gitignore 里**；而 `rg` 默认尊重 `.gitignore` ⇒ **它根本不走进被忽略的路径**。同一条命令加 `--no-ignore` ⇒ **立刻 2 命中**。
+    - **规则**：① **别从被忽略的根往下遍历**（必空）；**要对某棵树取证就把路径指到那棵树内部**（`rg <显式路径>` 会扫，不必加开关）；真要跨树全扫用 **`rg --no-ignore`**，并在结论里**写明用了它**；② **"没命中/扫空"本身不是证据** —— 除非同时说清**扫了哪些范围、含不含忽略项**（与 §七"全仓扫描要写口径"同源，但这次咬的是**取证工具自己**）；③ `git grep` / `git log -S` 只看**已提交**内容 ⇒ 对**未提交的工作区**天然无效 —— 它与 gitignore 盲区是**两个独立的失效面**，一次取证里**都要交代**；④ 判"某物不存在"前先问：**这个扫描器有没有它自己看不见的地方**。
+    - **归属**：与"假绿（抽取器太窄 ⇒ 抽到 0 条照样绿）/ 假红（闸门与判据错配）/ 三义合一（恒空 stub、真没插件、插件全挂压成同一句）"同族，**第四格 = 扫描器自己看不见** ⇒ 共同根因：**检查无法分辨它必须分辨的状态**。
+
+
+44. **批量改 CRLF 文件后必须复核 CR 计数：`edit` 工具会往 CRLF 文件里插 LF ⇒ 混合行尾**（2026-10-17）
+   - 现场：11 个 `.py` 批量改动后，**一度 4 个文件出现混合行尾**（CRLF 文件里被插进 bare LF）；已全部归一（`CRLF bare-LF=0`）。
+   - 规则：① 改 **`.py`（仓库约定 CRLF）** 之后，**逐文件复核 CR/LF 计数**（不要只看“能不能跑”）；② 与 `#39`（字节级 I/O）是近邻：**行尾与物化状态也是“看不见的输入”**；③ 判断“文件被谁改过”**不能只看 `git status`**（该族见 `#37`/`#38`）。
+45. **`.pyc` 缓存：改脚本后同进程再 import 会读到旧逻辑 ⇒ 复核行为必先清缓存**（2026-10-17）
+   - 现场：改 `scripts/n1_wiring_checker.py` 后**同进程**再 `import`，读到 `__pycache__` 里的**旧逻辑**，一度误判“`is_root` 不生效”。
+   - 规则：**复核脚本行为前先删对应 `__pycache__`（如 `scripts/__pycache__/n1_wiring_checker*`）或用新解释器**；“我改了但它没变”这类现象**先怀疑缓存**，别先怀疑自己的改法。
+46. **可被人依赖的补丁/交接必须落成文件 —— 且落成文件之后还要"对着实物核标识符"**（2026-10-17）
+   - **证据 A（成因）**：那份"可照抄的补丁"**只活在回执与转述里** —— 全仓 `rg --no-ignore` **找不到那处接线** ⇒ 接手的人只能**照转述实现**（**不是照抄**）。
+   - **证据 B（连带的坑）**：那份规格里用了两个**在那个树里根本不存在的标识符**（`LegacyCompatUnavailableError` / `self._compat_hook_error`）⇒ 接手的人按"**不新增类型**"改成**复用 `ImportError` + 现有信号**。
+   - **规矩**：① **可被人依赖的补丁/交接必须落成文件**（回执 / 口头 / 转述**不算**落地）；② ⭐ **落成文件之后，还要"对着实物核标识符"** —— 文件名 / 类型名 / 字段名**必须在目标树里真的存在**（**文件不足以自证**）；③ 与"**引用必须核落点存在**"同族（**引用也是一种"看着在"**）。
+
+47. **判据自己成为故障源：假红 + 降级路径 ⇒ 闸不只要求"能红"，还要求"误红不产生生产后果"**（2026-10-17 实测）
+   - **事实链**：解析阶段第五支（**依赖 ID 格式非法**）**只记 `skips`、不进 `candidates`** ⇒ **三栏（activated / skipped / rejected）都不收** ⇒ 新加的**值域覆盖断言**把**合法输入**报成"**值域缺口**"并 `raise ValueError` ⇒ ⚠️ **bootstrap 于是把整条依赖解析降级为字母序**。
+   - **判词**：这是"**假红 + 降级路径**" —— **比假绿更危险**：假绿只是**看不见**，假红**会改变生产行为**。
+   - **第 5 形态**（与 恒假闸 / 恒真闸 / 三义合一 / 值域缺口 并列）：
+     **判据自己成为故障源** ⇒ 三条要求：**(a) 能红** **(b) 不误红** **(c) ⭐ 误红时不许有生产后果**（**若"判据红了 ⇒ 走降级路径" ⇒ 那它就从检查变成了故障源**）。
+   - **实测证据**（真输出。同一输入：1 个合法插件目录 `plugindir`，只有 `manifest.dependencies = ["invalid id!"]` 打错；复现跑 HEAD `30dfef000` 版 `dependency_resolver.py`、修后跑工作区当前版；除把临时绝对路径写作 `<tmp>` 外逐字照录）：
+     ```text
+     复现（HEAD 30dfef000 版 resolver）:
+     [1] parse_candidate_manifests -> candidates: [] | skips: {'org.a': "依赖 ID 格式非法: ['invalid id!']"} | rejects: {}
+     [2] compute_activation_plan -> ValueError: 值域缺口：以下候选目录既不在波次/跳过清单、也不在拒绝清单里 ⇒ 它们会从状态面消失：['plugindir']（共 1 个）。解析器的每个产出都必须落进 activated / skipped / rejected 三栏之一。
+     [3] ActivationCoordinator.plan_startup(plugins_root, -1)（bootstrap.py:120 的生产入口）-> 同一个 ValueError 逸出:
+         File "<tmp>\_head_resolver.py", line 514, in compute_activation_plan
+           raise ValueError(
+         ValueError: 值域缺口：以下候选目录既不在波次/跳过清单、也不在拒绝清单里 ⇒ 它们会从状态面消失：['plugindir']（共 1 个）。解析器的每个产出都必须落进 activated / skipped / rejected 三栏之一。
+     修后（工作区当前版 resolver）:
+     [1] rejects[org.a] = RejectEntry | reason=依赖 ID 格式非法: ['invalid id!']（目录 <tmp>\plugindir） | dir_path.name=plugindir
+     [2] compute_activation_plan -> OK（不再抛『值域缺口』）; plan.waves=[] plan.skipped={} plan.rejected={'org.a': ('RejectEntry', 'plugindir')}
+     [3] plan_startup -> 返回 OK（未降级）: rejected={'org.a': 'plugindir'}; coordinator._rejected={'org.a': 'plugindir'}
+     ```
+   - **修法**：让"第五支"这类产出**也落进三栏之一**（新增栏或补进既有栏），**并把该情形固化成用例**（"合法输入不得被判为缺口"）。
