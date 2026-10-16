@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from pathlib import Path
 from time import perf_counter
 from typing import ContextManager, Generator, TYPE_CHECKING
 
@@ -14,6 +13,13 @@ import threading
 
 from src.common.database.migrations import create_database_migration_bootstrapper
 from src.common.logger import get_logger
+from src.common.runtime_paths import (
+    DATA_DIR_ENV,
+    describe_data_root,
+    resolve_data_root,
+    resolve_host_side_alternate_root,
+    resolve_project_root,
+)
 
 if TYPE_CHECKING:
     from sqlite3 import Connection as SQLite3Connection
@@ -24,13 +30,34 @@ logger = get_logger("database")
 
 
 # 定义数据库文件路径
-ROOT_PATH = Path(__file__).parent.parent.parent.parent.absolute().resolve()
-_DB_DIR = ROOT_PATH / "data"
+#
+# 数据根**只从 `src.common.runtime_paths` 取**（唯一来源：`MAIBOT_DATA_DIR` → 仓根推导）。
+# 为什么不能在这里自己推：同一份代码在容器里 `__file__` 推出 `/MaiMBot`（且 docker-compose.yml:50
+# 把宿主 `./data/MaiMBot` 挂成 `/MaiMBot/data`），在宿主上推出仓根 —— 两处各推一次，就**没有人能回答
+# "这次的 data 根是什么、谁定的"**（曾导致宿主跑一次 `bot.py` 就在仓根建起第二套库）。
+ROOT_PATH = resolve_project_root()
+_DB_DIR = resolve_data_root()
 _DB_FILE = _DB_DIR / "MaiBot.db"
 
 # 确保数据库目录存在
 _DB_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = f"sqlite:///{_DB_FILE}"
+
+# 宿主侧显式化：当前 data 根下若还有 `MaiMBot/` 子目录，那份才是容器挂载的**生产数据**。
+# 刻意**不硬失败**：宿主直跑是日常开发路径、测试也全在宿主跑，硬失败会让二者直接不可用
+# ⇒ 给"清楚的说明 + 切换方式"（派发单允许的两个选项之一）。
+_host_side_production_root = resolve_host_side_alternate_root()
+if _host_side_production_root is None:
+    logger.info("%s", describe_data_root())
+else:
+    logger.warning(
+        "%s。它旁边还有一份 %s —— 那是容器（maim-bot-core）挂载的生产数据；"
+        "要在宿主侧直接用那一份，请设 %s=%s 后重跑。",
+        describe_data_root(),
+        _host_side_production_root,
+        DATA_DIR_ENV,
+        _host_side_production_root,
+    )
 
 
 @event.listens_for(Engine, "connect")
