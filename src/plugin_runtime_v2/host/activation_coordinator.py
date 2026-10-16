@@ -16,6 +16,7 @@ from src.core.service_manager.types import DependencyKind, DependencyRelation
 from src.plugin_runtime_v2.host.dependency_resolver import (
     ActivationPlan,
     CandidateMap,
+    RejectMap,
 
     compute_activation_plan,
     scan_plugin_dirs,
@@ -50,7 +51,8 @@ class ActivationCoordinator:
     - _skipped: dict[str, str]（跳过清单）
     - _candidate_dirs: dict[str, Path]（插件 ID → 目录路径）
     - _candidates: CandidateMap（候选插件映射，供补全评估用）
-    - _rejected: dict[str, str]（**解析阶段被拒**清单——第三栏，2026-10-17 值域修复）
+    - _rejected: RejectMap（**解析阶段被拒**清单——第三栏；`RejectEntry` 结构化，
+      2026-10-17 (ii)）
     """
 
     def __init__(self, supervisor) -> None:
@@ -65,10 +67,12 @@ class ActivationCoordinator:
         self._skipped: dict[str, str] = {}
         self._candidate_dirs: dict[str, Path] = {}
         self._candidates: CandidateMap = {}
-        # 解析阶段被拒（manifest 读不出/不过 schema/id 重复/自依赖）——
+        # 解析阶段被拒（manifest 读不出/不过 schema/依赖 ID 格式非法/id 重复/自依赖）——
         # ⚠️ 与 _skipped 分开：那些插件**从未进依赖图**，键还可能是 `dir:<目录名>`。
         # 不分开就是"值域缺口"：它们会从状态面消失（2026-10-17 立项）。
-        self._rejected: dict[str, str] = {}
+        # ⚠️ 值是 `RejectEntry`（结构化：原因 + 目录，2026-10-17 (ii)）——下游**读字段**，
+        # 不许解析 `reason` 文案。
+        self._rejected: RejectMap = {}
 
     # ── 启动激活 ──────────────────────────────────────────────
 
@@ -249,12 +253,13 @@ class ActivationCoordinator:
         return self._skipped
 
     @property
-    def rejected(self) -> dict[str, str]:
-        """解析阶段被拒清单（第三栏，2026-10-17 值域修复）。
+    def rejected(self) -> RejectMap:
+        """解析阶段被拒清单（第三栏，2026-10-17 值域修复；(ii) 起结构化）。
 
-        key 可能是合法插件 ID，也可能是 `dir:<目录名>`（manifest 读不出/不过 schema
-        时拿不到 id）。⚠️ 语义与 `skipped` **不同**：这些插件**从未进依赖图**，
-        是"这份 manifest 不成立"，不是"这一轮没排上"。
+        key 可能是合法插件 ID，也可能是 `dir:<目录名>`（manifest 读不出 / 不过 schema /
+        依赖 ID 格式非法时拿不到可用 id）；value 是 `RejectEntry`（`reason` + `dir_path`）。
+        ⚠️ 语义与 `skipped` **不同**：这些插件**从未进依赖图**，是"这份 manifest
+        不成立"，不是"这一轮没排上"。
         """
         return self._rejected
 

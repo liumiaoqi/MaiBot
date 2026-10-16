@@ -307,10 +307,13 @@ class TestPluginStatesValueDomain:
         plan = compute_activation_plan([bad_illegal_json, bad_schema])
         # 修前现场：skips 里只有 dir: key，而 plan.skipped 把它们**全滤掉** ⇒ 空
         assert plan.skipped == {}
-        # 修后：第三栏 rejected **具名**（目录名 + 原因）
+        # 修后：第三栏 rejected **具名**（目录名 + 原因；2026-10-17 (ii) 起结构化）
         assert set(plan.rejected) == {"dir:badillegaljson", "dir:badschemadir"}
-        assert "解析失败" in plan.rejected["dir:badillegaljson"]
-        assert "校验失败" in plan.rejected["dir:badschemadir"]
+        assert "解析失败" in plan.rejected["dir:badillegaljson"].reason
+        assert "校验失败" in plan.rejected["dir:badschemadir"].reason
+        # ⚠️ 目录名是**字段**（不是从文案里抠的）：覆盖断言/投影面都读它
+        assert plan.rejected["dir:badillegaljson"].dir_path.name == "badillegaljson"
+        assert plan.rejected["dir:badschemadir"].dir_path.name == "badschemadir"
 
         # 全链：真 coordinator → 真投影（走生产路径，不手搓 rejected）
         coordinator = ActivationCoordinator(MockSupervisor())
@@ -360,7 +363,7 @@ class TestPluginStatesValueDomain:
         write_plugin_dir(tmp_path, "org.a", raw_content="{not valid json", dir_name="badillegaljson")
         write_plugin_dir(tmp_path, "org.b", raw_content='{"manifest_version": 3}', dir_name="badschemadir")
         # 自依赖：parse 通过、id 拿得到，但被移出 candidates（rejected 的 key 是**真 id**，
-        # 目录名要从 rejected_dir_names 的 dir: 那一支拿）
+        # 目录名从 `RejectEntry.dir_path` 拿——不解析文案、不反推 ID）
         write_plugin_dir(tmp_path, "org.a", dependencies=["org.a"], dir_name="selfdepdir")
         # 孤儿（1↔2：candidates ∪ skipped 已覆盖）——断言必须**兼容**它，而不是误报
         for orphan_dir in ("orphanone", "orphantwo"):
@@ -372,8 +375,11 @@ class TestPluginStatesValueDomain:
 
         dirs = scan_plugin_dirs(tmp_path)
         plan = compute_activation_plan(dirs)
-        assert _check_value_domain(plan, dirs, rejected_dir_names(plan)) == [], \
-            "解析器自己的产出必须全覆盖"
+        # ⭐ 本用例**知道这里有 rejected**（三个坏目录）⇒ 提取必须非空：
+        #    `expect_nonempty=True`（同案 (b)）——0 条就是红，不许静默给空。
+        assert _check_value_domain(
+            plan, dirs, rejected_dir_names(plan, expect_nonempty=True),
+        ) == [], "解析器自己的产出必须全覆盖"
 
     def test_coverage_assertion_speaks_on_gap(self, tmp_path):
         """证红 ②：构造"落在三栏之外" ⇒ **全称断言必须出声**（不是静默通过）。
@@ -439,6 +445,39 @@ class TestPluginStatesValueDomain:
             dr.compute_activation_plan(seen)
         assert "值域缺口" in str(excinfo.value)
         assert "orphandir" in str(excinfo.value)
+
+    def test_should_have_rejected_but_zero_is_red(self, tmp_path):
+        """证红 ③（同案 (b)）：**"应该有 rejected，但提取到 0 条" ⇒ 必须红**。
+
+        为什么单独立这条：换成结构化字段之后，"提取读不到"的返回值与"真没有坏插件"
+        **在值上不可分**——都是空。覆盖断言若只看到空，就分不清"没有坏插件"与
+        "我看不见坏插件"（"扫描器看不见自己的瞎"）。`expect_nonempty=True` 让
+        **知道这里应该有 rejected** 的调用方把这点明说出来，于是 0 条变成红。
+
+        现场：目录里放**坏 manifest**（⇒ 应该有 rejected），再合成"提取读到 0 条"
+        （`plan.rejected` 被清空 = 字段换了/名字对不上的那个世界）。
+        """
+        from src.plugin_runtime_v2.host.dependency_resolver import (
+            compute_activation_plan,
+            rejected_dir_names,
+        )
+        from tests.plugin_runtime_v2.zg16_3_helpers import write_plugin_dir
+
+        bad_dir = write_plugin_dir(
+            tmp_path, "org.b", raw_content="{not valid json", dir_name="orphandir",
+        )
+        plan = compute_activation_plan([bad_dir])
+
+        # 正身：真有一条 ⇒ **带期待也是绿的**（否则"必须有"会变成新的误报源）
+        assert rejected_dir_names(plan, expect_nonempty=True) == {
+            "orphandir": plan.rejected["dir:orphandir"].reason,
+        }
+
+        # 合成"提取到 0 条"（= 换了字段、提取读不到的世界观）
+        plan_zero = copy.replace(plan, rejected={})
+        assert rejected_dir_names(plan_zero) == {}           # 不带期待：**静默给空** ← 这就是病
+        with pytest.raises(ValueError, match="0 条"):
+            rejected_dir_names(plan_zero, expect_nonempty=True)   # 带着期待：**红**
 
 
 

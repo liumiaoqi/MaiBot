@@ -27,9 +27,11 @@ logger = get_logger("plugin_runtime_v2.host.dependency_resolver")
 # 插件 ID 格式正则（与 ManifestV3.id pattern 一致）
 _PLUGIN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$")
 
-# 拒绝原因里的"目录名"提取（形如 `... 目录 C:\...\plugins\badnodeid 与 ...`）
-# ⚠️ 只用来读**解析器自己写下的**目录名，不从插件 ID 反推（见 rejected_dir_names）
-_DIR_IN_REASON = re.compile(r"目录 ([^ 与\n]+)")
+# ⚠️ 2026-10-17 (ii)：这里原有一条**从 reason 文案里正则抠目录名**的提取
+# （`_DIR_IN_REASON = re.compile(r"目录 ([^ 与\n]+)")`）——**已删除**。
+# 病根：文案是给人看的，"目录 <路径>" 一改（措辞/格式/语言）提取就**静默变空**，
+# 而"空"与"真没有坏插件"在**值上不可分** ⇒ 覆盖断言看不出缺口（"扫描器看不见自己的瞎"）。
+# 现在目录名走结构化字段 `RejectEntry.dir_path`（见下），**任何判定都不解析文案**。
 
 
 # 类型别名
@@ -39,8 +41,39 @@ CandidateMap = dict[str, tuple[Path, ManifestV3]]
 SkipMap = dict[str, str]
 """跳过清单：插件 ID → 跳过原因"""
 
-RejectMap = dict[str, str]
-"""拒绝清单（**第三栏**）：插件 ID（或 `dir:<目录名>`）→ 拒绝原因。
+
+@dataclass(frozen=True)
+class RejectEntry:
+    """解析阶段被拒的**一条结构化记录**（第三栏的元素，2026-10-17 (ii) 起）。
+
+    (ii) 之前这里是一个**裸字符串** reason，目录名靠**正则从文案里抠**
+    （`_DIR_IN_REASON` 匹配 `目录 <路径>`）——**文案一改，提取就静默变空**，而"空"与
+    "真没有坏插件"在**值上不可分** ⇒ 覆盖断言看不出缺口（"扫描器看不见自己的瞎"）。
+    现在拆成字段：目录名是**登记下来的事实**，不是从字符串里抠出来/猜出来的。
+
+    Attributes:
+        reason: 人类可读的拒绝原因。⚠️ **给人看的**：为不丢投影面信息，它可能仍带着
+            目录路径（与旧文案逐字一致），但**任何判定/提取都不许解析它**。
+        dir_path: 被拒的插件**目录**（解析阶段如实登记的那一个；不从插件 ID 反推——
+            目录名默认是 `id.replace(".", "_")`，但用户可以给任意目录名）。
+            ⚠️ **必填**：每条拒绝都发生在某个具体目录上 ⇒ 留空等于给"提取静默变空"
+            再留一扇门（见 `rejected_dir_names` 的 `expect_nonempty`）。
+    """
+
+    reason: str
+    dir_path: Path
+
+    @property
+    def dir_name(self) -> str:
+        """目录名（`dir_path` 末段）——覆盖断言认的就是它。"""
+        return self.dir_path.name
+
+
+RejectMap = dict[str, RejectEntry]
+"""拒绝清单（**第三栏**）：key → `RejectEntry`（**结构化**：原因 + 目录）。
+
+key 是**投影键**：拿得到 id 时是真插件 ID（id 重复 / 自依赖两支，已过 schema），
+拿不到时是 `dir:<目录名>`（manifest 读不出 / 不过 schema / 依赖 ID 格式非法）。
 
 与 SkipMap 的区别是**结论不同，不是程度不同**：
 - **skipped**：解析通过、进入依赖图与波次编排之后**才**被拒（依赖缺失/级联/循环依赖/
@@ -91,40 +124,47 @@ def _check_value_domain(
 
     - **activated**：解析成功的**目录**（就在 `plan.candidate_dirs` 的**值**里）
     - **skipped**：`plan.skipped` 的 key
-    - **rejected**：`rejected_dir_names` 登记的**目录名**（解析阶段被拒：
-      manifest 读不出 / 不过 schema / id 重复 / 自依赖）
+    - **rejected**：`plan.rejected` 里每条的 `RejectEntry.dir_path`（解析阶段被拒：
+      manifest 读不出 / 不过 schema / id 重复 / 自依赖 / 依赖 ID 格式非法）
+      —— **读结构化字段，不解析文案**
 
     ⚠️ 这是**全称**断言，不是抽样：`plugin_dirs` 里**每个**目录都要被上面三栏之一收下。
     三栏都没收它 ⇒ 它**不在投影面里**，而它确实存在过——**这就是值域缺口**
     （"空间本身没覆盖全部结果"，**不是**"抽到 0 条"）。
 
-    ⚠️ **为什么单独要 `rejected_dir_names` 而不是拿 `plan.rejected` 的 key 去推目录名**：
-    `rejected` 的 key 在"id 重复 / 自依赖"两支里是**真插件 ID**（已过 schema），而插件
-    目录名默认是 `id.replace(".", "_")` —— **反推是在猜**（`badnodeid` 会被猜成
-    `org_badnodeid`，于是断言把**真实覆盖**误报成缺口）。**断言不许猜**：目录名由解析
-    阶段如实登记。`None` 时退回只看 `dir:` 前缀 key（旧调用方式的兼容路径）。
+    ⚠️⚠️ **边界（2026-10-17 (ii) 写明）：这是"值域**覆盖**"，不是"值域**相等**"。**
+    - **覆盖**（本函数声称的）：**每个已知类别都有落点**——`plugin_dirs` 里**每一个**
+      目录都被上面三栏之一收下；
+    - **相等**（本函数**不**声称的）：**反方向也成立**——三栏里的每一项都必须来自
+      `plugin_dirs`、且不得有第四栏。下面**没有**检查：① `plan.rejected` 里混进了
+      不属于本次扫描的键；② `plan.candidate_dirs` / `plan.skipped` 多出 `plugin_dirs`
+      之外的项。⇒ **相等不声称**（要宣称相等，得把"三栏 ⊆ 扫描结果"那半边也断言上，
+      本轮不做——覆盖只需要"没有看不见的坏插件"，那才是这条缺陷的正身）。
+
+    ⚠️ **为什么不能拿 `plan.rejected` 的 key 去推目录名**：
+    key 在"id 重复 / 自依赖"两支里是**真插件 ID**（已过 schema），而插件目录名默认是
+    `id.replace(".", "_")` —— **反推是在猜**（`badnodeid` 会被猜成 `org_badnodeid`，
+    于是断言把**真实覆盖**误报成缺口）。**断言不许猜**：目录名由解析阶段写进
+    `RejectEntry.dir_path`，是**登记下来的事实**（`None` 时也从同一处现算）。
 
     Args:
         plan: 待检查的激活计划
         plugin_dirs: 解析器实际看到的候选目录（用 `scan_plugin_dirs` 取，保证同一把尺子）
-        rejected_dir_names: 被拒目录名 → 原因（`parse_candidate_manifests` 之外由
-            `compute_activation_plan` 从 `plan.rejected` 的 `dir:` key 现算）
+        rejected_dir_names: 被拒**目录名** → 原因。`None` 时直接从 `plan.rejected`
+            的结构化字段现算（两条路径**同源**：都不解析文案）
 
     Returns:
         未被任何一栏覆盖的目录名列表（空列表 = 全覆盖）。
     """
-    rejected_names = set(rejected_dir_names or ())
     if rejected_dir_names is None:
-        # 兼容路径：`dir:` 前缀 key 就是目录名；真 ID 的 key 推不出目录名，只能靠
-        # candidates 一栏（id 重复/自依赖那两支的**当前**目录已从 candidates 移除
-        # ⇒ 走这条路径会被报成缺口，这正是"不许猜"的代价，宁可出声也不静默放过）
-        rejected_names = {
-            key[len("dir:"):] for key in plan.rejected if key.startswith("dir:")
-        }
+        # 结构化派生（2026-10-17 (ii)）：目录名一律读 `RejectEntry.dir_path`——
+        # **不解析 reason 文案、不从插件 ID 反推**。真 ID 的 key 也照样给得出目录。
+        rejected_names = {entry.dir_name for entry in plan.rejected.values()}
+    else:
+        rejected_names = set(rejected_dir_names)
 
-    # ⚠️ 拒绝栏拿到的是**解析阶段写下的原文**：`dir:` 的 key 是裸目录名，而 reason 里
-    # 那句 `目录 <plugin_dir>` 是**完整路径** ⇒ 统一取末段（`Path.name`，仍是"读下来
-    # 的"而不是"推出来的"）。不归一化就会把路径当目录名、断言直接误报。
+    # ⚠️ 统一取末段（`Path.name`）：显式传入的目录名可能是完整路径（旧调用方式），
+    # 归一化后两者才能比。不归一化就会把路径当目录名、断言直接误报。
     covered_dirs = {Path(name).name for name in rejected_names}
     covered_dirs |= {p.name for p in plan.candidate_dirs.values()}
     covered_dirs |= set(plan.skipped)
@@ -136,16 +176,22 @@ def _check_value_domain(
     return missing
 
 
-def rejected_dir_names(plan: "ActivationPlan") -> dict[str, str]:
-    """取"被拒的是哪些目录"——**只读解析器自己写下的具名信息，绝不从 ID 反推**。
+def rejected_dir_names(
+    plan: "ActivationPlan",
+    *,
+    expect_nonempty: bool = False,
+) -> dict[str, str]:
+    """取"被拒的是哪些目录"——**读结构化字段，绝不解析文案、绝不从 ID 反推**。
 
-    三条来源（都对得上解析阶段真正登记过的字段）：
+    2026-10-17 (ii) 之前这里靠**正则从 reason 文案里抠**目录名（`目录 <路径>`），
+    三条"来源"（`dir:` 前缀 key / reason 里那句路径 / 上一目录）本质都是**字符串**。
+    现在来源只有一个：`RejectEntry.dir_path`（解析阶段**如实登记**的那一个）——
+    **文案怎么写都与提取无关**。
 
-    1. **`dir:` 前缀 key** —— 解析/校验失败这一支，键就是 `dir:<目录名>`；
-    2. **`Path.name`** —— 这一支的 value 是 `f"... {plugin_dir} ..."`（真路径），
-       路径本身**带**目录名（不猜：那是解析阶段打印的那一份）；
-    3. **`dir:` 的 value** —— id 重复那一支里"先前目录"也是这样具名的
-       （`prev_key = f"dir:{existing_dir.name}"`）。
+    ⚠️ `expect_nonempty=True`（**断言非空**，同案 (b)）：调用方**知道这里应该有
+    rejected** 时，**0 条就是红**——那不是"没有坏插件"，是"提取读不到"。否则换了
+    字段、提取静默变空之后，"空"与"真没有"在**值上不可分** ⇒ 覆盖断言看不出缺口
+    （"扫描器看不见自己的瞎"这个病还在）。
 
     ⚠️ **为什么不能从插件 ID 反推目录名**：目录名默认是 `id.replace(".", "_")`，
     但用户可以给任意目录名（实测反例：目录 `badnodeid` 里放 id `org.badnodeid` 的
@@ -154,13 +200,25 @@ def rejected_dir_names(plan: "ActivationPlan") -> dict[str, str]:
     断言**不许猜**：只认解析器写下来的名字。
 
     单独成函数是为了**生产代码与测试共用同一份提取逻辑**——两处各写一遍就会漂。
+
+    Args:
+        plan: 待提取的激活计划
+        expect_nonempty: `True` 时，**提取到 0 条 ⇒ 抛 ValueError**（"应该有却 0 条"）。
+
+    Returns:
+        目录名 → 原因（判据只用 key；value 仅供展示/调试）
+
+    Raises:
+        ValueError: `expect_nonempty=True` 且提取到 0 条。
     """
-    names: dict[str, str] = {}
-    for key, reason in plan.rejected.items():
-        if key.startswith("dir:"):
-            names[key[len("dir:"):]] = reason
-        for match in _DIR_IN_REASON.finditer(reason):
-            names[match.group(1)] = reason
+    names: dict[str, str] = {entry.dir_name: entry.reason for entry in plan.rejected.values()}
+    if expect_nonempty and not names:
+        raise ValueError(
+            "拒绝栏提取到 0 条，但调用方声明这里**应该有 rejected** ⇒ 这不是"
+            "'没有坏插件'，是提取读不到（字段换了/结构不对）。"
+            "空与'真没有'在值上不可分，静默给空会让覆盖断言看不出缺口。"
+            f"（plan.rejected 现有 {len(plan.rejected)} 条）"
+        )
     return names
 
 
@@ -180,6 +238,9 @@ def _report_warning(message: str) -> None:
     logger.warning(message)
 
 
+# ⚠️ 接口变更：返回 2 元组 → 3 元组（仓内**全部**解包点已同步——本次实测 21 处，
+#    复算 `rg '= parse_candidate_manifests\('`；仓外调用方未通告；
+#    若将来插件 SDK 面暴露它 ⇒ 必须走版本策略）
 def parse_candidate_manifests(
     plugin_dirs: list[Path],
 ) -> tuple[CandidateMap, SkipMap, RejectMap]:
@@ -189,16 +250,19 @@ def parse_candidate_manifests(
     校验自依赖/ID 格式/去重/id 唯一性。
 
     ⚠️ **两类结果分栏**（2026-10-17 值域修复）：解析/校验失败的目录**同时**记两份
-    ——`skips`(旧口径，`dir:<目录名>` key）与 `rejects`(新口径，**投影面用**）。
-    旧口径的 `dir:` key 在 `compute_activation_plan` 的 `pid in candidates` 过滤里
-    必然被丢掉 ⇒ 只留旧口径 = 这类插件"不存在"。两份都要给：**旧的别动（兼容），
-    新的补上（覆盖）**。
+    ——`skips`(旧口径，`dir:<目录名>` key）与 `rejects`(新口径，**投影面用**；
+    每条形如 `RejectEntry(reason, dir_path)`，2026-10-17 (ii) 起结构化）。旧口径的
+    `dir:` key 在 `compute_activation_plan` 的 `pid in candidates` 过滤里必然被丢掉
+    ⇒ 只留旧口径 = 这类插件"不存在"。两份都要给：**旧的别动（兼容），新的补上（覆盖）**。
+    ⚠️ 解析阶段的**五支**拒绝都必须落 `rejects`：manifest 读不出 / 不过 schema /
+    依赖 ID 格式非法 / id 重复 / 自依赖 —— **漏一支，那一支就从投影面消失**
+    （见 `_check_value_domain` 的全称覆盖断言）。
 
     Args:
         plugin_dirs: 候选插件目录路径列表
 
     Returns:
-        (候选插件映射, 解析失败跳过清单, 解析失败拒绝清单)
+        (候选插件映射, 解析失败跳过清单, 解析阶段拒绝清单[`RejectEntry` 结构化])
     """
     candidates: CandidateMap = {}
     skips: SkipMap = {}
@@ -222,7 +286,7 @@ def parse_candidate_manifests(
             plugin_key = f"dir:{plugin_dir.name}"
             reason = f"manifest 解析失败: {exc}"
             skips[plugin_key] = reason
-            rejects[plugin_key] = reason
+            rejects[plugin_key] = RejectEntry(reason=reason, dir_path=plugin_dir)
             _report_error(f"插件目录 {plugin_dir} manifest 解析失败: {exc}", exc)
             continue
 
@@ -233,7 +297,7 @@ def parse_candidate_manifests(
             plugin_key = f"dir:{plugin_dir.name}"
             reason = f"manifest 校验失败: {exc}"
             skips[plugin_key] = reason
-            rejects[plugin_key] = reason
+            rejects[plugin_key] = RejectEntry(reason=reason, dir_path=plugin_dir)
             _report_error(f"插件目录 {plugin_dir} manifest 校验失败: {exc}", exc)
             continue
 
@@ -245,7 +309,10 @@ def parse_candidate_manifests(
             reason = f"id 重复: 目录 {existing_dir} 与 {plugin_dir}"
             skips[plugin_id] = reason
             # 当前目录：拿得到 id（已过 schema），按 id 记进拒绝清单（带目录名）
-            rejects[plugin_id] = f"id 重复: 当前目录 {plugin_dir} 与先前目录 {existing_dir}"
+            rejects[plugin_id] = RejectEntry(
+                reason=f"id 重复: 当前目录 {plugin_dir} 与先前目录 {existing_dir}",
+                dir_path=plugin_dir,
+            )
             _report_error(
                 f"插件 id 重复: {plugin_id}，目录 {existing_dir} 与 {plugin_dir}，两者均跳过"
             )
@@ -254,7 +321,7 @@ def parse_candidate_manifests(
             # 标记先前目录也跳过（用 dir key 避免覆盖）
             prev_key = f"dir:{existing_dir.name}"
             skips[prev_key] = reason
-            rejects[prev_key] = reason
+            rejects[prev_key] = RejectEntry(reason=reason, dir_path=existing_dir)
             continue
         seen_ids[plugin_id] = plugin_dir
 
@@ -262,12 +329,13 @@ def parse_candidate_manifests(
         if plugin_id in manifest.dependencies:
             # ⚠️ 与 id 重复同理：这里 key 是**真 id**，但插件已被移出 candidates
             # ⇒ 若只记 skips，`pid in candidates` 会把这一条同样过滤掉。
-            # 记 rejects 才是"具名拒绝"。⚠️ reason 里**必须带目录**
-            # （`目录 <dir.path>` 是解析器写下的具名信息）——覆盖断言只读这些
-            # 由解析器自己登记的目录名，不从插件 ID 反推（见 rejected_dir_names）。
+            # 记 rejects 才是"具名拒绝"。⚠️ reason 里**仍带目录**（给人看的），
+            # 但覆盖断言**不读文案**——它读 `dir_path`（结构化字段，2026-10-17 (ii)），
+            # 绝不从插件 ID 反推（见 rejected_dir_names）。
             skips[plugin_id] = "声明了自依赖"
-            rejects[plugin_id] = (
-                f"声明了自依赖（manifest 自相矛盾）: 目录 {plugin_dir}"
+            rejects[plugin_id] = RejectEntry(
+                reason=f"声明了自依赖（manifest 自相矛盾）: 目录 {plugin_dir}",
+                dir_path=plugin_dir,
             )
             _report_error(f"插件 {plugin_id} 声明了自依赖")
             candidates.pop(plugin_id, None)
@@ -278,7 +346,18 @@ def parse_candidate_manifests(
             dep for dep in manifest.dependencies if not _PLUGIN_ID_PATTERN.match(dep)
         ]
         if invalid_deps:
-            skips[plugin_id] = f"依赖 ID 格式非法: {invalid_deps}"
+            reason = f"依赖 ID 格式非法: {invalid_deps}"
+            skips[plugin_id] = reason
+            # ⚠️ 2026-10-17 (ii) 补记：本支**同样是解析阶段被拒**（这份 manifest 不成立），
+            # 但旧实现只记 `skips`——而本支**不进 candidates**（上面就 continue 了）⇒
+            # 第 4 步 `pid in candidates` 必然把它滤掉 ⇒ 它落在三栏之外 ⇒ 覆盖断言把它
+            # 报成"值域缺口"，对**合法**输入当场抛 ValueError（实测现场：某个插件把
+            # 依赖 ID 打错 ⇒ 整条依赖解析降级为字母序激活）。与另外四支对齐：拒绝栏
+            # 必须有它（具名 + 目录），否则"看不见自己"的是断言本身。
+            rejects[plugin_id] = RejectEntry(
+                reason=f"依赖 ID 格式非法: {invalid_deps}（目录 {plugin_dir}）",
+                dir_path=plugin_dir,
+            )
             _report_error(f"插件 {plugin_id} 依赖 ID 格式非法: {invalid_deps}")
             continue
 
@@ -391,16 +470,17 @@ class ActivationPlan:
         cycle_errors: 环错误，每个子列表为一个环的插件 ID 序列
         candidate_dirs: 插件 ID → 目录路径映射（供 spawn 用）
         rejected: **解析阶段被拒**清单（第三栏），key=插件 ID 或 `dir:<目录名>`,
-            value=拒绝原因。⚠️ 与 `skipped` 分开是**故意的**：`skipped` 的 key 承
-            诺是合法插件 ID，而 `rejected` 里可能有拿不到 id 的目录（用 `dir:` 前缀）
-            ⇒ 混进 `skipped` 会污染那份契约（值是假的"插件 ID"）。
+            value=`RejectEntry`（**结构化**：原因 + 目录，2026-10-17 (ii)）。
+            ⚠️ 与 `skipped` 分开是**故意的**：`skipped` 的 key 承诺是合法插件 ID，
+            而 `rejected` 里可能有拿不到 id 的目录（用 `dir:` 前缀）⇒ 混进
+            `skipped` 会污染那份契约（值是假的"插件 ID"）。
     """
 
     waves: list[list[str]]
     skipped: dict[str, str]
     cycle_errors: list[list[str]]
     candidate_dirs: dict[str, Path] = field(default_factory=dict)
-    rejected: dict[str, str] = field(default_factory=dict)
+    rejected: RejectMap = field(default_factory=dict)
 
     def is_activatable(self, plugin_id: str) -> bool:
         """插件是否可激活（在某个波次中且不在跳过清单中）。
@@ -441,7 +521,10 @@ def compute_activation_plan(
     Raises:
         ValueError: **值域缺口**——有候选目录既不在波次/跳过、也不在拒绝栏里。
             这是**全称断言**（覆盖断言）出声，不是抽样告警：宁可起不来，也不许
-            坏插件从状态面里消失。
+            坏插件从状态面里消失。⚠️ 该断言是**覆盖**、**不是相等**（反方向不声称，
+            见 `_check_value_domain` 的边界段）。
+        ValueError: 拒绝栏**提取到 0 条**而解析阶段确实登记过拒绝
+            （`expect_nonempty`）——这是"应该有却 0 条"的**红**，不是静默。
     """
     # 1. 解析候选 manifest（此时**同时**拿到 skip 与 reject 两栏）
     candidates, parse_skips, parse_rejects = parse_candidate_manifests(plugin_dirs)
@@ -507,9 +590,18 @@ def compute_activation_plan(
     # 8. 覆盖断言：**解析器看到过的每个插件，必须落进三栏之一**
     #    （activated=candidate_dirs 的值 / skipped / 具名 rejected）。
     #    ⚠️ 全称断言，不是抽样：缺一个就当场出声，绝不静默返回"看着齐"的计划。
-    #    ⚠️ 三栏的"目录名"由**解析阶段如实登记**（can_dirs 的值 + dir: key），
-    #       不从插件 ID 反推——那是猜（`badnodeid` ≠ `org_badnodeid`）。
-    missing = _check_value_domain(plan, plugin_dirs, rejected_dir_names(plan))
+    #    ⚠️ **覆盖 ≠ 相等**（2026-10-17 (ii) 写明）：这里只声称"解析器看到过的每个目录
+    #       都有落点"，**不**声称"三栏里的每一项都来自本次扫描"（反方向不检查）。
+    #    ⚠️ 三栏的"目录名"由**解析阶段如实登记**（candidate_dirs 的值 + `RejectEntry`
+    #       的 `dir_path`），不从插件 ID 反推——那是猜（`badnodeid` ≠ `org_badnodeid`）。
+    #    ⚠️ `expect_nonempty=bool(rejected_plugins)`：解析阶段**确实登记过**拒绝条目
+    #       ⇒ 提取出来必须非空；0 条 = 提取读不到（字段换了）⇒ **当场出声**
+    #       （"应该有 rejected 却 0 条"必须红——同案 (b)）。
+    missing = _check_value_domain(
+        plan,
+        plugin_dirs,
+        rejected_dir_names(plan, expect_nonempty=bool(rejected_plugins)),
+    )
     if missing:
         raise ValueError(
             "值域缺口：以下候选目录既不在波次/跳过清单、也不在拒绝清单里 ⇒ "

@@ -5,6 +5,7 @@ id 重复、缺失依赖、级联跳过、链式传播、环检测、三角环�
 ActivationPlan dataclass、compute_activation_plan 波次。
 """
 
+import copy
 import json
 
 import pytest
@@ -15,6 +16,7 @@ from src.plugin_runtime_v2.host.dependency_resolver import (
     compute_activation_plan,
     parse_candidate_manifests,
     propagate_skips,
+    rejected_dir_names,
 )
 from tests.plugin_runtime_v2.zg16_3_helpers import write_plugin_dir
 
@@ -77,13 +79,53 @@ class TestParseCandidateManifests:
         candidates, skips, rejects = parse_candidate_manifests([d_json, d_schema, d_self])
         assert candidates == {}
         assert set(rejects) == {"dir:baddir1", "dir:baddir2", "org.c"}
-        assert "解析失败" in rejects["dir:baddir1"]
-        assert "校验失败" in rejects["dir:baddir2"]
-        assert "自相矛盾" in rejects["org.c"]
-        # 自依赖那一支的 reason 里**带目录名**（覆盖断言据此认目录，不从 ID 反推）
-        assert "baddir3" in rejects["org.c"]
+        assert "解析失败" in rejects["dir:baddir1"].reason
+        assert "校验失败" in rejects["dir:baddir2"].reason
+        assert "自相矛盾" in rejects["org.c"].reason
+        # ⚠️ 判据**不是**上面那些文案：目录名走结构化字段 `RejectEntry.dir_path`
+        # （2026-10-17 (ii)——此前靠正则从 `目录 <路径>` 里抠，文案一改就静默丢名）。
+        assert rejects["dir:baddir1"].dir_path.name == "baddir1"
+        assert rejects["dir:baddir2"].dir_path.name == "baddir2"
+        assert rejects["org.c"].dir_path.name == "baddir3"
         # 旧口径仍在（兼容），且与 rejects 同步
         assert set(skips) == set(rejects)
+
+    def test_invalid_dependency_id_lands_in_rejects(self, tmp_path):
+        """解析阶段第五支（依赖 ID 格式非法）也必须落 `rejects`（2026-10-17 (ii) 补）。
+
+        ⚠️ 补这一条的理由是**实测**出来的：本支不进 `candidates`，若只记 `skips`，
+        `compute_activation_plan` 的 `pid in candidates` 会把它滤掉 ⇒ 三栏都不收它
+        ⇒ 覆盖断言把**合法**输入报成"值域缺口"并抛 ValueError（bootstrap 于是整条
+        依赖解析降级为字母序）。
+        """
+        d = write_plugin_dir(tmp_path, "org.a", dependencies=["invalid id!"], dir_name="baddepid")
+
+        _candidates, skips, rejects = parse_candidate_manifests([d])
+        assert "依赖 ID 格式非法" in skips["org.a"]
+        assert rejects["org.a"].dir_path.name == "baddepid"
+        # 生产路径：不再抛"值域缺口"，该插件**具名**落进第三栏
+        plan = compute_activation_plan([d])
+        assert plan.rejected["org.a"].dir_path.name == "baddepid"
+
+    def test_dir_name_survives_reason_rewrite(self, tmp_path):
+        """(ii) 正面反证：**reason 文案里一个路径都没有，提取照样拿得到目录名**。
+
+        旧实现靠正则从 `目录 <路径>` 抠目录名 ⇒ 文案一改（这里换成不含路径的英文）
+        提取就**静默变空**，而"空"与"真没有坏插件"在值上不可分。结构化字段下目录名
+        **不经过文案**：`RejectEntry.dir_path` 是解析阶段登记下来的事实。
+        """
+        d = write_plugin_dir(tmp_path, "org.c", dependencies=["org.c"], dir_name="baddir3")
+        _candidates, _skips, rejects = parse_candidate_manifests([d])
+
+        rewritten = copy.replace(
+            rejects["org.c"], reason="self dependency declared (no path in this text)",
+        )
+        plan = ActivationPlan(
+            waves=[], skipped={}, cycle_errors=[], rejected={"org.c": rewritten},
+        )
+        assert rejected_dir_names(plan, expect_nonempty=True) == {
+            "baddir3": "self dependency declared (no path in this text)",
+        }
 
     def test_dependencies_type_error(self, tmp_path):
         """dependencies 为 dict（非 list[str]）→ ValidationError → skip。"""
