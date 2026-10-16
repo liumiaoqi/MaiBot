@@ -228,10 +228,6 @@ class TestCompatConfigSmoke:
         r = auth_client.get("/api/config/schema/bot")
         _assert_not_500(r, "GET /api/config/schema/bot")
 
-    def test_config_raw_get(self, auth_client):
-        r = auth_client.get("/api/config/raw")
-        _assert_not_500(r, "GET /api/config/raw")
-
 
 class TestCompatAgentSmoke:
     """agent.py compat_router 冒烟（prefix /api/webui，/agents→/agent 别名）"""

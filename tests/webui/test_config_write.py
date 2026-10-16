@@ -21,10 +21,9 @@ class TestConfigWrite:
         r = auth_client.get("/api/webui/config/model")
         assert r.status_code == 200, f"读取失败: {r.text}"
 
-    def test_get_config_raw(self, auth_client, config_file_isolation):
-        """GET /config/raw — 读取原始 TOML"""
-        r = auth_client.get("/api/config/raw")
-        assert r.status_code == 200, f"读取失败: {r.text}"
+    # 注：`test_get_config_raw`（GET /api/config/raw）已随 raw 系端点于 5 段下线而**删除**。
+    # 不许留一条测已删端点的用例——它要么红、要么（在这里是）以 404 侥幸"非 500"通过，
+    # 两种都是假信号。下线后的守门在 `pytests/webui/test_config_seam.py::TestRawEndpointsAreRetired`。
 
     def test_config_file_not_polluted(self, auth_client, config_file_isolation):
         """验证 config_file_isolation 隔离生效：真实配置文件不受影响"""
