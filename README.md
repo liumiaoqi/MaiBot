@@ -16,13 +16,17 @@
     <img src="https://img.shields.io/badge/Python-3.10+-blue" alt="Python Version">
     <img src="https://img.shields.io/github/license/Mai-with-u/MaiBot?label=License" alt="License">
     <img src="https://img.shields.io/badge/Status-In%20Development-yellow" alt="Status">
-    <img src="https://img.shields.io/github/contributors/Mai-with-u/MaiBot.svg?style=flat&label=Contributors" alt="Contributors">
-    <img src="https://img.shields.io/github/forks/Mai-with-u/MaiBot.svg?style=flat&label=Forks" alt="Forks">
-    <img src="https://img.shields.io/github/stars/Mai-with-u/MaiBot?style=flat&label=Stars" alt="Stars">
+    <img src="https://img.shields.io/github/contributors/liumiaoqi/MaiBot.svg?style=flat&label=Contributors" alt="Contributors">
+    <img src="https://img.shields.io/github/forks/liumiaoqi/MaiBot.svg?style=flat&label=Forks" alt="Forks">
+    <img src="https://img.shields.io/github/stars/liumiaoqi/MaiBot?style=flat&label=Stars" alt="Stars">
     <a href="https://trendshift.io/repositories/20445" target="_blank"><img src="https://trendshift.io/api/badge/repositories/20445" alt="Mai-with-u%2FMaiBot | Trendshift" width="250" height="55"></a>
     <a href="https://deepwiki.com/DrSmoothl/MaiBot"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   </p>
 </div>
+
+> **本仓库是 [刘妙奇 @liumiaoqi](https://github.com/liumiaoqi) 的独立分支** ——
+> 基于 [Mai-with-u/MaiBot](https://github.com/Mai-with-u/MaiBot) 深度改造、独立维护。
+> ☕ 如果这个方向对你有用，可以 [请麦麦喝杯奶茶](https://afdian.com/a/liumiaoqi)。
 
 <br>
 
@@ -180,6 +184,13 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 <a href="https://github.com/MaiM-with-u/MaiBot/graphs/contributors">
   <img alt="contributors" src="https://contrib.rocks/image?repo=MaiM-with-u/MaiBot" />
 </a>
+
+### ☕ 支持者鸣谢
+<sub><sup>Supporters</sup></sub>
+
+感谢每一位请麦麦喝奶茶的朋友（名单持续更新中）：
+
+（虚位以待 —— 你会是第一位吗？）
 
 ### 🤝 开源项目友链
 <sub><sup>Open Source Friends</sup></sub>
