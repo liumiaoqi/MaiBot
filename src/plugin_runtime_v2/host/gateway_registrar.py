@@ -16,6 +16,15 @@ from src.plugin_runtime_v2.host.gateway_supervisor import V2GatewaySupervisor
 
 logger = get_logger("plugin_runtime_v2.host.gateway_registrar")
 
+_SEND_SCOPE_PREFIX = "message:send:"
+"""发送 scope 的前缀——``message:send:`` 之后跟的是**消息类型**。
+
+权威定义见 `src/plugin_runtime_v2/scope/vocabulary.py:26-30`（text/image/emoji/forward/hybrid）；
+SDK 侧同口径：`sdk/context.py:26-30`、发送侧 `host/servicer.py:709-715`。
+⚠️ 词汇表里**没有** ``message:send:<平台名>`` 这一类——平台（``qq`` 等）只出现在
+``RouteKey.platform`` 与 ``GatewayReadyPayload.platform``，是**路由**用的，不是权限粒度。
+"""
+
 
 class V2GatewayRegistrar:
     """网关就绪 → 先注销旧 → scope gating → 注册新驱动 → 绑定路由。
@@ -66,7 +75,7 @@ class V2GatewayRegistrar:
                 "网关就绪但声明不存在: plugin=%s gateway=%s",
                 plugin_id, gateway_name,
             )
-            self._report_summary(plugin_id, gateway_name, "failed", "声明不存在")
+            self._report_summary(plugin_id, gateway_name, "failed", "声明不存在", platform=platform)
             return
 
         # ② 先注销旧驱动和旧路由绑定（幂等）
@@ -75,15 +84,16 @@ class V2GatewayRegistrar:
         # ③ scope gating
         effective_supports_send = decl.supports_send
         if decl.supports_send:
-            if not self._has_send_scope(plugin_id, platform):
+            if not self._has_send_scope(plugin_id):
                 effective_supports_send = False
                 logger.warning(
-                    "网关 %s scope 未授予 message:send:*，仅 receive 生效: plugin=%s",
+                    "网关 %s scope 未授予任何 message:send:*（发送资格），仅 receive 生效: plugin=%s",
                     gateway_name, plugin_id,
                 )
                 self._report_summary(
                     plugin_id, gateway_name, "scope_denied",
-                    f"message:send:{platform} 未授予",
+                    "未授予任何 message:send:*（发送资格）",
+                    platform=platform,
                 )
 
         # ④ 创建 V2GatewaySupervisor
@@ -131,7 +141,7 @@ class V2GatewayRegistrar:
                     await platform_io_manager.remove_driver(driver_id)
                 else:
                     platform_io_manager.unregister_driver(driver_id)
-            self._report_summary(plugin_id, gateway_name, "failed", str(exc))
+            self._report_summary(plugin_id, gateway_name, "failed", str(exc), platform=platform)
             return
 
         # ⑦ 绑定路由
@@ -165,6 +175,7 @@ class V2GatewayRegistrar:
         self._report_summary(
             plugin_id, gateway_name, "registered",
             f"send={effective_supports_send} receive={decl.supports_receive}",
+            platform=platform,
         )
 
     async def on_gateway_not_ready(
@@ -212,16 +223,37 @@ class V2GatewayRegistrar:
             with contextlib.suppress(Exception):
                 await supervisor.close()
 
-    def _has_send_scope(self, plugin_id: str, platform: str) -> bool:
-        """检查插件是否被授予 message:send:* scope。"""
+    def _has_send_scope(self, plugin_id: str) -> bool:
+        """插件是否被授予**发送资格**：``message:send:*`` 或任一 ``message:send:<消息类型>``。
+
+        ⚠️ **2026-10-16 修**：原实现按 ``message:send:{platform}`` 取（platform 来自网关声明，
+        如 ``qq``）⇒ 去找一个**词汇表里不存在的** scope，与真机上已授予的 ``message:send:text``
+        **永远匹配不上** ⇒ 网关被判成"只能收不能发"（麦麦"能听不能说"）。
+        易错点在这里：本函数同时拿得到 ``platform`` 与 ``scope``（后者是**路由**作用域），
+        而 ``GatewayReadyPayload`` 的 proto 注释把 ``message:send:qq`` 当例子写着
+        （``proto/common.proto:99``）——照着它写就会把"平台"当成权限粒度。
+
+        **粒度分工（本函数的语义，别改）**：
+
+        - **这里只判"有没有发送资格"**：网关注册时只知道平台，不知道将来要发哪种消息，
+          所以"有任意一种 `message:send:<类型>` 授权"即算有资格。只授了 ``message:send:image``
+          的插件也该能注册——否则它的图片永远发不出去（同一个 bug 换张脸）。
+        - **具体消息类型**的授权在**发送那一刻**按类型复核：``host/servicer.py:709-718`` 把
+          TEXT/IMAGE/… 映射成 ``message:send:<type>``，未授予即返回 ``SCOPE_DENIED``。
+          ⇒ 只授 ``forward`` 的插件**能注册**，但**发 text 会被拒**——拒绝发生在发送侧。
+        - 声明（``decl.supports_send``）**不能替代授权**：它是"这个网关会不会发"，
+          不是"允许不允许发"。⇒ 本判据只做减法、不做加法。
+
+        Returns:
+            有发送资格为 ``True``。``scope_store`` 缺失时放行（保持既有降级行为）。
+        """
         if self._scope_store is None:
             return True  # 无 scope_store 时放行
         granted = self._scope_store.get_granted_scopes(plugin_id)
-        # 检查 message:send:<platform> 或 message:send:*
-        return any(
-            s == f"message:send:{platform}" or s == "message:send:*"
-            for s in granted
-        )
+        # 前缀判据一并覆盖 `message:send:*`（通配也以该前缀开头）；
+        # 词汇表外的写法（如 `message:send:qq`）若真被授予，也算有资格——**宁可放行到发送侧
+        # 由类型复核兜住**，也不在这里把已授权的插件误判成"不能说"。
+        return any(scope.startswith(_SEND_SCOPE_PREFIX) for scope in granted)
 
     def _report_summary(
         self,
@@ -229,8 +261,16 @@ class V2GatewayRegistrar:
         gateway_name: str,
         status: str,
         detail: str = "",
+        *,
+        platform: str = "",
     ) -> None:
-        """向启动摘要报告网关注册状态。"""
+        """向启动摘要报告网关注册状态。
+
+        ⚠️ ``platform`` **必须传**（2026-10-16 修）：摘要适配器的形参默认是 ``""``，渲染时把
+        空值显示成 ``?``（``gateway_startup_summary.py:39/54``）⇒ 不传就会出现 ``platform=?``
+        这种"看不出是没解析还是没传"的现场（真机启动摘要里就是这么显示的，还被误读成
+        "平台没解析 ⇒ 检查找的是 message:send:?"）。
+        """
         if self._startup_summary is None:
             return
         try:
@@ -239,12 +279,19 @@ class V2GatewayRegistrar:
                 gateway_name=gateway_name,
                 status=status,
                 detail=detail,
+                platform=platform,
             )
-        except Exception:
-            pass  # best-effort
+        except Exception as exc:  # noqa: BLE001 — 摘要上报是 best-effort，但**不许静默**
+            # 原实现是 `except Exception: pass`（AGENTS §十三：拿未来换现在——排障能力被透支）。
+            # 保留"不因上报失败而中断注册"的意图，但要让它在日志里看得见。
+            logger.warning(
+                "网关注册状态上报失败（不影响注册结果）: plugin=%s gateway=%s status=%s: %s",
+                plugin_id, gateway_name, status, exc,
+                exc_info=True,
+            )
 
     def _report_error_escalation(self, message: str, exc: Exception) -> None:
-        """双通道异常上报：logger + error_escalation port。"""
+        """双通道异常上报：logger + error_escalation port（上报失败只出声，不抛出）。"""
         try:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -252,5 +299,7 @@ class V2GatewayRegistrar:
             port = get_error_escalation_port()
             if port is not None:
                 port.report(ErrorLevel.WARNING, message, exception=exc)
-        except Exception:
-            pass
+        except Exception as report_exc:  # noqa: BLE001 — 同 `_report_summary`：不静默
+            logger.warning(
+                "错误上报通道不可用（不影响主流程）: %s: %s", message, report_exc, exc_info=True
+            )
