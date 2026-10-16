@@ -10,6 +10,7 @@ import grpc
 from grpc_reflection.v1alpha import reflection
 
 from src.common.logger import get_logger
+from src.core.protocols import PluginRuntimeV2State
 from src.plugin_runtime_v2.host.connection import (
     HostEndpointConfig,
     RunnerConnectionSnapshot,
@@ -91,6 +92,9 @@ class HostEndpoint:
         reflection.enable_server_reflection(service_names, self._server)
 
         try:
+            # ⚠️ add_insecure_port **本身**就是抛点：地址被占用时它在 add_port.cc
+            # 直接抛 RuntimeError（实测 Windows WSA 10048）。它必须留在 try **内** ——
+            # 否则抛在这里就直接穿出 start()，半建的 server 留在 self._server 上没人收。
             listen_port = self._server.add_insecure_port(self._cfg.listen_address)
             await self._server.start()
         except Exception:
@@ -220,6 +224,83 @@ class HostEndpoint:
     def get_status(self) -> dict[str, RunnerConnectionSnapshot]:
         """返回所有 Runner 连接状态快照，供 WebUI 调试页使用。"""
         return self._registry.get_all_snapshots()
+
+    # ── 插件状态面（2026-10-17 新案） ──────────────────────────
+
+    def get_plugin_states(self) -> list[PluginRuntimeV2State]:
+        """投影宿主侧**可取**的插件状态（内存，无 RPC、无 I/O）。
+
+        两个数据源，都在宿主进程内：
+        1. `ActivationCoordinator.activated` / `.skipped`
+           （`host/activation_coordinator.py`：已激活集 / 跳过清单[带原因]）
+        2. `RunnerRegistry._connections` 的连接快照
+           （`host/registry.py` → `connection.py::to_snapshot()`：状态/工具数）
+
+        ⚠️ **投影边界（硬）**：`PluginRefcount.state`（LIVE/COMING/GOING/UNFORMED/
+        ERROR）活在 **Runner 子进程**（`runner/endpoint.py`），宿主**无 RPC 可取** ——
+        本方法**不**碰它，也不塞占位值假称知道。宿主能说的只有"我登记了什么 +
+        我这条连接现在什么状态"。
+
+        Returns:
+            PluginRuntimeV2State 列表（每个 plugin_id 一条）；宿主侧一个插件都
+            没登记时返回**空列表**（调用方据此出声，见 `list_plugin_states` 契约）。
+        """
+        coordinator = self._activation_coordinator
+        activated: set[str] = set(getattr(coordinator, "activated", None) or ())
+        skipped: dict[str, str] = dict(getattr(coordinator, "skipped", None) or {})
+
+        states: dict[str, PluginRuntimeV2State] = {}
+
+        # 1) 连接面：有连接的插件，连接状态就是主状态
+        for runner_id, conn in self._registry.get_all_snapshots().items():
+            plugin_id = conn.plugin_id or runner_id
+            conn_state = conn.state
+            if conn_state == "ready":
+                # 连接就绪：既登记为已激活，也真的通了
+                state = "running"
+            elif conn_state == "disconnected":
+                # 连接已断：只报事实，不猜原因
+                state = "error"
+            else:
+                # connecting/handshaking/registering/closing：尚未就绪
+                state = "connecting"
+            states[plugin_id] = PluginRuntimeV2State(
+                plugin_id=plugin_id,
+                state=state,
+                activated=plugin_id in activated,
+                skipped_reason=skipped.get(plugin_id, ""),
+                connection_state=conn_state,
+                tool_count=conn.tool_count,
+            )
+
+        # 2) 激活面：已激活但连接面还没登记到的，补一条（宿主确实登记过它）
+        for plugin_id in sorted(activated):
+            if plugin_id in states:
+                continue
+            states[plugin_id] = PluginRuntimeV2State(
+                plugin_id=plugin_id,
+                state="connecting",
+                activated=True,
+                skipped_reason=skipped.get(plugin_id, ""),
+                connection_state="",
+                tool_count=0,
+            )
+
+        # 3) 跳过面：被跳过的插件（含 spawn 失败）也是事实，必须可见——
+        #    它们最需要运维看见，藏起来就等于把失败说成"没有插件"。
+        for plugin_id, reason in sorted(skipped.items()):
+            if plugin_id in states:
+                continue
+            states[plugin_id] = PluginRuntimeV2State(
+                plugin_id=plugin_id,
+                state="skipped",
+                activated=False,
+                skipped_reason=reason,
+                connection_state="",
+                tool_count=0,
+            )
+
+        return [states[pid] for pid in sorted(states)]
 
     @property
     def listen_address(self) -> str:
