@@ -190,6 +190,10 @@ class SocialRelConfidenceSeam:
         # 20000 触发** ⇒ 这是**退化输入守卫**，不是日常路径（别以为随便什么数据都会撞）。
         try:
             payload = json.loads(raw)
+        # 纪律（2026-10-17 独立证伪所立 · 已两次命中）：
+        # 「族闭合」是全称声称 ⇒ 全称声称不许由实现者说了算，必须由证伪者试边界。
+        # 第一次：本模块曾声称「复习信号无处记录」——实际 relations 表有 last_accessed / access_count / last_reinforced。
+        # 第二次：本模块曾声称「异常族已闭合」——实际漏了 RecursionError（需退化输入，depth≈20000 触发 / 5000 不触发）。
         except RecursionError as exc:
             logger.warning(
                 "social_rel 强度 sidecar 输入嵌套过深（RecursionError，%s）：%s ⇒ 跳过该 sidecar，不覆盖",
