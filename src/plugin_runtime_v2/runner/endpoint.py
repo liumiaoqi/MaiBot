@@ -27,8 +27,26 @@ from src.plugin_runtime_v2.runner.servicer import (
 )
 from src.plugin_runtime_v2.runner.tool_router import ToolRouter
 from src.plugin_runtime_v2.lifecycle.refcount import PluginRefcount
+from src.plugin_runtime_v2.sdk.decorators import ToolDeclaration
 
 logger = get_logger("plugin_runtime_v2.runner.endpoint")
+
+
+def _tool_declaration_from_entry(entry: dict[str, Any]) -> ToolDeclaration:
+    """把 loader 收集的工具条目还原成 `ToolDeclaration`（P0-a，2026-10-16）。
+
+    为什么必须传：`runner/tool_router.py:141` 的参数校验挂在
+    `declaration is not None and declaration.parameters_schema is not None` 上——
+    不传 declaration 就等于**插件声明了 schema 也永远不校验**（实测：缺参数一路走到
+    handler 才炸成 `EXECUTION_ERROR: KeyError`）。条目形状见 `runner/plugin_loader.py:174-186`。
+    """
+    return ToolDeclaration(
+        name=str(entry.get("name", "")),
+        description=str(entry.get("description", "")),
+        parameters_schema=entry.get("parameters_schema"),
+        output_schema=entry.get("output_schema"),
+        pattern=entry.get("pattern"),
+    )
 
 # ── gRPC 通道 keepalive 配置（design.md 2.3.2.4） ──
 _GRPC_CHANNEL_OPTIONS = [
@@ -140,6 +158,7 @@ class RunnerEndpoint:
                         tool_name=tool_entry["name"],
                         plugin=self._plugin_instance,
                         handler=tool_entry["handler"],
+                        declaration=_tool_declaration_from_entry(tool_entry),
                         refcount=self._refcount,
                     )
                 # 调用 on_load
