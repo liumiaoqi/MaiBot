@@ -1,5 +1,6 @@
 """提供 Platform IO 的插件消息网关驱动实现。"""
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Dict, Optional, Protocol
 from src.common.logger import get_logger
 
@@ -216,36 +217,72 @@ class PluginPlatformDriver(PlatformIODriver):
     def _build_receipt(self, internal_message_id: str, route_key: RouteKey, response: Any) -> DeliveryReceipt:
         """将网关调用响应归一化为出站回执。
 
+        ⚠️ **两代 supervisor 的返回形状不一样**（2026-10-16 真机"静默失败"的根因）：
+        - legacy `PluginRuntimeSupervisor.invoke_message_gateway` 返回 **`Envelope` 对象**
+          （`plugin_runtime/host/supervisor.py:524-549`）⇒ 业务数据在 `.payload`、错误在 `.error`；
+        - V2 `V2GatewaySupervisor.invoke_message_gateway` 返回**纯 dict**
+          （`plugin_runtime_v2/host/gateway_supervisor.py:98-101`：`json.loads(response.result)`，
+          形状就是插件 Tool 自己的返回，如 napcat 适配器 `plugins/…/plugin.py:369-382`）。
+        旧实现只认前者的属性 ⇒ 喂进 dict 时 `getattr(response, "payload", {})` 拿到**空字典**
+        ⇒ **一律判失败**，文案还是通用的 `消息网关发送失败`：真机上就长成"插件侧零日志、
+        宿主说发送失败"（**成功被读成失败 + 出错明细被吃**）。
+        两代**载荷内部约定是一样的**（`{success, result, error}`）⇒ 这里只做"拆信封"这一步。
+
+        判据口径（2026-10-16 裁定：**availability 可降级但必须具名**）：
+        拆不开的信封 / 缺 `success` 标记 / 载荷不是映射，一律 **fail-closed 且具名**
+        （写明形状与键），**不**回落到通用文案——否则下一次还是查不出来。
+
         Args:
             internal_message_id: 内部消息 ID。
             route_key: 本次投递的路由键。
-            response: Supervisor 返回的 RPC 响应对象。
+            response: Supervisor 返回值（legacy 是 Envelope 对象，V2 是 dict）。
 
         Returns:
             DeliveryReceipt: 标准化后的出站回执。
         """
 
-        if getattr(response, "error", None):
-            error = response.error.get("message", "消息网关发送失败")
-            return DeliveryReceipt(
-                internal_message_id=internal_message_id,
-                route_key=route_key,
-                status=DeliveryStatus.FAILED,
-                driver_id=self.driver_id,
-                driver_kind=self.descriptor.kind,
-                error=error,
+        # ① 拆信封
+        if isinstance(response, Mapping):
+            payload: Any = response
+        else:
+            envelope_error = getattr(response, "error", None)
+            if envelope_error:
+                detail = (
+                    envelope_error.get("message") if isinstance(envelope_error, Mapping) else envelope_error
+                )
+                return self._failed_receipt(
+                    internal_message_id,
+                    route_key,
+                    f"网关响应携带错误（legacy Envelope）: {detail or '（无 message）'}",
+                )
+            payload = getattr(response, "payload", None)
+            if payload is None:
+                return self._failed_receipt(
+                    internal_message_id,
+                    route_key,
+                    f"无法识别的网关响应形状: {type(response).__name__}"
+                    "（既不是映射，也没有 payload 属性）",
+                )
+
+        if not isinstance(payload, Mapping):
+            return self._failed_receipt(
+                internal_message_id, route_key, f"网关响应载荷不是映射: {type(payload).__name__}"
             )
 
-        payload = getattr(response, "payload", {})
-        invoke_success = bool(payload.get("success", False)) if isinstance(payload, dict) else False
-        if not invoke_success:
-            return DeliveryReceipt(
-                internal_message_id=internal_message_id,
-                route_key=route_key,
-                status=DeliveryStatus.FAILED,
-                driver_id=self.driver_id,
-                driver_kind=self.descriptor.kind,
-                error=str(payload.get("result", "消息网关发送失败")) if isinstance(payload, dict) else "消息网关发送失败",
+        # ② 按两代共同的载荷约定解释：缺 success 标记 ⇒ 形状对不上，**明说**而不是当失败
+        if "success" not in payload:
+            return self._failed_receipt(
+                internal_message_id,
+                route_key,
+                "网关响应缺少 success 标记，形状对不上，拒绝按成功处理"
+                f"（键={sorted(str(key) for key in payload.keys())}）",
+            )
+        if not payload.get("success"):
+            detail = payload.get("error")
+            return self._failed_receipt(
+                internal_message_id,
+                route_key,
+                f"插件网关返回失败: {detail if detail else '（插件未给出 error 明细）'}",
             )
 
         result = payload.get("result") if isinstance(payload, dict) else None
@@ -287,6 +324,19 @@ class PluginPlatformDriver(PlatformIODriver):
             status=DeliveryStatus.SENT,
             driver_id=self.driver_id,
             driver_kind=self.descriptor.kind,
+        )
+
+    def _failed_receipt(
+        self, internal_message_id: str, route_key: RouteKey, error: str
+    ) -> DeliveryReceipt:
+        """构造失败回执（出站回执形状的唯一出处，避免各处手拼字段）。"""
+        return DeliveryReceipt(
+            internal_message_id=internal_message_id,
+            route_key=route_key,
+            status=DeliveryStatus.FAILED,
+            driver_id=self.driver_id,
+            driver_kind=self.descriptor.kind,
+            error=error,
         )
 
     def _refuse(
