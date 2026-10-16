@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 from src.common.logger import get_logger
 
 from .confidence_guard import ConfidenceGuard
+from .social_rel_confidence import social_rel_confidence
 
 logger = get_logger("A_Memorix.GraphRelationRecall")
 
@@ -120,7 +121,10 @@ class GraphRelationRecallService:
         # 召回候选按 confidence 权重排序（护栏接线）
         if candidates:
             confidence_weights = [
-                self.confidence_guard.compute_weight(c.confidence, candidates)[0]
+                # 逆熵 · 阶段 C 首件 · 次挂点：与主挂点同一个取数语义（默认关 ⇒ 原样 c.confidence）
+                self.confidence_guard.compute_weight(
+                    social_rel_confidence.effective_confidence(c.hash_value, c.confidence), candidates
+                )[0]
                 for c in candidates
             ]
             candidates = [

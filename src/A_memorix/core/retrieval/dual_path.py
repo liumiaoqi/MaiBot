@@ -24,6 +24,7 @@ from ..utils.time_parser import format_timestamp
 from .confidence_guard import ConfidenceGuard
 from .graph_relation_recall import GraphRelationRecallConfig, GraphRelationRecallService
 from .pagerank import PersonalizedPageRank, PageRankConfig
+from .social_rel_confidence import social_rel_confidence
 from .posterior_graph import PosteriorGraphConfig, apply_posterior_graph_gate
 from .sparse_bm25 import SparseBM25Config, SparseBM25Index
 
@@ -91,7 +92,7 @@ class DualPathRetrieverConfig:
         retrieval_strategy: 检索策略
         debug: 是否启用调试模式（打印搜索结果原文）
     """
- 
+
     top_k_paragraphs: int = 20
     top_k_relations: int = 10
     top_k_final: int = 10
@@ -1026,6 +1027,10 @@ class DualPathRetriever:
             # 安全护栏：confidence floor + 一致性检测降级（实验场景 C 反对齐 MAP/Recall -100%，必须双护栏）
             # 参考：confidence_edge_weight_compare_0817.md
             confidence = float(meta.get("confidence", 1.0) or 1.0)
+            # 逆熵 · 阶段 C 首件：`social_rel` 学习强度接到**这一个** confidence 位上（默认关）。
+            # 未设 MAIBOT_SOCIAL_REL_CONFIDENCE 时 effective_confidence 原样返回上一行的值 ⇒ 这条
+            # 接入对默认路径**逐位无影响**（预登记 P1）；护栏照旧，不因接入而放宽。
+            confidence = social_rel_confidence.effective_confidence(item.hash_value, confidence)
             confidence_weight, _degraded = self.confidence_guard.compute_weight(confidence, out)
             item.score = (0.60 * semantic_norm + 0.30 * graph_score + 0.10 * evidence_score) * confidence_weight
 
@@ -1112,7 +1117,7 @@ class DualPathRetriever:
     ) -> List[RetrievalResult]:
         """
         仅检索关系 (通过实体枢纽 Entity-Pivot)
-        
+
         策略:
         1. 检索向量库中的 Top-K 实体 (Entity)
         2. 通过图结构/元数据扩展出与实体关联的关系 (Relation)
