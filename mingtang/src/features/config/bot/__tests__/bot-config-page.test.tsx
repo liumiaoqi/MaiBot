@@ -19,7 +19,8 @@ vi.mock('@/lib/config-api', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  // `i18n` 必须给：真实 useTranslation() 一定返回它，详细模式要用 i18n.language 解析 LocalizedText
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'zh-CN' } }),
 }))
 
 vi.mock('../../hooks', () => ({
