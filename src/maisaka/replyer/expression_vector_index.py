@@ -12,9 +12,9 @@ import time
 import numpy as np
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_path
 
 logger = get_logger("expression_vector_index")
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 VECTOR_CANDIDATE_HARD_LIMIT = 50
 VECTOR_INDEX_VERSION = 2
@@ -149,12 +149,22 @@ def build_embedding_profile_from_probe_results(results: Sequence[Any]) -> Expres
 
 
 def resolve_project_path(raw_path: str) -> Path:
-    """解析项目内路径。"""
+    """解析配置里的路径。
 
-    path = Path(normalize_text(raw_path)).expanduser()
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
-    return path.resolve()
+    批 5：相对值按**数据根**解释。旧实现走本模块自推的 ``PROJECT_ROOT``（仓根）
+    ⇒ ``MAIBOT_DATA_DIR`` 一生效就静默劈叉（"看起来已经统一了"的那种劈叉）。
+    ``data/`` 前缀由 ``resolve_data_path`` 剥掉 ⇒ 未设 env 时与旧行为**逐字同径**
+    （活配置两份写的都是 ``data/expression_selection/…``）；绝对路径原样。
+
+    ⚠️ **一处有意的行为变更（fail-closed）**：`raw_path` 为空时**抛 ValueError**。
+    旧实现会把空串当相对路径拼到自推根上（= 仓根），即"没配"被静默当成"配到仓根"；
+    ``resolve_data_path`` 的既定契约是拒空串（别把"没配"当成"配到根"），这里照它来。
+    活配置里没有空值；若真有调用方传空串，应当**显式**判空而不是靠本函数兜底。
+    """
+    text = normalize_text(raw_path)
+    if not text:
+        raise ValueError("resolve_project_path 不接受空路径（请先判空，别把'没配'当成'配到根'）")
+    return resolve_data_path(text)
 
 
 def l2_normalize(matrix: np.ndarray) -> np.ndarray:

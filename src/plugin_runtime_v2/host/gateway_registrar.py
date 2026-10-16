@@ -6,7 +6,7 @@ Platform IO Manager（驱动注册 + 路由绑定）、ScopeStore（scope gating
 
 
 import contextlib
-from typing import Any
+from typing import NamedTuple
 
 from src.common.logger import get_logger
 from src.platform_io import DriverKind, RouteBinding, RouteKey, get_platform_io_manager
@@ -24,6 +24,18 @@ SDK 侧同口径：`sdk/context.py:26-30`、发送侧 `host/servicer.py:709-715`
 ⚠️ 词汇表里**没有** ``message:send:<平台名>`` 这一类——平台（``qq`` 等）只出现在
 ``RouteKey.platform`` 与 ``GatewayReadyPayload.platform``，是**路由**用的，不是权限粒度。
 """
+
+
+class _SendScopeDecision(NamedTuple):
+    """发送资格判定结果 —— **具名**：放行与拒绝都要说清依据。
+
+    为什么不是裸 `bool`（P3"消灭静默"）：一个 `False` 在调用点分不出
+    "插件没被授权" 与 "根本没法判定授权（scope_store 缺失）"——前者是正常的权限结果，
+    后者是**运行时的接线缺失**，两者该在日志/启动摘要里长得不一样。
+    """
+
+    allowed: bool
+    reason: str
 
 
 #: `gateway metadata['tool_name']` 缺失时的**具名回落**值（P1②）。
@@ -90,15 +102,16 @@ class V2GatewayRegistrar:
         # ③ scope gating
         effective_supports_send = decl.supports_send
         if decl.supports_send:
-            if not self._has_send_scope(plugin_id):
+            scope_decision = self._decide_send_scope(plugin_id)
+            if not scope_decision.allowed:
                 effective_supports_send = False
                 logger.warning(
-                    "网关 %s scope 未授予任何 message:send:*（发送资格），仅 receive 生效: plugin=%s",
-                    gateway_name, plugin_id,
+                    "网关 %s 未获得发送资格，仅 receive 生效: plugin=%s 依据=%s",
+                    gateway_name, plugin_id, scope_decision.reason,
                 )
                 self._report_summary(
                     plugin_id, gateway_name, "scope_denied",
-                    "未授予任何 message:send:*（发送资格）",
+                    scope_decision.reason,
                     platform=platform,
                 )
 
@@ -242,7 +255,7 @@ class V2GatewayRegistrar:
             with contextlib.suppress(Exception):
                 await supervisor.close()
 
-    def _has_send_scope(self, plugin_id: str) -> bool:
+    def _decide_send_scope(self, plugin_id: str) -> "_SendScopeDecision":
         """插件是否被授予**发送资格**：``message:send:*`` 或任一 ``message:send:<消息类型>``。
 
         ⚠️ **2026-10-16 修**：原实现按 ``message:send:{platform}`` 取（platform 来自网关声明，
@@ -251,6 +264,12 @@ class V2GatewayRegistrar:
         易错点在这里：本函数同时拿得到 ``platform`` 与 ``scope``（后者是**路由**作用域），
         而 ``GatewayReadyPayload`` 的 proto 注释把 ``message:send:qq`` 当例子写着
         （``proto/common.proto:99``）——照着它写就会把"平台"当成权限粒度。
+
+        ⚠️ **2026-10-16 P3 修：``scope_store`` 缺失改为 fail-closed + 具名**。原实现在这里
+        ``return True``（注释写着"无 scope_store 时放行"）——那是 **fail-open**：授权服务没接上时
+        **所有**插件都自动拿到发送资格，安全面**静默降级**，日志里还看不出来。
+        按裁定（**authority 面一律 fail-closed + 具名**：降级可以，静默不行）：
+        缺失 ⇒ **拒绝**，并把"无法判定授权"作为**具名 reason** 交给调用方写日志与启动摘要。
 
         **粒度分工（本函数的语义，别改）**：
 
@@ -264,15 +283,24 @@ class V2GatewayRegistrar:
           不是"允许不允许发"。⇒ 本判据只做减法、不做加法。
 
         Returns:
-            有发送资格为 ``True``。``scope_store`` 缺失时放行（保持既有降级行为）。
+            ``_SendScopeDecision``：``allowed`` 为是否放行，``reason`` 为**具名依据**
+            （放行时为空串；拒绝时必非空，调用方据此写日志与摘要）。
         """
         if self._scope_store is None:
-            return True  # 无 scope_store 时放行
+            return _SendScopeDecision(
+                allowed=False,
+                reason="scope_store 缺失 ⇒ 无法判定授权（authority 面 fail-closed，拒绝发送资格）",
+            )
         granted = self._scope_store.get_granted_scopes(plugin_id)
         # 前缀判据一并覆盖 `message:send:*`（通配也以该前缀开头）；
         # 词汇表外的写法（如 `message:send:qq`）若真被授予，也算有资格——**宁可放行到发送侧
         # 由类型复核兜住**，也不在这里把已授权的插件误判成"不能说"。
-        return any(scope.startswith(_SEND_SCOPE_PREFIX) for scope in granted)
+        if any(scope.startswith(_SEND_SCOPE_PREFIX) for scope in granted):
+            return _SendScopeDecision(allowed=True, reason="")
+        return _SendScopeDecision(
+            allowed=False,
+            reason="未授予任何 message:send:*（发送资格）",
+        )
 
     def _report_summary(
         self,

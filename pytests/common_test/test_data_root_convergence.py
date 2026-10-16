@@ -83,6 +83,8 @@ REMOVED_SELF_DERIVED_ROOTS: list[tuple[str, str]] = [
     ("src.chat.image_system.image_cache_cleanup", "PROJECT_ROOT"),
     ("src.webui.routers.avatar", "PROJECT_ROOT"),
     ("src.chat.message_receive.bot", "PROJECT_ROOT"),
+    # ── 批 6 · ④：表达向量索引的自推根（`Path(__file__).resolve().parents[3]`）────
+    ("src.maisaka.replyer.expression_vector_index", "PROJECT_ROOT"),
 ]
 
 
@@ -361,3 +363,49 @@ def test_a_memorix_storage_data_dir_empty_falls_back_to_default() -> None:
         manager = ImportTaskManager.__new__(ImportTaskManager)
         manager.plugin = _stub_config_plugin(raw)
         assert manager._resolve_data_dir() == default_data_dir().resolve(), raw
+
+
+# ── 批 6 · ④ · 表达向量索引的 `expression_vector_index_path` 消费点 ───────────
+# 与批 5 同族：消费的是**配置值层的相对串**（不是自推的 `__file__`/CWD），所以要咬三件事：
+#   ① 设了 `MAIBOT_DATA_DIR` ⇒ 解析值必须落在该根下（旧实现自推仓根 ⇒ 不跟动 = 本次修的劈叉）；
+#   ② 未设 env 且值是 `"data/…"` 历史形态 ⇒ 与"仓根/data/…"**逐字同径**（活配置写的就是这种形状）；
+#   ③ **fail-closed**：空/空白 ⇒ 抛 `ValueError`（旧实现静默当"仓根"）。
+# ③ 是 ④ **有意引入的行为变更**，单独一条咬住它 —— 没有这条，谁把空值回落加回来都不会红。
+# ⚠️ 一处**已知语义偏离**（裸相对值如 `"expression_selection/x.json"`：新口径挂数据根、
+#    旧口径挂仓根）—— 绊线只咬上面三条；偏离清单见
+#    `C:\hub\.scratch\data-family-batch6-site4-host-import.py` 的 B1 节。
+
+
+def test_expression_vector_index_path_follows_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """④ 站点：配置值跟 `MAIBOT_DATA_DIR` 走（`data/` 前缀被剥掉）。"""
+
+    monkeypatch.setenv("MAIBOT_DATA_DIR", str(tmp_path))
+
+    from src.maisaka.replyer.expression_vector_index import resolve_project_path
+
+    assert resolve_project_path("data/expression_selection/expression_vector_index.json") == (
+        tmp_path / "expression_selection" / "expression_vector_index.json"
+    ).resolve()
+
+
+def test_expression_vector_index_path_keeps_legacy_shape_without_env() -> None:
+    """④ 站点：未设 env 时与历史形态（仓根/data/…）逐字同径 —— 活配置写的正是这种形状。"""
+
+    from src.common.runtime_paths import resolve_data_file
+    from src.maisaka.replyer.expression_vector_index import resolve_project_path
+
+    assert resolve_project_path(
+        "data/expression_selection/expression_vector_index.json"
+    ) == resolve_data_file("expression_selection", "expression_vector_index.json")
+
+
+def test_expression_vector_index_path_empty_is_fail_closed() -> None:
+    """④ 的**行为变更**：空/空白 ⇒ `ValueError`（旧实现静默当"仓根"，见该函数 docstring）。"""
+
+    from src.maisaka.replyer.expression_vector_index import resolve_project_path
+
+    for raw in ("", "   ", "\t"):
+        with pytest.raises(ValueError):
+            resolve_project_path(raw)
