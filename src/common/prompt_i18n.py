@@ -416,6 +416,9 @@ def load_prompt(
     **kwargs: object,
 ) -> str:
     normalized_name = normalize_prompt_name(name)
+    # 账本·测量专用，测完撤销（依据 .shared/research/2026-10/prompt_system_audit_1016.md）
+    # 落**汇点**：load_prompt 自身无缓存（:419 的模板读取虽有 lru_cache，但 :426 每次都格式化）⇒ 一行覆盖全部 6 处调用侧（含 chat_loop_service 的运行时算名）。
+    logger.debug("prompt-ledger[use] name=%s source=load_prompt", normalized_name)
     resolved_template = load_prompt_template(
         name=normalized_name,
         locale=locale,
