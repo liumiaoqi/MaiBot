@@ -127,7 +127,7 @@ async def test_plugin_error_detail_is_named_not_swallowed() -> None:
         # 载荷不是映射
         (["not-a-mapping"], "映射"),
         # 完全无法识别（既不是映射也没有 payload 属性）
-        ("just-a-string", "无法识别"),
+        ("just-a-string", "层=响应形状"),
     ],
 )
 async def test_unrecognised_shapes_fail_closed_and_named(

@@ -73,6 +73,10 @@ SINGLE_SOURCE_CASES: list[tuple[str, str, str, tuple[str, ...]]] = [
     ("src.maisaka.display.prompt_cli_renderer", "DATA_IMAGE_DIR", "data_file", ("images",)),
     ("src.maisaka.display.prompt_cli_renderer", "DATA_EMOJI_DIR", "data_file", ("emoji",)),
     ("src.maisaka.display.prompt_cli_renderer", "DATA_PROMPT_IMAGE_DIR", "data_file", ("prompt_imgs",)),
+    # ── 批 7 · ⑤：脚本层（`A_memorix/scripts` 的引导模块）────────────────────
+    # `DEFAULT_DB_PATH` 旧写法是 `PROJECT_ROOT / "data" / "MaiBot.db"`（自推 data 路径）
+    # —— 它就是"宿主侧多出来的那个库"的上游（三个 `migrate_*` 脚本都从它取默认值）。
+    ("src.A_memorix.scripts._bootstrap", "DEFAULT_DB_PATH", "data_file", ("MaiBot.db",)),
 ]
 
 # 被删掉的"自推根"常量：必须**不存在**（谁把它们写回来，这里立刻红）

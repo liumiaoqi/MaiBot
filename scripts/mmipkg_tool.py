@@ -51,6 +51,11 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# ⑤：本脚本的 3 处数据目录属 **data 域** ⇒ 走唯一来源（旧写法 `os.path.join(PROJECT_ROOT, "data", …)`
+# 是自推 data 路径：`MAIBOT_DATA_DIR` 一生效就指到仓根下的 `data/`，与家族其余站点劈叉）。
+# 未设 env 时与旧写法逐字同径。
+from src.common.runtime_paths import resolve_data_file  # noqa: E402
+
 # 延迟导入数据库模块（在添加路径之后）
 # ruff: noqa: E402
 from src.common.database.database import db
@@ -453,7 +458,7 @@ class MMIPKGUnpacker:
 
             # 如果未指定输出目录，使用默认的已注册表情包目录
             if output_dir is None:
-                output_dir = os.path.join(PROJECT_ROOT, "data", "emoji_registered")
+                output_dir = str(resolve_data_file("emoji_registered"))
 
             os.makedirs(output_dir, exist_ok=True)
 
@@ -958,7 +963,7 @@ def interactive_import():
 
     if import_mode == "1":
         # 自动扫描模式
-        import_dir = os.path.join(PROJECT_ROOT, "data", "import_emoji")
+        import_dir = str(resolve_data_file("import_emoji"))
         os.makedirs(import_dir, exist_ok=True)
 
         console.print(f"\n[cyan]扫描目录: {import_dir}[/cyan]")
@@ -996,7 +1001,7 @@ def interactive_import():
 
     # 获取输出目录
     console.print("\n[yellow]2. 输出目录设置[/yellow]")
-    default_output_dir = os.path.join(PROJECT_ROOT, "data", "emoji_registered")
+    default_output_dir = str(resolve_data_file("emoji_registered"))
     output_dir = get_input("  输出目录", default_output_dir)
 
     # 导入选项
