@@ -26,6 +26,12 @@ SDK 侧同口径：`sdk/context.py:26-30`、发送侧 `host/servicer.py:709-715`
 """
 
 
+#: `gateway metadata['tool_name']` 缺失时的**具名回落**值（P1②）。
+#: ⚠️ 它**不是**正常态：命中即打 warning（"插件未声明 tool_name"）。
+#: 保留它是为了**旧插件（不声明 metadata）仍能工作** —— 但要让"你在靠回落跑"在日志里看得见。
+_FALLBACK_TOOL_NAME = "napcat.send_text"
+
+
 class V2GatewayRegistrar:
     """网关就绪 → 先注销旧 → scope gating → 注册新驱动 → 绑定路由。
 
@@ -97,7 +103,20 @@ class V2GatewayRegistrar:
                 )
 
         # ④ 创建 V2GatewaySupervisor
-        tool_name = decl.metadata.get("tool_name", "napcat.send_text")
+        # P1②：tool_name 来自**插件声明的 metadata**（此前 proto 无 metadata 字段 ⇒ 主机只能硬编码）。
+        # ⚠️ 硬编码**不删**：declared 缺失时回落到它，但**必须具名**（不许静默）。
+        declared_tool_name = str((decl.metadata or {}).get("tool_name", "")).strip()
+        if declared_tool_name:
+            tool_name = declared_tool_name
+        else:
+            tool_name = _FALLBACK_TOOL_NAME
+            logger.warning(
+                "插件未声明 metadata['tool_name']，回落到 %s（gateway=%s, plugin=%s）"
+                "—— 这是回退路径，不是正常态；请让插件在 @MessageGateway 里声明",
+                tool_name,
+                gateway_name,
+                plugin_id,
+            )
         supervisor = V2GatewaySupervisor(
             plugin_id=plugin_id,
             runner_listen_address=runner_listen_address,

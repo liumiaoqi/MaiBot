@@ -98,8 +98,11 @@ class RunnerEndpoint:
         # 网关**就绪**上报的暂存区：控制通道还没 READY 时先记住，READY 后补发。
         # key=gateway_name（同一网关重复上报互相覆盖，天然幂等）；value=(platform, account_id, scope)。
         # 为什么需要它：插件的 `on_load` 里就建立自己的底层连接（如适配器连 NapCat WS），
-        # 而控制通道（握手+组件注册）在 `on_load` **之后**才建立 ⇒ 上报必然赶在 READY 之前
-        # （详见 `report_gateway_ready` 的说明与真机事故）。
+        # 而控制通道（握手+组件注册）在 `on_load` **之后**才建立 ⇒ 上报**通常**赶在 READY 之前。
+        # ⚠️ 是**竞态**、不是必然（2026-10-16 取证订正）：`transport.start()` 只是 `create_task`
+        # 起连接后就返回，连接回调由**那个后台任务**发出 ⇒ 上报与 READY 出自**两个独立执行上下文**，
+        # 存在合法调度顺序让 READY 先到。**正因如此才用「暂存 + 补发」兜底**——
+        # 它让顺序**变得无关**，而不是去强制顺序。
         self._pending_gateway_reports: dict[str, tuple[str, str, str]] = {}
         # ZG-15：插件活体引用（加载成功后创建，注入 servicer/loader）
         self._refcount: PluginRefcount | None = None
@@ -277,10 +280,14 @@ class RunnerEndpoint:
 
         ⚠️ **控制通道还没 READY 时「暂存待补发」，不再抛错**（2026-10-16 修，真机事故）：
 
-        时序上这就是必然：`_run` 先 `await plugin.on_load()`（:141），**之后**才进入
-        `CONNECTING → HANDSHAKING → REGISTERING → READY`（:156-161/:302/:350/:390）。
-        而插件的底层连接常常在 `on_load` 里就建好了（napcat 适配器 `plugin.py:158-161`
-        在 WS 连接回调里调本方法）⇒ 上报**必然**早于 READY。
+        时序上是**竞态**、不是必然（2026-10-16 取证订正）：`_run` 先 `await plugin.on_load()`（:141），
+        **之后**才进入 `CONNECTING → HANDSHAKING → REGISTERING → READY`（:156-161/:302/:350/:390）。
+        而插件的底层连接在 `on_load` 里**只是被 `create_task` 起来就返回**——napcat 适配器
+        `transport.py:98` 只 `asyncio.create_task(self._connection_loop())`，连接回调
+        （`transport.py:204` → `:296`）由**那个后台任务**发出；`plugin.py:135` 的
+        `await transport.start()` **并不等它** ⇒ 上报与 READY 出自**两个独立执行上下文**。
+        ⇒ 上报**通常**（有强烈的时序偏向）早于 READY，但**存在合法调度顺序让 READY 先到**。
+        **正因如此才用「暂存 + 补发」兜底：它让顺序变得无关，而不是去强制顺序。**
 
         原实现在这里直接抛 ``ConnectionError("Runner not in READY state")``，而插件的连接回调是
         best-effort 包装（只记一条日志、**不重试**）⇒ **上报被丢掉就再也不会来**
@@ -479,6 +486,9 @@ class RunnerEndpoint:
                         supports_send=gw.supports_send,
                         supports_receive=gw.supports_receive,
                         route_type=gw.route_type,
+                        # P1②：把声明面的 metadata 一起送到主机（protobuf map<string,string>；
+                        # 值必须是 str —— 非字符串值在这里就会被 protobuf 拒掉，别在这层悄悄 str()）。
+                        metadata=dict(gw.metadata),
                     )
                     for gw in self._gateway_declarations
                 ],
