@@ -16,8 +16,15 @@ import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# 本行是 **logs 域**（非 data 域）⇒ 按家族口径**不跟** `MAIBOT_DATA_DIR` 走，保持不动。
 DEFAULT_PROMPT_ROOT = PROJECT_ROOT / "logs" / "maisaka_prompt"
-DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "MaiBot.db"
+# ⑤：`MaiBot.db` 属 **data 域** ⇒ 走唯一来源（旧写法 `PROJECT_ROOT / "data" / "MaiBot.db"` 是自推）。
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.common.runtime_paths import resolve_data_file  # noqa: E402
+
+DEFAULT_DB_PATH = resolve_data_file("MaiBot.db")
 DEFAULT_STAGES = ("timing_gate", "planner")
 REPORT_SECTIONS = (
     "chat_message",
