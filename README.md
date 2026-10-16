@@ -218,3 +218,7 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 > <sub><sup>Please read the <a href="EULA.md">End User License Agreement (EULA)</a> and <a href="PRIVACY.md">Privacy Policy</a> before use. Please evaluate AI-generated content carefully.</sup></sub>
 
 **License**: GPL-3.0
+
+---
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
