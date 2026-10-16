@@ -373,6 +373,28 @@ def test_unreadable_sidecar_degrades_named(monkeypatch: pytest.MonkeyPatch, data
     assert any("读不出来" in record.message or "读不出来" in record.getMessage() for record in caplog.records), caplog.text
 
 
+def test_deeply_nested_sidecar_degrades_named(
+    monkeypatch: pytest.MonkeyPatch, data_root: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """**退化输入守卫**：深嵌套 JSON（depth≈20000；`json.dumps` 造不出来 ⇒ 直接拼字符串）。
+
+    断言三件：退原值 · **不抛** · 日志**单独具名**（"输入嵌套过深"，与"内容坏"可区分）。
+    边界（独立证伪实测）：depth≈5000 **不**触发 / 20000 触发 ⇒ 退化输入，不是日常路径。
+    """
+
+    depth = 20000
+    (data_root / SIDECAR_NAME).write_text(
+        '{"h1": ' + "[" * depth + "]" * depth + "}", encoding="utf-8"
+    )
+    monkeypatch.setenv(ENV_VAR, "1")
+    social_rel_confidence.reset_cache()
+
+    with caplog.at_level("INFO"):
+        assert social_rel_confidence.effective_confidence("h1", 0.42) == 0.42
+
+    assert any("嵌套过深" in record.getMessage() for record in caplog.records), caplog.text
+
+
 # ── ④ 地板吸收要具名（降级可以，静默不行）──────────────────────────────────
 
 

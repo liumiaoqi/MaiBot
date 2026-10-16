@@ -182,8 +182,20 @@ class SocialRelConfidenceSeam:
     # ── 内部 ────────────────────────────────────────────────────────────
 
     def _parse(self, raw: str, path: Path) -> dict[str, float]:
+        # ⚠️ `RecursionError` **单独一条具名降级**，不许并进下面那条宽 `except`
+        #（`TypeError, ValueError, OverflowError` 是"**内容坏**"，这条是"**载体的形状退化**"）：
+        # 宽捕会把"我们自己代码递归写坏"这个信号一起吞掉 ⇒ 分开后，真有代码级递归 bug 时**这行日志先说话**。
+        #
+        # 边界（独立证伪实测，2026-10-17）：深嵌套 JSON `{"h1": [[[…]]]}` —— **depth≈5000 不触发、
+        # 20000 触发** ⇒ 这是**退化输入守卫**，不是日常路径（别以为随便什么数据都会撞）。
         try:
             payload = json.loads(raw)
+        except RecursionError as exc:
+            logger.warning(
+                "social_rel 强度 sidecar 输入嵌套过深（RecursionError，%s）：%s ⇒ 跳过该 sidecar，不覆盖",
+                path, exc,
+            )
+            return {}
         except json.JSONDecodeError as exc:
             logger.warning("social_rel 强度 sidecar 不是合法 JSON（%s）：%s ⇒ 不覆盖", path, exc)
             return {}
