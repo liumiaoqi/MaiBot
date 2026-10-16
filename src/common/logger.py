@@ -441,7 +441,8 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
         "ratelimit_window_s": 1.0,        # 窗口（秒）
         "ratelimit_max_events": 10,       # 窗口内阈值
         "ratelimit_summary_interval_s": 1.0,  # 摘要输出间隔
-        "ratelimit_whitelist": [],        # logger_name 前缀 / 事件签名
+        "ratelimit_whitelist": ["maibot.prompt_i18n", "Prompt"],  # 测量窗口：提示词账本两处 logger 免限流（实测 24 次加载被吞 14 次）；测完与账本一并撤销
+        # ↑ logger_name 前缀 / 事件签名（startswith 口径），与 MAIBOT_LOG_FILE_DEBUG_LOGGERS 同口径
         "ratelimit_apply_levels": ["DEBUG", "INFO", "WARNING"],  # ERROR/CRITICAL 默认豁免
         # ── ZG-2 降级抑制 ──
         "health_suppression_map": {"healthy": "none", "degraded": "INFO", "fault": "WARNING", "recovering": "INFO"},
