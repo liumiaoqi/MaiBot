@@ -309,77 +309,184 @@ class TestRealCheckMemoryVectorStore:
 
 
 class TestRealCheckPluginRuntime:
-    """v2：plugin.runtime 检查器测试。v3 增强：状态机检查。"""
+    """plugin.runtime 检查器测试。
+
+    2026-10-17：被查对象由 v1 `IpcBridgePort` 换成 v2 `PluginRuntimeV2Port`
+    （v1 已由 ZG-32 收敛，其 list_plugin_states 是恒空 stub）。
+    """
+
+    @staticmethod
+    def _port(states, is_running: bool = True):
+        """构造替身 port：只暴露本检查器用到的两个成员。"""
+        from unittest.mock import MagicMock
+
+        port = MagicMock()
+        port.is_running = is_running
+        port.list_plugin_states.return_value = states
+        return port
+
+    @staticmethod
+    def _state(plugin_id: str, state: str):
+        from unittest.mock import MagicMock
+
+        s = MagicMock()
+        s.plugin_id = plugin_id
+        s.state = state
+        return s
 
     @pytest.mark.asyncio
     async def test_up_when_running(self):
-        from unittest.mock import patch, MagicMock
-        from src.core.protocols import PluginStateSnapshot
-        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
-
-        mock_port = MagicMock()
-        mock_port.is_running = True
-        mock_port.list_plugin_states.return_value = [PluginStateSnapshot("p1", "running")]
-        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
-            check = PluginRuntimeHealthCheck()
-            result = await check.check()
-            assert result.status == HealthStatus.UP
-
-    @pytest.mark.asyncio
-    async def test_unknown_when_port_missing(self):
+        """分支 1（有插件正常）：1 条 running 状态且端点监听中 → UP。"""
         from unittest.mock import patch
         from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
 
-        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=None):
+        port = self._port([self._state("p1", "running")])
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.UP
+            assert result.details["plugins"] == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_when_no_plugin_states(self):
+        """分支 2（0 条非空断言）：状态 0 条 → 具名 UNKNOWN，**不是静默绿**。"""
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        port = self._port([])
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
             check = PluginRuntimeHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.UNKNOWN
+            assert "0 条" in result.details["reason"]
+            assert result.details["plugin_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_degraded_when_not_running(self):
-        from unittest.mock import patch, MagicMock
-        from src.core.protocols import PluginStateSnapshot
+    async def test_degraded_when_plugin_skipped(self):
+        """分支 3（spawn 失败落 skipped）：skipped 状态 → DEGRADED 且具名 plugin_id。"""
+        from unittest.mock import patch
         from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
 
-        mock_port = MagicMock()
-        mock_port.is_running = False
-        mock_port.list_plugin_states.return_value = [PluginStateSnapshot("p1", "loaded")]
-        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+        port = self._port([self._state("bad_plugin", "skipped")])
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
             check = PluginRuntimeHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.DEGRADED
+            assert result.details["skipped"] == 1
+            assert result.details["plugin_ids"] == ["bad_plugin"]
 
     @pytest.mark.asyncio
-    async def test_down_when_plugin_errored(self):
-        """v3：有 error 状态插件 → DOWN。"""
-        from unittest.mock import patch, MagicMock
-        from src.core.protocols import PluginStateSnapshot
+    async def test_unknown_when_port_not_registered(self):
+        """分支 4（运行时未注册）：v2 port 为 None → 具名 UNKNOWN。"""
+        from unittest.mock import patch
         from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
 
-        mock_port = MagicMock()
-        mock_port.is_running = True
-        mock_port.list_plugin_states.return_value = [
-            PluginStateSnapshot("good", "running"),
-            PluginStateSnapshot("bad", "error"),
-        ]
-        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
-            check = PluginRuntimeHealthCheck()
-            result = await check.check()
-            assert result.status == HealthStatus.DOWN
-
-    @pytest.mark.asyncio
-    async def test_unknown_when_no_plugins(self):
-        """v3：无插件注册 → UNKNOWN。"""
-        from unittest.mock import patch, MagicMock
-        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
-
-        mock_port = MagicMock()
-        mock_port.is_running = True
-        mock_port.list_plugin_states.return_value = []
-        with patch("src.core.health_checks.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=None):
             check = PluginRuntimeHealthCheck()
             result = await check.check()
             assert result.status == HealthStatus.UNKNOWN
+            assert "未注册" in result.details["reason"]
+
+    @pytest.mark.asyncio
+    async def test_down_when_plugin_errored(self):
+        """有 error 状态插件 → DOWN（带具名 plugin_id）。"""
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        port = self._port([self._state("good", "running"), self._state("bad", "error")])
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DOWN
+            assert result.details["plugin_ids"] == ["bad"]
+
+    @pytest.mark.asyncio
+    async def test_degraded_when_not_running(self):
+        """端点未监听（有激活插件但未监听）→ DEGRADED。"""
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        port = self._port([self._state("p1", "running")], is_running=False)
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+            assert result.details["is_running"] is False
+
+    @pytest.mark.asyncio
+    async def test_not_running_with_errored_keeps_both_states(self):
+        """⚠️ 两态都在（2026-10-17 裁定）：未监听 + 有 errored 插件。
+
+        顺序裁定是**保持** `errored` 在前（更具体的信号优先：`errored` 带 plugin_id、
+        可行动；`is_running=False` 是泛化态）。但**detail 里必须同时能看到泛化态**——
+        "未监听"这件事不能因为报了更具体的成因就消失。
+
+        ⇒ 一句话规矩：**报最具体的成因，同时把泛化态作为上下文留下**
+        （**别让更具体的那条顶掉更基础的那条**）。
+        """
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        port = self._port(
+            [self._state("good", "running"), self._state("bad", "error")],
+            is_running=False,
+        )
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+
+        # 状态照现顺序：errored 优先 ⇒ DOWN（不是被 is_running=False 抢去 DEGRADED）
+        assert result.status == HealthStatus.DOWN
+        # 具体态：具名 plugin_id
+        assert result.details["plugin_ids"] == ["bad"]
+        assert result.details["errored"] == 1
+        # 泛化态：**同一份 detail 里也要在**
+        assert result.details["is_running"] is False
+        assert "未监听" in result.details["reason"]
+
+    @pytest.mark.asyncio
+    async def test_not_running_keeps_skipped_and_rejected_context(self):
+        """泛化态（未监听）出声时，具体态（skipped/rejected）一并留下，不许被顶掉。"""
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        port = self._port(
+            [self._state("s1", "skipped"), self._state("dir:badman", "rejected")],
+            is_running=False,
+        )
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+
+        assert result.status == HealthStatus.DEGRADED
+        assert result.details["is_running"] is False
+        assert result.details["skipped"] == 1
+        assert result.details["skipped_plugin_ids"] == ["s1"]
+        assert result.details["rejected"] == 1
+        assert result.details["rejected_plugin_ids"] == ["dir:badman"]
+
+    @pytest.mark.asyncio
+    async def test_degraded_when_plugin_rejected(self):
+        """解析阶段被拒（值域第三栏）⇒ DEGRADED 具名出声（**不是"没有插件"**）。"""
+        from unittest.mock import patch
+        from src.core.health_checks.plugin_runtime import PluginRuntimeHealthCheck
+
+        port = self._port([self._state("dir:badman", "rejected")])
+        with patch("src.core.health_checks.plugin_runtime.get_plugin_runtime_v2_port",
+                   return_value=port):
+            check = PluginRuntimeHealthCheck()
+            result = await check.check()
+            assert result.status == HealthStatus.DEGRADED
+            assert result.details["rejected"] == 1
+            assert result.details["plugin_ids"] == ["dir:badman"]
 
 
 class TestRealCheckCoreOrchestrator:
