@@ -54,6 +54,13 @@ class ConfidenceGuard:
         负相关且显著（< misalignment_threshold）则判定反对齐。
 
         candidates 需有 .confidence 和 .score 属性，或为 dict 含 confidence/score 键。
+
+        ⚠️ **2026-10-17 修**：真实调用形状是 `RetrievalResult`（`dual_path.py:43`：字段
+        `hash_value/content/score/result_type/source/metadata`）——**它没有 `confidence` 属性**，
+        confidence 在 **`metadata["confidence"]`** 里。旧判定链（`hasattr(c,"confidence")` → `isinstance(c,dict)`
+        → `else: return False`）对真实形状**恒 False** ⇒ 本节护栏**永远不会降级**（触发率恒 0，
+        只剩 floor 那一半在工作）。本修让它认真实形状，**同时保留** dict / 带属性对象两支；
+        拿不到 confidence 时**仍返回 False**（维持"不认识就不降级"，不改成一律降级）。
         """
         if len(candidates) < 3:
             return False
@@ -61,14 +68,11 @@ class ConfidenceGuard:
         confidences = []
         scores = []
         for c in candidates:
-            if hasattr(c, "confidence") and hasattr(c, "score"):
-                confidences.append(float(c.confidence))
-                scores.append(float(c.score))
-            elif isinstance(c, dict):
-                confidences.append(float(c.get("confidence", 1.0)))
-                scores.append(float(c.get("score", 0.0)))
-            else:
+            extracted = _confidence_and_score(c)
+            if extracted is None:
                 return False
+            confidences.append(extracted[0])
+            scores.append(extracted[1])
 
         rho = _spearman_rank_correlation(confidences, scores)
         if rho is None:
@@ -99,6 +103,31 @@ class ConfidenceGuard:
             return 1.0, True
 
         return self.apply_floor(confidence), False
+
+
+def _confidence_and_score(candidate: Any) -> Tuple[float, float] | None:
+    """从**任意既有形状**里取 (confidence, relevance score)；取不到 ⇒ `None`（= 维持"不降级"）。
+
+    覆盖三支（**兼容**旧两支，新增真实一支）：
+    1. **检索真实形状**：带 `metadata` 字典且其中含 `confidence`，对象另有 `.score`
+       （`RetrievalResult`——`dual_path.py:43`）⇒ 读 `metadata["confidence"]`；
+    2. 带 `.confidence` **且** `.score` 属性的对象（旧支，保留）；
+    3. `dict`：`confidence`/`score` 键（旧支，保留原默认值 1.0 / 0.0）。
+
+    ⚠️ **不覆盖**：像 `GraphRelationCandidate`（`graph_relation_recall.py`，有 `.confidence` 但**没有**
+    `.score`）——那条支路在调用点上**还没有 relevance 分**，无信号可判 ⇒ 返回 `None`（等价于旧行为，
+    不硬造一个 relevance 代理，免得把"判不了"变成"乱判"）。
+    """
+
+    metadata = getattr(candidate, "metadata", None)
+    score = getattr(candidate, "score", None)
+    if isinstance(metadata, dict) and "confidence" in metadata and score is not None:
+        return float(metadata["confidence"]), float(score)
+    if hasattr(candidate, "confidence") and score is not None:
+        return float(candidate.confidence), float(score)
+    if isinstance(candidate, dict):
+        return float(candidate.get("confidence", 1.0)), float(candidate.get("score", 0.0))
+    return None
 
 
 def _spearman_rank_correlation(x: Sequence[float], y: Sequence[float]) -> Any:
