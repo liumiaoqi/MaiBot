@@ -87,8 +87,8 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 <sub><sup>Updates and Installation</sup></sub>
 
 
-> **最新版本: v0.x 筹备中（本分支版本线自 0.1.0 起）** ([📄 更新日志](changelogs/changelog.md))  
-> <sub><sup><strong>Latest Version: v0.x in preparation (this branch's version line starts at 0.1.0)</strong> (<a href="changelogs/changelog.md">📄 Changelog</a>)</sup></sub>
+> **最新版本: v0.1.0（本分支首发）** ([📄 更新日志](changelogs/changelog.md))  
+> <sub><sup><strong>Latest Version: v0.1.0 (first release of this branch)</strong> (<a href="changelogs/changelog.md">📄 Changelog</a>)</sup></sub>
 
 
 - **下载**：前往 [上游 Release 页](https://github.com/MaiM-with-u/MaiBot/releases/) 下载最新版本（发布由上游维护）。  

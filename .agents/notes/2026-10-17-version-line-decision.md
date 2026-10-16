@@ -1,6 +1,6 @@
 # Agent Note: 版本线——主版本号从 0 起钉
 
-Status: accepted（2026-10-17 · lmq 拍板）
+Status: **implemented**（2026-10-17 · lmq 拍板并执行——`pyproject.toml` 已钉 `0.1.0`）
 
 ## Problem
 
