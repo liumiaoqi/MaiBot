@@ -361,12 +361,12 @@ class RPCServer:
             await conn.send_frame(self._codec.encode_envelope(resp))
             return False
 
-        # 校验 SDK 版本
-        if not self._check_sdk_version(hello.sdk_version):
+        # 校验 SDK 版本（2026-10-17 `version-floor-soften` 线：**跨主版本才拒**，同主版本只出声；
+        # 判据根 = manifest 可解析 + 所需 API 在位 + 起得来，**不是号段比较** —— 见 `_sdk_version_verdict`）
+        verdict = _sdk_version_verdict(hello.sdk_version)
+        if verdict is not None:
             logger.error(f"SDK 版本不兼容: {hello.sdk_version}")
-            self._last_handshake_rejection_reason = (
-                f"SDK 版本 {hello.sdk_version} 不在支持范围 [{MIN_SDK_VERSION}, {MAX_SDK_VERSION}]"
-            )
+            self._last_handshake_rejection_reason = verdict
             resp_payload = HelloResponsePayload(
                 accepted=False,
                 reason=self._last_handshake_rejection_reason,
@@ -550,3 +550,46 @@ def _parse_version_tuple(version: str) -> Tuple[int, int, int]:
     while len(parts) < 3:
         parts.append("0")
     return (int(parts[0]), int(parts[1]), int(parts[2]))
+
+
+def _sdk_version_verdict(sdk_version: str) -> str | None:
+    """握手期 SDK 版本判定（2026-10-17 `version-floor-soften` 线 · 第 3 道闸门）。
+
+    **旧意图**：runner 自报 `sdk_version` 不在宿主支持区间 ⇒ **拒握手**（当时把**号段**当兼容判据）。
+    **新意图**（lmq 裁）：**我们根本没法用版本号定兼容性** —— 号段与生态脱节
+    ⇒ **同主版本**越过区间 ⇒ **具名 warning + 放行**；**跨主版本**（= 显式的不兼容）⇒ **仍拒**。
+    **判据根** = manifest 可解析 + 所需 API 在位 + 起得来，不是号段比较。
+
+    Returns:
+        ``None`` = 放行（越过但同主版本时已打过具名 warning）；
+        否则为**具名拒绝原因**（进 ``HelloResponse.reason``）。
+    """
+    try:
+        sdk_parts = _parse_version_tuple(sdk_version)
+    except (ValueError, TypeError):
+        # 不可解析 ⇒ fail-closed（"声明了但不可判"不许当通过）
+        return (
+            f"SDK_VERSION_UNPARSABLE: runner 自报 sdk_version={sdk_version!r} 无法解析；"
+            f"宿主支持区间 [{MIN_SDK_VERSION}, {MAX_SDK_VERSION}]"
+        )
+
+    min_parts = _parse_version_tuple(MIN_SDK_VERSION)
+    max_parts = _parse_version_tuple(MAX_SDK_VERSION)
+    if min_parts <= sdk_parts <= max_parts:
+        return None
+
+    reference = max_parts if sdk_parts > max_parts else min_parts
+    if sdk_parts[0] != reference[0]:
+        return (
+            f"SDK_VERSION_MISMATCH: runner 自报 sdk_version={sdk_version} **跨主版本**地越过宿主支持区间 "
+            f"[{MIN_SDK_VERSION}, {MAX_SDK_VERSION}] —— 显式不兼容"
+        )
+
+    logger.warning(
+        "runner 自报 sdk_version=%s 越过宿主支持区间 [%s, %s] 但**同主版本** ⇒ 按兼容模式放行"
+        "（只出声、不拒；判据 = manifest 可解析 + 所需 API 在位 + 起得来）",
+        sdk_version,
+        MIN_SDK_VERSION,
+        MAX_SDK_VERSION,
+    )
+    return None

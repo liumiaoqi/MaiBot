@@ -39,8 +39,10 @@ class RunnerSpawner:
     async def spawn(self, runner_id: str, plugin_dir: str) -> subprocess.Popen:
         """spawn 一个 Runner 子进程。
 
-        ⚠️ **先过装载期守卫**（P1③）：插件 manifest 声明的 `sdk.min_version` 若**满足不了**，
-        这里**拒装载**（fail-closed + 具名），不落进程。
+        ⚠️ **先过装载期守卫**（P1③）：插件 manifest 声明的 `sdk.min_version` 若**跨主版本地**
+        越过宿主 SDK 区间，这里**拒装载**（fail-closed + 具名），不落进程；
+        **同主版本**越过 ⇒ 只**具名 warning**、照常装载（判据见 `_check_manifest_sdk_min_version`
+        的"意图变更"段：兼容性靠 capability，不靠号段）。
         """
         rejection = _check_manifest_sdk_min_version(plugin_dir, runner_id)
         if rejection is not None:
@@ -162,15 +164,26 @@ def _check_manifest_sdk_min_version(plugin_dir: str, runner_id: str) -> str | No
 
     ⚠️ **方向性 —— 别以为漏写了半边判断**：
         `min_version` 是**最小**要求 ⇒ **宿主更新就能满足它**。所以只有
-        「声明值 ≥ 宿主支持的上界」才是**真冲突**（插件要的比我们能给的还新）；
+        「声明值 ≥ 宿主支持的上界」才可能是真冲突（插件要的比我们能给的还新）；
         「声明值**低于**宿主下界」**不算冲突**（插件向后兼容，我们满足得了）。
 
-    **与 v1 的差异（有意为之，不是漏抄）**：v1
+    ⚠️ **意图变更（2026-10-17 `version-floor-soften` 线 · lmq 裁）—— 下一条读者别当成回归**：
+        - **旧意图**：*"声明了要更高 SDK ⇒ 拒"*（当时把**号段**当兼容判据）；
+        - **新意图**：**"我们根本没法用版本号定兼容性"**——我们的号段与生态脱节
+          （宿主自报 `0.1.0`，本处 SDK 区间 `[4.0.0, 5.0.0)`，而插件普遍写 `1.x–1.99.99` / `4.0.0` 这类号）；
+        - **故**：**下界只作提示、不作门** ⇒ 声明值落在区间之上但**同主版本** ⇒ **具名 warning + 照常装载**；
+          **只有跨主版本**（= 显式声明的不兼容）**才拒**。
+        - **判据根**：兼容性 = **manifest 可解析 + 所需 API 在位 + 起得来**，不是号段比较
+          （与 `src/plugin_runtime/runner/manifest_validator.py` 的 `_validate_runtime_compatibility`
+          同一判据、同一晚落的两处）。
+
+    **与 v1 的差异（2026-10-17 起已**缩小**）**：v1
     `src/plugin_runtime/manifest_validator.py:1067` 把 `manifest.sdk.min_version` 送进
-    `is_in_range(...)`（`:119-138`，具名消息"版本 X 低于最小要求 Y"）——那是**严格区间
-    [min, max)** 语义。本处**故意不照抄那半边**：按严格区间硬卡，会让"声明 `4.0.0`、
-    而宿主下界更高"的旧插件成批坏掉（真例：`plugins/hello_world_plugin/_manifest.json:21`
-    声明的正是 `4.0.0`）。⇒ v1 有这道守卫、v2 搬家时漏了，这里按装载期补回来，但取方向性语义。
+    `is_in_range(...)`（`:119-138`）——那是**严格区间**语义。本处**仍不照抄那半边**：
+    按严格区间硬卡会让"声明 `4.0.0`、宿主下界更高"的旧插件成批坏掉
+    （真例：`plugins/hello_world_plugin/_manifest.json:21` 声明的正是 `4.0.0`）。
+    ⚠️ 而 v1 那处**调用点**已在同一晚按 capability 判据放宽（下界 ⇒ 提示；跨主版本才拒）
+    ⇒ 两侧语义现在**基本对齐**，差别只剩"号段边界取闭区间还是半开区间"。
 
     为什么落在 `spawn`：**"要不要起这个 runner"就是"要不要装载这个插件"** —— 天然是"拒装载"
     该落的地方（`dependency_resolver` 管插件间依赖、`activation_coordinator` 管发现，都不是这个语义）。
@@ -212,11 +225,26 @@ def _check_manifest_sdk_min_version(plugin_dir: str, runner_id: str) -> str | No
 
     ceiling = _parse_version_tuple(_MAX_SDK_VERSION)
     if declared >= ceiling:
-        return (
-            f"SDK_MIN_VERSION_UNSATISFIED: 插件要求 sdk>={declared_raw}（要求值），"
-            f"而宿主支持 [{_MIN_SDK_VERSION}, {_MAX_SDK_VERSION})"
-            f"（实际可提供的最高版本 < {_MAX_SDK_VERSION}）"
+        # ⚠️ 意图变更（见 docstring）：**同主版本 ⇒ 出声放行**；**跨主版本 ⇒ 仍拒**。
+        declared_major = declared[0] if declared else -1
+        ceiling_major = ceiling[0] if ceiling else -1
+        if declared_major != ceiling_major:
+            return (
+                f"SDK_MIN_VERSION_UNSATISFIED: 插件要求 sdk>={declared_raw}（要求值），"
+                f"而宿主支持 [{_MIN_SDK_VERSION}, {_MAX_SDK_VERSION})"
+                f"（实际可提供的最高版本 < {_MAX_SDK_VERSION}）——**跨主版本，属显式声明的不兼容**"
+            )
+        logger.warning(
+            "插件声明 sdk.min_version=%s 在本宿主 SDK 区间 [%s, %s) 之上（**同主版本**）"
+            "⇒ 按兼容模式装载（只出声、不拒；判据 = manifest 可解析 + 所需 API 在位 + 起得来）"
+            " | plugin_dir=%s runner=%s",
+            declared_raw,
+            _MIN_SDK_VERSION,
+            _MAX_SDK_VERSION,
+            plugin_dir,
+            runner_id,
         )
+        return None
     return None
 
 
