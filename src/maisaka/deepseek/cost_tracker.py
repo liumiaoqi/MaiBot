@@ -13,10 +13,15 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 
 logger = get_logger("maisaka_deepseek_cost_tracker")
 
-_DB_PATH = Path("data/deepseek_cost.db")
+# 数据根**只从 `src.common.runtime_paths` 取**（唯一来源）。
+# 旧写法 `Path("data/deepseek_cost.db")` 是**相对 CWD** 的：谁在哪个目录启动，就落到哪个
+# `data/` 下 —— 与 `database.py` 各推各的，于是同一个逻辑库在仓根 `data/` 与 `data/MaiMBot/`
+# 下各长了一份（实测两份指纹不同、其中仓根那份已被日志覆写）。
+_DB_PATH = resolve_data_file("deepseek_cost.db")
 
 
 class CostRecord(BaseModel):

@@ -9,7 +9,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-from src.common.database.database import ROOT_PATH, get_db_session
+from src.common.database.database import _DB_FILE, get_db_session
 from src.common.logger import get_logger
 
 logger = get_logger("tool_record_cleanup_service")
@@ -157,7 +157,10 @@ def run_startup_tool_record_vacuum_if_needed() -> bool:
         )
         session.commit()
 
-    db_path = ROOT_PATH / "data" / "MaiBot.db"
+    # 直接取 database 的 `_DB_FILE`（同一份库的**唯一来源**）——
+    # 旧写法是 `ROOT_PATH / "data" / "MaiBot.db"`：虽与当前默认值同值，但它**自己又拼了一次 "data"**，
+    # 于是 `MAIBOT_DATA_DIR` 一旦被设置，主程序会切库而这里的 VACUUM 仍指向旧路径（静默劈叉）。
+    db_path = _DB_FILE
     logger.info(
         "工具记录维护 VACUUM 开始："
         f"数据库={db_path}，清理候选 {state.scanned_records} 条，更新 {state.updated_records} 条"
