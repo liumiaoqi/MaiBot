@@ -349,6 +349,9 @@ def load_prompt_template(
     custom_prompts_root: Path | None = None,
     include_legacy_custom: bool = False,
 ) -> ResolvedPromptTemplate:
+    # 账本·测量专用，测完撤销（依据 .shared/research/2026-10/prompt_system_audit_1016.md）
+    # ⚠️ 这是「加载面」：本模块附近有 lru_cache（:330）⇒ 只说明"被加载过"，**不能当使用频次**。
+    logger.info("prompt-ledger[load] name=%s locale=%s category=%s", name, locale, category)
     resolved_prompts_root = get_prompts_root(prompts_root)
     resolved_custom_prompts_root = get_custom_prompts_root(custom_prompts_root, prompts_root)
     normalized_name = normalize_prompt_name(name)

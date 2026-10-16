@@ -215,6 +215,9 @@ class PromptManager:
             KeyError: 如果 Prompt 名称不存在则引发该异常
         """
         self._reload_if_prompt_cache_changed(prompt_name)
+        # 账本·测量专用，测完撤销（依据 .shared/research/2026-10/prompt_system_audit_1016.md）
+        # 频次只认这里：本方法每次 clone()（:220）⇒ 未被缓存 ⇒ 它数得准"谁在用、几次"。
+        logger.debug("prompt-ledger[use] name=%s", prompt_name)
         if prompt_name not in self.prompts:
             raise KeyError(f"Prompt name '{prompt_name}' 不存在")
         prompt = self.prompts[prompt_name].clone()
