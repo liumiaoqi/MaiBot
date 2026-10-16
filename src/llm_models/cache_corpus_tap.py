@@ -86,11 +86,30 @@ def _to_corpus_payload(request: Any) -> dict[str, Any]:
 
     return {
         "session_id": session_id,
+        "request_kind": _request_kind(request),
         "captured_at": datetime.now().isoformat(timespec="milliseconds"),
         "system_prompt": system_prompt,
         "tools": _tools_payload(getattr(request, "tool_options", None)),
         "messages": rest,
     }
+
+
+def _request_kind(request: Any) -> str:
+    """任务标识（探针按它分组——跨任务比 LCP 没有意义）。
+
+    来源与仓内既有口径**同源**：`serialize_response_request_snapshot(request)['request_kind']`
+    （失败快照就用这个名字，见 `src/llm_models/request_snapshot.py:457`）；取不到退回
+    `request.extra_params['request_kind']`；再取不到就**空串**（宁可空，不编造）。
+    """
+    try:
+        from src.llm_models.request_snapshot import serialize_response_request_snapshot
+
+        return str(serialize_response_request_snapshot(request).get("request_kind") or "")
+    except Exception:
+        extra_params = getattr(request, "extra_params", None) or {}
+        if isinstance(extra_params, dict):
+            return str(extra_params.get("request_kind") or "")
+        return ""
 
 
 def _message_text(message: Any) -> str:

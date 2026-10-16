@@ -105,13 +105,20 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _classify(left: str, right: str) -> str:
-    """给变化源起个名字：优先看两侧片段各自命中的模式。"""
+    """给变化源起个名字：时间戳类 → id 类 → 顺序类 → 内容类（四类，真数据上要能分开）。"""
     for name, pattern in _PATTERNS:
         if pattern.search(left) or pattern.search(right):
             return name
-    if left.strip() != right.strip() and len(left.strip()) == len(right.strip()):
-        return "same_length_text"
-    return "text"
+    if len(left) == len(right) and left != right:
+        differing = [index for index, (a, b) in enumerate(zip(left, right, strict=True)) if a != b]
+        # 等长且**只有数字位不同** ⇒ 时间戳/计数/ID 一类（`22:00:00` vs `22:00:07` 这种）
+        if differing and all(left[index].isdigit() and right[index].isdigit() for index in differing):
+            return "numeric_value"
+        # 字符多集相同、次序不同 ⇒ **集合顺序类**（工具表/清单重排）
+        if sorted(left) == sorted(right):
+            return "set_order"
+        return "same_length_content"
+    return "content"
 
 
 def first_divergence(previous: Sequence[Segment], current: Sequence[Segment]) -> Divergence:
@@ -293,11 +300,35 @@ def segments_from_snapshot(payload: dict[str, Any]) -> list[Segment]:
     return segments
 
 
+def group_key(payload: dict[str, Any], segments: Sequence[Segment]) -> str:
+    """分组键：优先 `request_kind`；老语料没有该字段时退回**最长段**的内容签名（前 48 字）。
+
+    ⚠️ 为什么是"最长段"而不是"第一段"：第一段常常是**每轮都在变**的输入（用户消息、
+    带时间戳的头部）⇒ 拿它当签名会把同一任务切成两组（2026-10-16 实测撞到）。最长段通常是
+    系统/人设/指令块，稳定得多。**新语料一律带 `request_kind`**，这条只是老语料兜底。
+    """
+    kind = str(payload.get("request_kind") or "").strip()
+    if kind:
+        return kind
+    longest = max((segment.text.strip() for segment in segments), key=len, default="")
+    return f"sig:{longest[:48]}" if longest else "sig:empty"
+
+
+def group_pairs_from_snapshot_dir(directory: Path) -> dict[str, list[tuple[list[Segment], list[Segment]]]]:
+    """**先按任务分组、组内再配相邻轮** —— 跨任务的 LCP 没有意义（2026-10-16 真数据实测教训）。"""
+    grouped: dict[str, list[list[Segment]]] = {}
+    for path in sorted(directory.glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        segments = segments_from_snapshot(payload)
+        grouped.setdefault(group_key(payload, segments), []).append(segments)
+
+    return {key: list(zip(group, group[1:], strict=False)) for key, group in grouped.items()}
+
+
 def pairs_from_snapshot_dir(directory: Path) -> list[tuple[list[Segment], list[Segment]]]:
-    """目录里按文件名排序，相邻两份当"同一会话的连续两轮"。"""
-    files = sorted(path for path in directory.glob("*.json"))
-    segments = [segments_from_snapshot(json.loads(path.read_text(encoding="utf-8"))) for path in files]
-    return list(zip(segments, segments[1:], strict=False))
+    """组内相邻轮拉平（保留旧接口；分组信息用 `group_pairs_from_snapshot_dir`）。"""
+    grouped = group_pairs_from_snapshot_dir(directory)
+    return [pair for group in grouped.values() for pair in group]
 
 
 # ── 合成模式（证红用）：前缀里塞了每轮变化的值 ──
@@ -335,7 +366,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.clean:
         pairs = demo_clean_pairs()
     elif args.snapshot_dir:
-        pairs = pairs_from_snapshot_dir(Path(args.snapshot_dir))
+        grouped = group_pairs_from_snapshot_dir(Path(args.snapshot_dir))
+        pairs = [pair for group in grouped.values() for pair in group]
+        print(f"按任务分组: {len(grouped)} 组（跨任务不配对）")
+        for key, group in sorted(grouped.items(), key=lambda item: -len(item[1])):
+            print(f"  - {key}: {len(group)} 对")
     else:
         parser.error("给一个快照目录，或用 --demo / --clean")
 
