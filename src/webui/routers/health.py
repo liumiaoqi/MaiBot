@@ -19,7 +19,10 @@ async def get_health() -> ApiResponse:
 
     service = get_health_service()
     health = await service.get_health()
-    return ApiResponse.success(
+    # ⚠️ 这里原来是 `ApiResponse.success(data=...)` —— `ApiResponse` 没有 `success`（只有 code/data/message），
+    # 两个 /proc/health 端点因此**自建立起必 500**（2026-10-16 真机探针实测 AttributeError: success）。
+    # 全仓同形写法是 `ApiResponse(data=...)`。
+    return ApiResponse(
         data={
             "status": health.status.name.lower(),
             "timestamp": health.timestamp,
@@ -34,4 +37,4 @@ async def get_health_detail() -> ApiResponse:
 
     service = get_health_service()
     detail = await service.get_health_detail()
-    return ApiResponse.success(data=detail)
+    return ApiResponse(data=detail)
