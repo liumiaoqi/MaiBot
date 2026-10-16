@@ -121,6 +121,9 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 我们欢迎所有对 MaiBot 感兴趣的朋友加入！  
 <sub><sup>We welcome everyone interested in MaiBot to join us.</sup></sub>
 
+> ⚠️ 以下群组均为**上游社区**（本分支未另设社区；使用本分支遇到问题也欢迎提本仓 Issue）。  
+> <sub><sup>The groups below belong to the **upstream community** (this branch has no separate community; issues in this repo are also welcome).</sup></sub>
+
 | 类别 / Category | 群组 / Group | 说明 / Description |
 | :--- | :--- | :--- |
 | **技术交流**<br><sub><sup>Technical</sup></sub> | 麦麦脑电图:571780722<br><sub><sup>MaiBrain EEG</sup></sub> | 技术交流 / 答疑<br><sub><sup>Technical discussion / Q&A</sup></sub> |
@@ -134,22 +137,8 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 ## 📚 文档
 <sub><sup>Documentation</sup></sub>
 
-> [!NOTE]
-> 部分内容可能更新不够及时，请注意版本对应。  
-> <sub><sup>Some content may not be updated promptly, so please pay attention to version compatibility.</sup></sub>
-
-- **[📚 核心 Wiki 文档](https://docs.mai-mai.org)**：最全面的文档中心，了解麦麦的一切。  
-  <sub><sup><strong><a href="https://docs.mai-mai.org">📚 Core Wiki Documentation</a></strong>: The most comprehensive documentation hub for everything about MaiSaka.</sup></sub>
-
-### 🧩 衍生项目
-<sub><sup>Related Projects</sup></sub>
-
-- **[Amaidesu](https://github.com/MaiM-with-u/Amaidesu)**：让麦麦在 B 站开播。  
-  <sub><sup>Let MaiSaka stream on Bilibili.</sup></sub>
-- **[MoFox_Bot](https://github.com/MoFox-Studio/MoFox-Core)**：基于 MaiCore 0.10.0 的增强型 Fork，更稳定更有趣。  
-  <sub><sup>An enhanced fork based on MaiCore 0.10.0, with improved stability and more fun features.</sup></sub>
-- **[MaiCraft](https://github.com/MaiM-with-u/Maicraft)**：让麦麦陪你玩 Minecraft（暂时停止维护中）。  
-  <sub><sup>Let MaiSaka accompany you in Minecraft (currently paused).</sup></sub>
+（本分支文档整理中。上游文档见 [docs.mai-mai.org](https://docs.mai-mai.org)——部分内容与本分支改造不完全同步，请以本仓实际代码为准。）  
+<sub><sup>(Documentation for this branch is being organized. Upstream docs: <a href="https://docs.mai-mai.org">docs.mai-mai.org</a> — some content may not match this branch's modifications; the code in this repo prevails.)</sup></sub>
 
 ---
 
@@ -168,6 +157,15 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 > **xxxxx 说：**  
 > <sub><sup><strong>xxxxx says:</strong></sup></sub>  
 > *Code is open, but the soul is yours.*
+
+> **刘妙奇说：**  
+> <sub><sup><strong>Liu Miaoqi says:</strong></sup></sub>  
+> - 上游的麦麦追求"最像而不是好"——本分支继续这条线，往"记忆与连接"的方向走深一步。  
+>   <sub><sup>The upstream MaiSaka pursues "more lifelike, not merely better". This branch carries that line further, toward memory-as-connection.</sup></sub>
+> - 记忆不是存档，是连接：她记得住你，不在于存下了什么，而在于那些话之间亮起的灯。  
+>   <sub><sup>Memory is not an archive but a web of connections — she remembers you not because something was stored, but because lights turn on between the words you said together.</sup></sub>
+> - 不追完美，追真实——这一点上游说得很对，本分支只负责让它活得更久一点。  
+>   <sub><sup>Not perfection, but authenticity — upstream got this right; this branch just tries to let it live a little longer.</sup></sub>
 
 ---
 
@@ -211,7 +209,13 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 ## 📊 仓库状态
 <sub><sup>Repository Status</sup></sub>
 
-![Alt](depends-data/repository-metrics.svg "麦麦仓库状态")
+<p>
+  <img src="https://img.shields.io/github/stars/liumiaoqi/MaiBot?style=flat&label=Stars" alt="Stars">
+  <img src="https://img.shields.io/github/forks/liumiaoqi/MaiBot?style=flat&label=Forks" alt="Forks">
+  <img src="https://img.shields.io/github/issues/liumiaoqi/MaiBot?style=flat&label=Issues" alt="Issues">
+  <img src="https://img.shields.io/github/last-commit/liumiaoqi/MaiBot?style=flat&label=Last%20Commit" alt="Last Commit">
+  <img src="https://img.shields.io/github/repo-size/liumiaoqi/MaiBot?style=flat&label=Repo%20Size" alt="Repo Size">
+</p>
 
 ### Star 趋势
 <sub><sup>Star History</sup></sub>
