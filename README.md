@@ -13,14 +13,13 @@
 
   <!-- Badges Row -->
   <p>
-    <img src="https://img.shields.io/badge/Python-3.10+-blue" alt="Python Version">
-    <img src="https://img.shields.io/github/license/Mai-with-u/MaiBot?label=License" alt="License">
+    <img src="https://img.shields.io/badge/Python-3.14+-blue" alt="Python Version">
+    <img src="https://img.shields.io/github/license/liumiaoqi/MaiBot?label=License" alt="License">
     <img src="https://img.shields.io/badge/Status-In%20Development-yellow" alt="Status">
     <img src="https://img.shields.io/github/contributors/liumiaoqi/MaiBot.svg?style=flat&label=Contributors" alt="Contributors">
     <img src="https://img.shields.io/github/forks/liumiaoqi/MaiBot.svg?style=flat&label=Forks" alt="Forks">
     <img src="https://img.shields.io/github/stars/liumiaoqi/MaiBot?style=flat&label=Stars" alt="Stars">
-    <a href="https://trendshift.io/repositories/20445" target="_blank"><img src="https://trendshift.io/api/badge/repositories/20445" alt="Mai-with-u%2FMaiBot | Trendshift" width="250" height="55"></a>
-    <a href="https://deepwiki.com/DrSmoothl/MaiBot"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+    <a href="https://deepwiki.com/liumiaoqi/MaiBot"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   </p>
 </div>
 
@@ -59,7 +58,7 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 <sub><sup>Quick Navigation</sup></sub>
 
 <p>
-  <a href="https://www.bilibili.com/video/BV1amAneGE3P">🌟 演示视频 <sub>Demo Video</sub></a> &nbsp;|&nbsp;
+  <a href="https://www.bilibili.com/video/BV1amAneGE3P">🌟 演示视频（上游） <sub>Demo Video (upstream)</sub></a> &nbsp;|&nbsp;
   <a href="#-更新和安装--updates-and-installation">📦 快速入门 <sub>Quick Start</sub></a> &nbsp;|&nbsp;
   <a href="#-部署教程--deployment-guide">📃 核心文档 <sub>Core Documentation</sub></a> &nbsp;|&nbsp;
   <a href="#-讨论与社区--discussion-and-community">💬 加入社区 <sub>Join Community</sub></a>
@@ -76,7 +75,7 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
       <img src="depends-data/video.png" width="60%" alt="麦麦演示视频" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
     </picture>
     <br>
-    <small>前往观看麦麦演示视频 / Watch the MaiSaka demo video</small>
+    <small>前往观看麦麦演示视频（由上游团队制作）/ Watch the MaiSaka demo video (made by the upstream team)</small>
   </a>
 </div>
 
@@ -88,15 +87,15 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 <sub><sup>Updates and Installation</sup></sub>
 
 
-> **最新版本: v1.0.10** ([📄 更新日志](changelogs/changelog.md))  
-> <sub><sup><strong>Latest Version: v1.0.10</strong> (<a href="changelogs/changelog.md">📄 Changelog</a>)</sup></sub>
+> **最新版本: v1.0.11（本分支）** ([📄 更新日志](changelogs/changelog.md))  
+> <sub><sup><strong>Latest Version: v1.0.11 (this branch)</strong> (<a href="changelogs/changelog.md">📄 Changelog</a>)</sup></sub>
 
 
-- **下载**：前往 [Release](https://github.com/MaiM-with-u/MaiBot/releases/) 页面下载最新版本。  
-  <sub><sup><strong>Download</strong>: Visit the <a href="https://github.com/MaiM-with-u/MaiBot/releases/">Release</a> page to get the latest version.</sup></sub>
+- **下载**：前往 [上游 Release 页](https://github.com/MaiM-with-u/MaiBot/releases/) 下载最新版本（发布由上游维护）。  
+  <sub><sup><strong>Download</strong>: Visit the <a href="https://github.com/MaiM-with-u/MaiBot/releases/">upstream Release page</a> to get the latest version (releases are maintained upstream).</sup></sub>
 
-- **方便使用的 Windows 一键包 下载**：[Maibot-OK](https://github.com/Mai-with-u/MaiBotOneKey/releases/)  
-  <sub><sup><strong>Launcher</strong>: <a href="https://github.com/Mai-with-u/MaiBotOneKey/releases/">Maibot OneKey</a></sup></sub>
+- **方便使用的 Windows 一键包 下载**：[Maibot-OK](https://github.com/Mai-with-u/MaiBotOneKey/releases/)（上游项目）  
+  <sub><sup><strong>Launcher</strong>: <a href="https://github.com/Mai-with-u/MaiBotOneKey/releases/">Maibot OneKey</a> (upstream project)</sup></sub>
 
 
 | 分支 / Branch | 说明 / Description |
@@ -122,6 +121,9 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 我们欢迎所有对 MaiBot 感兴趣的朋友加入！  
 <sub><sup>We welcome everyone interested in MaiBot to join us.</sup></sub>
 
+> ⚠️ 以下群组均为**上游社区**（本分支未另设社区；使用本分支遇到问题也欢迎提本仓 Issue）。  
+> <sub><sup>The groups below belong to the **upstream community** (this branch has no separate community; issues in this repo are also welcome).</sup></sub>
+
 | 类别 / Category | 群组 / Group | 说明 / Description |
 | :--- | :--- | :--- |
 | **技术交流**<br><sub><sup>Technical</sup></sub> | 麦麦脑电图:571780722<br><sub><sup>MaiBrain EEG</sup></sub> | 技术交流 / 答疑<br><sub><sup>Technical discussion / Q&A</sup></sub> |
@@ -135,22 +137,8 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 ## 📚 文档
 <sub><sup>Documentation</sup></sub>
 
-> [!NOTE]
-> 部分内容可能更新不够及时，请注意版本对应。  
-> <sub><sup>Some content may not be updated promptly, so please pay attention to version compatibility.</sup></sub>
-
-- **[📚 核心 Wiki 文档](https://docs.mai-mai.org)**：最全面的文档中心，了解麦麦的一切。  
-  <sub><sup><strong><a href="https://docs.mai-mai.org">📚 Core Wiki Documentation</a></strong>: The most comprehensive documentation hub for everything about MaiSaka.</sup></sub>
-
-### 🧩 衍生项目
-<sub><sup>Related Projects</sup></sub>
-
-- **[Amaidesu](https://github.com/MaiM-with-u/Amaidesu)**：让麦麦在 B 站开播。  
-  <sub><sup>Let MaiSaka stream on Bilibili.</sup></sub>
-- **[MoFox_Bot](https://github.com/MoFox-Studio/MoFox-Core)**：基于 MaiCore 0.10.0 的增强型 Fork，更稳定更有趣。  
-  <sub><sup>An enhanced fork based on MaiCore 0.10.0, with improved stability and more fun features.</sup></sub>
-- **[MaiCraft](https://github.com/MaiM-with-u/Maicraft)**：让麦麦陪你玩 Minecraft（暂时停止维护中）。  
-  <sub><sup>Let MaiSaka accompany you in Minecraft (currently paused).</sup></sub>
+（本分支文档整理中。上游文档见 [docs.mai-mai.org](https://docs.mai-mai.org)——部分内容与本分支改造不完全同步，请以本仓实际代码为准。）  
+<sub><sup>(Documentation for this branch is being organized. Upstream docs: <a href="https://docs.mai-mai.org">docs.mai-mai.org</a> — some content may not match this branch's modifications; the code in this repo prevails.)</sup></sub>
 
 ---
 
@@ -170,6 +158,15 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 > <sub><sup><strong>xxxxx says:</strong></sup></sub>  
 > *Code is open, but the soul is yours.*
 
+> **刘妙奇说：**  
+> <sub><sup><strong>Liu Miaoqi says:</strong></sup></sub>  
+> - 上游的麦麦追求"最像而不是好"——本分支继续这条线，往"记忆与连接"的方向走深一步。  
+>   <sub><sup>The upstream MaiSaka pursues "more lifelike, not merely better". This branch carries that line further, toward memory-as-connection.</sup></sub>
+> - 记忆不是存档，是连接：她记得住你，不在于存下了什么，而在于那些话之间亮起的灯。  
+>   <sub><sup>Memory is not an archive but a web of connections — she remembers you not because something was stored, but because lights turn on between the words you said together.</sup></sub>
+> - 不追完美，追真实——这一点上游说得很对，本分支只负责让它活得更久一点。  
+>   <sub><sup>Not perfection, but authenticity — upstream got this right; this branch just tries to let it live a little longer.</sup></sub>
+
 ---
 
 ## 🙋 贡献和致谢
@@ -181,8 +178,8 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 ### 🌟 贡献者
 <sub><sup>Contributors</sup></sub>
 
-<a href="https://github.com/MaiM-with-u/MaiBot/graphs/contributors">
-  <img alt="contributors" src="https://contrib.rocks/image?repo=MaiM-with-u/MaiBot" />
+<a href="https://github.com/liumiaoqi/MaiBot/graphs/contributors">
+  <img alt="contributors" src="https://contrib.rocks/image?repo=liumiaoqi/MaiBot" />
 </a>
 
 ### ☕ 支持者鸣谢
@@ -212,12 +209,18 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 ## 📊 仓库状态
 <sub><sup>Repository Status</sup></sub>
 
-![Alt](depends-data/repository-metrics.svg "麦麦仓库状态")
+<p>
+  <img src="https://img.shields.io/github/stars/liumiaoqi/MaiBot?style=flat&label=Stars" alt="Stars">
+  <img src="https://img.shields.io/github/forks/liumiaoqi/MaiBot?style=flat&label=Forks" alt="Forks">
+  <img src="https://img.shields.io/github/issues/liumiaoqi/MaiBot?style=flat&label=Issues" alt="Issues">
+  <img src="https://img.shields.io/github/last-commit/liumiaoqi/MaiBot?style=flat&label=Last%20Commit" alt="Last Commit">
+  <img src="https://img.shields.io/github/repo-size/liumiaoqi/MaiBot?style=flat&label=Repo%20Size" alt="Repo Size">
+</p>
 
 ### Star 趋势
 <sub><sup>Star History</sup></sub>
 
-[![Star 趋势](https://starchart.cc/MaiM-with-u/MaiBot.svg?variant=adaptive)](https://starchart.cc/MaiM-with-u/MaiBot)
+[![Star 趋势](https://starchart.cc/liumiaoqi/MaiBot.svg?variant=adaptive)](https://starchart.cc/liumiaoqi/MaiBot)
 
 ---
 
