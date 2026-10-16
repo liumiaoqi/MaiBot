@@ -19,6 +19,7 @@ from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_project_root
 from src.plugin_runtime import detect_host_application_version
 from src.plugin_runtime.local_sdk import read_local_sdk_version
 
@@ -1223,12 +1224,12 @@ class ManifestValidator:
 
     @classmethod
     def _resolve_project_root(cls) -> Path:
-        """推断当前项目根目录。
+        """推断当前项目根目录 —— 唯一来源（`src/common/runtime_paths.py`），本文件不再自推。
 
         Returns:
             Path: 项目根目录路径。
         """
-        return Path(__file__).resolve().parents[3]
+        return resolve_project_root()
 
     @classmethod
     @lru_cache(maxsize=None)

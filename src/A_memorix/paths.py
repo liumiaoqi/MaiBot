@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from src.common.runtime_paths import resolve_data_file
+
 A_MEMORIX_SYSTEM_ID = "a_memorix"
 
 
@@ -20,7 +22,13 @@ def config_path() -> Path:
 
 
 def default_data_dir() -> Path:
-    return repo_root() / "data" / "plugins" / "a-dawn.a-memorix"
+    """A_Memorix 的默认数据目录 —— 数据根只从唯一来源取（`src/common/runtime_paths.py`）。
+
+    旧写法 `repo_root() / "data" / "plugins" / ...` 是"自己又拼一次 data"：`MAIBOT_DATA_DIR`
+    一旦生效，主库会切走而这里仍指旧根（静默劈叉）。本模块仍可被 A_memorix 的独立脚本导入
+    （`scripts/_bootstrap.py` 已把仓根放进 `sys.path`）。
+    """
+    return resolve_data_file("plugins", "a-dawn.a-memorix")
 
 
 def artifacts_root() -> Path:

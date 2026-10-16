@@ -19,6 +19,7 @@ import sys
 from packaging.utils import canonicalize_name
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_project_root
 from src.plugin_runtime.runner.manifest_validator import ManifestValidator, PluginManifest
 
 
@@ -75,7 +76,8 @@ class PluginDependencyPipeline:
             project_root: 项目根目录；留空时自动推断。
         """
 
-        self._project_root: Path = project_root or Path(__file__).resolve().parents[2]
+        self._project_root: Path = project_root or resolve_project_root()
+        # 仓根从唯一来源取（`src/common/runtime_paths.py`）；本处只用它做 manifest/子进程 cwd（非 data 域）
         self._manifest_validator: ManifestValidator = ManifestValidator(
             project_root=self._project_root,
             validate_python_package_dependencies=False,

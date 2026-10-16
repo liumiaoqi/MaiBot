@@ -9,6 +9,7 @@ import tomlkit
 
 from src.common.i18n import t
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_project_root
 from src.common.version import read_project_version
 
 from .config_base import AttributeData, ConfigBase, Field
@@ -75,7 +76,7 @@ from .official_configs import (
     修订号：配置文件内容小更新
 """
 
-PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()
+PROJECT_ROOT: Path = resolve_project_root()  # 仓根：唯一来源（本文件不再自推，见 src/common/runtime_paths.py）
 CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()

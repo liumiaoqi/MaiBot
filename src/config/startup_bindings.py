@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_project_root
 
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
@@ -10,7 +11,7 @@ import tomlkit
 logger = get_logger("auto.startup_bindings")
 
 
-PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()
+PROJECT_ROOT: Path = resolve_project_root()  # 仓根：唯一来源（本文件不再自推）
 CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 

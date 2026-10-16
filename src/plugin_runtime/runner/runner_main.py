@@ -65,6 +65,7 @@ from src.plugin_runtime.protocol.envelope import (  # noqa: E402  # 需先调用
     ValidatePluginConfigPayload,
     ValidatePluginConfigResultPayload,
 )
+from src.common.runtime_paths import resolve_data_root, resolve_project_root  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
 from src.plugin_runtime.protocol.errors import ErrorCode  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
 from src.plugin_runtime.runner.log_handler import RunnerIPCLogHandler  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
 from src.plugin_runtime.runner.plugin_paths import PluginPaths, build_plugin_paths  # noqa: E402  # 需先调用 activate_local_sdk_import_path()
@@ -81,7 +82,9 @@ _PLUGIN_ALLOWED_RAW_HOST_METHODS = frozenset(
     }
 )
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# 仓根从唯一来源取（`src/common/runtime_paths.py`）：本文件曾用 `parents[3]` 自推一份。
+# 数据根另取（下方 `build_plugin_paths(..., resolve_data_root())`）——插件**数据**必须跟主库同根。
+_PROJECT_ROOT = resolve_project_root()
 _RUNNER_DEBUG_FILE_PATH = _PROJECT_ROOT / "logs" / "plugin_runtime_debug" / "runner_rpc_debug.jsonl"
 
 
@@ -759,7 +762,7 @@ class PluginRunner:
                 return resp.payload.get("result")
             return resp.payload
 
-        plugin_paths = build_plugin_paths(plugin_id, _PROJECT_ROOT)
+        plugin_paths = build_plugin_paths(plugin_id, _PROJECT_ROOT, resolve_data_root())
         ctx = self._create_plugin_context(
             PluginContext,
             plugin_id=plugin_id,

@@ -59,6 +59,7 @@ from .api_registry import APIRegistry
 from .capability_service import CapabilityService
 from .component_registry import ComponentRegistry
 from .event_dispatcher import EventDispatcher
+from src.common.runtime_paths import resolve_project_root
 from .hook_dispatcher import HookDispatchResult, HookDispatcher
 from .hook_spec_registry import HookSpecRegistry
 from .logger_bridge import RunnerLogBridge
@@ -70,7 +71,8 @@ if TYPE_CHECKING:
 
 logger = get_logger("plugin_runtime.host.runner_manager")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# 仓根从唯一来源取（`src/common/runtime_paths.py`）；本文件只用它拼 logs/（非 data 域）
+_PROJECT_ROOT = resolve_project_root()
 _RUNNER_DEBUG_FILE_PATH = _PROJECT_ROOT / "logs" / "plugin_runtime_debug" / "runner_rpc_debug.jsonl"
 
 

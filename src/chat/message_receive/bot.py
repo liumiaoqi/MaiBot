@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional
 
 import asyncio
-import os
 import time
 import traceback
 
@@ -29,9 +28,6 @@ from .image_receive_compressor import process_received_images_in_message
 from .message import SessionMessage
 
 # 定义日志配置
-
-# 获取项目根目录（假设本文件在src/chat/message_receive/下，根目录为上上上级目录）
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 # 配置主程序日志格式
 logger = get_logger("chat")

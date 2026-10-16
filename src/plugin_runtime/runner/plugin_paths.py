@@ -43,16 +43,23 @@ def validate_plugin_id_for_path(plugin_id: str) -> str:
     return normalized_plugin_id
 
 
-def build_plugin_paths(plugin_id: str, project_root: Path) -> PluginPaths:
-    """为插件分配持久数据目录和非持久运行时目录。"""
+def build_plugin_paths(plugin_id: str, project_root: Path, data_root: Path | None = None) -> PluginPaths:
+    """为插件分配持久数据目录和非持久运行时目录。
+
+    :param project_root: 项目根 —— 只用于 ``temp/`` 这类**非数据**用途。
+    :param data_root: 数据根。留空 ⇒ 回落 ``project_root / "data"``（保持既有调用方/测试语义不变）；
+        生产调用方（``runner_main``）显式传 ``resolve_data_root()``，让插件**数据**跟着唯一来源走
+        （`MAIBOT_DATA_DIR` 生效时与主库同根，不再各拼一次 "data"）。
+    """
 
     safe_plugin_id = validate_plugin_id_for_path(plugin_id)
-    data_root = (project_root / "data" / "plugins").resolve()
+    data_base = data_root if data_root is not None else project_root / "data"
+    plugins_data_root = (data_base / "plugins").resolve()
     runtime_root = (project_root / "temp" / "plugins").resolve()
-    data_root.mkdir(parents=True, exist_ok=True)
+    plugins_data_root.mkdir(parents=True, exist_ok=True)
     runtime_root.mkdir(parents=True, exist_ok=True)
 
-    data_dir = ensure_child_path(data_root / safe_plugin_id, data_root)
+    data_dir = ensure_child_path(plugins_data_root / safe_plugin_id, plugins_data_root)
     runtime_dir = ensure_child_path(runtime_root / safe_plugin_id, runtime_root)
     data_dir.mkdir(parents=True, exist_ok=True)
     runtime_dir.mkdir(parents=True, exist_ok=True)

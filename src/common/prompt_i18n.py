@@ -11,12 +11,14 @@ import re
 
 from .i18n import get_locale, t
 from .i18n.loaders import DEFAULT_LOCALE, extract_placeholders, normalize_locale
+from .runtime_paths import resolve_data_file, resolve_project_root
 
 logger = get_logger("maibot.prompt_i18n")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = resolve_project_root()  # 仓根：唯一来源，本文件不再自推
 PROMPTS_ROOT = (PROJECT_ROOT / "prompts").resolve()
-CUSTOM_PROMPTS_ROOT = (PROJECT_ROOT / "data" / "custom_prompts").resolve()
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）：自定义 prompt 必须与主库同根
+CUSTOM_PROMPTS_ROOT = resolve_data_file("custom_prompts").resolve()
 PROMPT_EXTENSIONS = (".prompt",)
 SAFE_SEGMENT_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 STRICT_ENV_KEYS = ("MAIBOT_PROMPT_I18N_STRICT", "MAIBOT_I18N_STRICT")
@@ -58,6 +60,8 @@ def get_custom_prompts_root(
     if custom_prompts_root is not None:
         return custom_prompts_root.resolve()
     if prompts_root is not None:
+        # 这里**刻意不收敛**到 `resolve_data_file(...)`：本根由**调用方注入**（测试传 tmp 根做隔离），
+        # 不是"从 `__file__`/CWD 自推"的写法 ⇒ 按 data-root 家族的口径不属于成员。
         return (prompts_root.resolve().parent / "data" / "custom_prompts").resolve()
     return CUSTOM_PROMPTS_ROOT
 
