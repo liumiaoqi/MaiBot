@@ -1,13 +1,22 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Save, Check } from 'lucide-react'
 import { PageShell } from '@/components/biz/page-shell'
 import { LoadingSkeleton } from '@/components/biz/loading-skeleton'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { resolveLocalizedText } from '@/lib/config-label'
 import { CodeEditor } from '../components/code-editor'
 import { DynamicConfigForm } from '../components/dynamic-config-form'
-import { DynamicConfigTabs } from '../components/dynamic-config-tabs'
+import {
+  WIRED_DOMAIN_PATHS,
+  countAllDomains,
+  listWiredDomains,
+  prepareDomainForm,
+  readDomainValues,
+  resolveDomainSchema,
+} from '../domains/wired-domains'
 import { registerAllConfigHooks } from '../hooks'
 import {
   getBotConfig,
@@ -16,25 +25,20 @@ import {
   updateBotConfigSection,
   updateBotConfigRaw,
 } from '@/lib/config-api'
-import type { ConfigSchema } from '@/types/config-schema'
 
 type ConfigMode = 'core' | 'detail' | 'source'
 
-/** 取某个域的字段值字典——配置数据是 `section → 字段值` 的嵌套对象 */
-function sectionFieldValues(section: unknown): Record<string, unknown> {
-  if (section && typeof section === 'object' && !Array.isArray(section)) {
-    return section as Record<string, unknown>
-  }
-  return {}
-}
-
 /** 麦麦主配置页（/config/bot）——三模式 Tabs + 自动保存 + 25 fieldHooks */
 export function BotConfigPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
 
   const [mode, setMode] = useState<ConfigMode>('core')
   const [savedTick, setSavedTick] = useState(false)
+  // 详细模式当前选中的域。默认「基础」（本页就是 bot 主配置；它也是 `uiOrder` 最小那个，
+  // 与切换器的第一个按钮一致）。⚠️ 别写成 `WIRED_DOMAIN_PATHS[0]`——那个是 `agent_autonomy`，
+  // 跟 `uiOrder` 排序后的首个**不是**同一个，会让"默认选中项"和"第一个按钮"对不上。
+  const [activeDomain, setActiveDomain] = useState<string>('bot')
 
   // 注册 fieldHooks（mount 时一次性注册）
   useEffect(() => {
@@ -113,25 +117,45 @@ export function BotConfigPage() {
     queryClient.invalidateQueries({ queryKey: ['api', 'botConfigRaw'] })
   }, [queryClient])
 
-  // ── 详细模式 · bot 域字段（有界接线：**只有 bot 域**渲染字段，其余域待定）──
+  // ── 详细模式 · 已接入域的字段（(a)-⑤：只接**纯标量域**，清单见 `../domains/wired-domains.ts`）──
   // 服务端数据变化时同步草稿——与 rawDraft 同一套"渲染期调整模式"。
-  // 比较的是 `config.bot` 的对象引用：react-query 默认 structural sharing ⇒ 引用稳定，不会自激。
-  const botSectionSource = config?.['bot']
-  const [botDraft, setBotDraft] = useState<Record<string, unknown>>({})
-  const [prevBotSectionSource, setPrevBotSectionSource] = useState(botSectionSource)
-  if (botSectionSource !== prevBotSectionSource) {
-    setPrevBotSectionSource(botSectionSource)
-    setBotDraft(sectionFieldValues(botSectionSource))
+  // 比较的是 `config` 的对象引用：react-query 默认 structural sharing ⇒ 引用稳定，不会自激。
+  const [domainDrafts, setDomainDrafts] = useState<Record<string, Record<string, unknown>>>({})
+  const [prevConfigSource, setPrevConfigSource] = useState(config)
+  if (config !== prevConfigSource) {
+    setPrevConfigSource(config)
+    if (config) {
+      const drafts: Record<string, Record<string, unknown>> = {}
+      for (const path of WIRED_DOMAIN_PATHS) {
+        drafts[path] = readDomainValues(config, path)
+      }
+      setDomainDrafts(drafts)
+    }
   }
 
-  // 编辑只进页面 state（本任务是"约束链可达"的有界证明）；
-  // 落盘走 `scheduleSectionSave('bot', …)` 那条 2s 防抖路径——**故意没接**：
-  // 读/写接缝正在 2 段换形，写路径不该由本任务顺手改。见回执遗留。
-  const handleBotFieldChange = useCallback((field: string, value: unknown) => {
-    setBotDraft((prev) => ({ ...prev, [field]: value }))
-  }, [])
+  // 编辑只进页面 state（本批是"约束在 UI 上真拦住"的有界证明）；
+  // 落盘走 `scheduleSectionSave(<域>, …)` 那条 2s 防抖路径——**故意没接**：
+  // 写路径刚迁到 2 段接缝（`mutateConfig`），本批不顺手改写入语义。
+  const handleDomainFieldChange = useCallback(
+    (field: string, value: unknown) => {
+      setDomainDrafts((prev) => ({
+        ...prev,
+        [activeDomain]: { ...(prev[activeDomain] ?? {}), [field]: value },
+      }))
+    },
+    [activeDomain],
+  )
 
-  const botSectionSchema = schema?.nested?.['bot']
+  const wiredDomains = useMemo(() => (schema ? listWiredDomains(schema) : []), [schema])
+  const allDomainCount = useMemo(() => (schema ? countAllDomains(schema) : 0), [schema])
+  const activeDomainSchema = useMemo(
+    () => (schema ? resolveDomainSchema(schema, activeDomain) : undefined),
+    [schema, activeDomain],
+  )
+  const activeDomainForm = useMemo(
+    () => (activeDomainSchema ? prepareDomainForm(activeDomainSchema) : undefined),
+    [activeDomainSchema],
+  )
 
   // 核心模式三卡片
   const coreSections = [
@@ -211,17 +235,58 @@ export function BotConfigPage() {
             <div data-testid="bot-detail-mode" className="space-y-4">
               {schema ? (
                 <>
-                  {/* 节导航（现状保留：只出按钮，不改其它域的渲染） */}
-                  <DynamicConfigTabs schema={schema as ConfigSchema} />
-                  {botSectionSchema ? (
-                    <div data-testid="bot-domain-form">
+                  {/* 已接入域的切换器（本批 6 个）——其余域**不渲染**，只如实报出数量 */}
+                  <div className="flex flex-wrap items-center gap-2" data-testid="wired-domain-tabs">
+                    {wiredDomains.map((domain) => (
+                      <button
+                        key={domain.path}
+                        type="button"
+                        onClick={() => setActiveDomain(domain.path)}
+                        data-testid={`wired-domain-${domain.path}`}
+                        data-active={domain.path === activeDomain}
+                        className={cn(
+                          'rounded-md px-3 py-1.5 text-sm transition-colors',
+                          domain.path === activeDomain
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-muted',
+                        )}
+                      >
+                        {resolveLocalizedText(domain.label, i18n.language)}
+                        <span className="ml-1 text-xs opacity-70">{domain.renderableCount}</span>
+                      </button>
+                    ))}
+                    <span className="text-xs text-muted-foreground" data-testid="unwired-domain-count">
+                      其余 {Math.max(allDomainCount - wiredDomains.length, 0)} 个域本批未接入
+                    </span>
+                  </div>
+
+                  {activeDomainForm ? (
+                    <div
+                      data-testid="wired-domain-form"
+                      data-domain-path={activeDomain}
+                      className="space-y-2"
+                    >
                       <DynamicConfigForm
-                        schema={botSectionSchema}
-                        values={botDraft}
-                        onChange={handleBotFieldChange}
+                        schema={activeDomainForm.schema}
+                        values={domainDrafts[activeDomain] ?? {}}
+                        onChange={handleDomainFieldChange}
                       />
+                      {/* 异形字段**显式不渲染**并如实报出（不静默兜底——那是写坏数据的入口） */}
+                      {activeDomainForm.skipped.length > 0 && (
+                        <p
+                          className="text-xs text-muted-foreground"
+                          data-testid="domain-skipped-fields"
+                        >
+                          未渲染 {activeDomainForm.skipped.length} 个字段（数组/复杂类型，需列表编辑器）：
+                          {activeDomainForm.skipped.map((item) => item.name).join('、')}
+                        </p>
+                      )}
                     </div>
-                  ) : null}
+                  ) : (
+                    <p className="text-sm text-muted-foreground" data-testid="wired-domain-missing">
+                      该域在当前 schema 里不存在
+                    </p>
+                  )}
                 </>
               ) : (
                 <LoadingSkeleton />
