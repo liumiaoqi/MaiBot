@@ -37,12 +37,20 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 PROVIDER_CACHE_BLOCK_TOKENS = 64
-"""供应商侧缓存块粒度（经验值 64 token/块）。
+"""本家（DeepSeek）的缓存块粒度，据 dsh 的 e2e（`packages/core/agent-loop/tests/
+request-cache.e2e.ts:24-25`：system prompt 要足够长以跨过供应商的 cache-block granularity）
+—— **可以硬编码**（单厂商对齐 DeepSeek，依据 `AGENTS.md §八.3`）。
 
-依据：dsh 的带 key e2e 明写"system prompt 要足够长以跨过供应商的 cache-block
-granularity (64 tokens)"（`packages/core/agent-loop/tests/request-cache.e2e.ts:24-25`）。
-⚠️ 换供应商/端点时需复核；本模块把它做成参数而非硬编码假设。
+**可证伪措辞**：若**实测**（从 usage 的 `prompt_cache_hit_tokens` / `cached_tokens` 反推）
+与 64 对不上 ⇒ **复核这个数**。不是因为"它会变"，而是因为**观测与断言要对得上**。
+
+**对账判据（尚未实现，留作下一步）**：拿同一会话的**同刻**两组数——① 本探针算出的
+`prefix_tokens`（客户端口径）② 服务端上报的缓存命中 token（读账口径）——差值应落在
+**一个缓存块以内**（`abs(prefix_tokens - cache_read_tokens) < PROVIDER_CACHE_BLOCK_TOKENS`）。
+对不上即说明"我们以为的前缀"与"服务端实际复用的前缀"不是同一段（格式差异 / 块对齐 /
+漏看变化源）。⇒ **这条现在只是断言，还没有对账数据**。
 """
+
 
 @dataclass(frozen=True)
 class Segment:
@@ -223,7 +231,7 @@ def summarize(pairs: Sequence[tuple[Sequence[Segment], Sequence[Segment]]]) -> s
         )
 
     lines.append("")
-    lines.append(f"缓存块粒度：{PROVIDER_CACHE_BLOCK_TOKENS} token/块（供应商侧经验值，dsh e2e 明写）")
+    lines.append(f"缓存块粒度：{PROVIDER_CACHE_BLOCK_TOKENS} token/块（本家 DeepSeek 粒度，据 dsh e2e）")
     zero_block = [index for index, item in enumerate(per_pair) if reusable_blocks(item.prefix_tokens) == 0]
     if zero_block:
         lines.append(
