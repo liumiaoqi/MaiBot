@@ -28,6 +28,7 @@ import contextlib
 import json
 import os
 import secrets
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -42,6 +43,12 @@ from src.plugin_runtime.transport.tcp import TCPTransportServer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 READY_TIMEOUT_S = 120.0
+#: 收到 `runner.ready` 后再等这么久，好让 runner 的**攒批日志**（`log_handler.py` FLUSH_INTERVAL_SEC=0.1）
+#: 刷到宿主 —— 两跳的中间证据就在那些日志里（见 `_run_runner` 的收尾注释）。
+LOG_FLUSH_GRACE_S = 0.6
+
+#: stdlib 级别号 → 名字。这里不 import `logging`（仓规 TID251 禁直连 stdlib 日志入口）。
+_LEVEL_NAMES = {10: "DEBUG", 20: "INFO", 30: "WARNING", 40: "ERROR", 50: "CRITICAL"}
 LEGACY_PLUGIN_ID = "e2e.legacy-demo"
 V2_PLUGIN_ID = "e2e.v2-demo"
 
@@ -120,12 +127,6 @@ def create_plugin() -> MaiBotPlugin:
 '''
 
 
-def _mentions_legacy_compat(reason: str) -> bool:
-    """原因是否**指认得到**"兼容层缺席 / 旧版面导入失败"（不硬编码单一措辞）。"""
-    lowered = reason.lower()
-    return "src.plugin_system" in reason or "compat" in lowered or "兼容层" in reason
-
-
 def _write_plugin(plugin_root: Path, dir_name: str, plugin_id: str, source: str) -> Path:
     """造一个插件目录（`_manifest.json` v2 + `plugin.py`）——loader 的发现形状。
 
@@ -186,8 +187,13 @@ async def _run_runner(
     `plugin.register_components`（`:1456`），桩按真实宿主的语义回 `accepted`（见各自 call site 对响应的判读）。
     桩被调用的次数一并记进 `host_calls`——它是"这次端到端到底走到哪一步"的实物。
 
+    ⭐ 另注册 `runner.log_batch`（生产侧在 `supervisor.py:957`）把 runner 的回传日志收进
+    `result["log_entries"]`：runner 的日志是两跳（基类 / adapter）**唯一**能从这里读到的证据，
+    见 `_log_messages()`。
+
     Returns:
-        dict: ``payload`` / ``timed_out`` / ``stdout`` / ``stderr`` / ``marker`` / ``host_calls``。
+        dict: ``payload`` / ``timed_out`` / ``stdout`` / ``stderr`` / ``marker`` / ``host_calls``
+        / ``log_entries``。
     """
     token = secrets.token_hex(32)
     server = TCPTransportServer(host="127.0.0.1", port=0)
@@ -213,6 +219,22 @@ async def _run_runner(
     rpc_server.register_method("runner.ready", _on_runner_ready)
     for method in ("plugin.bootstrap", "plugin.register_components", "plugin.unregister"):
         rpc_server.register_method(method, _make_stub(method))
+
+    # ⭐ 中间证据的**正规通道**：runner 的日志。runner 进程刻意关掉控制台日志
+    # （`runner_main.py:2640 _disable_runner_console_logging()`），握手后改走 IPC
+    # `runner.log_batch`（`log_handler.py:237` → 生产侧 `supervisor.py:957` 注册）。
+    # 这里按生产同法注册一条 handler 把批次收下来 ⇒ 两跳各自的结论**落在 e2e 输出里**
+    # （而不是只活在某次临时脚本里）。
+    log_entries: list[dict[str, Any]] = []
+
+    async def _on_log_batch(envelope: Envelope) -> Envelope:
+        host_calls.append("runner.log_batch")
+        for entry in (envelope.payload or {}).get("entries", []) or []:
+            if isinstance(entry, dict):
+                log_entries.append(entry)
+        return envelope.make_response(payload={"accepted": True, "count": len(log_entries)})
+
+    rpc_server.register_method("runner.log_batch", _on_log_batch)
     await rpc_server.start()
 
     marker_file = tmp_path / "sitecustomize_applied.txt"
@@ -223,6 +245,7 @@ async def _run_runner(
         "stderr": "",
         "marker": None,
         "host_calls": host_calls,
+        "log_entries": log_entries,
     }
 
     env = os.environ.copy()
@@ -260,6 +283,12 @@ async def _run_runner(
     except asyncio.TimeoutError:
         result["timed_out"] = True
     finally:
+        # ⭐ 收日志的窗口：`RunnerIPCLogHandler` 是**攒批**发的（`log_handler.py:61` 每 0.1s 一刷，
+        # 每批 ≤20 条），而 runner 的日志**只在握手之后**才走 IPC ⇒ 一收到 `runner.ready` 就 terminate
+        # 会把缓冲里那几批**一起带走**（实测：两跳的 logger.warning 一条都收不到，`log_entries` 为空）。
+        # 这里的 0.6s 就是给它刷空用的（覆盖若干次 FLUSH_INTERVAL）；宁可多等，别让证据丢在缓冲里。
+        if not result["timed_out"]:
+            await asyncio.sleep(LOG_FLUSH_GRACE_S)
         with contextlib.suppress(ProcessLookupError):
             process.terminate()
         try:
@@ -285,37 +314,29 @@ def _diagnose(result: dict[str, Any], headline: str) -> str:
     )
 
 
-@pytest.mark.asyncio
-async def test_legacy_plugin_failure_is_visible_to_host(tmp_path: Path) -> None:
-    """**主判据**：兼容层缺席 ⇒ 老插件加载失败 ⇒ 宿主 handler 收到 `failed_plugin_reasons` 且指认得到。"""
-    plugin_root = tmp_path / "plugins"
-    _write_plugin(plugin_root, "e2e_legacy_demo", LEGACY_PLUGIN_ID, _LEGACY_SOURCE)
+def _log_messages(result: dict[str, Any], *needles: str) -> list[str]:
+    """从 runner 回传的日志里挑出含任一关键词的**原文**（两跳证据的读法）。
 
-    result = await _run_runner([plugin_root], block_compat=True, tmp_path=tmp_path)
+    ⚠️ 载荷里**没有** `levelname`：`LogEntry` 只有数值 `level` 字段（它的 `levelname` 是
+    服务端属性，不过 IPC）⇒ 这里自己转名，免得证据打印成 `[30]` 这种读不出来的东西。
+    """
 
-    # 合成是否真的生效（子进程内自证：stderr 一行 + marker 文件）
-    assert "[e2e-sitecustomize] applied" in result["stderr"], _diagnose(
-        result, "sitecustomize 没在子进程里生效 ⇒ 这次测的不是'兼容层缺席'"
-    )
-    assert result["marker"] == "sys.modules['maibot_sdk.compat'] is None", _diagnose(
-        result, "marker 文件内容不对 ⇒ 注入没落地"
-    )
+    picked: list[str] = []
+    for entry in result.get("log_entries") or []:
+        message = str(entry.get("message", ""))
+        if any(needle in message for needle in needles):
+            picked.append(f"[{_LEVEL_NAMES.get(int(entry.get('level', 0)), entry.get('level'))}] {message}")
+    return picked
 
-    assert not result["timed_out"], _diagnose(result, f"{READY_TIMEOUT_S:.0f}s 内没等到 runner.ready")
-    payload = result["payload"]
-    assert payload is not None
 
-    reasons = payload.get("failed_plugin_reasons") or {}
-    assert reasons.get(LEGACY_PLUGIN_ID), _diagnose(
-        result, f"载荷里没有 {LEGACY_PLUGIN_ID} 的原因（failed_plugin_reasons={reasons!r}）"
-    )
-    reason = str(reasons[LEGACY_PLUGIN_ID])
-    print(f"\n[e2e] payload.failed_plugins = {payload.get('failed_plugins')!r}")
-    print(f"[e2e] payload.loaded_plugins = {payload.get('loaded_plugins')!r}")
-    print(f"[e2e] failed_plugin_reasons[{LEGACY_PLUGIN_ID}] = {reason!r}\n")
-    assert _mentions_legacy_compat(reason), (
-        f"原因要能指认'兼容层缺席 / 旧版面导入失败'，实测原文：{reason!r}"
-    )
+def _print_hop_evidence(result: dict[str, Any]) -> list[str]:
+    """把两跳的结论打进 e2e 输出（不只活在临时脚本里）。"""
+
+    hop1 = _log_messages(result, "第 1 跳改取桥接件本地面基类", "按本地面标记认出子类")
+    hop2 = _log_messages(result, "adapter 构造成功")
+    print(f"\n[e2e] 中间证据·第 1 跳（基类）：{hop1 or '（无 —— 未走到本地面这一跳）'}")
+    print(f"[e2e] 中间证据·第 2 跳（adapter）：{hop2 or '（无 —— 未走到本地面这一跳）'}\n")
+    return hop1 + hop2
 
 
 @pytest.mark.asyncio
@@ -388,7 +409,14 @@ async def test_legacy_plugin_loads_when_compat_is_available(tmp_path: Path) -> N
     payload = result["payload"]
     assert payload is not None
     print(f"\n[e2e] (compat 在场) loaded_plugins = {payload.get('loaded_plugins')!r}")
-    print(f"[e2e] (compat 在场) failed_plugin_reasons = {payload.get('failed_plugin_reasons')!r}\n")
+    print(f"[e2e] (compat 在场) failed_plugin_reasons = {payload.get('failed_plugin_reasons')!r}")
+    # ⭐ (乙) 的反向对照：上游在场 ⇒ **本地面那条路不许被碰**
+    # （本地面那两跳的 warning 一条都不该出现 —— 有就说明"上游优先"没生效）。
+    bridge_local_evidence = _log_messages(result, "来源=bridge-local")
+    print(f"[e2e] (compat 在场) 本地面两跳的证据（应为空）= {bridge_local_evidence!r}\n")
+    assert not bridge_local_evidence, (
+        f"(乙) 上游在场却走了本地面 —— '上游优先'被破坏了：{bridge_local_evidence!r}"
+    )
     assert not (payload.get("failed_plugin_reasons") or {}), _diagnose(
         result, f"兼容层在场时不该有失败：{payload.get('failed_plugin_reasons')!r}"
     )
@@ -450,59 +478,106 @@ async def test_two_plugin_dirs_are_both_discovered(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_legacy_plugin_load_fails_until_compat_face_wiring_lands(tmp_path: Path) -> None:
-    """**接线前的基线（会翻的用例）**：上游 compat 缺席 + 桥接件兜底面在场 + **宿主接线未落** ⇒ 现在必须**加载失败**。
+async def test_legacy_plugin_loads_from_local_face_when_upstream_compat_is_absent(tmp_path: Path) -> None:
+    """**（甲）主判据**：上游 compat 缺席 + 桥接件本地面在 ⇒ 老插件**真被加载**（跨进程可见）。
 
-    ## ⭐ 该翻成什么（2026-10-17 **实测改判**，与最初设想相反）
-    原设想："接线一落 ⇒ 翻成断言 `loaded_plugins` 含 `e2e.legacy-demo`"。
-    **实测否证了它**：`block_compat=True` 把 `sys.modules['maibot_sdk.compat']` 设成 `None`
-    ⇒ `maibot_sdk.compat` **不再是包** ⇒ 本地兜底面 `legacy_face` **也装不上**
-    （实测原因原文：`ModuleNotFoundError: No module named 'maibot_sdk.compat.base'; 'maibot_sdk.compat' is not a package`）
-    ⇒ 这个场景下插件**不可能**加载成功 ⇒ 照原设想写就是一条**恒假断言**（与 `assert … or True` 同族）。
-    ⇒ **正确的翻法 = 保留"具名失败"断言 + 拆掉炸弹分支**（本文件已如此改，见下方断言）。
+    ## 名字说明（旧名 `…_load_fails_until_compat_face_wiring_lands` 已被实测否证）
+    旧名说的是"接线未落 ⇒ 失败"；`adapter-hop` 落地后这条**反了过来**（本用例已翻）——
+    **名字与断言相反比名字过时更危险**（下一个人按名字读会得出反结论），故改名而不是留痕。
+
+    ## 为什么这条能翻了（前一轮的"实测改判"为何作废）
+    前一轮改判的理由是"`block_compat=True` 把 `sys.modules['maibot_sdk.compat']` 设成 `None`
+    ⇒ 本地兜底面**也装不上** ⇒ 插件不可能加载成功"。**前半段实测成立、结论不成立**：
+    * 上游那两条 `from maibot_sdk.compat.… import …` 确实**取不到**（实测 `ModuleNotFoundError: …
+      is not a package`）—— 这正是"上游缺席"；
+    * 但本地面**从来没走** `maibot_sdk.compat` 命名空间：它按**路径**加载
+      （`plugin_loader._local_face_attr`）⇒ 上游是不是包，与本地面**无关**。
+    ⇒ 两条跳各补一次"上游优先、缺席取本地面"之后，这条路真的通了（实测见下）。
 
     ## 场景说明（三个条件）
     ① 上游 `maibot_sdk.compat` **缺席**（sitecustomize 注入 + 生效前置断言）；
-    ② 桥接件兜底面在（`plugins/maibot-team.v1-compat/legacy_face.py`）—— 但**①把它连带废掉了**；
-    ③ 宿主侧接线**已落**（`plugin_loader.py` 含 `legacy_face`）⇒ 老插件在"兼容层不可用"时走 §3a 的
-    **具名失败**（这正是本用例要钉的行为，不再是"接线前的失败态"）。
+    ② 桥接件兜底面在（`plugins/maibot-team.v1-compat/legacy_face.py`）；
+    ③ 宿主侧接线**已落**（两跳 fallback + 本地面 adapter）⇒ 老插件经本地面被识别并适配。
+
+    ## ⭐ 中间证据（不只断言终态）
+    两跳各自的结论从 **runner 回传的日志**里读（`runner.log_batch`，生产侧 `supervisor.py:957`）：
+    第 1 跳取到基类没、第 2 跳 adapter 构造成功没 —— 都由 `_print_hop_evidence` 打进输出。
 
     ⚠️ 覆盖边界：与主判据同一条链（到"宿主 handler 收到 `runner.ready` 载荷"为止）；
-    不覆盖"宿主把载荷写进日志/指标"那一跳，也不覆盖 `host/supervisor.py` 的生产装配。
+    不覆盖"宿主把载荷写进日志/指标"那一跳，也不覆盖 `host/supervisor.py` 的生产装配
+    （本用例自己起 `RPCServer`，只借用它的 `runner.log_batch` 注册口径）。
     """
     plugin_root = tmp_path / "plugins"
     _write_plugin(plugin_root, "e2e_legacy_demo", LEGACY_PLUGIN_ID, _LEGACY_SOURCE)
 
-    # 条件②在、条件③不在：两个事实都断言，免得把"面缺失"误当"接线缺失"。
+    # 条件②在：先断言，免得把"面缺失"误当"接线缺失"。
     face_path = REPO_ROOT / "plugins" / "maibot-team.v1-compat" / "legacy_face.py"
     assert face_path.is_file(), f"桥接件兜底面缺失（条件②不成立）：{face_path}"
     loader_source = (REPO_ROOT / "src" / "plugin_runtime" / "runner" / "plugin_loader.py").read_text(
         encoding="utf-8"
     )
-    wiring_landed = "legacy_face" in loader_source
+    wiring_landed = "_local_face_attr" in loader_source
 
     result = await _run_runner([plugin_root], block_compat=True, tmp_path=tmp_path)
+    assert "[e2e-sitecustomize] applied" in result["stderr"], _diagnose(
+        result, "sitecustomize 没在子进程里生效 ⇒ 这次测的不是'兼容层缺席'"
+    )
     assert not result["timed_out"], _diagnose(result, f"{READY_TIMEOUT_S:.0f}s 内没等到 runner.ready")
 
     payload = result["payload"]
     assert payload is not None
     reasons = payload.get("failed_plugin_reasons") or {}
     loaded = payload.get("loaded_plugins") or []
-    print(f"\n[e2e] (场景B) 宿主接线已落（plugin_loader.py 含 legacy_face）= {wiring_landed}")
+    print(f"\n[e2e] (场景B) 宿主接线已落（plugin_loader.py 含 _local_face_attr）= {wiring_landed}")
+    print(f"[e2e] (场景B) payload = {payload!r}")
     print(f"[e2e] (场景B) loaded_plugins = {loaded!r}")
-    print(f"[e2e] (场景B) failed_plugin_reasons[{LEGACY_PLUGIN_ID}] = {reasons.get(LEGACY_PLUGIN_ID)!r}\n")
+    print(f"[e2e] (场景B) failed_plugin_reasons[{LEGACY_PLUGIN_ID}] = {reasons.get(LEGACY_PLUGIN_ID)!r}")
+    hop_evidence = _print_hop_evidence(result)
 
-    # ⚠️ 2026-10-17（silence-first §3a 落地后）**实测改判**：炸弹分支拆除。原写的"该翻成
-    # `LEGACY_PLUGIN_ID in loaded_plugins`"**被实测否证** —— `block_compat=True` 把
-    # `sys.modules['maibot_sdk.compat']` 设成 `None`，于是 `maibot_sdk.compat` **不再是包**
-    # ⇒ 本地兜底面（`legacy_face`）**也装不上去**（实测原因原文：`ModuleNotFoundError: No module
-    # named 'maibot_sdk.compat.base'; 'maibot_sdk.compat' is not a package`）⇒ 插件**不可能**加载成功。
-    # ⇒ 正确的翻法是"**保留具名失败断言 + 拆炸弹**"：照原提示写 `in loaded_plugins` 会得到一条
-    # **恒假断言**（与 `assert … or True` 同族：看着在、其实永远红/永远绿）。
-    assert LEGACY_PLUGIN_ID in (payload.get("failed_plugins") or []), (
-        f"接线已落但兼容层被屏蔽 ⇒ 老插件应当**具名失败**：loaded={loaded!r} failed={payload.get('failed_plugins')!r}"
+    # ── (甲) 终态：老插件**真被加载** ──────────────────────────────────
+    assert wiring_landed, "宿主两跳接线不在（条件③不成立）：plugin_loader.py 里找不到 _local_face_attr"
+    assert LEGACY_PLUGIN_ID in loaded, _diagnose(
+        result,
+        f"（甲）未达成：老插件没被加载 —— loaded={loaded!r} failed={payload.get('failed_plugins')!r} "
+        f"reasons={reasons!r}；两跳证据={hop_evidence!r}",
     )
-    assert reasons.get(LEGACY_PLUGIN_ID), f"失败必须带原因（不许静默）：{reasons!r}"
+    assert not reasons, f"加载成功就不该有失败原因：{reasons!r}"
+
+    # ── ⭐ 中间证据（两跳各自成立，缺一条就是"终态对了、路径没走对"）──────
+    assert any("第 1 跳" in line or "按本地面标记" in line for line in hop_evidence), (
+        f"第 1 跳（本地面基类）没有留下证据 ⇒ 这次成功可能没走本地面：{hop_evidence!r}"
+    )
+    assert any("adapter 构造成功" in line for line in hop_evidence), (
+        f"第 2 跳（adapter 构造）没有留下证据：{hop_evidence!r}"
+    )
+
+    # ── ⑦ "上游在/不在仍可分辨"（钉住"选 B"的核心理由）────────────────────
+    # 上游缺席 + 本地面在场 ⇒ 老插件**加载成功**了，但 `upstream_available()` 必须**仍报 False**：
+    # 本地面按路径取、**不挂 `maibot_sdk.compat` 命名空间** ⇒ 探测不会拿到我们自己的实现。
+    # （若后人为省事改回"冒充上游命名空间"，这一条会红 —— 那正是要拦的：自己骗自己。）
+    probe = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "tests" / "plugin_runtime_v2" / "_upstream_availability_probe.py"),
+            str(face_path),
+        ],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    print(f"[e2e] (场景B) ⑦ 上游可用性探针输出 = {probe.stdout.strip()!r}（stderr 尾: {probe.stderr.strip()[-300:]!r}）\n")
+    # 两态都要对，缺一个就说明"分辨不出来"（或本地面在冒充上游）：
+    #   * 上游在场 ⇒ `upstream_available()` = True（否则"上游在"也认不出来）；
+    #   * 本地面装上后、上游被合成缺席 ⇒ 仍报 False（**这就是"不冒充上游命名空间"**）。
+    # ⚠️ 探针 JSON 里的键名是 **状态**（`upstream_absent` = "测出来上游缺席"）⇒ 它该是 `true`；
+    #    `upstream_after_face_install` 才是可用性布尔（该 `false`）。两个都断言，免得只对上一个方向。
+    assert '"upstream_present": true' in probe.stdout and '"upstream_after_face_install": false' in probe.stdout, (
+        f"⑦ 未达成：本地面在场时两态应当仍可分辨（上游在=True / 合成缺席后=False）：{probe.stdout!r}"
+    )
+    assert '"upstream_absent": true' in probe.stdout, (
+        f"⑦ 未达成：本地面在场时 `upstream_available()` 必须**仍报 False**（不冒充上游命名空间）：{probe.stdout!r}"
+    )
 
 
 def test_plugin_dirs_env_contract_matches_runner_split(tmp_path: Path) -> None:

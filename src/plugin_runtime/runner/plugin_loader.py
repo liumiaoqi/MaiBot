@@ -26,6 +26,45 @@ logger = get_logger("plugin_runtime.runner.plugin_loader")
 PluginCandidate = Tuple[Path, PluginManifest, Path]
 
 
+_LOCAL_FACE_MODULE: Optional[Any] = None
+
+
+def _local_face_attr(name: str) -> Optional[Any]:
+    """从桥接件**本地面**取一个属性；取不到 ⇒ 返回 None（调用方负责具名出声，不静默、不硬崩）。
+
+    为什么按**路径**加载而不是 import：上游 `maibot_sdk.compat` 缺席时它连子模块都 import 不了
+    （`sys.modules["maibot_sdk.compat"] = None` ⇒ `ModuleNotFoundError: … is not a package`），
+    本地面也**没有**走 `maibot_sdk.compat` 命名空间（那是另一条被否掉的路：
+    冒充上游命名空间会让 `upstream_available()` 这类探测**自己骗自己**）。
+    ⇒ 与 `_install_local_legacy_face`（本文件 `:654`/`:659`）同法：按路径拿模块、取属性。
+
+    模块对象**进程内缓存**（`_LOCAL_FACE_MODULE`）：`legacy_face` 一执行就读清单 JSON，
+    老插件是**每个插件**走一次这条路，重复 exec 是白烧；缓存后 `_BasePlugin` 也恒为**同一个**
+    类对象（自检与运行期看到的是同一个身份）。
+    ⚠️ 本函数**只负责取**：取到空返回 None（**不**在这里出声）；"取不到"必须由调用方
+    连同**具名原因**（plugin_id + 原始异常）一起记 warning —— 见两处调用点。
+    """
+
+    global _LOCAL_FACE_MODULE
+
+    if _LOCAL_FACE_MODULE is not None:
+        return getattr(_LOCAL_FACE_MODULE, name, None)
+
+    face_path = Path(__file__).resolve().parents[3] / "plugins" / "maibot-team.v1-compat" / "legacy_face.py"
+    if not face_path.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("_maibot_local_legacy_face_attrs", face_path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception:  # noqa: BLE001 - (丙)：出声交给调用方，不在这里吞
+        return None
+    _LOCAL_FACE_MODULE = module
+    return getattr(module, name, None)
+
+
 class PluginMeta:
     """加载后的插件元数据"""
 
@@ -675,27 +714,41 @@ class PluginLoader:
             logger.warning("本地兜底面装载失败（不阻断，老插件将按原路径失败）: %s", exc)
             return ""
 
-    @staticmethod
-    def _try_load_legacy_plugin(module: Any, plugin_id: str) -> Optional[Any]:
-        """尝试从模块中发现旧版 BasePlugin 子类并包装为 LegacyPluginAdapter"""
+    def _try_load_legacy_plugin(self, module: Any, plugin_id: str) -> Optional[Any]:
+        """尝试从模块中发现旧版 BasePlugin 子类并包装为 LegacyPluginAdapter
+
+        ⚠️ 本方法由 `@staticmethod` 改成实例方法（`adapter-hop`）："认子类"的退路需要读
+        `self._compat_source`（本地面到底启用没启用）。两处调用点本来就走 `self.`（`:536`），
+        故改签名不影响调用方。
+        """
         # 方式 1: @register_plugin 装饰器设置的标记
         legacy_cls = getattr(module, "_legacy_plugin_class", None)
 
         # 方式 2: 扫描模块中所有 BasePlugin 子类
         if legacy_cls is None:
+            # ── 第 1 跳（`adapter-hop`：上游优先、缺席取本地面）───────────────────
             try:
                 from maibot_sdk.compat.base.base_plugin import BasePlugin as LegacyBasePlugin
             except ImportError as exc:
-                # ⭐ 静默收口（silence-first §3a）：**拿不到 adapter**（上游缺席且兜底面没接上）必须**具名出声**，
-                # 否则这条路径会退化成"插件凭空消失"（宿主三栏全空）。
-                # ⚠️ 补丁件（silence-first.patch.md §3a）写的 `LegacyCompatUnavailableError` **本文件/本树并不存在**
-                #    （全树 grep 只命中那份补丁件自身）⇒ 按它"不新增类型"的约束，这里**复用原始异常类型**
-                #    `ImportError`、把具名原因放进消息；宿主侧由 `_load_plugins_in_order` 的
-                #    `_failed_plugins[plugin_id] = str(e)` 接住（本文件 `:253-259`）。
-                raise ImportError(
-                    f"旧版插件 {plugin_id} 需要兼容层来识别，但兼容层不可用"
-                    f"（{type(exc).__name__}: {exc}）"
-                ) from exc
+                LegacyBasePlugin = _local_face_attr("_BasePlugin")
+                if LegacyBasePlugin is None:
+                    # ⭐ 静默收口（silence-first §3a）：**拿不到基类**（上游缺席且兜底面没接上）必须**具名出声**，
+                    # 否则这条路径会退化成"插件凭空消失"（宿主三栏全空）。
+                    # ⚠️ 补丁件（silence-first.patch.md §3a）写的 `LegacyCompatUnavailableError` **本文件/本树并不存在**
+                    #    （全树 grep 只命中那份补丁件自身）⇒ 按它"不新增类型"的约束，这里**复用原始异常类型**
+                    #    `ImportError`、把具名原因放进消息；宿主侧由 `_load_plugins_in_order` 的
+                    #    `_failed_plugins[plugin_id] = str(e)` 接住（本文件 `:253-259`）。
+                    raise ImportError(
+                        f"旧版插件 {plugin_id} 需要兼容层来识别，但兼容层不可用"
+                        f"（{type(exc).__name__}: {exc}）"
+                    ) from exc
+                # ⭐ 中间证据（判据 (甲) 的可读性）：第一跳取到没、从哪儿取的。
+                logger.warning(
+                    "旧版插件 %s：上游 maibot_sdk.compat 不可用（%s）⇒ 第 1 跳改取桥接件本地面基类 %r（来源=bridge-local）",
+                    plugin_id,
+                    exc,
+                    LegacyBasePlugin,
+                )
 
             for attr_name in dir(module):
                 obj = getattr(module, attr_name, None)
@@ -703,14 +756,67 @@ class PluginLoader:
                     legacy_cls = obj
                     break
 
+        # ⭐ 上游缺席时的"认子类"退路（第一跳的**实测补丁**，见 `adapter-hop` 回执）：
+        # 此刻 `maibot_sdk.compat` 不可 import ⇒ 上面那个 `isinstance/issubclass` 比对拿不到
+        # 上游 `BasePlugin` 类对象；而插件模块里那个基类是**本地面**的 `_BasePlugin`
+        # （`src.plugin_system` 的 import 由本地面接管）⇒ 比对基类上的**面标记**即可。
+        # ⛔ 不挂命名空间、不冒充上游模块（路 B 的理由）；只在"上游真取不到"时生效。
+        # ⚠️ 还要 `_compat_source == "bridge-local"` 这道门：标记只该在本地面**真被启用**时生效
+        #    （否则"上游在场、这个插件恰好不是旧版"的情形也会去按标记扫一遍 —— 扫描本身无害，
+        #    但"凭一个装饰性属性就认成旧插件"这件事必须有个前置条件兜着）。该属性在
+        #    `_ensure_compat_hook` 里由本分支持有（`:681-690` / `:74`），故这里读到的不可能是过期值。
+        if legacy_cls is None and self._compat_source == "bridge-local":
+            for attr_name in dir(module):
+                obj = getattr(module, attr_name, None)
+                if not isinstance(obj, type) or not getattr(obj, "_local_legacy_face_base", False):
+                    continue
+                for candidate in module.__dict__.values():
+                    if (
+                        isinstance(candidate, type)
+                        and candidate is not obj
+                        and issubclass(candidate, obj)
+                        and candidate.__module__ == module.__name__
+                    ):
+                        legacy_cls = candidate
+                        logger.warning(
+                            "旧版插件 %s：上游基类不可用 ⇒ 按本地面标记认出子类 %s（来源=bridge-local）",
+                            plugin_id,
+                            candidate.__name__,
+                        )
+                        break
+                if legacy_cls is not None:
+                    break
+
         if legacy_cls is None:
             return None
 
         try:
-            from maibot_sdk.compat.legacy_adapter import LegacyPluginAdapter
+            # ── 第 2 跳（`adapter-hop`：上游优先、缺席取本地面）───────────────────
+            try:
+                from maibot_sdk.compat.legacy_adapter import LegacyPluginAdapter
+            except ImportError:
+                LegacyPluginAdapter = _local_face_attr("LocalLegacyPluginAdapter")
+                if LegacyPluginAdapter is None:
+                    # (丙)：具名出声 + 不阻断 —— 上游与兜底面**都不在**，这条插件按原路径失败。
+                    logger.warning(
+                        "旧版插件 %s 缺少 adapter（上游 maibot_sdk.compat.legacy_adapter 缺失 + "
+                        "本地兜底面不可用：%s）⇒ 无法适配，按原路径失败",
+                        plugin_id,
+                        Path(__file__).resolve().parents[3] / "plugins" / "maibot-team.v1-compat" / "legacy_face.py",
+                    )
+                    return None
 
             legacy_instance = legacy_cls()
-            return LegacyPluginAdapter(legacy_instance)
+            adapter = LegacyPluginAdapter(legacy_instance)
+            # ⭐ 中间证据（判据 (甲) 的可读性）：第二跳构造成功没。
+            logger.warning(
+                "旧版插件 %s：adapter 构造成功（%s ← %s；来源=%s）",
+                plugin_id,
+                type(adapter).__name__,
+                type(legacy_instance).__name__,
+                "bridge-local" if LegacyPluginAdapter.__module__ == "_maibot_local_legacy_face_attrs" else "upstream",
+            )
+            return adapter
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
