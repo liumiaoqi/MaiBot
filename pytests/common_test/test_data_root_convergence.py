@@ -59,6 +59,20 @@ SINGLE_SOURCE_CASES: list[tuple[str, str, str, tuple[str, ...]]] = [
     ("src.config.config", "CONFIG_DIR", "project_root_file", ("config",)),
     ("src.config.startup_bindings", "PROJECT_ROOT", "project_root", ()),
     ("src.config.startup_bindings", "CONFIG_DIR", "project_root_file", ("config",)),
+    # ── 批 4：CWD 相对族（旧写法 `Path("data/…")` / `"data/…"`，相对 CWD）──────────
+    ("src.webui.services.git_mirror_service", "GitMirrorConfig.CONFIG_FILE", "data_file", ("webui.json",)),
+    ("src.webui.routers.emoji.support", "THUMBNAIL_CACHE_DIR", "data_file", ("emoji_thumbnails",)),
+    ("src.webui.routers.emoji.support", "EMOJI_REGISTERED_DIR", "data_file", ("emoji",)),
+    ("src.webui.routers.emoji.support", "EMOJI_DIR", "data_file", ("emoji",)),
+    ("src.webui.services.expression_service_web", "LEGACY_IMPORT_UPLOAD_DIR", "data_file", ("webui_legacy_expression_imports",)),
+    ("src.llm_models.model_scanner", "_SCANNED_DB_PATH", "data_file", ("scanned_models.db",)),
+    ("src.maisaka.agent_autonomy.reminder", "_DEFAULT_STORE_DIR", "data_file", ("reminders",)),
+    ("src.maisaka.migration.coordinator", "_DEFAULT_STORE_PATH", "data_file", ("plugin_migration_states.jsonl",)),
+    ("src.manager.local_store_manager", "LOCAL_STORE_FILE_PATH", "data_file", ("local_store.json",)),
+    ("src.maisaka.display.preview_path_utils", "REPO_ROOT", "project_root", ()),
+    ("src.maisaka.display.prompt_cli_renderer", "DATA_IMAGE_DIR", "data_file", ("images",)),
+    ("src.maisaka.display.prompt_cli_renderer", "DATA_EMOJI_DIR", "data_file", ("emoji",)),
+    ("src.maisaka.display.prompt_cli_renderer", "DATA_PROMPT_IMAGE_DIR", "data_file", ("prompt_imgs",)),
 ]
 
 # 被删掉的"自推根"常量：必须**不存在**（谁把它们写回来，这里立刻红）
@@ -84,6 +98,15 @@ def _expected(source_kind: str, parts: tuple[str, ...]):
     raise AssertionError(f"未知期望来源: {source_kind}")
 
 
+def _resolve_attribute(module: object, attribute: str):
+    """取属性，支持点号路径（如 `GitMirrorConfig.CONFIG_FILE`）。"""
+
+    value: object = module
+    for part in attribute.split("."):
+        value = getattr(value, part)
+    return value
+
+
 @pytest.mark.parametrize(("module_name", "attribute", "source_kind", "parts"), SINGLE_SOURCE_CASES)
 def test_site_takes_root_from_single_source(
     module_name: str, attribute: str, source_kind: str, parts: tuple[str, ...]
@@ -91,7 +114,7 @@ def test_site_takes_root_from_single_source(
     """站点常量 == 唯一来源算出来的值（红了 ⇒ 有人自推根）。"""
 
     module = importlib.import_module(module_name)
-    actual = getattr(module, attribute)
+    actual = _resolve_attribute(module, attribute)
     if source_kind == "project_root_callable":  # 站点是一个"取仓根"的函数
         actual = actual()
     expected = _expected(source_kind, parts)
@@ -166,7 +189,7 @@ def test_constant_definition_line_does_not_self_derive(
     module_path = Path(inspect.getsourcefile(module) or "")
     if not module_path.is_file():  # 冻结/生成模块：拿不到源码就明说，不静默通过
         pytest.skip(f"拿不到源码：{module_name}")
-    rhs = _definition_rhs(module_path, attribute)
+    rhs = _definition_rhs(module_path, attribute.split(".")[-1])
 
     allowed_names = {"resolve_data_root", "resolve_data_file", "resolve_project_root"}
     allowed_names |= {name for mod, name, _, _ in SINGLE_SOURCE_CASES if mod == module_name}
@@ -239,3 +262,27 @@ def test_dependency_pipeline_default_root_follows_single_source() -> None:
     from src.plugin_runtime.dependency_pipeline import PluginDependencyPipeline
 
     assert PluginDependencyPipeline()._project_root == resolve_project_root()
+
+
+def test_per_plugin_storage_default_dir_follows_data_root() -> None:
+    """`PerPluginStorage()` 默认目录 = 数据根/plugin_storage（批 4 站点，构造器默认值）。"""
+
+    from src.plugin_runtime_v2.host.storage_service import PerPluginStorage
+
+    assert PerPluginStorage()._base_dir == str(resolve_data_file("plugin_storage"))
+
+
+def test_scope_approval_store_default_file_follows_data_root() -> None:
+    """`ScopeApprovalStore()` 默认文件 = 数据根/plugin_runtime_v2/scope_approvals.json（批 4 站点）。"""
+
+    from src.plugin_runtime_v2.scope.approval_store import ScopeApprovalStore
+
+    assert ScopeApprovalStore()._file_path == resolve_data_file("plugin_runtime_v2", "scope_approvals.json")
+
+
+def test_local_store_singleton_uses_single_source() -> None:
+    """模块级单例 `local_storage` 的路径 = 数据根/local_store.json（批 4 站点，第二次拼字面量的地方）。"""
+
+    from src.manager.local_store_manager import local_storage
+
+    assert local_storage.file_path == str(resolve_data_file("local_store.json"))

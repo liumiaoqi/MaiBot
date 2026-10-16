@@ -6,8 +6,10 @@ import os
 import tempfile
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 
-LOCAL_STORE_FILE_PATH = "data/local_store.json"
+# 数据根只从唯一来源取（旧写法 `"data/local_store.json"` 相对 CWD）；保持 `str` 形态（`file_path: str`）
+LOCAL_STORE_FILE_PATH = str(resolve_data_file("local_store.json"))
 LocalStoreValue: TypeAlias = str | list | dict | int | float | bool
 
 logger = get_logger("local_storage")
@@ -123,4 +125,4 @@ class LocalStoreManager:
             index += 1
 
 
-local_storage = LocalStoreManager("data/local_store.json")  # 全局单例化
+local_storage = LocalStoreManager(LOCAL_STORE_FILE_PATH)  # 全局单例化（路径只用上面那个唯一来源常量）

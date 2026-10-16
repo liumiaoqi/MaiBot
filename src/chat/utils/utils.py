@@ -10,6 +10,7 @@ import time
 
 from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.core.app_config_port_registry import get_app_config_port
 
 from .typo_generator import ChineseTypoGenerator  # noqa: F401
@@ -159,7 +160,8 @@ def record_replyer_action_temp(chat_id: str, reason: str, think_level: int) -> N
         think_level: 思考深度等级
     """
     try:
-        temp_dir = "data/temp"
+        # 数据根只从唯一来源取（旧写法 `"data/temp"` 相对 CWD，换目录启动就落到别处）
+        temp_dir = resolve_data_file("temp")
         os.makedirs(temp_dir, exist_ok=True)
 
         record_data = {

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.llm_models.model_requirement import ModelEntry
 
 logger = get_logger("llm_models.model_scanner")
@@ -31,8 +32,8 @@ _DEFAULT_CATEGORY_DIRS: dict[str, list[str]] = {
     "voice": ["models/voice"],
 }
 
-# SQLite 落库（数据目录）
-_SCANNED_DB_PATH = "data/scanned_models.db"
+# SQLite 落库（数据目录）—— 数据根只从唯一来源取；保持 `str` 形态（`db_path: str` 形参的默认值）
+_SCANNED_DB_PATH = str(resolve_data_file("scanned_models.db"))
 
 _SCANNED_MODELS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS scanned_models (

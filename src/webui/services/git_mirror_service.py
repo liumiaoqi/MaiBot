@@ -13,6 +13,7 @@ import subprocess
 import httpx
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.webui.utils.network_security import validate_public_url
 
 logger = get_logger("webui.git_mirror")
@@ -45,8 +46,10 @@ def set_update_progress_callback(callback):
 class GitMirrorConfig:
     """Git 镜像源配置管理"""
 
-    # 配置文件路径
-    CONFIG_FILE = Path("data/webui.json")
+    # 配置文件路径 —— 数据根只从唯一来源取（`src/common/runtime_paths.py`）。
+    # 旧写法 `Path("data/webui.json")` 是**相对 CWD** 的：与 `webui/core/security.py` 指的是
+    # **同一份文件**，两处各按自己的根找 ⇒ CWD 一旦不是仓根就各写各的（实测劈叉对）。
+    CONFIG_FILE = resolve_data_file("webui.json")
     LEGACY_DEFAULT_MIRROR_PRIORITIES = {
         "gh-proxy": 1,
         "hk-gh-proxy": 2,

@@ -23,14 +23,15 @@ from .display_utils import (
 from .display_utils import (
     get_request_panel_style as get_shared_request_panel_style,
 )
-from .preview_path_utils import REPO_ROOT, build_display_path, build_file_uri
+from src.common.runtime_paths import resolve_data_file
+from .preview_path_utils import build_display_path, build_file_uri
 from .prompt_preview_logger import PromptPreviewLogger
 
 logger = get_logger("auto.prompt_cli_renderer")
 
-DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"
-DATA_EMOJI_DIR = REPO_ROOT / "data" / "emoji"
-DATA_PROMPT_IMAGE_DIR = REPO_ROOT / "data" / "prompt_imgs"
+DATA_IMAGE_DIR = resolve_data_file("images")  # 数据根：唯一来源（旧写法 REPO_ROOT/"data"/… 相对仓根推）
+DATA_EMOJI_DIR = resolve_data_file("emoji")
+DATA_PROMPT_IMAGE_DIR = resolve_data_file("prompt_imgs")
 SUPPORTED_STRUCTURED_IMAGE_FORMATS = {"jpg", "jpeg", "png", "webp", "gif"}
 
 

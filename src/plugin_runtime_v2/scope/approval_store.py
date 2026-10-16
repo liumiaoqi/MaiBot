@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.plugin_runtime_v2.scope.vocabulary import ScopeVocabulary
 
 logger = get_logger("plugin_runtime_v2.scope.approval_store")
@@ -21,8 +22,10 @@ class ScopeApprovalStore:
     存储模型：{plugin_id: {granted_scopes: set[str], updated_at: float, updated_by: str}}
     """
 
-    def __init__(self, file_path: str = "data/plugin_runtime_v2/scope_approvals.json") -> None:
-        self._file_path = Path(file_path)
+    def __init__(self, file_path: str | None = None) -> None:
+        # 数据根只从唯一来源取（旧默认值是相对 CWD 的 `"data/plugin_runtime_v2/scope_approvals.json"`）；
+        # 显式传 `file_path` 的调用方（`bootstrap.py` 的配置值、测试隔离）语义不变。
+        self._file_path = Path(file_path) if file_path else resolve_data_file("plugin_runtime_v2", "scope_approvals.json")
         self._approvals: dict[str, dict] = {}
 
     def load(self) -> None:

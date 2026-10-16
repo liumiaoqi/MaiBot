@@ -20,6 +20,7 @@ from sqlmodel import col, delete, select
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Expression, Messages, ModifiedBy
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
@@ -41,7 +42,7 @@ logger = get_logger("webui.expression")
 # ── 模块级常量 ──────────────────────────────────────────────────────
 
 LOGGED_INVALID_EXPRESSION_SESSION_IDS: set[int] = set()
-LEGACY_IMPORT_UPLOAD_DIR = Path("data/webui_legacy_expression_imports")
+LEGACY_IMPORT_UPLOAD_DIR = resolve_data_file("webui_legacy_expression_imports")  # 数据根：唯一来源
 
 
 # ── Pydantic 响应模型 ──────────────────────────────────────────────

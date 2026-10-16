@@ -1,4 +1,3 @@
-import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -10,13 +9,18 @@ from sqlmodel import col, select
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 
 logger = get_logger("webui.emoji")
 
-THUMBNAIL_CACHE_DIR = Path("data/emoji_thumbnails")
+# 数据根只从唯一来源取（`src/common/runtime_paths.py`）。旧写法相对 CWD（`Path("data/…")` /
+# `os.path.join("data", …)`）：与 `webui/routers/system.py` 的 `_EMOJI_DIR`/`_EMOJI_THUMBNAIL_DIR`
+# 指的是同一批目录 ⇒ CWD 不是仓根时会各写各的。
+THUMBNAIL_CACHE_DIR = resolve_data_file("emoji_thumbnails")
 THUMBNAIL_SIZE = (200, 200)
 THUMBNAIL_QUALITY = 80
-EMOJI_REGISTERED_DIR = os.path.join("data", "emoji")
+# 保持 `str` 形态：消费方（`emoji/routes.py`）用 `os.makedirs` / `os.path.join` 吃它
+EMOJI_REGISTERED_DIR = str(resolve_data_file("emoji"))
 EMOJI_DIR = EMOJI_REGISTERED_DIR
 
 _thumbnail_locks: Dict[str, threading.Lock] = {}

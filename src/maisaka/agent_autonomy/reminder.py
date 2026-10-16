@@ -16,12 +16,13 @@ from pathlib import Path
 from typing import Optional
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.llm_models.model_requirement import ResolutionOptions, model_requirement
 
 logger = get_logger("agent_autonomy.reminder")
 
 _TZ_CN = timezone(timedelta(hours=8))
-_DEFAULT_STORE_DIR = Path("data/reminders")
+_DEFAULT_STORE_DIR = resolve_data_file("reminders")  # 数据根：唯一来源（旧写法相对 CWD）
 
 
 def _now() -> datetime:

@@ -15,6 +15,7 @@ from enum import Enum
 from pathlib import Path
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 logger = get_logger(__name__)
 
 
@@ -55,7 +56,7 @@ _PHASE_ORDER = [
     MigrationPhase.COMPLETED,
 ]
 
-_DEFAULT_STORE_PATH = Path("data/plugin_migration_states.jsonl")
+_DEFAULT_STORE_PATH = resolve_data_file("plugin_migration_states.jsonl")  # 数据根：唯一来源
 
 
 class MigrationCoordinator:

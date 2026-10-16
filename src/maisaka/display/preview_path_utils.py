@@ -5,9 +5,10 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
+from src.common.runtime_paths import resolve_project_root
 from src.core.session_port_registry import get_session_info
 
-REPO_ROOT = Path(__file__).parent.parent.parent.parent.absolute().resolve()
+REPO_ROOT = resolve_project_root()  # 仓根：唯一来源（本文件不再自推）
 SAFE_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 
 

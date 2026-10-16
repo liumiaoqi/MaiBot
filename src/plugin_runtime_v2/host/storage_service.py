@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 
 logger = get_logger("plugin_runtime_v2.host.storage_service")
 
@@ -17,10 +18,12 @@ class PerPluginStorage:
     asyncio 单线程无需加锁。
     """
 
-    def __init__(self, base_dir: str = "data/plugin_storage") -> None:
-        self._base_dir = base_dir
+    def __init__(self, base_dir: str | None = None) -> None:
+        # 数据根只从唯一来源取（旧默认值是相对 CWD 的 `"data/plugin_storage"`）；
+        # 显式传 `base_dir` 的调用方（含测试隔离）语义不变。
+        self._base_dir = base_dir or str(resolve_data_file("plugin_storage"))
         self._data: dict[str, dict[str, Any]] = {}
-        Path(base_dir).mkdir(parents=True, exist_ok=True)
+        Path(self._base_dir).mkdir(parents=True, exist_ok=True)
         self._load_all()
 
     def get(self, plugin_id: str, key: str, default: Any = None) -> Any:
