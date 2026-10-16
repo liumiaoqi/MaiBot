@@ -2316,15 +2316,11 @@ class PluginRunner:
 
     async def _handle_health(self, envelope: Envelope) -> Envelope:
         """处理健康检查"""
-        inflight = self._inflight_snapshot()
-        await self._write_debug_event(
-            "runner_health_received",
-            {
-                "request_id": envelope.request_id,
-                "inflight_count": len(inflight),
-                "max_inflight_duration_ms": int(inflight[0].get("duration_ms", 0)) if inflight else 0,
-            },
-        )
+        # 2026-10-16 日志政策：**不再**为每次心跳写 `runner_health_received` 诊断事件。
+        # 改前实测：该事件在容器里 131,793 行 / 31.26 MB（runner_rpc_debug.jsonl 的绝大部分）。
+        # "心跳到了"的**跃迁语义**（健康→不健康）由心跳超时那条路径负责出声；
+        # 真正有价值的现场（有 inflight 卡住）由下一行 `_dump_inflight_debug(min_duration_ms=5000)`
+        # 继续保留 ⇒ 删掉的是**稳态重复**，不是**归因能力**。
         await self._dump_inflight_debug("health_check", min_duration_ms=5000)
         uptime_ms = int((time.monotonic() - self._start_time) * 1000)
         health = HealthPayload(

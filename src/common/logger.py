@@ -8,6 +8,7 @@ from typing import Callable, Optional
 
 import asyncio
 import json
+import os
 import sys
 import threading
 import time
@@ -22,12 +23,19 @@ from src.common.log_pipeline.crash_dump import CrashDump
 import tomlkit
 
 from .logger_color_and_mapping import MODULE_ALIASES, RESET_COLOR, CONVERTED_MODULE_COLORS as MODULE_COLORS
+from .runtime_paths import resolve_data_root
 
 logger = logging.getLogger("auto.logger")
 
-# 创建logs目录
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
+# 日志根（2026-10-16 lmq 拍板 · 方案 B）：锚**数据根**，不再锚 CWD。
+# 旧写法 `Path("logs")` 是 CWD 相对 ⇒ 同一份代码随启动目录散落（实测本仓 34 个 logs/：
+# 主仓 + 17 棵 worktree + 容器），"日志量"这类数字因此**不可比**（同一个数在两次测量里
+# 指向不同语料）。数据根由 `src/common/runtime_paths.py` 唯一推导，故：
+#   容器：`/MaiMBot/data/logs` —— 与今天的 `/MaiMBot/logs` 是**同一个目录**
+#         （compose `:50` 与 `:54` 挂的是宿主同一处 `data/MaiMBot/logs`，实测同 inode）
+#   宿主：`<仓根>/data/logs` —— **落点变了**（旧 `<仓根>/logs` 保留为 legacy，不删）
+LOG_DIR = resolve_data_root() / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 logger_file = Path(__file__).resolve()
 PROJECT_ROOT = logger_file.parent.parent.parent.resolve()
 # 全局handler实例，避免重复创建
@@ -42,6 +50,58 @@ DEFAULT_LIBRARY_LOG_LEVELS: dict[str, str] = {
     "aiohttp": "WARNING",
     "PIL": "WARNING",
 }
+
+
+#: 文件级 DEBUG 白名单的**环境变量**开关（临时排障用；逗号分隔的 logger 名前缀）。
+#:
+#: 存在的理由（2026-10-16 日志政策）：`file_log_level` 默认 DEBUG→INFO 之后**不再一刀切掉**
+#: "文件里看得到 DEBUG" 这件事 —— 只是想看时不必改代码、不必改配置、不必触发 CONFIG_VERSION 迁移
+#: （配置面此刻正被别的批次改，加字段是最贵的一种开关）。
+#:
+#: 代价（说清）：这是**第二个配置通道**。取舍是"临时排障 vs 长期配置"：
+#: env 只**放宽**文件 handler 的下限（白名单里的 logger 可落 DEBUG），
+#: 不抬高任何东西、不影响 console、也不改 `file_log_level` 本身。
+LOG_FILE_DEBUG_LOGGERS_ENV = "MAIBOT_LOG_FILE_DEBUG_LOGGERS"
+
+
+def file_debug_whitelist() -> tuple[str, ...]:
+    """读文件级 DEBUG 白名单（env，逗号分隔）；未设/空 ⇒ 空元组。"""
+    raw = os.environ.get(LOG_FILE_DEBUG_LOGGERS_ENV, "")
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+class FileDebugWhitelistFilter(logging.Filter):
+    """文件 handler 专用过滤器：白名单命中的 logger 允许低于 `file_log_level` 的记录落盘。
+
+    匹配口径**沿用** `log_pipeline/ratelimit.py` 的 `ratelimit_whitelist`（`startswith` 前缀）——
+    同一件事不发明第二套写法。
+    """
+
+    def __init__(self, file_level: int, prefixes: tuple[str, ...] = ()) -> None:
+        super().__init__()
+        self._file_level = file_level
+        self._prefixes = prefixes
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno >= self._file_level:
+            return True
+        if not self._prefixes:
+            return False
+        # structlog 的 logger 名既可能在 `record.name`（stdlib 名），也可能在绑定的 `logger_name`
+        # 字段里 —— 两个都看，避免"配了白名单却不生效"这种静默失效。
+        names = (record.name or "", str(getattr(record, "logger_name", "") or ""))
+        return any(name.startswith(prefix) for prefix in self._prefixes for name in names)
+
+
+def file_handler_level(file_level_num: int, whitelist: tuple[str, ...]) -> int:
+    """文件 handler 的**级别门**（不是"要不要 DEBUG"，是"能不能收到 DEBUG"）。
+
+    `logging` 的级别门在 `Logger.callHandlers`（`record.levelno >= hdlr.level`），
+    **先于** handler 自己的 filter ⇒ 只要 handler 级别是 INFO，白名单 filter 就永远
+    **收不到** DEBUG（静默失效）。故白名单非空时必须把 handler 级别降到 DEBUG，
+    再由 `FileDebugWhitelistFilter` 按"配置级别 + 前缀"收窄。
+    """
+    return logging.DEBUG if whitelist else file_level_num
 
 
 def get_file_handler():
@@ -67,7 +127,13 @@ def get_file_handler():
         )
         # 设置文件handler的日志级别
         file_level = LOG_CONFIG.get("file_log_level", LOG_CONFIG.get("log_level", "INFO"))
-        _file_handler.setLevel(getattr(logging, file_level.upper(), logging.INFO))
+        file_level_num = getattr(logging, file_level.upper(), logging.INFO)
+        whitelist = file_debug_whitelist()
+        # ⚠️ logging 的级别门在 `Logger.callHandlers`（`record.levelno >= hdlr.level`），**先于**
+        # handler 自己的 filter ⇒ 只挂 filter 的白名单**永远收不到 DEBUG**（静默失效）。
+        # 故：白名单非空时把 handler 级别降到 DEBUG（放行到 filter），由 filter 按"配置级别 + 前缀"收窄。
+        _file_handler.setLevel(logging.DEBUG if whitelist else file_level_num)
+        _file_handler.addFilter(FileDebugWhitelistFilter(file_level_num, whitelist))
     return _file_handler
 
 
@@ -346,7 +412,10 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
         "color_text": "full",
         "log_level": "INFO",  # 全局日志级别（向下兼容）
         "console_log_level": "INFO",  # 控制台日志级别
-        "file_log_level": "DEBUG",  # 文件日志级别
+        # 2026-10-16 日志政策（lmq 拍板）：默认 INFO —— 改前实测宿主 75.1% 的行是 DEBUG，
+        # 且单条稳态消息（taint 未就绪提示）占 55%。要看 DEBUG 用
+        # MAIBOT_LOG_FILE_DEBUG_LOGGERS=<前缀,前缀>（只放宽文件落盘，见 FileDebugWhitelistFilter）。
+        "file_log_level": "INFO",  # 文件日志级别
         "log_file_max_bytes": 5 * 1024 * 1024,  # 单个日志文件最大大小
         "max_log_files": 30,  # 最多保留的日志文件数量
         "log_cleanup_days": 30,  # 日志保留天数
@@ -430,9 +499,21 @@ class SuppressionFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
+            # 周期性摘要输出（窗口过期且有抑制时）
+            if not _is_rate_limit_record(record):
+                _maybe_flush_summaries()
+            # 同一 record 经多个 handler filter 时只判定一次（避免重复计数）
+            cached = getattr(record, "_zg2_filter_result", None)
+            if cached is not None:
+                return cached
+
             # ZG-7 TAINT_WARN（位5）：WARNING 级日志自动标记污染位
             # 对标 Linux panic.c:1074-1118 warn_count 递增语义
             # 仅首次经过 filter 的 WARNING 记录触发（幂等由 TaintedMask 保证）
+            # ⚠️ 2026-10-16 位置修正（日志政策）：本块原在 `_zg2_filter_result` 缓存**之前**，
+            # 而 filter 同时挂在 root 与各 handler 上 ⇒ 同一条 WARNING 会进来 3~4 次
+            # ⇒ `mark_taint` 被重复调用（实测 3×）。taint registry 未就绪时，每条 WARNING
+            # 因此连带 3 条 DEBUG 噪声。挪到缓存之后 = 每条 record 只判一次，与本段注释同义。
             if record.levelno == logging.WARNING:
                 try:
                     from src.core.tainted_mask.mark import mark_taint
@@ -446,14 +527,6 @@ class SuppressionFilter(logging.Filter):
                     # 防递归: fallback 不走 logger，直接 stderr
                     sys.stderr.write(f"logger.mark_taint failed: {exc}\n")
                     traceback.print_exc()
-
-            # 周期性摘要输出（窗口过期且有抑制时）
-            if not _is_rate_limit_record(record):
-                _maybe_flush_summaries()
-            # 同一 record 经多个 handler filter 时只判定一次（避免重复计数）
-            cached = getattr(record, "_zg2_filter_result", None)
-            if cached is not None:
-                return cached
             # 摘要日志直接放行（防嵌套，不计数）
             if _is_rate_limit_record(record):
                 result = True
@@ -698,17 +771,16 @@ def get_timestamp_format():
 
 def configure_third_party_loggers():
     """配置第三方库的日志级别"""
-    # 设置根logger级别为所有handler中最低的级别，确保所有日志都能被捕获
-    console_level = LOG_CONFIG.get("console_log_level", LOG_CONFIG.get("log_level", "INFO"))
-    file_level = LOG_CONFIG.get("file_log_level", LOG_CONFIG.get("log_level", "INFO"))
-
-    # 获取最低级别（DEBUG < INFO < WARNING < ERROR < CRITICAL）
-    console_level_num = getattr(logging, console_level.upper(), logging.INFO)
-    file_level_num = getattr(logging, file_level.upper(), logging.INFO)
-    min_level = min(console_level_num, file_level_num)
-
+    # 捕获下限（root logger 级别）= DEBUG，**不**随 console/file 抬高（2026-10-16 日志政策）。
+    # 为什么：环形缓冲（RingBufferHandler，capacity=2000 / ≤2MB）+ 崩溃导出是
+    # "**保留最近 N 条**"形态 —— 它们要的就是现场，而 DEBUG 常常是现场里唯一能解释
+    # "为什么"的一层。文件**要不要** DEBUG 是**下游**决定（`file_log_level` + 白名单 filter）：
+    # 两者解耦后，"默认 INFO"只减少**落盘量**，不减少**可获取性**
+    # （要现场 → 环形缓冲；要落盘 → MAIBOT_LOG_FILE_DEBUG_LOGGERS）。
+    # ⚠️ 旧口径是 `min(console, file)`：file 默认从 DEBUG 改成 INFO 后，它会顺手把捕获下限
+    # 一起提到 INFO，连环形缓冲里的 DEBUG 也抹掉 —— 那不是本政策要的。
     root_logger = logging.getLogger()
-    root_logger.setLevel(min_level)
+    root_logger.setLevel(logging.DEBUG)
 
     # 完全屏蔽的库
     suppress_libraries = LOG_CONFIG.get("suppress_libraries", [])

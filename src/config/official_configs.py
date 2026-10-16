@@ -5104,7 +5104,7 @@ class LogConfig(ConfigBase):
     """控制台输出的最低日志等级。"""
 
     file_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="DEBUG",
+        default="INFO",
         json_schema_extra={
             "label": {
                 "zh_CN": "文件日志级别",
@@ -5115,7 +5115,12 @@ class LogConfig(ConfigBase):
             "x-icon": "file-json",
         },
     )
-    """写入日志文件的最低日志等级。"""
+    """写入日志文件的最低日志等级。
+
+    2026-10-16 日志政策：默认由 DEBUG 改为 **INFO**（改前实测宿主 75.1% 的行是 DEBUG）。
+    临时要看某个 logger 的 DEBUG：设环境变量
+    `MAIBOT_LOG_FILE_DEBUG_LOGGERS=<logger 名前缀,前缀>`（只放宽文件落盘，不改本项）。
+    """
 
     log_file_max_bytes: int = Field(
         default=5 * 1024 * 1024,

@@ -123,7 +123,8 @@ def test_crash_dump_exports_buffer():
     for i in range(3):
         lg.info(f"dump entry {i}")
     L._crash_dump.export("test")
-    dump_files = list(Path("logs").glob("dump_*.log.jsonl"))
+    # 2026-10-16 日志根锚数据根：落点不再等于 CWD/logs，改问模块自己声明的 LOG_DIR
+    dump_files = list(Path(L.LOG_DIR).glob("dump_*.log.jsonl"))
     assert len(dump_files) >= 1
     latest = max(dump_files, key=lambda p: p.stat().st_mtime)
     lines = latest.read_text(encoding="utf-8").strip().split("\n")

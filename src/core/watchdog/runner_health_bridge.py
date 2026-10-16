@@ -47,6 +47,11 @@ class RunnerHealthBridge:
         self._last_restart_count: dict[str, int] = {}
         self._poll_tasks: dict[str, asyncio.Task] = {}
         self._skip_warning_logged: set[str] = set()
+        # 2026-10-16 日志政策：「收到未预期的恢复信号，已忽略」不再逐次落盘（容器实测 22,970 行）。
+        # 单独用一份状态而不是复用 `_skip_warning_logged` —— 后者被另外三处"只报一次"共用，
+        # 复用会让本条永远轮不到出声（那才是真正的静默失效）。
+        self._ignored_recovery_logged: set[str] = set()
+        self._ignored_recovery_counts: dict[str, int] = {}
 
     def register_v2_supervisor(
         self,
@@ -366,9 +371,18 @@ class RunnerHealthBridge:
         if status is None:
             return
         if status.total_report_count == 0 and not status.is_recovering:
-            logger.warning(
-                "Runner %s 收到未预期的恢复信号，已忽略", runner_id
+            # 2026-10-16 日志政策：稳态（这条信号一直来、状态一直没变）只出声一次，
+            # 其余只计数，注销时汇总 —— 与同文件其余三处"后续静默"同形。
+            self._ignored_recovery_counts[runner_id] = (
+                self._ignored_recovery_counts.get(runner_id, 0) + 1
             )
+            if runner_id not in self._ignored_recovery_logged:
+                self._ignored_recovery_logged.add(runner_id)
+                logger.warning(
+                    "Runner %s 收到未预期的恢复信号，已忽略（本 runner 只报首次，"
+                    "累计次数在注销时汇总）",
+                    runner_id,
+                )
             return
 
         logger.info("Runner %s 恢复", runner_id)
@@ -387,6 +401,16 @@ class RunnerHealthBridge:
         """取消注册 Runner。"""
         if runner_id not in self._bridge_status:
             raise UnknownRunnerError(runner_id)
+
+        # 「未预期的恢复信号」的累计次数在这里一次说清（逐次记录已按 2026-10-16 日志政策去重）
+        ignored_recovery = self._ignored_recovery_counts.pop(runner_id, 0)
+        self._ignored_recovery_logged.discard(runner_id)
+        if ignored_recovery:
+            logger.info(
+                "Runner %s 注销：累计忽略 %d 次未预期的恢复信号",
+                runner_id,
+                ignored_recovery,
+            )
 
         # V2 条目先摘除心跳超时监听器（与 heartbeat_mgr.stop 的清理语义配套）
         entry = self._v2_supervisors.get(runner_id)
