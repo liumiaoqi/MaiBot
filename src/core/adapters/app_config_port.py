@@ -9,6 +9,7 @@ from src.core.watchdog.config import WatchdogConfig
 
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 logger = get_logger("core.adapters.app_config_port")
 
 class GlobalConfigAppConfigPort:
@@ -585,7 +586,8 @@ class GlobalConfigAppConfigPort:
 
     def get_plugin_runtime_v2_scope_approval_file(self) -> str:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
-        return str(cfg.scope_approval_file) if cfg else "data/scope_approvals.json"
+        # 回落值同样走唯一来源（旧写法是 CWD 相对的 `"data/scope_approvals.json"`）
+        return str(cfg.scope_approval_file) if cfg else str(resolve_data_file("scope_approvals.json"))
 
     def get_plugin_runtime_v2_default_rpm(self) -> int:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
@@ -598,7 +600,8 @@ class GlobalConfigAppConfigPort:
 
     def get_audit_log_path(self) -> str:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
-        return str(cfg.audit_log_path) if cfg else "data/plugin_runtime_v2/scope_audit.log"
+        # 回落值同样走唯一来源（旧写法是 CWD 相对的 `"data/plugin_runtime_v2/scope_audit.log"`）
+        return str(cfg.audit_log_path) if cfg else str(resolve_data_file("plugin_runtime_v2", "scope_audit.log"))
 
     def get_audit_log_max_size_mb(self) -> int:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)

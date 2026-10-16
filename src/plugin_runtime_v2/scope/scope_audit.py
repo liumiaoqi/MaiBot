@@ -12,6 +12,7 @@ from logging.handlers import RotatingFileHandler  # noqa: TID251  受控用法�
 from pathlib import Path
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file, resolve_data_path
 
 logger = get_logger("scope_audit")
 
@@ -29,7 +30,7 @@ class ScopeAuditRecorder:
 
     def __init__(
         self,
-        log_path: str = "data/plugin_runtime_v2/scope_audit.log",
+        log_path: str | None = None,
         max_size_mb: int = 10,
         backup_count: int = 5,
         sensitive_param_names: list[str] | None = None,
@@ -37,7 +38,14 @@ class ScopeAuditRecorder:
         """初始化内存队列 + RotatingFileHandler。
 
         初始化失败（路径不可创建等）→ 降级为仅 error_escalation 上报 + warning（spec 5.3.3 场景 3）。
+
+        `log_path` 来自配置（`main.py` 从 `AppConfigPort.get_audit_log_path()` 传入），是**相对串**
+        （默认 `"data/plugin_runtime_v2/scope_audit.log"`）⇒ 走 `resolve_data_path` 按**数据根**解释：
+        未设 `MAIBOT_DATA_DIR` 时与旧行为同径，设了则跟动。旧写法 `Path(log_path)` 是**相对 CWD** 的。
         """
+        resolved_log_path = (
+            resolve_data_path(log_path) if log_path else resolve_data_file("plugin_runtime_v2", "scope_audit.log")
+        )
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=10000)
         self._sensitive_names = sensitive_param_names or [
             "token", "password", "secret", "api_key", "apikey", "credential",
@@ -47,10 +55,10 @@ class ScopeAuditRecorder:
 
         # 确保目录存在
         try:
-            log_file = Path(log_path)
+            log_file = Path(resolved_log_path)
             log_file.parent.mkdir(parents=True, exist_ok=True)
             self._handler = RotatingFileHandler(
-                log_path,
+                resolved_log_path,
                 maxBytes=max_size_mb * 1024 * 1024,
                 backupCount=backup_count,
                 encoding="utf-8",
