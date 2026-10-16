@@ -77,6 +77,8 @@ class PluginLoader:
         self._failed_plugins: Dict[str, str] = {}
         self._manifest_validator = ManifestValidator(host_version=host_version)
         self._compat_hook_installed = False
+        # 兼容层来源：""（未装）/ "bridge-local"（上游缺席时改用桥接件自带的本地面）
+        self._compat_source: str = ""
         self._blocked_plugin_reasons: Dict[str, str] = {}
 
     def set_blocked_plugin_reasons(self, blocked_plugin_reasons: Optional[Dict[str, str]] = None) -> None:
@@ -553,6 +555,19 @@ class PluginLoader:
             sys.modules.pop(module_name, None)
             raise
 
+        # ⭐ 静默收口（silence-first §3b）：这条兜底**也必须落进 `_failed_plugins`** —— 否则宿主三栏里
+        # 既没有 loaded、也没有 failed，插件等于"凭空消失"（宿主看不到任何东西）。
+        # ⚠️ 补丁件写的 `self._compat_hook_error` **本文件并不存在**（全树 grep 无命中）
+        #    ⇒ 用本树**现有**信号 `_compat_source` 代替：空 ⇔ 本地兼容面没接上 ⇔ 无法用旧版面识别。
+        if not self._compat_source:
+            reason = (
+                "无法判定是否为旧版插件：兼容层不可用"
+                "（本地兼容面未接上）⇒ 该插件既没有 create_plugin 工厂函数，也无法用旧版面识别"
+            )
+            self._failed_plugins[plugin_id] = reason
+            logger.warning("插件 %s %s", plugin_id, reason)
+            return None
+        self._failed_plugins[plugin_id] = "缺少 create_plugin 工厂函数且未检测到旧版 BasePlugin"
         logger.error(f"插件 {plugin_id} 缺少 create_plugin 工厂函数且未检测到旧版 BasePlugin")
         return None
 
@@ -605,7 +620,11 @@ class PluginLoader:
     # ──── 旧版插件兼容 ────────────────────────────────────────
 
     def _ensure_compat_hook(self) -> None:
-        """安装旧版 src.plugin_system 导入钩子（幂等）"""
+        """安装旧版 src.plugin_system 导入钩子（幂等）。
+
+        上游 `maibot_sdk.compat` 缺席时**不再直接放弃**：改试桥接件自带的本地面
+        （`plugins/maibot-team.v1-compat/legacy_face.py`）⇒ 成功则记 `_compat_source = "bridge-local"`。
+        """
         if self._compat_hook_installed:
             return
         try:
@@ -614,7 +633,47 @@ class PluginLoader:
             install_hook()
             self._compat_hook_installed = True
         except ImportError:
+            self._compat_source = self._install_local_legacy_face()
+            if self._compat_source:
+                self._compat_hook_installed = True
+                return
             logger.debug("maibot_sdk.compat 不可用，跳过导入钩子安装")
+
+    @staticmethod
+    def _install_local_legacy_face() -> str:
+        """试装桥接件自带的本地兜底面；返回来源标记（`"bridge-local"`）或空串（没装成）。
+
+        - **(丙) 不阻断**：面不在 / 装载失败 ⇒ 只记 `warning` 并返回空串 —— 老插件随后仍按原路径
+          失败并**具名上报**（不静默、也不把主流程卡死）；
+        - **(丁) 空壳要炸**：`install_local_face()` 内部先调 `assert_nonempty()` ⇒ "面是空的"当场抛，
+          不会拿一个恒空 stub 冒充"兼容层可用"。
+
+        Returns:
+            str: 装成 = `"bridge-local"`；没装成 = `""`（调用方据此决定是否放弃）。
+        """
+        face_path = Path(__file__).resolve().parents[3] / "plugins" / "maibot-team.v1-compat" / "legacy_face.py"
+        if not face_path.is_file():
+            logger.warning("上游 maibot_sdk.compat 不可用，且本地兜底面缺失（老插件将按原路径失败）: %s", face_path)
+            return ""
+        try:
+            spec = importlib.util.spec_from_file_location("_maibot_local_legacy_face", face_path)
+            if spec is None or spec.loader is None:
+                logger.warning("本地兜底面无法建立模块 spec（不阻断）: %s", face_path)
+                return ""
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            mode = module.install_local_face()
+            counts = module.coverage()
+            logger.warning(
+                "上游 maibot_sdk.compat 不可用 ⇒ 已启用桥接件本地兜底面（%s / %s；覆盖=%s）",
+                mode,
+                face_path,
+                counts,
+            )
+            return "bridge-local"
+        except Exception as exc:  # noqa: BLE001 - 兜底面失败**不许阻断**加载，但必须出声
+            logger.warning("本地兜底面装载失败（不阻断，老插件将按原路径失败）: %s", exc)
+            return ""
 
     @staticmethod
     def _try_load_legacy_plugin(module: Any, plugin_id: str) -> Optional[Any]:
@@ -626,8 +685,17 @@ class PluginLoader:
         if legacy_cls is None:
             try:
                 from maibot_sdk.compat.base.base_plugin import BasePlugin as LegacyBasePlugin
-            except ImportError:
-                return None
+            except ImportError as exc:
+                # ⭐ 静默收口（silence-first §3a）：**拿不到 adapter**（上游缺席且兜底面没接上）必须**具名出声**，
+                # 否则这条路径会退化成"插件凭空消失"（宿主三栏全空）。
+                # ⚠️ 补丁件（silence-first.patch.md §3a）写的 `LegacyCompatUnavailableError` **本文件/本树并不存在**
+                #    （全树 grep 只命中那份补丁件自身）⇒ 按它"不新增类型"的约束，这里**复用原始异常类型**
+                #    `ImportError`、把具名原因放进消息；宿主侧由 `_load_plugins_in_order` 的
+                #    `_failed_plugins[plugin_id] = str(e)` 接住（本文件 `:253-259`）。
+                raise ImportError(
+                    f"旧版插件 {plugin_id} 需要兼容层来识别，但兼容层不可用"
+                    f"（{type(exc).__name__}: {exc}）"
+                ) from exc
 
             for attr_name in dir(module):
                 obj = getattr(module, attr_name, None)

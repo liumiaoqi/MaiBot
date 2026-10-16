@@ -227,10 +227,11 @@ class ManifestAuthor(_StrictManifestModel):
             str: 规范化后的主页地址。
 
         Raises:
-            ValueError: 当字段为空或不是 HTTP/HTTPS URL 时抛出。
+            ValueError: 当字段**非空**但不是 HTTP/HTTPS URL 时抛出。
         """
         if not value:
-            raise ValueError("不能为空")
+            # v3 允许作者不声明主页（自带 v3 插件里就有只写 `{"name": ...}` 的）⇒ 归一为空串时放行。
+            return value
         if not _HTTP_URL_PATTERN.fullmatch(value):
             raise ValueError("必须为 http:// 或 https:// 开头的 URL")
         return value
@@ -256,10 +257,12 @@ class ManifestUrls(_StrictManifestModel):
             str: 规范化后的仓库地址。
 
         Raises:
-            ValueError: 当字段为空或不是 HTTP/HTTPS URL 时抛出。
+            ValueError: 当字段**非空**但不是 HTTP/HTTPS URL 时抛出。
         """
         if not value:
-            raise ValueError("不能为空")
+            # v3 允许不声明 `urls`（三个自带 v3 插件里就有一个没写）⇒ 归一为空串时放行；
+            # ⚠️ 只是"空串放行"，不是"字段可省" —— v2 的 `urls` 仍由模型要求**在位**。
+            return value
         if not _HTTP_URL_PATTERN.fullmatch(value):
             raise ValueError("必须为 http:// 或 https:// 开头的 URL")
         return value
@@ -668,6 +671,13 @@ class PluginManifest(_StrictManifestModel):
             ValueError: 当字段为空或格式不合法时抛出。
         """
         if not value:
+            if info.field_name == "license":
+                # v3 允许不声明协议（自带 v3 插件里就有没写的）⇒ 归一为空串时放行。
+                # ⚠️ **这是有意放宽**：① **仅 v3**（v2 走原路，严格性不减）；② **只放宽"内容"、不放宽"在位"**
+                #    （字段仍由模型强制要求存在）；③ 下游若真需要非空 URL/license，该由**它自己**检查，
+                #    不由 manifest 校验器代管；④ **不替插件编占位值**（假值比空值更坏）。
+                # ⚠️ **身份三件（name/description/id）不放宽** —— 留空仍必须被拒。
+                return value
             raise ValueError("不能为空")
         if info.field_name == "id" and not _PLUGIN_ID_PATTERN.fullmatch(value):
             raise ValueError("必须使用字母/数字/下划线，并以点号或横线分隔，例如 github.author.plugin")
@@ -803,10 +813,109 @@ class PluginManifest(_StrictManifestModel):
         return [provider.client_type for provider in self.llm_providers]
 
 
+class ManifestVersionRangeOptionalMax(_StrictManifestModel):
+    """**v3** 的版本闭区间声明：`max_version` 可省（省略 = 不设上界）。
+
+    与 v2 的 `ManifestVersionRange`（`max_version` 必填）并存：v2 那套不动，v3 用这一套。
+    """
+
+    min_version: str = Field(description="最小版本，闭区间")
+    max_version: Optional[str] = Field(default=None, description="最大版本；缺省 = 不设上界")
+
+    @field_validator("min_version", "max_version")
+    @classmethod
+    def _validate_version(cls, value: Optional[str]) -> Optional[str]:
+        """校验版本号格式（`None` 放行 = 未声明上界）。"""
+        if value is None:
+            return None
+        if not VersionComparator.is_valid_semver(value):
+            raise ValueError("必须为严格三段式版本号，例如 1.0.0")
+        return value
+
+
+class ManifestAuthorV3(_StrictManifestModel):
+    """**v3** 的作者信息：`url` 可省（自带 v3 插件里就只写 `{"name": ...}`）。"""
+
+    name: str = Field(description="作者名称")
+    url: Optional[str] = Field(default=None, description="作者主页地址；缺省 = 未声明")
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        """校验作者名称非空。"""
+        if not value:
+            raise ValueError("不能为空")
+        return value
+
+
+# v3 未声明 `max_version` 时归一成这个上界（语义 = 不设上界；三段式，能被同一套比较器处理）
+_UNBOUNDED_MAX_VERSION = "9999.0.0"
+
+# v3 完全未声明 `host_application` / `sdk` 时归一成这个下界（语义 = 不设约束，而不是"要求 1.0.0"）
+_UNCONSTRAINED_MIN_VERSION = "0.0.1"
+
+
+class PluginManifestV3(PluginManifest):
+    """插件 Manifest **v3** 模型（2026-10-17：把门从 2 升到 3 —— 文档与三个自带插件都写 3）。
+
+    与 v2 的**字段差别**（其余字段与**校验器**继承 v2，不复制一份）：
+    - `manifest_version` = 3（v2 那套 `Literal[2]` 不动，v2 的严格性不减）；
+    - **`scopes`** 取代 v2 的 `capabilities`（v3 口径的权限/能力声明；两者同时出现时**并集**）；
+    - `i18n` **可省**（v3 不强制声明国际化）；
+    - `host_application` / `sdk` 的 **`max_version` 可省**。
+
+    ⚠️ 校验通过后由 `to_canonical()` **归一成 v2 形状**再交给下游：loader/runner 只认一套字段，
+    避免"两套形状"顺着 IPC 扩散（载荷里出现的始终是同一套 key）。
+    """
+
+    manifest_version: Literal[3] = Field(description="Manifest 协议版本")
+    author: Optional[ManifestAuthorV3] = Field(default=None, description="作者信息（v3 可省 url；缺省 = 未声明）")
+    license: Optional[str] = Field(default=None, description="协议（v3 可省）")
+    urls: Optional[ManifestUrls] = Field(default=None, description="相关链接（v3 可省）")
+    host_application: Optional[ManifestVersionRangeOptionalMax] = Field(
+        default=None, description="Host 兼容区间（v3 可省；缺省 = 不设约束）"
+    )
+    sdk: Optional[ManifestVersionRangeOptionalMax] = Field(
+        default=None, description="SDK 兼容区间（v3 可省；缺省 = 不设约束）"
+    )
+    capabilities: List[str] = Field(default_factory=list, description="能力请求（v3 里可省；与 scopes 取并集）")
+    i18n: Optional[ManifestI18n] = Field(default=None, description="国际化配置（v3 里可省）")
+    scopes: List[str] = Field(default_factory=list, description="插件声明的权限/能力范围（v3 口径）")
+
+    def to_canonical(self) -> PluginManifest:
+        """归一成 v2 形状（下游只认这一套）。
+
+        v3 里**未声明**的字段在此填**中性缺省**（语义 = 未声明，而不是替插件编一个值）：
+        `author.url`/`license`/`urls.repository` 填空串、`host_application`/`sdk` 填"不设上界"的区间
+        （下界 0.0.1 ⇒ 等于不设约束）；`i18n` 填 `zh_CN`（仓库默认语言）。
+
+        Returns:
+            PluginManifest: 与 v2 同构的对象（`capabilities` = `capabilities` ∪ `scopes`）。
+        """
+        payload = self.model_dump()
+        payload["manifest_version"] = 2
+        payload["capabilities"] = sorted({*self.capabilities, *self.scopes})
+        payload["i18n"] = (self.i18n or ManifestI18n(default_locale="zh_CN")).model_dump()
+        payload["author"] = {
+            "name": self.author.name if self.author else self.id,
+            "url": (self.author.url if self.author and self.author.url else ""),
+        }
+        payload["license"] = self.license or ""
+        payload["urls"] = (self.urls or ManifestUrls(repository="")).model_dump()
+        for field_name in ("host_application", "sdk"):
+            declared = payload.get(field_name) or {}
+            payload[field_name] = {
+                "min_version": declared.get("min_version") or _UNCONSTRAINED_MIN_VERSION,
+                "max_version": declared.get("max_version") or _UNBOUNDED_MAX_VERSION,
+            }
+        payload.pop("scopes", None)
+        return PluginManifest.model_validate(payload)
+
+
 class ManifestValidator:
     """严格的插件 Manifest v2 校验器。"""
 
-    SUPPORTED_MANIFEST_VERSIONS = [2]
+    SUPPORTED_MANIFEST_VERSIONS = [2, 3]
     _LOGGED_WARNING_KEYS: Set[Tuple[str, str]] = set()
 
     def __init__(
@@ -871,7 +980,12 @@ class ManifestValidator:
             return None
 
         try:
-            parsed_manifest = PluginManifest.model_validate(manifest)
+            # 按**原始声明**选模型：v3 用 v3 那套（多 scopes / 可省 i18n 与 max_version），
+            # v2 仍走原来那套（严格性不减）；v3 校验完归一成 v2 形状再交给下游。
+            if manifest_version == 3:
+                parsed_manifest: PluginManifest = PluginManifestV3.model_validate(manifest).to_canonical()
+            else:
+                parsed_manifest = PluginManifest.model_validate(manifest)
         except ValidationError as exc:
             self.errors.extend(self._format_validation_errors(exc))
             self._log_errors(source=source)
