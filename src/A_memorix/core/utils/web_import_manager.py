@@ -21,9 +21,10 @@ import traceback
 import uuid
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_path
 
 
-from ...paths import default_data_dir, repo_root, resolve_repo_path, scripts_root
+from ...paths import default_data_dir, repo_root, scripts_root
 from ..storage import (
     MetadataStore,
 )
@@ -428,7 +429,15 @@ class ImportTaskManager:
             logger.warning(f"写入变更回调执行失败: {e}")
 
     def _resolve_temp_root(self) -> Path:
-        data_dir = resolve_repo_path(self.plugin.get_config("storage.data_dir", "./data"), fallback=default_data_dir())
+        # 批 5：配置值层相对串按**数据根**解释。旧写法 `resolve_repo_path(...)` 按 A_memorix
+        # 自己的仓根解析 ⇒ `MAIBOT_DATA_DIR` 一生效就静默劈叉。`data/` 前缀由 resolve_data_path
+        # 剥掉，空值仍回落 `default_data_dir()` ⇒ 未设 env 时与旧行为**逐字同径**。
+        raw_data_dir = self.plugin.get_config("storage.data_dir", "./data")
+        data_dir = (
+            resolve_data_path(raw_data_dir)
+            if str(raw_data_dir or "").strip()
+            else default_data_dir().resolve()
+        )
         return data_dir / "web_import_tmp"
 
     def _resolve_reports_root(self) -> Path:
@@ -447,7 +456,13 @@ class ImportTaskManager:
         return repo_root()
 
     def _resolve_data_dir(self) -> Path:
-        return resolve_repo_path(self.plugin.get_config("storage.data_dir", "./data"), fallback=default_data_dir())
+        # 批 5：与 `_resolve_temp_root` 同一条口径（两处重复是既有写法，本批不顺手合并）。
+        raw_data_dir = self.plugin.get_config("storage.data_dir", "./data")
+        return (
+            resolve_data_path(raw_data_dir)
+            if str(raw_data_dir or "").strip()
+            else default_data_dir().resolve()
+        )
 
     def _resolve_migration_script(self) -> Path:
         return scripts_root() / "migrate_maibot_memory.py"

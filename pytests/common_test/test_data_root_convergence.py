@@ -286,3 +286,78 @@ def test_local_store_singleton_uses_single_source() -> None:
     from src.manager.local_store_manager import local_storage
 
     assert local_storage.file_path == str(resolve_data_file("local_store.json"))
+
+
+# ── 批 5 · A_memorix `storage.data_dir` 的 4 个消费点 ─────────────────────────
+# 与批 1–4 的站点不同：这 4 处消费的是**配置值层的相对串**（不是自推的 `__file__`/CWD），
+# 所以绊线要咬两件事（缺一条就咬不住）：
+#   ① 设了 `MAIBOT_DATA_DIR` ⇒ 解析值必须落在该根下。旧写法 `resolve_repo_path(...)`
+#      按 A_memorix 自己的仓根解析 ⇒ 不跟动（这正是本次修的静默劈叉）。
+#   ② 未设 env 且值是 `"data/xxx"` 这类历史形态 ⇒ 必须与"仓根/data/xxx"**逐字同径**
+#      （`resolve_data_path` 会剥掉 `data/` 前缀再挂数据根；未设 env 时两条路重合）。
+# ⚠️ 一处**已知语义偏离**（裸相对值如 `"a-memorix"`：新口径挂数据根、旧口径挂仓根）——
+#    绊线只咬上面两条；偏离的逐条清单见
+#    `C:\hub\.scratch\data-family-batch5-site3-host-import.py` 的 E 节。
+
+
+def _stub_config_plugin(raw: object):
+    """只实现 `get_config(key, default)` 的鸭子类型 plugin（真方法要的就是这一个口）。"""
+
+    class _StubPlugin:
+        def get_config(self, _key: str, default: object = None) -> object:
+            return raw
+
+    return _StubPlugin()
+
+
+def test_a_memorix_storage_data_dir_sites_follow_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """批 5 站点：`storage.data_dir` 的消费点全部跟着 env 走（`data/` 前缀被剥掉）。"""
+
+    monkeypatch.setenv("MAIBOT_DATA_DIR", str(tmp_path))
+
+    from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
+    from src.A_memorix.core.utils.web_import_manager import ImportTaskManager
+
+    # 站点 2：走**真构造函数**
+    kernel = SDKMemoryKernel(
+        plugin_root=Path("."), config={"storage": {"data_dir": "data/a-memorix"}}
+    )
+    assert kernel.data_dir == (tmp_path / "a-memorix").resolve()
+
+    # 站点 3 / 4：走**真方法**（`__new__` 绕过 `__init__`，只喂 plugin 桩）
+    for raw, expect in (
+        ("data/a-memorix", (tmp_path / "a-memorix").resolve()),
+        # `"./data"` 解析出来**就是数据根本身** —— 这不是笔误，是既定口径
+        # （`resolve_data_path("./data") == resolve_data_root()`）。
+        ("./data", tmp_path.resolve()),
+        ("data", tmp_path.resolve()),
+    ):
+        manager = ImportTaskManager.__new__(ImportTaskManager)
+        manager.plugin = _stub_config_plugin(raw)
+        assert manager._resolve_data_dir() == expect, raw
+        assert manager._resolve_temp_root() == expect / "web_import_tmp", raw
+
+
+def test_a_memorix_storage_data_dir_keeps_legacy_shape_without_env() -> None:
+    """未设 env：历史形态 `"data/a-memorix"` 与"仓根/data/a-memorix"**逐字同径**（不许漂）。"""
+
+    from src.A_memorix.core.utils.web_import_manager import ImportTaskManager
+
+    manager = ImportTaskManager.__new__(ImportTaskManager)
+    manager.plugin = _stub_config_plugin("data/a-memorix")
+
+    assert manager._resolve_data_dir() == resolve_data_file("a-memorix")
+
+
+def test_a_memorix_storage_data_dir_empty_falls_back_to_default() -> None:
+    """空值/None 仍回落到 `default_data_dir()`（与旧 `fallback=` 语义一字不变）。"""
+
+    from src.A_memorix.core.utils.web_import_manager import ImportTaskManager
+    from src.A_memorix.paths import default_data_dir
+
+    for raw in (None, "", "   "):
+        manager = ImportTaskManager.__new__(ImportTaskManager)
+        manager.plugin = _stub_config_plugin(raw)
+        assert manager._resolve_data_dir() == default_data_dir().resolve(), raw

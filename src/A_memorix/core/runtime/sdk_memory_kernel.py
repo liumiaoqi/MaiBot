@@ -5,8 +5,8 @@ import asyncio
 import time
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_path
 from ..llm_compat import model_requirement
-from ...paths import default_data_dir, resolve_repo_path
 from ..retrieval import SparseBM25Index
 from ..storage import GraphStore, MetadataStore, VectorStore
 from ..utils.aggregate_query_service import AggregateQueryService
@@ -33,8 +33,12 @@ class SDKMemoryKernel:
         self.config = config or {}
         self._ports = ports
         storage_cfg = self._cfg("storage", {}) or {}
+        # 批 5：配置值层相对串按**数据根**解释。旧写法走 `resolve_repo_path`（按仓根解析），
+        # `MAIBOT_DATA_DIR` 一生效就静默劈叉。`"./data"` 解析出来就是数据根本身，
+        # 故未设 env 时与旧行为**逐字同径**；`data/` 前缀由 resolve_data_path 剥掉。
+        # 这里 `data_dir` 由上一行的 `or "./data"` 保证非空 ⇒ 旧 `fallback=` 分支本就不可达。
         data_dir = str(storage_cfg.get("data_dir", "./data") or "./data")
-        self.data_dir = resolve_repo_path(data_dir, fallback=default_data_dir())
+        self.data_dir = resolve_data_path(data_dir)
         self.embedding_dimension = max(1, int(self._cfg("embedding.dimension", 1024)))
         self.relation_vectors_enabled = bool(self._cfg("retrieval.relation_vectorization.enabled", False))
 

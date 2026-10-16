@@ -8,8 +8,9 @@ from typing import Any, Callable, Coroutine, cast
 
 from src.common.async_utils import _safe_create_task
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_path
 
-from ...paths import default_data_dir, resolve_repo_path
+from ...paths import default_data_dir
 from ..embedding import create_embedding_api_adapter
 from ..retrieval import SparseBM25Config, SparseBM25Index
 from ..storage import (
@@ -203,8 +204,16 @@ async def cancel_background_tasks(plugin: Any) -> None:
 
 async def initialize_storage_async(plugin: Any) -> None:
     """Initialize storage components asynchronously."""
+    # 批 5：配置值层的相对串按**数据根**解释。旧写法 `resolve_repo_path(...)` 按 A_memorix
+    # 自己的仓根解析 ⇒ `MAIBOT_DATA_DIR` 一生效就静默劈叉。`data/` 前缀由 resolve_data_path
+    # 负责剥掉，所以未设 env 时与旧行为**逐字同径**（`"./data"` 解析出来就是数据根本身）。
+    # 空值/None 仍回落到 `default_data_dir()`（与旧的 `fallback=` 语义一字不变）。
     data_dir_str = plugin.get_config("storage.data_dir", "./data")
-    data_dir = resolve_repo_path(data_dir_str, fallback=default_data_dir())
+    data_dir = (
+        resolve_data_path(data_dir_str)
+        if str(data_dir_str or "").strip()
+        else default_data_dir().resolve()
+    )
 
     logger.info(f"A_Memorix 数据存储路径: {data_dir}")
     data_dir.mkdir(parents=True, exist_ok=True)
