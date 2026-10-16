@@ -1,7 +1,13 @@
 """A_Memorix 内部模型任务选择工具（ZG-12 能力化改造）。
 
-旧任务名路由（NON_TEXT_GENERATION_TASK_NAMES / A_MEMORIX_TEXT_TASK_PRIORITY /
-pick_text_generation_task）已废弃——统一走 ModelConfigPort.resolve_by_capability。
+状态：旧任务名路由（NON_TEXT_GENERATION_TASK_NAMES / A_MEMORIX_TEXT_TASK_PRIORITY /
+     pick_text_generation_task）**仍在生产使用**（真调用 7 处：5 个 src 服务 + 1 个脚本，
+     见 .shared/research/2026-10/half_done_migrations_1017.md §二）。
+     核查依据（**别按 grep 计数猜**）：同文件内的 `resolve_text_generation_task(` 调用行——
+     web_import_manager.py:4531 · summary_importer.py:810 · episode_segmentation_service.py:314 ·
+     retrieval_tuning_manager.py:2392 · person_profile_service.py:1149。
+继任者：ModelConfigPort.resolve_by_capability
+迁移完成条件：上列调用点全部改走能力解析（可判定：`resolve_text_generation_task` 调用点计数为 0）
 
 隔离说明：ResolutionOptions / TaskConfig 的字段通过 getattr 访问（见
 model_config_port.py:_merge_options），故本地定义等价 dataclass 即可，

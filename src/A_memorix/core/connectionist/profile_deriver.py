@@ -1,7 +1,11 @@
-"""画像实时推导（已废弃）。
+"""画像实时推导（**旧路径：仍在使用**）。
 
-融合后由 UnifiedProfileService 替代（.core.concept_graph.unified_profile_service）。
-保留以兼容存量调用；新代码请使用 UnifiedProfileService。
+状态：旧路径仍在生产使用（真调用 5 处，见 .shared/research/2026-10/half_done_migrations_1017.md §二；
+     入口 = core/connectionist/memory_field.py：构造 :48 · 注入依赖 :72 · 调用 :196,:199；
+     再上一跳**入口未定**）
+继任者：UnifiedProfileService（.core.concept_graph.unified_profile_service，其 docstring 自述
+     "替代 PersonProfileService + ProfileDeriver 独立画像"）
+迁移完成条件：memory_field 不再构造/调用 ProfileDeriver（可判定：上列 5 处调用点计数为 0）
 """
 
 import time

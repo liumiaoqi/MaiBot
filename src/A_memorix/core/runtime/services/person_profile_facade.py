@@ -1,7 +1,9 @@
-"""人物画像 facade（已废弃）。
+"""人物画像 facade（**旧路径：仍在生产使用**）。
 
-融合后由 UnifiedProfileService 替代（.core.concept_graph.unified_profile_service）。
-保留以兼容存量调用（FUSION_OFF 路径）；FUSION_FULL 时不再调用。
+状态：旧路径仍在生产使用（真调用 10 处，见 .shared/research/2026-10/half_done_migrations_1017.md §二；
+     入口 = A_memorix 内核 sdk_memory_kernel；再上一跳**入口未定**）
+继任者：UnifiedProfileService（.core.concept_graph.unified_profile_service）
+迁移完成条件：**FUSION_FULL 验收通过**（此前 FUSION_OFF 路径仍在调用它，故不能按"已废弃"清理）
 """
 
 from typing import Any, Callable, Dict, List
@@ -18,8 +20,9 @@ class PersonProfileFacade:
     """人物画像查询、刷新、队列管理。
 
     .. deprecated::
-        已废弃，待 FUSION_FULL 验收后删除。融合后由 UnifiedProfileService 替代
-        （.core.concept_graph.unified_profile_service）。当前仅保留兼容 FUSION_OFF 路径。
+        旧路径**仍在使用**（见本模块 docstring 的状态段，真调用 10 处）。
+        迁移完成条件：**FUSION_FULL 验收通过**；完成后由 UnifiedProfileService 接手
+        （.core.concept_graph.unified_profile_service）。
     """
 
     def __init__(

@@ -1,8 +1,11 @@
-"""迁移路由（已废弃）。
+"""迁移路由（**旧路径：仍在使用**）。
 
-融合后由 FusionRouter 替代（.core.concept_graph.fusion_router）——按
-FusionConfig.stage 路由，移除 LEGACY_ONLY/DUAL_WRITE/DUAL_READ/NEW_INDEPENDENT
-切换逻辑。保留作为 FusionRouter 的 FUSION_OFF legacy 回调源。
+状态：旧路径仍在生产使用（真调用 5 处，见 .shared/research/2026-10/half_done_migrations_1017.md §二；
+     入口 = A_memorix 内核 sdk_memory_kernel，其方法经 `legacy_search=` /
+     `legacy_get_person_profile=` / `legacy_build_profile_injection_text=` 注入 FusionRouter）
+继任者：FusionRouter（.core.concept_graph.fusion_router）——按 FusionConfig.stage 路由，
+     移除 LEGACY_ONLY/DUAL_WRITE/DUAL_READ/NEW_INDEPENDENT 切换逻辑
+迁移完成条件：**`FUSION_OFF` 不再是受支持的运行模式**（可判定：上列三个 legacy_* 注入点被删除）
 """
 
 from typing import Any, Optional
