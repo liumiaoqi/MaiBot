@@ -282,14 +282,21 @@ class TestConcurrentWriteConflict:
     def test_out_of_band_write_also_invalidates_the_revision(
         self, client: TestClient, seam_config_dir
     ) -> None:
-        """**锁不是内存计数器的自娱自乐**：raw 端点绕过新接缝改文件，旧 revision 同样作废。"""
+        """**锁不是内存计数器的自娱自乐**：绕过新接缝改文件，旧 revision 同样作废。
+
+        注（5 段更新）：这里原先用 `POST /config/bot/raw` 来制造"外部写"；raw 系端点已下线，
+        改成**直接落盘**——它比走任何端点都更"外部"（完全不经代码路径），
+        对本测试要验的**指纹**机制反而是更强的对照。
+        """
+        config_path = seam_config_dir / "bot_config.toml"
         revision = _read_paths(client, "bot", ["chat.max_context_size"])["revision"]
 
-        raw_body = (seam_config_dir / "bot_config.toml").read_text(encoding="utf-8").replace(
-            "max_context_size = 42", "max_context_size = 50"
+        config_path.write_text(
+            config_path.read_text(encoding="utf-8").replace(
+                "max_context_size = 42", "max_context_size = 50"
+            ),
+            encoding="utf-8",
         )
-        raw_write = client.post("/api/webui/config/bot/raw", json={"raw_content": raw_body})
-        assert raw_write.status_code == 200, raw_write.text
 
         assert config_store.current_revision("bot") == revision + 1, "外部改动必须被识别成新版本"
 
@@ -297,7 +304,7 @@ class TestConcurrentWriteConflict:
             client, "bot", revision, [{"op": "set", "path": "chat.max_context_size", "value": 99}]
         )
         assert stale.status_code == 409, stale.text
-        assert _load_plain(seam_config_dir / "bot_config.toml")["chat"]["max_context_size"] == 50
+        assert _load_plain(config_path)["chat"]["max_context_size"] == 50
 
     def test_expected_revision_is_required(self, client: TestClient) -> None:
         """F5：写**必须**带 expectedRevision——可省略的锁等于没有锁。"""
@@ -1556,39 +1563,60 @@ class TestReferenceKindAgreesWithF4:
         assert config_secrets.secret_kind([]) is None
 
 
-# ── raw 系端点：可下线证据（本段**不删**，删不删等 lmq 拍板） ─────────
+# ── raw 系端点：**已下线**（2026-10-16 lmq 拍板） ─────────────────────
+#
+# 这一段原先叫 `TestRawEndpointRetirementEvidence`：它当时钉的是"raw 端点**仍然**直出
+# `auth_token` / `api_server_allowed_api_keys` 真值"，作为"可下线"的证据，并在 docstring 里
+# 约定"删端点那天它会失败，逼着删它的人同时更新证据"。5 段把端点删了，于是这里**按时兑现**：
+# 原地转成**退役后的守门**——它现在钉的是"这两个端点不再存在"，
+# 防的是**有人把它们加回来**（加回来必须是一次显式决策，而不是某次重构顺手恢复）。
 
 
-class TestRawEndpointRetirementEvidence:
-    """``/config/bot/raw`` 的可下线证据。
+class TestRawEndpointsAreRetired:
+    """`/config/bot/raw` 与兼容别名 `/api/config/raw` 必须**不存在**。
 
-    **这两条是"退役证据"性质的用例，不是"应当如此"的规格**：
-    它们把"今天的 raw 端点长什么样"钉住——等它被删/被换形态那天，这两条会**失败**，
-    逼着删它们的人同时把证据更新掉，而不是让证据烂在聊天记录里。
-
-    实测（2026-10-16，worktree cfg-seam，夹具里是假密钥）：
-    ``GET /api/webui/config/bot/raw`` ⇒ 200，返回体里 ``auth_token`` 与
-    ``api_server_allowed_api_keys`` 的**真值都在**；同一份配置走新读接缝 ⇒ 一条真值都没有。
+    为什么值得留一条用例：这两个端点返回整份 TOML 原文，是配置面上已知的
+    **明文密钥出站路径**（实测直出 `auth_token` 与白名单密钥真值）。下线是 lmq 的
+    显式决策，所以"复活"也必须是显式决策 —— 这条用例是那道绊线。
     """
 
-    def test_raw_endpoint_returns_secret_values_in_plaintext(
+    # 四个入口：`bot/raw` 的 GET/POST + 兼容前缀 `/api/config` 下的同名别名
+    RETIRED_ROUTES: tuple[tuple[str, str], ...] = (
+        ("GET", "/api/webui/config/bot/raw"),
+        ("POST", "/api/webui/config/bot/raw"),
+        ("GET", "/api/config/raw"),
+        ("POST", "/api/config/raw"),
+    )
+
+    @pytest.mark.parametrize(("method", "path"), RETIRED_ROUTES)
+    def test_endpoint_is_gone(
+        self, client: TestClient, seam_config_dir, method: str, path: str
+    ) -> None:
+        response = client.request(method, path, json={})
+
+        assert response.status_code == 404, (
+            f"{method} {path} 已下线，应当 404；实际 {response.status_code}：{response.text[:200]}"
+        )
+
+    def test_raw_paths_are_not_registered_at_all(self) -> None:
+        """比状态码更硬的判据：**路由表里**也没有它们（不受"是否被中间件改写状态码"影响）。"""
+        from src.webui.routers.config import compat_router, router
+
+        registered = {route.path for route in router.routes} | {
+            route.path for route in compat_router.routes
+        }
+        offenders = sorted(
+            path for path in registered if path in {"/config/bot/raw", "/api/config/raw"}
+        )
+
+        assert offenders == [], f"raw 路由又回来了：{offenders}"
+
+    def test_retiring_raw_did_not_take_capability_with_it(
         self, client: TestClient, seam_config_dir
     ) -> None:
-        """raw 端点是配置面上**最后一条明文密钥出站路径**（roadmap Problem 表第一行）。"""
-        response = client.get("/api/webui/config/bot/raw")
+        """退役**不能带走能力**：同一份配置走新读接缝，非秘密字段一个不少、秘密只有存在标记。
 
-        assert response.status_code == 200, response.text
-        content = response.json()["content"]
-        assert FAKE_BOT_TOKEN in content, "raw 端点仍然直出 auth_token 真值"
-        assert FAKE_ALLOWED_KEY in content, "raw 端点仍然直出白名单密钥真值"
-
-    def test_new_seam_serves_the_same_config_without_needing_the_raw_file(
-        self, client: TestClient, seam_config_dir
-    ) -> None:
-        """同一份配置走新读接缝：**非秘密字段一个不少地读得到**，秘密只有存在标记。
-
-        ⇒ raw 端点剩下的独有价值只有"把密钥原文交给浏览器"这一件事；
-        而编辑器要的那些字段（含注释以外的一切）路径读都能给。
+        （这是原第 2 条，逐字保留：它证明 raw 端点剩下的独有价值只有"把密钥原文交给浏览器"。）
         """
         entries = _entries_by_path(_read_paths(client, "bot"))
 
@@ -1598,6 +1626,48 @@ class TestRawEndpointRetirementEvidence:
         assert entries["inner.version"]["value"] == "0.9.0"
         assert entries["maim_message.auth_token"]["value"]["set"] is True
         assert FAKE_BOT_TOKEN not in str(entries)
+
+
+class TestAdapterConfigEndpointsAreRetired:
+    """`/config/adapter-config*` 四个端点（+ 四个适配器专用 helper）必须**不存在**。
+
+    依据：mingtang 与 dashboard **各 0 处**调用，全仓唯一引用是一条测试
+    ⇒ 纯死代码（`AGENTS.md §七` #4）。删掉它的同时把那条测试也删了。
+    """
+
+    RETIRED_ROUTES: tuple[tuple[str, str], ...] = (
+        ("GET", "/api/webui/config/adapter-config/path"),
+        ("POST", "/api/webui/config/adapter-config/path"),
+        ("GET", "/api/webui/config/adapter-config"),
+        ("POST", "/api/webui/config/adapter-config"),
+    )
+
+    @pytest.mark.parametrize(("method", "path"), RETIRED_ROUTES)
+    def test_endpoint_is_gone(
+        self, client: TestClient, seam_config_dir, method: str, path: str
+    ) -> None:
+        response = client.request(method, path, json={"path": "x"})
+
+        assert response.status_code == 404, (
+            f"{method} {path} 已删除，应当 404；实际 {response.status_code}：{response.text[:200]}"
+        )
+
+    def test_adapter_helpers_are_gone(self) -> None:
+        """四个 helper 是这组端点专用的 ⇒ 必须随端点一起走（别留悬空私有函数）。"""
+        import src.webui.routers.config as config_router
+
+        leftovers = sorted(
+            name
+            for name in (
+                "_normalize_adapter_path",
+                "_get_allowed_adapter_config_roots",
+                "_resolve_safe_adapter_config_path",
+                "_to_relative_path",
+            )
+            if hasattr(config_router, name)
+        )
+
+        assert leftovers == [], f"适配器专用 helper 没删干净：{leftovers}"
 
 
 # ── F11：读接缝的「内容 / revision」必须同源 ──────────────────────────

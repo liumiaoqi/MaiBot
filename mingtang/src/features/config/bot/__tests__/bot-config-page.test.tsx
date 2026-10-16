@@ -4,19 +4,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 import { BotConfigPage } from '../index'
 
-const { mockConfig, mockSchema, mockRaw } = vi.hoisted(() => ({
+const { mockConfig, mockSchema } = vi.hoisted(() => ({
   mockConfig: { personality: { name: '麦麦' }, reply_style: { style: 'default' }, behavior_style: { mode: 'chat' } },
   mockSchema: { className: 'BotConfig', fields: [], nested: {} },
-  mockRaw: 'personality = { name = "麦麦" }',
 }))
 
+// 注：`getBotConfigRaw` / `updateBotConfigRaw` 已于 5 段随 raw 端点一并删除，
+// 这里不再 mock 它们（mock 一个已不存在的函数 = 测一个不存在的东西）。
 vi.mock('@/lib/config-api', () => ({
   getBotConfig: vi.fn().mockResolvedValue(mockConfig),
   getBotConfigSchema: vi.fn().mockResolvedValue(mockSchema),
-  getBotConfigRaw: vi.fn().mockResolvedValue(mockRaw),
   updateBotConfig: vi.fn().mockResolvedValue({ success: true }),
   updateBotConfigSection: vi.fn().mockResolvedValue({ success: true }),
-  updateBotConfigRaw: vi.fn().mockResolvedValue({ success: true, message: 'ok', needs_restart: false, restart_required_sections: [] }),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -68,12 +67,16 @@ describe('R2-3-3：/config/bot 麦麦设置页', () => {
     expect(screen.getByTestId('bot-detail-mode')).toBeInTheDocument()
   })
 
-  it('切换到源文件模式——CodeEditor TOML', async () => {
+  it('源文件模式——已下线占位（写明原因，不再是编辑器）', async () => {
     render(<BotConfigPage />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.getByTestId('bot-mode-source')).toBeInTheDocument())
     fireEvent.click(screen.getByTestId('bot-mode-source'))
+
     await waitFor(() => expect(screen.getByTestId('bot-source-mode')).toBeInTheDocument())
-    expect(screen.getByTestId('code-editor')).toBeInTheDocument()
+    // 占位必须**说明原因**，不能是一片空白
+    expect(screen.getByText('「源文件」模式已下线')).toBeInTheDocument()
+    // 下线后不许再渲染编辑器——留着它就等于"点进去才发现坏了"
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
   })
 
   it('顶部工具栏——刷新按钮', async () => {
@@ -81,12 +84,20 @@ describe('R2-3-3：/config/bot 麦麦设置页', () => {
     await waitFor(() => expect(screen.getByTestId('bot-refresh')).toBeInTheDocument())
   })
 
-  it('源文件模式——保存按钮', async () => {
+  it('源文件模式——不再有保存按钮（不许留一个点了报错的按钮）', async () => {
     render(<BotConfigPage />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.getByTestId('bot-mode-source')).toBeInTheDocument())
     fireEvent.click(screen.getByTestId('bot-mode-source'))
-    await waitFor(() => expect(screen.getByTestId('bot-save-raw')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('bot-source-mode')).toBeInTheDocument())
+
+    expect(screen.queryByTestId('bot-save-raw')).not.toBeInTheDocument()
   })
+
+  // 注：原先这里有一条"下线后不再调用 raw 端点（防复活）"——它断言的是
+  // `api.getBotConfigRaw` / `api.updateBotConfigRaw` 未被调用。那两个函数已随端点删除，
+  // 引用它们本身就是编译错误 ⇒ 该用例没有存在余地，已删除。
+  // "端点不许复活"的守门在**后端**：`pytests/webui/test_config_seam.py::TestRawEndpointsAreRetired`
+  // （断言四个路由 404 + 路由表里不再注册），那里才是判据的落点。
 
   it('fieldHooks 注册（mount 时调用 registerAllConfigHooks）', async () => {
     const { registerAllConfigHooks } = await import('../../hooks')

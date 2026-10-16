@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BotConfigPage } from '../index'
 import {
   getBotConfig,
-  getBotConfigRaw,
   getBotConfigSchema,
 } from '@/lib/config-api'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
@@ -113,13 +112,12 @@ const BORROWED_CONSTRAINED_FIELD: FieldSchema = {
   maxValue: 80,
 }
 
+// 注：`getBotConfigRaw` / `updateBotConfigRaw` 已随 raw 端点删除，不再 mock（见同目录另一测试的说明）。
 vi.mock('@/lib/config-api', () => ({
   getBotConfig: vi.fn(),
   getBotConfigSchema: vi.fn(),
-  getBotConfigRaw: vi.fn(),
   updateBotConfig: vi.fn(),
   updateBotConfigSection: vi.fn(),
-  updateBotConfigRaw: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -158,7 +156,6 @@ describe('R?：bot 域字段真渲染 + 约束链端到端（task-8）', () => {
   beforeEach(() => {
     vi.mocked(getBotConfigSchema).mockResolvedValue(BOT_SCHEMA)
     vi.mocked(getBotConfig).mockResolvedValue(BOT_CONFIG)
-    vi.mocked(getBotConfigRaw).mockResolvedValue('personality = {}')
   })
 
   describe('字段真渲染', () => {
