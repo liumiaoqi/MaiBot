@@ -576,11 +576,33 @@ class _PluginHostServicer(PluginHostServicer):
         """处理 gateway_ready payload（_recv_loop 中异步触发）。
 
         异常隔离：分支内异常不崩溃 recv_loop。
+
+        ⚠️ **丢弃要出声**（2026-10-16 P3"消灭静默"）：下面两条早退原先都是**静默 return**
+        —— 插件报了"我准备好了"而宿主直接吞掉，现场只剩"发送回落 legacy / 什么都没注册"，
+        翻不到"为什么"。⇒ 两条都补具名日志（含 plugin/gateway/原因）。
+        照的机制是 dsh 的"把丢弃做成一等事件"（`agent/inbox/discarded` 那种形态），
+        不是照它的代码。
         """
         if self._gateway_registrar is None:
+            logger.warning(
+                "丢弃网关就绪上报：网关注册器未接线（registrar is None）——插件驱动不会被注册: "
+                "plugin=%s gateway=%s platform=%s ready=%s",
+                conn.plugin_id,
+                gw_payload.gateway_name,
+                gw_payload.platform,
+                gw_payload.ready,
+            )
             return
         if not self._enable_v2_message_gateway:
-            return  # 特性开关关闭，忽略 gateway_ready
+            logger.warning(
+                "丢弃网关就绪上报：V2 消息网关特性开关关闭（enable_v2_message_gateway=false）"
+                "——插件驱动不会被注册: plugin=%s gateway=%s platform=%s ready=%s",
+                conn.plugin_id,
+                gw_payload.gateway_name,
+                gw_payload.platform,
+                gw_payload.ready,
+            )
+            return
         try:
             if gw_payload.ready:
                 await self._gateway_registrar.on_gateway_ready(

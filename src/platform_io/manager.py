@@ -433,11 +433,20 @@ class PlatformIOManager:
     def resolve_drivers(self, route_key: RouteKey) -> List[PlatformIODriver]:
         """解析某个路由键当前命中的全部发送驱动。
 
+        ⚠️ **降级必须出声**（2026-10-16 P3"消灭静默"）：本函数有两条**降级路径**，
+        原先都静默——现场只能从最终回执反推，排障要翻三层：
+        ① 没命中插件驱动 ⇒ 追加 **legacy 备用驱动**（`legacy.send.<platform>`）：
+           能发出去，但走的是**旧链路**，不是插件网关；
+        ② 连备用驱动也没有 ⇒ 返回空列表，调用方 `send_message` 直接返回**空批次**
+           （`SendService` 只会打一句"未命中任何发送路由"，看不出"为什么没命中"）。
+        ⇒ 两条都补**具名日志**（含路由三要素与命中情况），让"我在降级"与"我什么都没命中"
+        在日志里可区分（裁定：**降级可以，静默不行**）。
+
         Args:
             route_key: 要解析的路由键。
 
         Returns:
-            List[PlatformIODriver]: 当前命中的全部发送驱动。
+            List[PlatformIODriver]: 当前命中的全部发送驱动（可能含 legacy 备用驱动，可能为空）。
         """
 
         drivers: List[PlatformIODriver] = []
@@ -459,6 +468,28 @@ class PlatformIOManager:
             scope_matches = descriptor.scope is None or route_key.scope in (None, descriptor.scope)
             if account_matches and scope_matches and fallback_driver.driver_id not in seen_driver_ids:
                 drivers.append(fallback_driver)
+                # 降级①：命中的是**备用**链路 —— 具名（唯一能让"我回落到 legacy"看得见的地方）。
+                logger.warning(
+                    "发送路由未命中插件驱动，回落到 legacy 备用驱动（降级，不是正常态）: "
+                    "platform=%s account_id=%s scope=%s driver=%s 已命中插件驱动数=%d",
+                    route_key.platform,
+                    route_key.account_id,
+                    route_key.scope,
+                    fallback_driver.driver_id,
+                    len(drivers) - 1,
+                )
+                return drivers
+
+        if not drivers:
+            # 降级②：**什么都没命中** —— 调用方会拿到空批次，这里必须说清"没命中"这件事本身。
+            logger.warning(
+                "发送路由未命中任何驱动（既无插件驱动也无 legacy 备用驱动）: "
+                "platform=%s account_id=%s scope=%s 已知 legacy 平台=%s",
+                route_key.platform,
+                route_key.account_id,
+                route_key.scope,
+                sorted(self._legacy_send_drivers.keys()),
+            )
 
         return drivers
 

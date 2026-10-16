@@ -27,6 +27,33 @@ class _GatewaySupervisorProtocol(Protocol):
         """调用插件声明的消息网关方法。"""
 
 
+def _describe_failure(layer: str, *, driver_id: str, raw: object) -> str:
+    """把一次出站失败拼成**可归因**的文字（P3"消灭静默"，用户可见面）。
+
+    为什么需要它：真机上那条
+    ``[SendService] Platform IO 发送失败: … driver=plugin.… error=消息网关发送失败``
+    光看**归不了因**——不知道是**哪一层**失败、对端到底回了什么。三个信息缺一不可：
+
+    - **C 上下文**：哪个驱动（``driver=<driver_id>``，含插件与网关名）；
+    - **T/E 哪一层 + 期望**：失败发生在链路的哪一跳（``层=<layer>``，取值见各调用点：
+      ``响应形状`` / ``信封错误`` / ``载荷形状`` / ``缺 success 标记`` / ``插件返回`` / ``会话寻址``）；
+    - **R 对端原话**：``原始=<raw>`` —— **对端返回的原始内容**，**绝不吞掉**
+      （吞掉它的代价：今晚一条 ``KeyError: 'session_id'`` 被上层收成通用文案，翻了三层人才找回来）。
+
+    Args:
+        layer: 失败所在的那一跳（具名，别用编号）。
+        driver_id: 出站驱动 ID。
+        raw: 对端/中间层返回的原始内容（会被截断，避免日志被巨串淹没）。
+
+    Returns:
+        str: 形如 ``[插件网关] 层=插件返回 driver=plugin.… 原始={...}`` 的单行描述。
+    """
+    text = str(raw)
+    if len(text) > 400:
+        text = text[:400] + f"…(截断，共 {len(text)} 字符)"
+    return f"[插件网关] 层={layer} driver={driver_id} 原始={text}"
+
+
 def _extract_outbound_text(message: "SessionMessage") -> tuple[str, bool]:
     """取出站消息里的**文本分量**拼接，并报告是否存在非文本分量。
 
@@ -114,26 +141,24 @@ class PluginPlatformDriver(PlatformIODriver):
         """
 
         if not self._supports_send:
-            return DeliveryReceipt(
-                internal_message_id=message.message_id,
-                route_key=route_key,
-                status=DeliveryStatus.FAILED,
-                driver_id=self.driver_id,
-                driver_kind=self.descriptor.kind,
-                error="当前消息网关仅支持接收，不支持发送",
+            return self._failed_receipt(
+                message.message_id,
+                route_key,
+                _describe_failure(
+                    "驱动资格", driver_id=self.driver_id, raw="当前消息网关仅支持接收，不支持发送"
+                ),
             )
 
         from src.plugin_runtime.host.message_utils import PluginMessageUtils
 
         plugin_id = self.descriptor.plugin_id or ""
         if not plugin_id:
-            return DeliveryReceipt(
-                internal_message_id=message.message_id,
-                route_key=route_key,
-                status=DeliveryStatus.FAILED,
-                driver_id=self.driver_id,
-                driver_kind=self.descriptor.kind,
-                error="插件消息网关驱动缺少 plugin_id",
+            return self._failed_receipt(
+                message.message_id,
+                route_key,
+                _describe_failure(
+                    "驱动接线", driver_id=self.driver_id, raw="插件消息网关驱动缺少 plugin_id"
+                ),
             )
 
         # ⚠️ **载荷形状是对接契约的一部分**（"能听不能说"第三层：路由已通、形状不对）。
@@ -156,13 +181,14 @@ class PluginPlatformDriver(PlatformIODriver):
                 "消息未携带 session_id（上游未解析到真实聊天流）——拒绝投递给插件网关："
                 "插件的发送 Tool 要用它反查平台账号/群号，编一个只会发错人或发不出去"
             )
-            return self._refuse(reason, message=message, route_key=route_key)
+            return self._refuse("会话寻址", reason, message=message, route_key=route_key)
 
         text, has_non_text = _extract_outbound_text(message)
         if not text:
             # 有分量但不是文本（纯图片/表情/转发…）⇒ 网关照旧发不出去：声明的工具是**纯文本**参数表。
             # 这里明确拒绝并写清原因，胜过把占位符（"[图片]"）当正文发出去。
             return self._refuse(
+                "文本分量",
                 "消息没有可发送的文本分量（网关声明的工具 napcat.send_text 是纯文本参数表；"
                 "图片/表情/转发/混合分量的出站今天表达不了）",
                 message=message,
@@ -182,6 +208,13 @@ class PluginPlatformDriver(PlatformIODriver):
                 component_name=self._component_name,
                 args={
                     # 插件 Tool 的参数表（平铺）：session_id + text
+                    # ⚠️ **支路 A 的键集只有这两个**（`napcat.send_text` 的 schema）。
+                    # **支路 B（bridge / `plugin.py:440 _handle_outbound_message`）的键集不同、
+                    # 不可共用**：它读 `message_info{group_info.group_id |
+                    # receiver_info.user_info.user_id}` + `message_segment.data[]`，
+                    # 且它自己的注释就写着"message_info 无 session_id 字段"。
+                    # B 今天**没有生产者证据**（真机：`[bridge] 已连接 maim_message WS` 之后零出站）
+                    # ⇒ 标"当前未使用/未证实"，**不要**拿 A 的键集去套 B（那会让 B 永远不通过）。
                     "session_id": session_id,
                     "text": text,
                     # 完整消息与路由照旧带上：别的网关插件按 `message`/`route` 取值，
@@ -253,20 +286,27 @@ class PluginPlatformDriver(PlatformIODriver):
                 return self._failed_receipt(
                     internal_message_id,
                     route_key,
-                    f"网关响应携带错误（legacy Envelope）: {detail or '（无 message）'}",
+                    _describe_failure("信封错误", driver_id=self.driver_id, raw=envelope_error),
                 )
             payload = getattr(response, "payload", None)
             if payload is None:
                 return self._failed_receipt(
                     internal_message_id,
                     route_key,
-                    f"无法识别的网关响应形状: {type(response).__name__}"
-                    "（既不是映射，也没有 payload 属性）",
+                    _describe_failure(
+                        "响应形状",
+                        driver_id=self.driver_id,
+                        raw=f"{type(response).__name__}（既不是映射，也没有 payload 属性）",
+                    ),
                 )
 
         if not isinstance(payload, Mapping):
             return self._failed_receipt(
-                internal_message_id, route_key, f"网关响应载荷不是映射: {type(payload).__name__}"
+                internal_message_id,
+                route_key,
+                _describe_failure(
+                    "载荷形状", driver_id=self.driver_id, raw=f"payload 不是映射: {type(payload).__name__}"
+                ),
             )
 
         # ② 按两代共同的载荷约定解释：缺 success 标记 ⇒ 形状对不上，**明说**而不是当失败
@@ -274,27 +314,28 @@ class PluginPlatformDriver(PlatformIODriver):
             return self._failed_receipt(
                 internal_message_id,
                 route_key,
-                "网关响应缺少 success 标记，形状对不上，拒绝按成功处理"
-                f"（键={sorted(str(key) for key in payload.keys())}）",
+                _describe_failure("缺 success 标记", driver_id=self.driver_id, raw=dict(payload)),
             )
         if not payload.get("success"):
             detail = payload.get("error")
             return self._failed_receipt(
                 internal_message_id,
                 route_key,
-                f"插件网关返回失败: {detail if detail else '（插件未给出 error 明细）'}",
+                _describe_failure(
+                    "插件返回",
+                    driver_id=self.driver_id,
+                    raw=detail if detail else "（插件未给出 error 明细）",
+                ),
             )
 
         result = payload.get("result") if isinstance(payload, dict) else None
         if isinstance(result, dict):
             if result.get("success") is False:
-                return DeliveryReceipt(
-                    internal_message_id=internal_message_id,
-                    route_key=route_key,
-                    status=DeliveryStatus.FAILED,
-                    driver_id=self.driver_id,
-                    driver_kind=self.descriptor.kind,
-                    error=str(result.get("error", "消息网关发送失败")),
+                # ⚠️ 这里原来回落到通用文案 `消息网关发送失败` —— 对端明细就是这么被吃掉的。
+                return self._failed_receipt(
+                    internal_message_id,
+                    route_key,
+                    _describe_failure("结果明细", driver_id=self.driver_id, raw=result),
                     metadata=result.get("metadata", {}) if isinstance(result.get("metadata"), dict) else {},
                 )
             external_message_id = str(result.get("external_message_id") or result.get("message_id") or "") or None
@@ -327,7 +368,11 @@ class PluginPlatformDriver(PlatformIODriver):
         )
 
     def _failed_receipt(
-        self, internal_message_id: str, route_key: RouteKey, error: str
+        self,
+        internal_message_id: str,
+        route_key: RouteKey,
+        error: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> DeliveryReceipt:
         """构造失败回执（出站回执形状的唯一出处，避免各处手拼字段）。"""
         return DeliveryReceipt(
@@ -337,31 +382,32 @@ class PluginPlatformDriver(PlatformIODriver):
             driver_id=self.driver_id,
             driver_kind=self.descriptor.kind,
             error=error,
+            metadata=metadata or {},
         )
 
     def _refuse(
-        self, reason: str, *, message: "SessionMessage", route_key: RouteKey
+        self, layer: str, reason: str, *, message: "SessionMessage", route_key: RouteKey
     ) -> DeliveryReceipt:
         """拒发并**双通道出声**（日志 + 错误上报口），返回失败回执（`AGENTS §七` #7）。
 
         为什么不是"返回一个静默的失败回执"：这类拒绝全是"接缝形状/寻址对不上"，
         现场只留一条 `[SendService] Platform IO 发送失败: … error=<reason>` 不够——
         原因要同时进日志与上报口，否则排障只能靠猜。
+
+        Args:
+            layer: 失败所在的那一跳（进 C/T/E/R 文案，见 `_describe_failure`）。
+            reason: 人读的拒绝原因。
+            message: 被拒的出站消息（取 message_id）。
+            route_key: 本次投递的路由键。
         """
-        logger.error("Platform IO 插件驱动拒绝发送: driver=%s reason=%s", self.driver_id, reason)
+        described = _describe_failure(layer, driver_id=self.driver_id, raw=reason)
+        logger.error("Platform IO 插件驱动拒绝发送: %s", described)
 
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port
 
         port = get_error_escalation_port()
         if port is not None:
-            port.report(ErrorLevel.WARNING, f"插件网关拒发: driver={self.driver_id} reason={reason}")
+            port.report(ErrorLevel.WARNING, f"插件网关拒发: {described}")
 
-        return DeliveryReceipt(
-            internal_message_id=message.message_id,
-            route_key=route_key,
-            status=DeliveryStatus.FAILED,
-            driver_id=self.driver_id,
-            driver_kind=self.descriptor.kind,
-            error=reason,
-        )
+        return self._failed_receipt(message.message_id, route_key, described)
