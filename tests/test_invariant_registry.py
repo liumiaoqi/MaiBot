@@ -346,87 +346,109 @@ class TestRealInvariantControlMessage:
 
 
 class TestRealInvariantPluginRuntime:
-    """v2：plugin_runtime 不变量测试。"""
+    """v2：plugin_runtime 不变量测试。
+
+    被检对象 2026-10-17 由 v1 的 IpcBridgePort 换成 v2 的 PluginRuntimeV2Port：
+    v1 运行时已由 ZG-32 停用（其 is_running 恒假），原检查在 v2 启用时恒红。
+    """
+
+    @staticmethod
+    def _app_port(enabled: bool):
+        from unittest.mock import MagicMock
+
+        app_port = MagicMock()
+        app_port.get_plugin_runtime_v2_enabled.return_value = enabled
+        return app_port
+
+    @staticmethod
+    def _lifecycle(shutting_down: bool):
+        from unittest.mock import MagicMock
+
+        adapter = MagicMock()
+        adapter.is_shutting_down.return_value = shutting_down
+        return adapter
 
     def test_passes_when_running(self):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.plugin_runtime import check_plugin_runtime
 
         mock_port = MagicMock()
         mock_port.is_running = True
-        mock_port.list_plugin_states.return_value = []
-        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=self._app_port(True)), \
+             patch("src.core.invariants.plugin_runtime.get_system_lifecycle_adapter", return_value=self._lifecycle(False)), \
+             patch("src.core.invariants.plugin_runtime.get_plugin_runtime_v2_port", return_value=mock_port):
             violations: list[str] = []
             check_plugin_runtime(lambda msg: violations.append(msg))
             assert violations == []
 
-    def test_fails_when_plugin_state_invalid(self):
-        """v3：插件状态非法时报违反。"""
-        from unittest.mock import patch, MagicMock
-        from src.core.invariants.plugin_runtime import check_plugin_runtime
-        from src.core.protocols import PluginStateSnapshot
-
-        mock_port = MagicMock()
-        mock_port.is_running = True
-        mock_port.list_plugin_states.return_value = [
-            PluginStateSnapshot("good", "running"),
-            PluginStateSnapshot("bad", "invalid_state"),
-        ]
-        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
-            violations: list[str] = []
-            check_plugin_runtime(lambda msg: violations.append(msg))
-            assert len(violations) == 1
-            assert "状态非法" in violations[0]
-
-    def test_fails_when_port_missing(self):
-        from unittest.mock import patch
+    def test_ignores_v1_ipc_bridge_state(self):
+        """v1 桥接恒假不再影响判定（原假报的回归钉）。"""
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.plugin_runtime import check_plugin_runtime
 
-        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=None):
+        dead_v1_port = MagicMock()
+        dead_v1_port.is_running = False
+        v2_port = MagicMock()
+        v2_port.is_running = True
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=self._app_port(True)), \
+             patch("src.core.invariants.plugin_runtime.get_system_lifecycle_adapter", return_value=self._lifecycle(False)), \
+             patch("src.core.invariants.plugin_runtime.get_plugin_runtime_v2_port", return_value=v2_port), \
+             patch("src.core.ipc_bridge_port_registry.get_ipc_bridge_port", return_value=dead_v1_port):
             violations: list[str] = []
             check_plugin_runtime(lambda msg: violations.append(msg))
-            assert len(violations) == 1
-            assert "未注册" in violations[0]
+            assert violations == []
 
     def test_fails_when_not_running(self):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.plugin_runtime import check_plugin_runtime
 
         mock_port = MagicMock()
         mock_port.is_running = False
-        with patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_port):
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=self._app_port(True)), \
+             patch("src.core.invariants.plugin_runtime.get_system_lifecycle_adapter", return_value=self._lifecycle(False)), \
+             patch("src.core.invariants.plugin_runtime.get_plugin_runtime_v2_port", return_value=mock_port):
             violations: list[str] = []
             check_plugin_runtime(lambda msg: violations.append(msg))
             assert len(violations) == 1
             assert "未启动" in violations[0]
 
-    def test_skips_when_config_disabled(self):
-        """plugin_runtime_v2.enabled=false 时不报违反。"""
-        from unittest.mock import patch, MagicMock
+    def test_fails_when_v2_port_missing(self):
+        """v2 端点没接线（启动失败/未启用）时报违反。"""
+        from unittest.mock import patch
         from src.core.invariants.plugin_runtime import check_plugin_runtime
 
-        mock_app_port = MagicMock()
-        mock_app_port.get_plugin_runtime_v2_enabled.return_value = False
-        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=mock_app_port):
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=self._app_port(True)), \
+             patch("src.core.invariants.plugin_runtime.get_system_lifecycle_adapter", return_value=self._lifecycle(False)), \
+             patch("src.core.invariants.plugin_runtime.get_plugin_runtime_v2_port", return_value=None):
+            violations: list[str] = []
+            check_plugin_runtime(lambda msg: violations.append(msg))
+            assert len(violations) == 1
+            assert "未接线" in violations[0]
+
+    def test_skips_when_config_disabled(self):
+        """plugin_runtime_v2.enabled=false 时不报违反（有意禁用 ≠ 违反）。"""
+        from unittest.mock import patch
+        from src.core.invariants.plugin_runtime import check_plugin_runtime
+
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=self._app_port(False)), \
+             patch("src.core.invariants.plugin_runtime.get_plugin_runtime_v2_port", return_value=None):
             violations: list[str] = []
             check_plugin_runtime(lambda msg: violations.append(msg))
             assert violations == []
 
-    def test_continues_when_config_enabled(self):
-        """plugin_runtime_v2.enabled=true 时继续既有校验逻辑。"""
-        from unittest.mock import patch, MagicMock
+    def test_skips_when_shutting_down(self):
+        """关停阶段不判定（关闭链本就要停端点）。"""
+        from unittest.mock import MagicMock, patch
         from src.core.invariants.plugin_runtime import check_plugin_runtime
 
-        mock_app_port = MagicMock()
-        mock_app_port.get_plugin_runtime_v2_enabled.return_value = True
-        mock_ipc_port = MagicMock()
-        mock_ipc_port.is_running = False
-        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=mock_app_port), \
-             patch("src.core.invariants.plugin_runtime.get_ipc_bridge_port", return_value=mock_ipc_port):
+        mock_port = MagicMock()
+        mock_port.is_running = False
+        with patch("src.core.invariants.plugin_runtime.get_app_config_port", return_value=self._app_port(True)), \
+             patch("src.core.invariants.plugin_runtime.get_system_lifecycle_adapter", return_value=self._lifecycle(True)), \
+             patch("src.core.invariants.plugin_runtime.get_plugin_runtime_v2_port", return_value=mock_port):
             violations: list[str] = []
             check_plugin_runtime(lambda msg: violations.append(msg))
-            assert len(violations) == 1
-            assert "未启动" in violations[0]
+            assert violations == []
 
 
 class TestRealInvariantServiceManager:
@@ -493,3 +515,95 @@ class TestRealInvariantServiceManager:
         assert str(ServiceState.RUNNING) == "ServiceState.RUNNING"
         assert ServiceState.RUNNING in _VALID_STATES
         assert "running" in _VALID_STATES
+
+
+class TestStartupWiringWindow:
+    """启动接线窗口（2026-10-17，ZG-8"先违反后接线"修复）。
+
+    三条硬线：
+    1. 默认未开窗 ⇒ 合成一个未注册端口必须红（不许把闸削弱）；
+    2. 窗口内 ⇒ 同一份未注册记为"待接线"，不报违反（不教人忽略不变量）；
+    3. 关窗 ⇒ 同一份未注册必须重新变红（"恒假"不许换成"恒真"）。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_port(self):
+        from src.core.control_message_port_registry import reset_control_message_port
+
+        reset_control_message_port()
+        yield
+        reset_control_message_port()
+
+    @staticmethod
+    def _reg_with_real_invariant() -> InvariantRegistry:
+        """挂真 installer 的独立注册表（不依赖测试执行顺序/模块缓存）。"""
+        from src.core.invariant_registry import InvariantDesc
+        from src.core.invariants.control_message import check_control_message
+
+        reg = InvariantRegistry()
+        reg.register(
+            InvariantDesc(
+                name="control_message",
+                installer=check_control_message,
+                source_module="src.core.invariants.control_message",
+            )
+        )
+        return reg
+
+    @staticmethod
+    def _control_message_hits(records) -> list:
+        return [r for r in records if r.name == "control_message"]
+
+    def test_missing_port_is_violation_without_window(self):
+        """① 合成未注册端口 + 未开窗 ⇒ 必须红。"""
+        reg = self._reg_with_real_invariant()
+        hits = self._control_message_hits(reg.verify_all())
+        assert len(hits) == 1
+        assert "未注册" in hits[0].message
+
+    def test_window_defers_missing_port_as_pending(self):
+        """② 开窗后同一份未注册 ⇒ 待接线，不报违反。"""
+        reg = self._reg_with_real_invariant()
+        reg.open_startup_wiring()
+        assert reg.verify_all() == []
+        pending = reg.last_pending
+        assert [p.name for p in pending] == ["control_message"]
+        assert "未注册" in pending[0].message
+
+    def test_closing_window_makes_missing_port_red_again(self):
+        """③ 关窗即硬线：同一份未注册重新变红。"""
+        reg = self._reg_with_real_invariant()
+        reg.open_startup_wiring()
+        assert reg.verify_all() == []  # 窗口内：待接线
+        violations = reg.close_startup_wiring()
+        hits = self._control_message_hits(violations)
+        assert len(hits) == 1
+        assert "未注册" in hits[0].message
+        assert reg.startup_wiring_open is False
+        assert reg.last_pending == []
+
+    def test_registered_port_clears_pending_and_violations(self):
+        """真接上线（注册 port）⇒ 窗口内无待接线、关窗后无违反。"""
+        from typing import cast
+
+        from src.core.control_message_port_registry import set_control_message_port
+        from src.core.protocols import ControlMessagePort
+
+        set_control_message_port(cast(ControlMessagePort, object()))
+        reg = self._reg_with_real_invariant()
+        reg.open_startup_wiring()
+        assert reg.verify_all() == []
+        assert reg.last_pending == []
+        assert self._control_message_hits(reg.close_startup_wiring()) == []
+
+    def test_production_startup_opens_and_closes_window(self):
+        """生产接线核查（源码级）：MainSystem.initialize 开窗 + finally 关窗。"""
+        from pathlib import Path
+
+        source = Path("src/main.py").read_text(encoding="utf-8")
+        init_block = source.split("async def initialize(self) -> None:", 1)[1].split(
+            "async def _init_components", 1
+        )[0]
+        assert init_block.count("open_startup_wiring()") == 1
+        assert "finally:" in init_block
+        assert init_block.count("close_startup_wiring()") == 1

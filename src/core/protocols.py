@@ -2259,6 +2259,21 @@ class IpcBridgePort(Protocol):
 
 
 @runtime_checkable
+class PluginRuntimeV2Port(Protocol):
+    """生产插件运行时（v2 宿主端点）存活端口 — 核心据此判定运行时是否真的在跑。
+
+    与 IpcBridgePort 的区别（2026-10-17）：ZG-32 把 v1 运行时收敛掉了
+    （`main.py` 的 v1 启动项是注释态），`IpcBridgePort.is_running` 对 v1 的
+    PluginRuntimeManager 恒为 False；生产运行时是 v2（gRPC HostEndpoint +
+    Runner 子进程）。核心不感知 HostEndpoint 具体类，只读本端口。
+    """
+
+    @property
+    def is_running(self) -> bool:
+        """v2 宿主端点是否正在监听（活体状态，不是"对象已构造"）。"""
+
+
+@runtime_checkable
 class ErrorEscalationPort(Protocol):
     """错误升级梯接口（ZG-14）— 统一错误分级 + 升级梯判定 + 动作分派。
 
@@ -2343,5 +2358,3 @@ class SystemStateMachinePort(Protocol):
 
     async def trigger_shutdown(self) -> None:
         """SHUTDOWN_SIGNAL 幂等守卫，优雅停机（不杀进程，N2 裁决）。"""
-
-

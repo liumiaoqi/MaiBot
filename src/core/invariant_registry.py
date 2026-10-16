@@ -7,6 +7,19 @@
 - 只读内存状态（dict/list/属性）
 - 禁 IO / 禁重算 / 禁网络请求
 - <0.1ms CPU（启动毫秒级 + 定时微秒级）
+
+启动接线窗口（2026-10-17，ZG-8 顺序缺陷修复）：
+不变量有三种状态——成立 / 待接线 / 违反。启动期"接线尚未完成"是一个合法中间态
+（例如 control_message port 由 `MainSystem._init_components` 收尾的 ZG-8 接线注册，
+而启动检查跑在 `orchestrator.run()` 之内、必然早于它）。窗口打开时未注册的 port
+记为"待接线"（last_pending），不是"违反"；窗口关闭时立刻做一次硬判定——关窗前的
+一切失败此时必须自证清白，不自证即违反。
+
+窗口**默认关闭**：任何直接调用 verify_all() 的调用方（含测试、含未开窗的生产补丁）
+拿到的仍是硬违反。窗口只由生产启动路径（`MainSystem.initialize`）显式开关，
+且在同一函数的 finally 里关闭。
+
+理由：恒假的告警不是"多一条噪声"，而是主动教人忽略不变量——比没有闸更坏。
 """
 
 import asyncio
@@ -55,6 +68,22 @@ class InvariantViolation:
         return {"name": self.name, "message": self.message, "timestamp": self.timestamp}
 
 
+@dataclass
+class InvariantPending:
+    """启动接线窗口内的"待接线"记录——不是违反。
+
+    语义：接线尚未完成，该不变量此刻无法成立属预期；窗口关闭后会重新硬判定，
+    届时仍不成立即转为 InvariantViolation。
+    """
+
+    name: str
+    message: str
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "message": self.message, "timestamp": self.timestamp}
+
+
 class InvariantRegistry:
     """不变量注册表 — 注册 + 统一检查 + 定时巡检。
 
@@ -72,6 +101,8 @@ class InvariantRegistry:
         self._disabled = set(disabled_modules or [])
         self._periodic_task: asyncio.Task | None = None
         self._last_violations: list[InvariantViolation] = []
+        self._startup_wiring_open = False
+        self._last_pending: list[InvariantPending] = []
 
     def register(self, desc: InvariantDesc) -> Callable[[], None]:
         """注册不变量，返回 disposer（注销函数）。
@@ -100,21 +131,30 @@ class InvariantRegistry:
         """同步检查所有启用的不变量，返回违反列表。
 
         installer 内部异常捕获为违反（不应抛异常，应调 fail）。
+
+        启动接线窗口打开时：失败暂记为"待接线"（last_pending）并从返回值里剔除——
+        此刻接线尚未完成，判"违反"恒假；窗口关闭（close_startup_wiring）后同样的
+        失败即违反。窗口默认关闭 ⇒ 未开窗的调用方行为与修复前完全一致。
         """
-        violations: list[InvariantViolation] = []
+        found: list[InvariantViolation] = []
         for name, desc in self._items.items():
             if not self.is_enabled(name):
                 continue
             try:
-                desc.installer(self._make_fail(name, violations))
+                desc.installer(self._make_fail(name, found))
             except InvariantError as exc:
-                violations.append(InvariantViolation(name, str(exc)))
+                found.append(InvariantViolation(name, str(exc)))
             except Exception as exc:
                 # installer 不应抛异常，捕获为违反 + 记日志
                 logger.warning("不变量 installer 异常: %s: %s", name, exc, exc_info=True)
-                violations.append(InvariantViolation(name, f"installer 异常: {exc}"))
-        self._last_violations = violations
-        return violations
+                found.append(InvariantViolation(name, f"installer 异常: {exc}"))
+        if self._startup_wiring_open:
+            self._last_pending = [InvariantPending(v.name, v.message, v.timestamp) for v in found]
+            self._last_violations = []
+            return []
+        self._last_pending = []
+        self._last_violations = found
+        return found
 
     def _make_fail(self, name: str, violations: list[InvariantViolation]) -> Callable[[str], None]:
         """构造 fail 回调。"""
@@ -123,6 +163,30 @@ class InvariantRegistry:
             violations.append(InvariantViolation(name, message))
 
         return fail
+
+    # ── 启动接线窗口（状态：成立 / 待接线 / 违反）────────────────────
+
+    @property
+    def startup_wiring_open(self) -> bool:
+        """启动接线窗口是否打开。"""
+        return self._startup_wiring_open
+
+    def open_startup_wiring(self) -> None:
+        """打开启动接线窗口：接线完成前，失败记为"待接线"而非"违反"。
+
+        只由生产启动路径（`MainSystem.initialize`）调用，且必须在同一函数的
+        finally 里 close_startup_wiring()——否则窗口泄漏会把巡检也一起静音。
+        """
+        self._startup_wiring_open = True
+
+    def close_startup_wiring(self) -> list[InvariantViolation]:
+        """关闭启动接线窗口，并立刻做一次硬判定（返回此刻真正的违反）。
+
+        关窗即硬线：从这一刻起，同样的失败不再是"待接线"而是"违反"。
+        这里只切换状态 + 判定，日志由调用方（`MainSystem.initialize`）负责。
+        """
+        self._startup_wiring_open = False
+        return self.verify_all()
 
     async def start_periodic_check(self, interval: float = 300.0) -> None:
         """启动定时巡检后台任务（默认 5 分钟一次）。"""
@@ -156,6 +220,14 @@ class InvariantRegistry:
     def last_violations(self) -> list[InvariantViolation]:
         """最近一次 verify_all 的违反列表。"""
         return self._last_violations
+
+    @property
+    def last_pending(self) -> list[InvariantPending]:
+        """最近一次 verify_all 在启动接线窗口内暂缓判定的"待接线"列表。
+
+        窗口关闭后由 verify_all 清空（届时它们要么成立、要么已转成违反）。
+        """
+        return self._last_pending
 
     @property
     def registered_names(self) -> list[str]:

@@ -196,9 +196,18 @@ class MainSystem:
             logger.error(t("startup.webui_server_init_failed", error=e))
 
     async def initialize(self) -> None:
-        """初始化系统组件"""
+        """初始化系统组件
+
+        ZG-N2 启动接线窗口：进入前打开、退出时（finally）关闭并硬判定。
+        理由：控制消息等 port 由本方法的收尾接线注册，而启动编排内的启动检查
+        必然早于收尾接线——那段时间里"未注册"是"待接线"而不是"违反"。
+        """
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
+        from src.core.invariant_registry import get_invariant_registry
+
+        invariants = get_invariant_registry()
+        invariants.open_startup_wiring()
         try:
             await self._init_components()
         except Exception as exc:
@@ -211,6 +220,14 @@ class MainSystem:
             if self.webui_server:
                 await self.webui_server.shutdown()
             raise
+        finally:
+            # 关窗即硬线：此刻接线已全部完成，仍未成立的不变量就是真违反
+            # （异常路径也关，窗口不泄漏）。
+            violations = invariants.close_startup_wiring()
+            if violations:
+                logger.warning("启动接线完成后不变量检查发现 %d 个违反", len(violations))
+                for v in violations:
+                    logger.warning("不变量违反: %s: %s", v.name, v.message)
 
         logger.info(t("startup.initialization_completed_banner", nickname=global_config.bot.nickname))
 
@@ -303,6 +320,9 @@ class MainSystem:
         #     )
 
         # ZG-8: 控制消息优先级接线（适配器实例化 + 订阅 + force 触发 + 状态联动）
+        # ⚠️ 本接线晚于启动编排内的不变量启动检查（READY/invariant_registry）——
+        #    那段时间 control_message port 未注册属"待接线"，由启动接线窗口覆盖；
+        #    窗口在 initialize() 收尾（finally）关闭并做硬判定。
         await self._init_control_message()
 
         # ZG-7: 污染标记接线（适配器实例化 + 注册 + CrashDump 注入）
@@ -1115,6 +1135,13 @@ class MainSystem:
 
             system._v2_host_endpoint = await init_v2_host_endpoint(app_port)
             await system._inject_scope_services_to_webui()
+            # ZG-32 后生产运行时是 v2：把"运行时是否在跑"的判定接到活体端点上
+            # （v1 的 IpcBridgePort.is_running 对已停用的 v1 恒假，不能当判据）。
+            # 只在 init 成功之后注册——启动失败就不注册，不变量据"未接线"报红。
+            from src.core.adapters.plugin_runtime_v2 import PluginRuntimeV2Adapter
+            from src.core.plugin_runtime_v2_port_registry import set_plugin_runtime_v2_port
+
+            set_plugin_runtime_v2_port(PluginRuntimeV2Adapter(system._v2_host_endpoint))
             logger.info("v2 插件运行时已启动")
         except Exception as e:
             from src.core.error_escalation.types import ErrorLevel
@@ -1653,13 +1680,20 @@ class MainSystem:
 
         registry = get_invariant_registry()
         await registry.start_periodic_check(interval=300.0)
-        # 启动时立即验一次
+        # 启动时立即验一次。此刻处于"启动接线窗口"内（MainSystem.initialize 尚未返回），
+        # 晚接线的不变量（如 control_message，接线在主编排收尾）记为"待接线"而非
+        # "违反"；窗口关闭时再做一次硬判定。窗口外/未开窗时本调用行为不变。
         violations = registry.verify_all()
         if violations:
             logger.warning("不变量启动检查发现 %d 个违反", len(violations))
             for v in violations:
                 logger.warning("不变量违反: %s: %s", v.name, v.message)
         else:
+            pending = registry.last_pending
+            if pending:
+                logger.info("不变量启动检查：%d 个待接线（启动接线未完成，暂缓判定）", len(pending))
+                for p in pending:
+                    logger.info("不变量待接线: %s: %s", p.name, p.message)
             logger.info("不变量注册表已启动，已注册 %d 个不变量", len(registry.registered_names))
 
     @staticmethod

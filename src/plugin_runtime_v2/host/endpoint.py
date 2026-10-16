@@ -45,6 +45,9 @@ class HostEndpoint:
                  enable_v2_message_gateway: bool = True) -> None:
         self._cfg = config or HostEndpointConfig()
         self._server: grpc.aio.Server | None = None
+        # 存活标志：只在 gRPC 服务端真的开始监听后置位。不能拿
+        # `_server is not None` 当存活判据——绑定失败时它同样非 None。
+        self._running = False
         self._registry = RunnerRegistry()
         self._heartbeat_mgr = HeartbeatManager(
             interval_s=self._cfg.heartbeat_interval_s,
@@ -78,7 +81,7 @@ class HostEndpoint:
         """启动 gRPC 服务器，开始监听 Runner 连接。
 
         Raises:
-            OSError: 端口被占用。
+            RuntimeError: 绑定失败（地址被占用/无法解析）—— grpc 直接抛出，原样上传。
         """
         self._server = grpc.aio.server(options=_GRPC_SERVER_OPTIONS)
         add_PluginHostServicer_to_server(self._servicer, self._server)
@@ -87,9 +90,18 @@ class HostEndpoint:
         service_names = (_SERVICE_NAME, reflection.SERVICE_NAME)
         reflection.enable_server_reflection(service_names, self._server)
 
-        listen_port = self._server.add_insecure_port(self._cfg.listen_address)
-        await self._server.start()
+        try:
+            listen_port = self._server.add_insecure_port(self._cfg.listen_address)
+            await self._server.start()
+        except Exception:
+            # 绑定/启动失败：半建的 server（已注册 handlers/reflection）必须**当场**
+            # 收掉——留成悬挂对象，等它在另一个 event loop 里被 GC 会崩（实测 Windows
+            # access violation，且会把真正的启动失败原因埋掉）。
+            await self._discard_unstarted_server()
+            raise
         self._actual_listen_address = f"{self._cfg.listen_address.split(':')[0]}:{listen_port}"
+        # 存活置位点：绑定/启动失败会抛异常走到这里之前，标志保持 False
+        self._running = True
 
         if self._token_service is not None:
             self._cleanup_task = asyncio.create_task(
@@ -100,6 +112,19 @@ class HostEndpoint:
             "HostEndpoint 已启动，监听 %s，server_id=%s",
             self._actual_listen_address, self._cfg.server_id,
         )
+
+    async def _discard_unstarted_server(self) -> None:
+        """收掉没能启动成功的 gRPC server（start() 失败路径）。"""
+        server, self._server = self._server, None
+        self._running = False
+        self._actual_listen_address = ""
+        if server is None:
+            return
+        try:
+            # 未启动的 server 上 shutdown 是合法且幂等的（实测不阻塞）
+            await server.stop(grace=0)
+        except Exception as exc:
+            logger.warning("清理未启动完成的 gRPC server 失败: %s", exc)
 
     async def stop(self) -> None:
         """优雅关停：按依赖图逆序卸载，联动 refcount drain。"""
@@ -150,6 +175,7 @@ class HostEndpoint:
         # 停止 gRPC 服务器
         await self._server.stop(grace=5)
         self._server = None
+        self._running = False
         self._actual_listen_address = ""
 
         # 停止 Runner 子进程
@@ -182,6 +208,14 @@ class HostEndpoint:
                     _port.report(ErrorLevel.ERROR, "token cleanup loop failed", exception=exc)
             except Exception:
                 pass
+
+    @property
+    def is_running(self) -> bool:
+        """gRPC 服务端是否正在监听（start() 成功置位、stop() 清除）。
+
+        活体状态，不是"对象已构造"：绑定失败的端点这里为 False。
+        """
+        return self._running
 
     def get_status(self) -> dict[str, RunnerConnectionSnapshot]:
         """返回所有 Runner 连接状态快照，供 WebUI 调试页使用。"""
