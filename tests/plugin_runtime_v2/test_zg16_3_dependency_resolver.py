@@ -27,14 +27,14 @@ class TestParseCandidateManifests:
 
     def test_empty_directory_list(self):
         """空目录列表 → 空 CandidateMap + 空 SkipMap。"""
-        candidates, skips = parse_candidate_manifests([])
+        candidates, skips, _rejects = parse_candidate_manifests([])
         assert candidates == {}
         assert skips == {}
 
     def test_single_plugin_no_dependencies(self, tmp_path):
         """单插件无依赖 → CandidateMap 1 项, SkipMap 空。"""
         d = write_plugin_dir(tmp_path, "org.a", dependencies=[])
-        candidates, skips = parse_candidate_manifests([d])
+        candidates, skips, _rejects = parse_candidate_manifests([d])
         assert len(candidates) == 1
         assert "org.a" in candidates
         assert skips == {}
@@ -43,7 +43,7 @@ class TestParseCandidateManifests:
         """单插件有依赖且依赖在候选中 → CandidateMap 2 项。"""
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b"])
         d_b = write_plugin_dir(tmp_path, "org.b", dependencies=[])
-        candidates, skips = parse_candidate_manifests([d_a, d_b])
+        candidates, skips, _rejects = parse_candidate_manifests([d_a, d_b])
         assert len(candidates) == 2
         assert "org.a" in candidates
         assert "org.b" in candidates
@@ -52,16 +52,38 @@ class TestParseCandidateManifests:
         """目录无 manifest → 跳过 + debug 日志，不加入 skips。"""
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
-        candidates, skips = parse_candidate_manifests([empty_dir])
+        candidates, skips, _rejects = parse_candidate_manifests([empty_dir])
         assert candidates == {}
         assert skips == {}
 
     def test_manifest_invalid_json(self, tmp_path):
         """manifest.json 非法 JSON → skip + report ERROR。"""
         d = write_plugin_dir(tmp_path, "org.a", raw_content="{not valid json")
-        candidates, skips = parse_candidate_manifests([d])
+        candidates, skips, _rejects = parse_candidate_manifests([d])
         assert candidates == {}
         assert any("manifest 解析失败" in v for v in skips.values())
+
+    def test_rejects_mirror_parse_failures(self, tmp_path):
+        """值域第三栏（2026-10-17）：解析阶段被拒必须**同时**进 rejects（具名 + 原因）。
+
+        ⚠️ 这一栏不是 `skips` 的复制品：`skips` 的 `dir:` key 会被
+        `compute_activation_plan` 的 `pid in candidates` 过滤掉（⇒ 投影面看不见），
+        `rejects` 是那份"被过滤掉的事实"的落点。
+        """
+        d_json = write_plugin_dir(tmp_path, "org.a", raw_content="{not valid json", dir_name="baddir1")
+        d_schema = write_plugin_dir(tmp_path, "org.b", raw_content='{"manifest_version": 3}', dir_name="baddir2")
+        d_self = write_plugin_dir(tmp_path, "org.c", dependencies=["org.c"], dir_name="baddir3")
+
+        candidates, skips, rejects = parse_candidate_manifests([d_json, d_schema, d_self])
+        assert candidates == {}
+        assert set(rejects) == {"dir:baddir1", "dir:baddir2", "org.c"}
+        assert "解析失败" in rejects["dir:baddir1"]
+        assert "校验失败" in rejects["dir:baddir2"]
+        assert "自相矛盾" in rejects["org.c"]
+        # 自依赖那一支的 reason 里**带目录名**（覆盖断言据此认目录，不从 ID 反推）
+        assert "baddir3" in rejects["org.c"]
+        # 旧口径仍在（兼容），且与 rejects 同步
+        assert set(skips) == set(rejects)
 
     def test_dependencies_type_error(self, tmp_path):
         """dependencies 为 dict（非 list[str]）→ ValidationError → skip。"""
@@ -75,21 +97,21 @@ class TestParseCandidateManifests:
             "dependencies": {"org.b": "strong"},
         })
         d = write_plugin_dir(tmp_path, "org.a", raw_content=raw)
-        candidates, skips = parse_candidate_manifests([d])
+        candidates, skips, _rejects = parse_candidate_manifests([d])
         assert candidates == {}
         assert any("manifest 校验失败" in v for v in skips.values())
 
     def test_self_dependency(self, tmp_path):
         """自依赖 → skip "声明了自依赖"。"""
         d = write_plugin_dir(tmp_path, "org.a", dependencies=["org.a"])
-        candidates, skips = parse_candidate_manifests([d])
+        candidates, skips, _rejects = parse_candidate_manifests([d])
         assert candidates == {}
         assert skips.get("org.a") == "声明了自依赖"
 
     def test_dependency_id_format_invalid(self, tmp_path):
         """依赖 ID 格式非法 → skip "依赖 ID 格式非法"。"""
         d = write_plugin_dir(tmp_path, "org.a", dependencies=["invalid id!"])
-        candidates, skips = parse_candidate_manifests([d])
+        candidates, skips, _rejects = parse_candidate_manifests([d])
         assert candidates == {}
         assert "依赖 ID 格式非法" in skips.get("org.a", "")
 
@@ -97,7 +119,7 @@ class TestParseCandidateManifests:
         """重复依赖去重为单条边。"""
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b", "org.b"])
         d_b = write_plugin_dir(tmp_path, "org.b", dependencies=[])
-        candidates, skips = parse_candidate_manifests([d_a, d_b])
+        candidates, skips, _rejects = parse_candidate_manifests([d_a, d_b])
         assert "org.a" in candidates
         _, manifest_a = candidates["org.a"]
         assert manifest_a.dependencies == ["org.b"]
@@ -106,14 +128,14 @@ class TestParseCandidateManifests:
         """两目录同 id → 两者均跳过 "id 重复"。"""
         d1 = write_plugin_dir(tmp_path, "org.a", dir_name="dir1")
         d2 = write_plugin_dir(tmp_path, "org.a", dir_name="dir2")
-        candidates, skips = parse_candidate_manifests([d1, d2])
+        candidates, skips, _rejects = parse_candidate_manifests([d1, d2])
         assert candidates == {}
         assert any("id 重复" in v for v in skips.values())
 
     def test_underscore_manifest_fallback(self, tmp_path):
         """manifest.json 不存在时回退到 _manifest.json。"""
         d = write_plugin_dir(tmp_path, "org.a", manifest_filename="_manifest.json")
-        candidates, skips = parse_candidate_manifests([d])
+        candidates, skips, _rejects = parse_candidate_manifests([d])
         assert "org.a" in candidates
         assert skips == {}
 
@@ -127,7 +149,7 @@ class TestBuildDependencyGraph:
     def test_missing_dependency(self, tmp_path):
         """A depends_on B, B 不在候选 → A 跳过 "依赖 B 未发现"。"""
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b"])
-        candidates, _ = parse_candidate_manifests([d_a])
+        candidates, _, _rejects = parse_candidate_manifests([d_a])
         graph, skips = build_dependency_graph(candidates)
         assert "org.a" in skips
         assert "依赖 org.b 未发现" in skips["org.a"]
@@ -136,7 +158,7 @@ class TestBuildDependencyGraph:
         """A depends_on B, B 在候选 → 无跳过。"""
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b"])
         d_b = write_plugin_dir(tmp_path, "org.b", dependencies=[])
-        candidates, _ = parse_candidate_manifests([d_a, d_b])
+        candidates, _, _rejects = parse_candidate_manifests([d_a, d_b])
         graph, skips = build_dependency_graph(candidates)
         assert skips == {}
 
@@ -151,7 +173,7 @@ class TestPropagateSkips:
         """C depends_on A, A depends_on B, B 缺失 → A 和 C 均跳过, C "依赖 A 级联跳过"。"""
         d_c = write_plugin_dir(tmp_path, "org.c", dependencies=["org.a"])
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b"])
-        candidates, _ = parse_candidate_manifests([d_c, d_a])
+        candidates, _, _rejects = parse_candidate_manifests([d_c, d_a])
         _, missing_skips = build_dependency_graph(candidates)
         all_skips = propagate_skips(candidates, missing_skips)
         assert "org.a" in all_skips
@@ -163,7 +185,7 @@ class TestPropagateSkips:
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b"])
         d_b = write_plugin_dir(tmp_path, "org.b", dependencies=["org.c"])
         d_c = write_plugin_dir(tmp_path, "org.c", dependencies=["org.d"])
-        candidates, _ = parse_candidate_manifests([d_a, d_b, d_c])
+        candidates, _, _rejects = parse_candidate_manifests([d_a, d_b, d_c])
         _, missing_skips = build_dependency_graph(candidates)
         all_skips = propagate_skips(candidates, missing_skips)
         assert "org.a" in all_skips
@@ -174,7 +196,7 @@ class TestPropagateSkips:
         """无初始跳过 → 传播后仍无跳过。"""
         d_a = write_plugin_dir(tmp_path, "org.a", dependencies=["org.b"])
         d_b = write_plugin_dir(tmp_path, "org.b", dependencies=[])
-        candidates, _ = parse_candidate_manifests([d_a, d_b])
+        candidates, _, _rejects = parse_candidate_manifests([d_a, d_b])
         all_skips = propagate_skips(candidates, {})
         assert all_skips == {}
 
@@ -222,7 +244,7 @@ class TestComputeActivationPlanCycle:
         """自依赖在 parse 阶段拒绝（从 candidates 移除, 不可激活）。"""
         d = write_plugin_dir(tmp_path, "org.a", dependencies=["org.a"])
         # parse 阶段 skips 记录自依赖
-        candidates, parse_skips = parse_candidate_manifests([d])
+        candidates, parse_skips, _rejects = parse_candidate_manifests([d])
         assert "org.a" not in candidates
         assert parse_skips.get("org.a") == "声明了自依赖"
         # compute_activation_plan 中自依赖插件从 candidates 移除 → 不在 skipped_plugins

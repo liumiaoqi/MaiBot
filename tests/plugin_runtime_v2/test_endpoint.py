@@ -7,9 +7,12 @@
 - reload_runners（有/无 supervisor）
 - stop 逆序卸载（有 coordinator）/原顺序 fallback（无 coordinator）/无 server 直接返回
 - stop 取消 cleanup_task
+- 值域覆盖（2026-10-17）：坏 manifest 具名入 rejected + 覆盖断言（三栏之外必出声）
 """
 
 import asyncio
+import copy
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -271,6 +274,172 @@ class TestPluginStatesSpawnFailureE2E:
         await coordinator.plan_startup(tmp_path / "nonexistent")
 
         assert ep.get_plugin_states() == []
+
+
+class TestPluginStatesValueDomain:
+    """值域缺口修复（2026-10-17）— 解析器看到过的每个插件必须落进三栏之一。
+
+    立项背景：`dependency_resolver` 对"解析失败/校验失败/id 重复的先前目录"用
+    `dir:<目录名>` 当 key 记 skips，而 `compute_activation_plan` 的
+    `if pid in candidates` 把 `dir:` key **全滤掉** ⇒ 这类插件既不在 activated
+    也不在 skipped ⇒ **投影面看不见它**（= "值域缺口"：**空间本身没覆盖全部结果**，
+    **不是**"抽到 0 条"）。
+    """
+
+    async def test_bad_manifest_lands_in_rejected_not_absent(self, tmp_path):
+        """证红 ①：坏 manifest ⇒ 修前"不存在"，修后必须**具名**出现（真 coordinator 全链）。
+
+        ⚠️ 三个目录名故意都**不是合法插件 ID** —— 不这样写，`dir:<目录名>` 正好
+        等于插件 id 时，这个"缺口"会被键名**偶然掩掉**（`pid in candidates` 就过了）。
+        """
+        from src.plugin_runtime_v2.host.activation_coordinator import ActivationCoordinator
+        from src.plugin_runtime_v2.host.dependency_resolver import compute_activation_plan
+        from tests.plugin_runtime_v2.zg16_3_helpers import MockSupervisor, write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.good")
+        bad_illegal_json = write_plugin_dir(
+            tmp_path, "org.a", raw_content="{not valid json", dir_name="badillegaljson",
+        )
+        bad_schema = write_plugin_dir(
+            tmp_path, "org.b", raw_content='{"manifest_version": 3}', dir_name="badschemadir",
+        )
+
+        plan = compute_activation_plan([bad_illegal_json, bad_schema])
+        # 修前现场：skips 里只有 dir: key，而 plan.skipped 把它们**全滤掉** ⇒ 空
+        assert plan.skipped == {}
+        # 修后：第三栏 rejected **具名**（目录名 + 原因）
+        assert set(plan.rejected) == {"dir:badillegaljson", "dir:badschemadir"}
+        assert "解析失败" in plan.rejected["dir:badillegaljson"]
+        assert "校验失败" in plan.rejected["dir:badschemadir"]
+
+        # 全链：真 coordinator → 真投影（走生产路径，不手搓 rejected）
+        coordinator = ActivationCoordinator(MockSupervisor())
+        ep = HostEndpoint()
+        ep.set_activation_coordinator(coordinator)
+        await coordinator.plan_startup(tmp_path)
+
+        states = {s.plugin_id: s for s in ep.get_plugin_states()}
+        assert "dir:badillegaljson" in states, "坏 manifest 的插件必须在投影面**具名**出现"
+        assert states["dir:badillegaljson"].state == "rejected"
+        assert states["dir:badillegaljson"].activated is False
+        assert "解析失败" in states["dir:badillegaljson"].skipped_reason
+        assert states["dir:badschemadir"].state == "rejected"
+        assert states["org.good"].state == "connecting"   # 正常插件不受影响
+        assert len(states) == 3  # 全部坏也要可见（"0 条"只留给"真没插件"）
+
+    async def test_all_rejected_still_non_empty(self, tmp_path):
+        """全部目录都被拒 ⇒ 状态面仍非空（"0 条"只留给"真没插件"）。"""
+        from src.plugin_runtime_v2.host.activation_coordinator import ActivationCoordinator
+        from tests.plugin_runtime_v2.zg16_3_helpers import MockSupervisor, write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.a", raw_content="{not valid json", dir_name="badillegaljson")
+        coordinator = ActivationCoordinator(MockSupervisor())
+        ep = HostEndpoint()
+        ep.set_activation_coordinator(coordinator)
+        await coordinator.plan_startup(tmp_path)
+
+        states = ep.get_plugin_states()
+        assert len(states) == 1
+        assert states[0].state == "rejected"
+        assert states[0].plugin_id == "dir:badillegaljson"
+
+    def test_coverage_assertion_passes_on_resolver_output(self, tmp_path):
+        """解析器真实产出：三栏（candidates/skipped/rejected）**全覆盖**目录。
+
+        用**解析器同一把尺子**（`scan_plugin_dirs`）取"看到过"的目录集合。
+        """
+        from src.plugin_runtime_v2.host.dependency_resolver import (
+            _check_value_domain,
+            compute_activation_plan,
+            rejected_dir_names,
+            scan_plugin_dirs,
+        )
+        from tests.plugin_runtime_v2.zg16_3_helpers import make_manifest_dict, write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.good")
+        write_plugin_dir(tmp_path, "org.a", raw_content="{not valid json", dir_name="badillegaljson")
+        write_plugin_dir(tmp_path, "org.b", raw_content='{"manifest_version": 3}', dir_name="badschemadir")
+        # 自依赖：parse 通过、id 拿得到，但被移出 candidates（rejected 的 key 是**真 id**，
+        # 目录名要从 rejected_dir_names 的 dir: 那一支拿）
+        write_plugin_dir(tmp_path, "org.a", dependencies=["org.a"], dir_name="selfdepdir")
+        # 孤儿（1↔2：candidates ∪ skipped 已覆盖）——断言必须**兼容**它，而不是误报
+        for orphan_dir in ("orphanone", "orphantwo"):
+            d = tmp_path / orphan_dir
+            d.mkdir()
+            (d / "manifest.json").write_text(
+                json.dumps(make_manifest_dict("org." + orphan_dir)), encoding="utf-8",
+            )
+
+        dirs = scan_plugin_dirs(tmp_path)
+        plan = compute_activation_plan(dirs)
+        assert _check_value_domain(plan, dirs, rejected_dir_names(plan)) == [], \
+            "解析器自己的产出必须全覆盖"
+
+    def test_coverage_assertion_speaks_on_gap(self, tmp_path):
+        """证红 ②：构造"落在三栏之外" ⇒ **全称断言必须出声**（不是静默通过）。
+
+        这是**值域缺口的正身**：`plan` 抽出来的东西**看起来齐**（波次/跳过都有），
+        但解析器实际看到过的目录里有一个**落不进任何一栏** ⇒ 它会在投影面消失。
+        空源（抽到 0 条）不会这样：空源是"一条都没抽到"，此处是"**有，但空间里没它**"。
+        """
+        from src.plugin_runtime_v2.host.dependency_resolver import (
+            _check_value_domain,
+            compute_activation_plan,
+            rejected_dir_names,
+        )
+        from tests.plugin_runtime_v2.zg16_3_helpers import write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.a", dir_name="pluginalpha")
+        write_plugin_dir(tmp_path, "org.b", raw_content="{not valid json", dir_name="orphandir")
+        seen = [tmp_path / "pluginalpha", tmp_path / "orphandir"]
+
+        plan = compute_activation_plan(seen)
+        assert _check_value_domain(plan, seen, rejected_dir_names(plan)) == []  # 当前实现全覆盖
+
+        # 模拟"修复前"的形态：拒绝栏被丢掉（原实现里 dir: key 正是这样消失的）
+        plan_without_rejected = copy.replace(plan, rejected={})
+        gap = _check_value_domain(
+            plan_without_rejected, seen, rejected_dir_names(plan_without_rejected),
+        )
+        assert gap == ["orphandir"], "落在三栏之外的目录必须被全称断言抓住（具名）"
+
+        # ⚠️ 断言**不许猜**目录名：真 ID 的 rejected key 不得被反推成目录名。
+        # 反例现场：目录名 `badnodeid` + manifest id `org.badnodeid`（自依赖）⇒ 若拿 ID
+        # 去推"目录名 = id 换点成下划线"会得到 `org_badnodeid` ≠ 真实目录名 ⇒ 把**真实
+        # 覆盖**误报成缺口。这里用同一份提取逻辑（`rejected_dir_names`）钉住它不猜。
+        write_plugin_dir(
+            tmp_path / "selfdep", "org.badnodeid",
+            dependencies=["org.badnodeid"], dir_name="badnodeid",
+        )
+        seen_self = [tmp_path / "selfdep" / "badnodeid"]
+        plan_self = compute_activation_plan(seen_self)
+        assert "badnodeid" not in plan_self.candidate_dirs        # 自依赖 ⇒ 移出候选
+        assert "org.badnodeid" in plan_self.rejected              # 具名拒绝（**真 id**）
+        assert _check_value_domain(
+            plan_self, seen_self, rejected_dir_names(plan_self),
+        ) == [], "断言不许拿 ID 反推目录名（否则误报真实覆盖）"
+
+    def test_compute_activation_plan_raises_on_gap(self, tmp_path, monkeypatch):
+        """证红 ②（生产路径）：遇到值域缺口 ⇒ `compute_activation_plan` **当场 ValueError**。"""
+        from src.plugin_runtime_v2.host import dependency_resolver as dr
+        from tests.plugin_runtime_v2.zg16_3_helpers import write_plugin_dir
+
+        write_plugin_dir(tmp_path, "org.b", raw_content="{not valid json", dir_name="orphandir")
+
+        real_parse = dr.parse_candidate_manifests
+        seen = [tmp_path / "orphandir"]
+
+        def _parse_dropping_rejects(plugin_dirs):
+            # 模拟旧口径：解析器看到了，但三栏都没收它（dir: key 被过滤的那个世界）
+            candidates, skips, _rejects = real_parse(plugin_dirs)
+            return candidates, skips, {}
+
+        monkeypatch.setattr(dr, "parse_candidate_manifests", _parse_dropping_rejects)
+        with pytest.raises(ValueError) as excinfo:
+            dr.compute_activation_plan(seen)
+        assert "值域缺口" in str(excinfo.value)
+        assert "orphandir" in str(excinfo.value)
+
 
 
 class TestHostEndpointStop:

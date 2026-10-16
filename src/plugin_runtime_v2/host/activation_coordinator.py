@@ -18,6 +18,7 @@ from src.plugin_runtime_v2.host.dependency_resolver import (
     CandidateMap,
 
     compute_activation_plan,
+    scan_plugin_dirs,
 )
 from src.plugin_runtime_v2.sdk.manifest import ManifestV3
 
@@ -49,6 +50,7 @@ class ActivationCoordinator:
     - _skipped: dict[str, str]（跳过清单）
     - _candidate_dirs: dict[str, Path]（插件 ID → 目录路径）
     - _candidates: CandidateMap（候选插件映射，供补全评估用）
+    - _rejected: dict[str, str]（**解析阶段被拒**清单——第三栏，2026-10-17 值域修复）
     """
 
     def __init__(self, supervisor) -> None:
@@ -63,6 +65,10 @@ class ActivationCoordinator:
         self._skipped: dict[str, str] = {}
         self._candidate_dirs: dict[str, Path] = {}
         self._candidates: CandidateMap = {}
+        # 解析阶段被拒（manifest 读不出/不过 schema/id 重复/自依赖）——
+        # ⚠️ 与 _skipped 分开：那些插件**从未进依赖图**，键还可能是 `dir:<目录名>`。
+        # 不分开就是"值域缺口"：它们会从状态面消失（2026-10-17 立项）。
+        self._rejected: dict[str, str] = {}
 
     # ── 启动激活 ──────────────────────────────────────────────
 
@@ -85,10 +91,9 @@ class ActivationCoordinator:
             logger.warning("插件目录 %s 不存在，跳过激活", plugins_root)
             return ActivationPlan(waves=[], skipped={}, cycle_errors=[])
 
-        plugin_dirs = sorted(
-            d for d in plugins_root.iterdir()
-            if d.is_dir() and ((d / "manifest.json").is_file() or (d / "_manifest.json").is_file())
-        )
+        # ⚠️ 用**解析器同一把尺子**扫（dependency_resolver.scan_plugin_dirs）：
+        # 覆盖断言要判"解析器看到过的插件都在三栏里"，尺子若不同，断言自己就会漏。
+        plugin_dirs = scan_plugin_dirs(plugins_root)
 
         if not plugin_dirs:
             logger.warning("插件目录 %s 下未发现有效插件", plugins_root)
@@ -121,6 +126,9 @@ class ActivationCoordinator:
         self._candidates = candidates_map
         self._candidate_dirs = dict(plan.candidate_dirs)
         self._skipped = dict(plan.skipped)
+        # 第三栏：解析阶段被拒的插件（2026-10-17 值域修复）——
+        # 不接这一栏，"坏 manifest 的插件在状态面不存在"这条缺陷就只是挪了个位置。
+        self._rejected = dict(plan.rejected)
 
         # 重建依赖图（仅可激活插件，过滤 skipped — P1-3 修复）
         new_graph = DependencyGraph()
@@ -239,6 +247,16 @@ class ActivationCoordinator:
     def skipped(self) -> dict[str, str]:
         """跳过清单。"""
         return self._skipped
+
+    @property
+    def rejected(self) -> dict[str, str]:
+        """解析阶段被拒清单（第三栏，2026-10-17 值域修复）。
+
+        key 可能是合法插件 ID，也可能是 `dir:<目录名>`（manifest 读不出/不过 schema
+        时拿不到 id）。⚠️ 语义与 `skipped` **不同**：这些插件**从未进依赖图**，
+        是"这份 manifest 不成立"，不是"这一轮没排上"。
+        """
+        return self._rejected
 
     # ── 热加载 ────────────────────────────────────────────────
 

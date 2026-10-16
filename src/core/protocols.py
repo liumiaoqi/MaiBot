@@ -2267,18 +2267,23 @@ class PluginRuntimeV2State:
     事实面：**激活/跳过登记**（`ActivationCoordinator`）+ **Runner 连接**（`RunnerRegistry`）。
 
     字段说明（全部来自宿主内存，无 RPC、无 I/O）：
-    - `plugin_id`: 插件 ID（激活/跳过/连接三处同一命名空间）
-    - `state`: 投影状态，取值闭集 `running` / `connecting` / `skipped` / `error`
-      （`running`=激活且有 READY 连接；`connecting`=激活但连接未就绪；
-      `skipped`=被激活编排跳过；`error`=激活但连接已断）
+    - `plugin_id`: 插件 ID（激活/跳过/连接三处同一命名空间）。⚠️ **`rejected` 一栏
+      例外**：解析阶段被拒的插件若连 id 都拿不到，这里是 `dir:<目录名>`（具名到目录，
+      别为了让字段"好看"而丢掉它）。
+    - `state`: 投影状态，取值闭集 `running` / `connecting` / `skipped` / `error` /
+      `rejected`（`running`=激活且有 READY 连接；`connecting`=激活但连接未就绪；
+      `skipped`=被激活编排跳过；`error`=激活但连接已断；
+      `rejected`=**解析阶段被拒**（manifest 读不出/不过 schema/id 重复/自依赖），
+      从未进依赖图 —— 2026-10-17 值域修复新增：此前这类插件既不在 activated 也不在
+      skipped ⇒ 在状态面**不存在**）
     - `activated`: 是否在 `ActivationCoordinator.activated` 中
-    - `skipped_reason`: 被跳过时的原因（未跳过为空串）
+    - `skipped_reason`: 被跳过 **或被拒** 时的原因（未跳过且未被拒为空串）
     - `connection_state`: Runner 连接状态原文（`ConnectionState.value`，无连接为空串）
     - `tool_count`: 该连接注册的工具数（无连接为 0）
     """
 
     plugin_id: str
-    state: str  # running/connecting/skipped/error
+    state: str  # running/connecting/skipped/error/rejected
     activated: bool = False
     skipped_reason: str = ""
     connection_state: str = ""

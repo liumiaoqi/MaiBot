@@ -230,11 +230,13 @@ class HostEndpoint:
     def get_plugin_states(self) -> list[PluginRuntimeV2State]:
         """投影宿主侧**可取**的插件状态（内存，无 RPC、无 I/O）。
 
-        两个数据源，都在宿主进程内：
+        三个数据源，都在宿主进程内：
         1. `ActivationCoordinator.activated` / `.skipped`
            （`host/activation_coordinator.py`：已激活集 / 跳过清单[带原因]）
         2. `RunnerRegistry._connections` 的连接快照
            （`host/registry.py` → `connection.py::to_snapshot()`：状态/工具数）
+        3. `ActivationCoordinator.rejected`（**第三栏**：解析阶段被拒的插件）
+           —— `state="rejected"`，key 可能是 `dir:<目录名>`（拿不到 id）。
 
         ⚠️ **投影边界（硬）**：`PluginRefcount.state`（LIVE/COMING/GOING/UNFORMED/
         ERROR）活在 **Runner 子进程**（`runner/endpoint.py`），宿主**无 RPC 可取** ——
@@ -248,6 +250,7 @@ class HostEndpoint:
         coordinator = self._activation_coordinator
         activated: set[str] = set(getattr(coordinator, "activated", None) or ())
         skipped: dict[str, str] = dict(getattr(coordinator, "skipped", None) or {})
+        rejected: dict[str, str] = dict(getattr(coordinator, "rejected", None) or {})
 
         states: dict[str, PluginRuntimeV2State] = {}
 
@@ -294,6 +297,23 @@ class HostEndpoint:
             states[plugin_id] = PluginRuntimeV2State(
                 plugin_id=plugin_id,
                 state="skipped",
+                activated=False,
+                skipped_reason=reason,
+                connection_state="",
+                tool_count=0,
+            )
+
+        # 4) 拒绝面（**第三栏**，2026-10-17 值域修复）：解析阶段就被拒的插件
+        #    （manifest 读不出/不过 schema/id 重复/自依赖）**从未进依赖图**，
+        #    因此既不在 activated 也不在 skipped —— 此前它们在这一层**完全不存在**。
+        #    ⚠️ 这一栏是"值域缺口"的补丁：**空间本身没覆盖全部结果**，而不是
+        #    "抽到 0 条"。坏插件最该被看见，绝不能因为"id 都拿不到"就隐身。
+        for raw_key, reason in sorted(rejected.items()):
+            if raw_key in states:
+                continue
+            states[raw_key] = PluginRuntimeV2State(
+                plugin_id=raw_key,
+                state="rejected",
                 activated=False,
                 skipped_reason=reason,
                 connection_state="",
