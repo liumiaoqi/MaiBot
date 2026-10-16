@@ -89,10 +89,21 @@ def test_snapshot_loader_tolerates_shapes() -> None:
 
 
 def test_snapshot_dir_mode_is_reproducible(tmp_path: Path) -> None:
-    """复算命令的语料模式：两份相邻快照 ⇒ 报告首分歧位置（这里故意把时间戳放在 system）。"""
+    """复算命令的语料模式：同任务两份相邻快照 ⇒ 报告首分歧（system 里塞了时间戳）。
+
+    夹具带 `request_kind`（**新语料的正常形状**）。没有它时探针只能按内容签名兜底分组，而
+    "最长段里含变化值"会把同一任务切成两组（2026-10-16 实测撞到）⇒ 结论：新语料必须带
+    `request_kind`，兜底签名只是老语料的应急手段。
+    """
     for index, stamp in enumerate(("2026-10-16T22:00:00", "2026-10-16T22:00:07")):
         (tmp_path / f"{index:03d}.json").write_text(
-            json.dumps({"system_prompt": f"当前时间 {stamp}", "messages": [{"role": "user", "content": "在吗"}]}),
+            json.dumps(
+                {
+                    "request_kind": "maisaka.replyer",
+                    "system_prompt": f"当前时间 {stamp}",
+                    "messages": [{"role": "user", "content": "在吗"}],
+                }
+            ),
             encoding="utf-8",
         )
     assert main([str(tmp_path)]) == 1
