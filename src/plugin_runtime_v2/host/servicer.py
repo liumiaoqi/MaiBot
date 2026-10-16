@@ -14,6 +14,12 @@ import grpc
 
 from src.common.async_utils import _safe_create_task
 from src.common.logger import get_logger
+from src.common.sdk_version_range import (
+    V2_MAX_SDK_VERSION,
+    V2_MIN_SDK_VERSION,
+    parse_version_tuple,
+    sdk_version_verdict,
+)
 from src.plugin_runtime_v2.host.connection import (
     ConnectionState,
     HostEndpointConfig,
@@ -33,26 +39,29 @@ if TYPE_CHECKING:
 logger = get_logger("plugin_runtime_v2.host.servicer")
 
 # ── 版本校验 ──
-_MIN_SDK_VERSION = "4.0.0"
-_MAX_SDK_VERSION = "5.0.0"
+# ⚠️ **单一来源**：数值定义在 `src.common.sdk_version_range`（2026-10-17 `sdk-range-consolidate` 线）；
+#    这里保留 `_MIN/_MAX` 老名字（`runner_spawner` 等既有导入方不用改），**别在这里改数值**。
+# ⚠️ v2 的区间是**半开** `[min, max)`，与 v1 的闭区间**语义不同**（见共享模块 docstring 的"为什么两组"）。
+_MIN_SDK_VERSION = V2_MIN_SDK_VERSION
+_MAX_SDK_VERSION = V2_MAX_SDK_VERSION
 
 
 def _parse_version_tuple(version: str) -> tuple[int, ...]:
-    """将语义化版本字符串转为可比较的整数元组。"""
-    try:
-        return tuple(int(p) for p in version.split("."))
-    except (ValueError, TypeError):
-        return ()
+    """将语义化版本字符串转为可比较的整数元组（**委托**共享来源，避免两处实现漂移）。"""
+
+    return parse_version_tuple(version)
 
 
 def _check_sdk_version(sdk_version: str) -> bool:
-    """校验 sdk_version 是否在 [min, max) 范围内。"""
-    v = _parse_version_tuple(sdk_version)
-    lo = _parse_version_tuple(_MIN_SDK_VERSION)
-    hi = _parse_version_tuple(_MAX_SDK_VERSION)
-    if not v:
-        return False
-    return lo <= v < hi
+    """校验 sdk_version 是否在 [min, max) 范围内（**纯谓词**：只回答"在不在区间"）。
+
+    ⚠️ 它是**谓词**，不是判定："越界怎么办"（出声放行 / 拒绝）由 `_sdk_version_verdict` 说 ——
+    两者职责不同，别把后者并进来（既有测试正是按"谓词语义"钉的）。
+    """
+
+    return sdk_version_verdict(
+        sdk_version, min_version=_MIN_SDK_VERSION, max_version=_MAX_SDK_VERSION, half_open=True
+    ).kind == "in_range"
 
 
 def _sdk_version_verdict(sdk_version: str) -> str | None:
@@ -70,24 +79,19 @@ def _sdk_version_verdict(sdk_version: str) -> str | None:
         ⚠️ 拒绝原因**保持既有协议码**（`SDK_VERSION_MISMATCH`）不改串：它是握手响应的机器可读码，
         细节走 warning 日志（改串会让既有调用方/测试对不上）。
     """
-    v = _parse_version_tuple(sdk_version)
-    lo = _parse_version_tuple(_MIN_SDK_VERSION)
-    hi = _parse_version_tuple(_MAX_SDK_VERSION)
-    if not v:
-        return "SDK_VERSION_MISMATCH"
-    if lo <= v < hi:
+    verdict = sdk_version_verdict(
+        sdk_version, min_version=_MIN_SDK_VERSION, max_version=_MAX_SDK_VERSION, half_open=True
+    )
+    if verdict.kind == "in_range":
         return None
-
-    reference = hi if v >= hi else lo
-    if v[0] != reference[0]:
+    if not verdict.allowed:
+        # 跨主版本越界 **或** 不可解析 ⇒ 拒（协议码保持既有串；细节走日志，见 docstring）
         return "SDK_VERSION_MISMATCH"
-
     logger.warning(
-        "runner 自报 sdk_version=%s 越过宿主 SDK 区间 [%s, %s) 但**同主版本** ⇒ 按兼容模式放行"
+        "runner 自报 sdk_version=%s 越过宿主 SDK 区间 %s 但**同主版本** ⇒ 按兼容模式放行"
         "（只出声、不拒；判据 = manifest 可解析 + 所需 API 在位 + 起得来）",
         sdk_version,
-        _MIN_SDK_VERSION,
-        _MAX_SDK_VERSION,
+        verdict.describe(),
     )
     return None
 

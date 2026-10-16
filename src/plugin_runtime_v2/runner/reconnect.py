@@ -7,6 +7,8 @@
 import uuid
 from dataclasses import dataclass, field
 
+from src.common.sdk_version_range import V2_SDK_VERSION_DEFAULT
+
 
 @dataclass(slots=True)
 class RunnerEndpointConfig:
@@ -30,7 +32,9 @@ class RunnerEndpointConfig:
         if not self.runner_id:
             self.runner_id = uuid.uuid7().hex
         if not self.sdk_version:
-            self.sdk_version = "4.0.0"
+            # ⚠️ **单一来源**（2026-10-17 `sdk-range-consolidate`）：与 v2 宿主区间的下界同源 ⇒
+            # 收口后**别把这里改成 v1 的号段**，否则 v2 runner 一自报就被自己的宿主拒（见共享模块 docstring）
+            self.sdk_version = V2_SDK_VERSION_DEFAULT
 
 
 class ReconnectPolicy:

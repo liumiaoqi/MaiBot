@@ -12,12 +12,16 @@ import time
 
 from pydantic import BaseModel, Field
 
+from src.common.sdk_version_range import V1_MAX_SDK_VERSION, V1_MIN_SDK_VERSION
+
 
 # ====== 协议常量 ======
 PROTOCOL_VERSION = "1.0.0"
 # 支持的 SDK 版本范围（Host 在握手时校验）
-MIN_SDK_VERSION = "1.0.0"
-MAX_SDK_VERSION = "2.99.99"
+# ⚠️ **单一来源**：数值定义在 `src.common.sdk_version_range`（2026-10-17 `sdk-range-consolidate` 线）——
+#    本文件只**再导出**老名字（既有导入方不用改），**别在这里改数值**（`rg '"2\.99\.99"' src/` 应只剩那一处）。
+MIN_SDK_VERSION = V1_MIN_SDK_VERSION
+MAX_SDK_VERSION = V1_MAX_SDK_VERSION
 
 
 # ====== 消息类型 ======

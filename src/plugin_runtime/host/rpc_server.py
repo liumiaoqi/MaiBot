@@ -16,6 +16,7 @@ import secrets
 import time
 
 from src.common.logger import get_logger
+from src.common.sdk_version_range import sdk_version_verdict
 from src.plugin_runtime import detect_host_application_version
 from src.plugin_runtime.protocol.codec import Codec, MsgPackCodec
 from src.plugin_runtime.protocol.envelope import (
@@ -564,32 +565,25 @@ def _sdk_version_verdict(sdk_version: str) -> str | None:
         ``None`` = 放行（越过但同主版本时已打过具名 warning）；
         否则为**具名拒绝原因**（进 ``HelloResponse.reason``）。
     """
-    try:
-        sdk_parts = _parse_version_tuple(sdk_version)
-    except (ValueError, TypeError):
-        # 不可解析 ⇒ fail-closed（"声明了但不可判"不许当通过）
-        return (
-            f"SDK_VERSION_UNPARSABLE: runner 自报 sdk_version={sdk_version!r} 无法解析；"
-            f"宿主支持区间 [{MIN_SDK_VERSION}, {MAX_SDK_VERSION}]"
-        )
-
-    min_parts = _parse_version_tuple(MIN_SDK_VERSION)
-    max_parts = _parse_version_tuple(MAX_SDK_VERSION)
-    if min_parts <= sdk_parts <= max_parts:
+    verdict = sdk_version_verdict(
+        sdk_version, min_version=MIN_SDK_VERSION, max_version=MAX_SDK_VERSION, half_open=False
+    )
+    if verdict.kind == "in_range":
         return None
-
-    reference = max_parts if sdk_parts > max_parts else min_parts
-    if sdk_parts[0] != reference[0]:
+    if not verdict.allowed:
+        if verdict.kind == "unparsable":
+            return (
+                f"SDK_VERSION_UNPARSABLE: runner 自报 sdk_version={sdk_version!r} 无法解析；"
+                f"宿主支持区间 {verdict.describe()}"
+            )
         return (
             f"SDK_VERSION_MISMATCH: runner 自报 sdk_version={sdk_version} **跨主版本**地越过宿主支持区间 "
-            f"[{MIN_SDK_VERSION}, {MAX_SDK_VERSION}] —— 显式不兼容"
+            f"{verdict.describe()} —— 显式不兼容"
         )
-
     logger.warning(
-        "runner 自报 sdk_version=%s 越过宿主支持区间 [%s, %s] 但**同主版本** ⇒ 按兼容模式放行"
+        "runner 自报 sdk_version=%s 越过宿主支持区间 %s 但**同主版本** ⇒ 按兼容模式放行"
         "（只出声、不拒；判据 = manifest 可解析 + 所需 API 在位 + 起得来）",
         sdk_version,
-        MIN_SDK_VERSION,
-        MAX_SDK_VERSION,
+        verdict.describe(),
     )
     return None
