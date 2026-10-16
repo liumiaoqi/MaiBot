@@ -655,6 +655,11 @@ class Butler:
         text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
             text, self._butler_id, True,
         )
+        # 空内容闸（`outbound-text-final` ③）：空正文/只剩前缀/只有空括号 ⇒ **不出站**，具名。
+        if not ReplyToolContextExtender.guard_outbound_text(
+            text, agent_id=self._butler_id, source="butler_speak",
+        ):
+            return False
         success = await self.send(text, agent_id=self._butler_id, source="butler_speak")
         if success:
             logger.info(fmt_butler(

@@ -351,6 +351,29 @@ async def handle_tool(
                 else:
                     continue
                 break
+        # 空内容闸（`outbound-text-final` ③）：空正文/只剩前缀/只有空括号 ⇒ **不出站**，具名。
+        # 位置在"加完前缀、尚未发送"之间：此时才拿得到**最终出站文本**。
+        # ⚠️ 闸只咬**纯文本**序列（`guard_outbound_sequence`）：富回复的图片/表情序列本来就
+        #    没有可见文本，拿"文本为空"去拒它们等于把图片回复一起拒掉。
+        # ⚠️ 只在**本链**（agent_autonomy 多角色）上生效；主 chat 那条链有自己的括号过滤，
+        #    不动它（本轮封顶：只做这三件）。
+        if agent_id:
+            from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
+            sendable_sequences = [
+                seq
+                for seq in reply_sequences
+                if ReplyToolContextExtender.guard_outbound_sequence(
+                    seq, agent_id=agent_id, source="guided_reply"
+                )
+            ]
+            if not sendable_sequences:
+                # 全被闸掉了 ⇒ 一条都不发；走既有的"发送失败"出口（**具名**：说清是被闸掉的）。
+                return tool_ctx.build_failure_result(
+                    invocation.tool_name,
+                    "可见回复内容为空（空正文/只剩署名/只有空括号），已按空内容闸拒发。",
+                    metadata=reply_metadata,
+                )
+            reply_sequences = sendable_sequences
     except Exception as exc:
         from src.core.error_escalation.types import ErrorLevel
         from src.core.error_escalation_port_registry import get_error_escalation_port

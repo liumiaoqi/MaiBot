@@ -428,16 +428,22 @@ class AgentOrchestrator:
                 text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
                     result.text, agent_id, is_multi,
                 )
-                await port.send_message(
-                    session_id=self._session_id,
-                    message=MessageSequence(components=[TextComponent(text=text)]),
-                    agent_id=agent_id,
-                    source=source,
-                )
-                logger.info(
-                    f"[agent_autonomy] 管家插话发送: agent={agent_id} "
-                    f"text_len={len(result.text)} source={source} session={self._session_name}"
-                )
+                # 空内容闸（`outbound-text-final` ③）：空正文/只剩前缀/只有空括号 ⇒ **不出站**，具名。
+                # ⚠️ 用嵌套 if 而不是 return：本方法末尾还有 `record_interjection`（插话冷却）
+                #    要照记——"决定插话但内容为空"与"没插话"不是一回事。
+                if ReplyToolContextExtender.guard_outbound_text(
+                    text, agent_id=agent_id, source=source,
+                ):
+                    await port.send_message(
+                        session_id=self._session_id,
+                        message=MessageSequence(components=[TextComponent(text=text)]),
+                        agent_id=agent_id,
+                        source=source,
+                    )
+                    logger.info(
+                        f"[agent_autonomy] 管家插话发送: agent={agent_id} "
+                        f"text_len={len(result.text)} source={source} session={self._session_name}"
+                    )
         elif result.action == ThinkAction.REPLY and result.reply_sent:
             logger.info(
                 f"[agent_autonomy] 管家插话跳过(reply已发送): agent={agent_id} "
@@ -1317,12 +1323,16 @@ class AgentOrchestrator:
                 text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
                     result.text, self._primary_agent_id, is_multi,
                 )
-                await port.send_message(
-                    session_id=self._session_id,
-                    message=MessageSequence(components=[TextComponent(text=text)]),
-                    agent_id=self._primary_agent_id,
-                    source="primary_reply",
-                )
+                # 空内容闸（`outbound-text-final` ③）：空正文/只剩前缀/只有空括号 ⇒ **不出站**，具名。
+                if ReplyToolContextExtender.guard_outbound_text(
+                    text, agent_id=self._primary_agent_id, source="primary_reply",
+                ):
+                    await port.send_message(
+                        session_id=self._session_id,
+                        message=MessageSequence(components=[TextComponent(text=text)]),
+                        agent_id=self._primary_agent_id,
+                        source="primary_reply",
+                    )
 
     def _handle_ambient_notice(self, message: Any, notice_kind: NoticeKind) -> None:
         """处理纯环境感知通知：更新待命智能体生命力，不触发Planner。"""

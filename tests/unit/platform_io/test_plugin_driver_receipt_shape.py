@@ -126,8 +126,9 @@ async def test_plugin_error_detail_is_named_not_swallowed() -> None:
         ({"status": "ok", "retcode": 0}, "success"),
         # 载荷不是映射
         (["not-a-mapping"], "映射"),
-        # 完全无法识别（既不是映射也没有 payload 属性）
-        ("just-a-string", "无法识别"),
+        # 完全无法识别（既不是映射也没有 payload 属性）—— P3 后文案升级成 C/T/E/R：
+        # 由"无法识别…"改为带 `层=响应形状` / `driver=` / `原始=`（判据强度只增不减，故改期望值）。
+        ("just-a-string", "层=响应形状"),
     ],
 )
 async def test_unrecognised_shapes_fail_closed_and_named(
