@@ -300,18 +300,56 @@ def segments_from_snapshot(payload: dict[str, Any]) -> list[Segment]:
     return segments
 
 
-def group_key(payload: dict[str, Any], segments: Sequence[Segment]) -> str:
-    """分组键：优先 `request_kind`；老语料没有该字段时退回**最长段**的内容签名（前 48 字）。
+_GENERIC_KINDS = frozenset({"", "response", "request", "default", "unknown"})
+"""粗默认值——**不是任务名**：2026-10-16 实测语料里 `request_kind` 24/24 全是 `"response"`
+⇒ 按它分组等于没分组（跨任务配对被当成 0% 前缀，属 artifact）。"""
 
-    ⚠️ 为什么是"最长段"而不是"第一段"：第一段常常是**每轮都在变**的输入（用户消息、
-    带时间戳的头部）⇒ 拿它当签名会把同一任务切成两组（2026-10-16 实测撞到）。最长段通常是
-    系统/人设/指令块，稳定得多。**新语料一律带 `request_kind`**，这条只是老语料兜底。
+
+def _strip_dynamic(text: str) -> str:
+    """去掉动态值（数字串/长十六进制）——它们每轮都变，留在签名里会把同一任务切成多组。"""
+    return re.sub(r"[0-9a-fA-F]{6,}|\d+", "#", text)
+
+
+def _tool_names(tools: Any) -> list[str]:
+    """工具名集合（有无/几个/叫什么——区分"带工具的大请求"与"主对话"的关键字段）。"""
+    names: list[str] = []
+    if isinstance(tools, list):
+        for item in tools:
+            if not isinstance(item, dict):
+                continue
+            function = item.get("function")
+            name = item.get("name") or (function.get("name") if isinstance(function, dict) else None)
+            if name:
+                names.append(str(name))
+    return sorted(names)
+
+
+def _head_text(payload: dict[str, Any], segments: Sequence[Segment]) -> str:
+    """任务头部文本：优先 `system_prompt`，为空则退**最长段**（通常是系统/人设/指令块）。"""
+    system_prompt = str(payload.get("system_prompt") or "").strip()
+    if system_prompt:
+        return system_prompt
+    return max((segment.text.strip() for segment in segments), key=len, default="")
+
+
+def group_key(payload: dict[str, Any], segments: Sequence[Segment]) -> str:
+    """分组键：**组合可见字段**，且**可读**（每行本身就是"这组是什么任务"的判据）。
+
+    组成（照 lead 2026-10-16 的建议）：
+      ① 任务头部前若干行，**去动态值**（数字/长 hex → `#`）；
+      ② **工具名集合**（有无/几个/前三个名字）；
+      ③ **前 3 条消息的 role 序列**。
+    另：`request_kind` 只在不属粗默认值时才用（见 `_GENERIC_KINDS`）。
     """
     kind = str(payload.get("request_kind") or "").strip()
-    if kind:
-        return kind
-    longest = max((segment.text.strip() for segment in segments), key=len, default="")
-    return f"sig:{longest[:48]}" if longest else "sig:empty"
+    if kind.lower() not in _GENERIC_KINDS:
+        return f"kind:{kind}"
+
+    head = _strip_dynamic("\n".join(_head_text(payload, segments).splitlines()[:3]))[:80].replace("\n", "⏎")
+    names = _tool_names(payload.get("tools"))
+    tools_part = f"{len(names)}[{','.join(names[:3])}]" if names else "0"
+    roles = ",".join(str((m or {}).get("role", "")) for m in (payload.get("messages") or [])[:3])
+    return f"head:{head} | tools:{tools_part} | roles:{roles}"
 
 
 def group_pairs_from_snapshot_dir(directory: Path) -> dict[str, list[tuple[list[Segment], list[Segment]]]]:

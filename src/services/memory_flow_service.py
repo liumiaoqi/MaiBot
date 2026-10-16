@@ -373,15 +373,12 @@ class PersonFactWritebackService:
 
     async def _extract_facts(self, person: PersonDetailSnapshot, reply_text: str, user_evidence_text: str) -> List[str]:
         person_name = str(person.person_name or person.nickname or person.person_id)
+        # 注意：变量材料（原始发言/机器人回复）**必须放在全部稳定指令之后**——缓存前缀
+        # 只吃"逐字节相同"的部分，材料若插在指令中间，前缀会在材料处被打断（实测首分歧
+        # 第 166 token / 命中上限 38%；后置后预测 434 token / 98%）。改动只挪位置，一字不删不加。
         prompt = f"""你要从用户原始发言中提取“关于{person_name}的稳定事实”。
 
 目标人物：{person_name}
-用户原始发言证据：
-{user_evidence_text}
-
-机器人回复：
-{reply_text}
-
 请只提取满足以下条件的事实：
 1. 事实值必须能被“目标用户原始发言”直接支持，不能只来自机器人回复或邻近上下文。
 2. 明确是关于目标人物本人的信息。
@@ -400,7 +397,13 @@ class PersonFactWritebackService:
 
 严格输出 JSON 数组，例如：
 ["他喜欢深夜打游戏", "他养了一只猫"]
-如果没有可写入的事实，输出 []"""
+如果没有可写入的事实，输出 []
+
+用户原始发言证据：
+{user_evidence_text}
+
+机器人回复：
+{reply_text}"""
         try:
             llm_service = self._llm_service or get_llm_service()
             response_result = await llm_service.generate_response(
