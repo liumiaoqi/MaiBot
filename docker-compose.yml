@@ -23,7 +23,6 @@ services:
       - /tmp:size=512M
 
     environment:
-      - MAIBOT_CACHE_CORPUS_DIR=/MaiMBot/data/cache-corpus
       - TZ=Asia/Shanghai
       - EULA_AGREE=8e6e7d647f7f82d6ea98456b73908656
       - PRIVACY_AGREE=91e5db7659c560bc3545e63859b6ebc0
