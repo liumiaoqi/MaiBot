@@ -253,6 +253,8 @@ class TestRunnerEndpointReportReady:
         endpoint._stream_call.write = AsyncMock()
         endpoint._config = MagicMock()
         endpoint._config.runner_id = "test-runner"
+        endpoint._pending_gateway_reports = {}
+        endpoint._shutting_down = False
 
         asyncio.run(endpoint.report_gateway_ready(
             gateway_name="qq_gw",
@@ -284,6 +286,8 @@ class TestRunnerEndpointReportReady:
         endpoint._stream_call.write = AsyncMock()
         endpoint._config = MagicMock()
         endpoint._config.runner_id = "test-runner"
+        endpoint._pending_gateway_reports = {}
+        endpoint._shutting_down = False
 
         asyncio.run(endpoint.report_gateway_ready(
             gateway_name="qq_gw",
@@ -294,9 +298,54 @@ class TestRunnerEndpointReportReady:
         msg = endpoint._stream_call.write.call_args[0][0]
         assert msg.gateway_ready.ready is False
 
-    def test_report_gateway_ready_not_connected_raises(self):
+    def test_report_gateway_ready_before_ready_is_deferred_not_lost(self):
+        """**真机事故的回归判据**：控制通道还没 READY 时上报 ⇒ **暂存**，READY 后补发。
+
+        时序上这是必然（`_run` 先 `await on_load()`，之后才 CONNECTING→…→READY），而插件的底层连接
+        常在 `on_load` 里就建好 ⇒ 上报必然早于 READY。原实现抛 `ConnectionError`，插件回调是
+        best-effort 包装（只记日志、不重试）⇒ **上报永久丢失** ⇒ Host 不注册插件驱动 ⇒
+        `SendService` 回落 legacy ⇒ 真机"能听不能说"。
+        """
         import asyncio
-        from unittest.mock import MagicMock
+        from unittest.mock import AsyncMock, MagicMock
+
+        from src.plugin_runtime_v2.host.connection import ConnectionState
+        from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
+
+        endpoint = RunnerEndpoint.__new__(RunnerEndpoint)
+        endpoint._state = ConnectionState.DISCONNECTED  # = on_load 期间的真实状态
+        endpoint._stream_call = None
+        endpoint._config = MagicMock()
+        endpoint._config.runner_id = "test-runner"
+        endpoint._pending_gateway_reports = {}
+        endpoint._shutting_down = False
+
+        # ① 上报不抛错，而是暂存
+        asyncio.run(endpoint.report_gateway_ready(gateway_name="qq_gw", platform="qq"))
+        assert endpoint._pending_gateway_reports == {"qq_gw": ("qq", "", "")}
+
+        # ② 控制通道就绪 ⇒ 补发（写成了一条真实 payload）
+        endpoint._state = ConnectionState.READY
+        endpoint._stream_call = MagicMock()
+        endpoint._stream_call.write = AsyncMock()
+        asyncio.run(endpoint._flush_pending_gateway_reports())
+
+        endpoint._stream_call.write.assert_called_once()
+        msg = endpoint._stream_call.write.call_args[0][0]
+        assert msg.WhichOneof("payload") == "gateway_ready"
+        assert msg.gateway_ready.gateway_name == "qq_gw"
+        assert msg.gateway_ready.platform == "qq"
+        assert msg.gateway_ready.ready is True
+        # ③ 补发是一次性的（不会每次 READY 都重发）
+        assert endpoint._pending_gateway_reports == {}
+        endpoint._stream_call.write.reset_mock()
+        asyncio.run(endpoint._flush_pending_gateway_reports())
+        endpoint._stream_call.write.assert_not_called()
+
+    def test_not_ready_before_ready_withdraws_the_pending_report(self):
+        """暂存的就绪在补发前若网关下线 ⇒ **撤销**（否则会把一个死网关注册上去）。"""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
 
         from src.plugin_runtime_v2.host.connection import ConnectionState
         from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
@@ -306,6 +355,38 @@ class TestRunnerEndpointReportReady:
         endpoint._stream_call = None
         endpoint._config = MagicMock()
         endpoint._config.runner_id = "test-runner"
+        endpoint._pending_gateway_reports = {}
+        endpoint._shutting_down = False
+
+        asyncio.run(endpoint.report_gateway_ready(gateway_name="qq_gw", platform="qq"))
+        asyncio.run(endpoint.report_gateway_ready(gateway_name="qq_gw", platform="qq", ready=False))
+        assert endpoint._pending_gateway_reports == {}
+
+        endpoint._state = ConnectionState.READY
+        endpoint._stream_call = MagicMock()
+        endpoint._stream_call.write = AsyncMock()
+        asyncio.run(endpoint._flush_pending_gateway_reports())
+        endpoint._stream_call.write.assert_not_called()
+
+    def test_report_gateway_ready_while_closing_still_raises(self):
+        """**反向判据**：正在关闭时才出声——那种情况上报永远送不出去，不该静默暂存。
+
+        （原契约是"任何非 READY 都抛"，现收窄到"只在关闭时抛"：可暂存的态改暂存，
+        真正不可投递的态仍然报错。）
+        """
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from src.plugin_runtime_v2.host.connection import ConnectionState
+        from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
+
+        endpoint = RunnerEndpoint.__new__(RunnerEndpoint)
+        endpoint._state = ConnectionState.CLOSING
+        endpoint._stream_call = None
+        endpoint._config = MagicMock()
+        endpoint._config.runner_id = "test-runner"
+        endpoint._pending_gateway_reports = {}
+        endpoint._shutting_down = False
 
         with pytest.raises(ConnectionError):
             asyncio.run(endpoint.report_gateway_ready(

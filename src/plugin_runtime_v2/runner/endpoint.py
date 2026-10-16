@@ -77,6 +77,12 @@ class RunnerEndpoint:
         self._plugin_instance = None
         self._granted_scopes: set[str] = set()
         self._gateway_declarations: list = []  # @MessageGateway 声明（load 后填充）
+        # 网关**就绪**上报的暂存区：控制通道还没 READY 时先记住，READY 后补发。
+        # key=gateway_name（同一网关重复上报互相覆盖，天然幂等）；value=(platform, account_id, scope)。
+        # 为什么需要它：插件的 `on_load` 里就建立自己的底层连接（如适配器连 NapCat WS），
+        # 而控制通道（握手+组件注册）在 `on_load` **之后**才建立 ⇒ 上报必然赶在 READY 之前
+        # （详见 `report_gateway_ready` 的说明与真机事故）。
+        self._pending_gateway_reports: dict[str, tuple[str, str, str]] = {}
         # ZG-15：插件活体引用（加载成功后创建，注入 servicer/loader）
         self._refcount: PluginRefcount | None = None
         self._unloader = None
@@ -249,9 +255,66 @@ class RunnerEndpoint:
 
         ready=True 表示网关底层连接已就绪，Host 可注册驱动和路由。
         ready=False 表示网关未就绪（断线），Host 应注销驱动。
+
+        ⚠️ **控制通道还没 READY 时「暂存待补发」，不再抛错**（2026-10-16 修，真机事故）：
+
+        时序上这就是必然：`_run` 先 `await plugin.on_load()`（:141），**之后**才进入
+        `CONNECTING → HANDSHAKING → REGISTERING → READY`（:156-161/:302/:350/:390）。
+        而插件的底层连接常常在 `on_load` 里就建好了（napcat 适配器 `plugin.py:158-161`
+        在 WS 连接回调里调本方法）⇒ 上报**必然**早于 READY。
+
+        原实现在这里直接抛 ``ConnectionError("Runner not in READY state")``，而插件的连接回调是
+        best-effort 包装（只记一条日志、**不重试**）⇒ **上报被丢掉就再也不会来**
+        （插件的 WS 不断线就不会再回调）⇒ Host 从不注册插件驱动 ⇒ `SendService` 回落到
+        legacy 备用驱动 ⇒ 真机"**能听不能说**"：
+        `[napcat] 连接建立回调失败: Runner not in READY state` 之后日志里
+        **只有声明注册、没有任何驱动注册/绑定**。
+
+        为什么**暂存**而不是让插件重试：插件说的是"**我的**连接好了"——那是事实；
+        控制通道什么时候就绪是**本层**的事，插件既看不到也不该猜（何况它改不了自己的时机：
+        适配器是独立子仓，主仓改不动它）。
+        这样还顺手修掉一个同源缺口：runner 断线重连后，Host 会注销该 runner 的全部驱动
+        （`gateway_registrar.on_runner_disconnected`），而插件的 WS 没断 ⇒ 不会重新上报 ⇒
+        驱动**再也回不来**；暂存项在 READY 时补发，正好把这次重注册补上。
+
+        ready=False 时：撤掉该网关待补发的就绪（它已经下线了，补发等于把一个死网关注册上去）；
+        控制通道没就绪就无需发送——Host 那边本来什么都没注册。
+
+        Raises:
+            ConnectionError: Runner **正在关闭**（上报永远送不出去，这种要出声而不是暂存）。
         """
-        if self._state != ConnectionState.READY:
-            raise ConnectionError("Runner not in READY state")
+        if self._shutting_down or self._state == ConnectionState.CLOSING:
+            raise ConnectionError("Runner 正在关闭，拒绝上报网关状态")
+
+        if self._state != ConnectionState.READY or self._stream_call is None:
+            if not ready:
+                if self._pending_gateway_reports.pop(gateway_name, None) is not None:
+                    logger.info(
+                        "Runner %s 网关 %s 在补发前已下线，撤销暂存的就绪上报",
+                        self._config.runner_id, gateway_name,
+                    )
+                return
+            self._pending_gateway_reports[gateway_name] = (platform, account_id or "", scope or "")
+            logger.info(
+                "Runner %s 控制通道未就绪（state=%s），网关 %s 的就绪上报暂存，待 READY 后补发",
+                self._config.runner_id, self._state.name, gateway_name,
+            )
+            return
+
+        await self._write_gateway_report(
+            gateway_name, platform, ready=ready, account_id=account_id, scope=scope
+        )
+
+    async def _write_gateway_report(
+        self,
+        gateway_name: str,
+        platform: str,
+        *,
+        ready: bool,
+        account_id: str | None = None,
+        scope: str | None = None,
+    ) -> None:
+        """把一条网关状态写进双向流（调用方负责确认控制通道可用）。"""
         if self._stream_call is None:
             raise ConnectionError("Stream not available")
         msg = common_pb2.RunnerMessage(
@@ -268,6 +331,26 @@ class RunnerEndpoint:
         except grpc.aio.AioRpcError:
             logger.warning("Runner %s report_gateway_ready 写入失败: %s",
                            self._config.runner_id, gateway_name)
+
+    async def _flush_pending_gateway_reports(self) -> None:
+        """控制通道刚进 READY：把暂存的网关就绪上报补发出去。
+
+        只在这一处调用（`_connect_and_handshake` 进入 READY 之后）。补发**一次性**：
+        取空即发，发失败只记日志——插件的 WS 若还活着而控制通道又断了一次，
+        下一次 READY 时的暂存会重新填上（`report_gateway_not_ready`/重连路径见各调用点）。
+        """
+        if not self._pending_gateway_reports or self._stream_call is None:
+            return
+        pending = list(self._pending_gateway_reports.items())
+        self._pending_gateway_reports.clear()
+        for gateway_name, (platform, account_id, scope) in pending:
+            await self._write_gateway_report(
+                gateway_name, platform, ready=True, account_id=account_id, scope=scope
+            )
+            logger.info(
+                "Runner %s 已补发网关就绪上报（控制通道就绪后）: %s",
+                self._config.runner_id, gateway_name,
+            )
 
     @property
     def state(self) -> ConnectionState:
@@ -389,6 +472,10 @@ class RunnerEndpoint:
 
         self._transition(ConnectionState.READY)
         logger.info("Runner %s 注册成功，进入 READY", self._config.runner_id)
+
+        # 补发"on_load 期间就报上来的"网关就绪（那时控制通道还没 READY，见 report_gateway_ready）。
+        # 位置要在 READY 之后、接收循环之前：Host 只有先收到 gateway_ready 才会注册驱动与路由。
+        await self._flush_pending_gateway_reports()
 
         # 6. 接收循环作为后台任务，start() 立即返回
         self._recv_task = asyncio.create_task(
