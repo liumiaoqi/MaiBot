@@ -167,28 +167,11 @@ export async function updateBotConfig(
   return result
 }
 
-/**
- * 获取麦麦主程序配置的原始 TOML 内容
- */
-export async function getBotConfigRaw(): Promise<string> {
-  return backendApi.get<string>(`${API_BASE}/bot/raw`, {
-    cache: 'no-store',
-    errorMessage: '获取原始配置失败',
-  })
-}
-
-/**
- * 更新麦麦主程序配置（原始 TOML 内容）
- */
-export async function updateBotConfigRaw(rawContent: string): Promise<ConfigSaveResult> {
-  const result = await backendApi.post<ConfigSaveResult>(`${API_BASE}/bot/raw`, {
-    body: { raw_content: rawContent },
-    errorMessage: '更新配置失败',
-  })
-  invalidateConfigDataCache('bot')
-  notifyBotConfigUpdated()
-  return result
-}
+// ⚠️ `getBotConfigRaw` / `updateBotConfigRaw` 已于 5 段**删除**（2026-10-16 lmq 拍板）。
+// 它们打的 `GET|POST /config/bot/raw` 会把整份 TOML 原文（含 `auth_token` 等密钥真值）
+// 原样发给浏览器，是配置面上已知的明文密钥出站路径 ⇒ 端点已从后端移除，
+// 「源文件」页签同时下线（`features/config/bot/index.tsx` 保留说明性占位）。
+// 若将来要另设"看/改原文"的形态（只给非密钥原文 / 本地 CLI），**在此新增，别恢复 raw 端点**。
 
 /**
  * 更新模型配置

@@ -40,11 +40,6 @@ def test_get_prompts_list(auth_client):
     assert data.get("code") == 0
 
 
-def test_get_adapter_config_path(auth_client):
-    resp = auth_client.get("/api/webui/config/adapter-config/path")
-    assert resp.status_code == 200
-
-
 def test_unauthenticated_config_access():
     from starlette.testclient import TestClient
 

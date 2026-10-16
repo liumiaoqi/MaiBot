@@ -3,7 +3,7 @@ import { createElement, type ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BotConfigPage } from '../index'
-import { getBotConfig, getBotConfigRaw, getBotConfigSchema } from '@/lib/config-api'
+import { getBotConfig, getBotConfigSchema } from '@/lib/config-api'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
 /**
@@ -95,13 +95,12 @@ const CONFIG = {
   bot: { platform: 'qq', qq_account: '123456', nickname: '麦麦二号' },
 }
 
+// 注：`getBotConfigRaw` / `updateBotConfigRaw` 已随 raw 端点删除，不再 mock（见同目录另一测试的说明）。
 vi.mock('@/lib/config-api', () => ({
   getBotConfig: vi.fn(),
   getBotConfigSchema: vi.fn(),
-  getBotConfigRaw: vi.fn(),
   updateBotConfig: vi.fn(),
   updateBotConfigSection: vi.fn(),
-  updateBotConfigRaw: vi.fn(),
 }))
 
 // `i18n` 必须给：真实 useTranslation() 一定返回它，页面要用 i18n.language 解析 LocalizedText
@@ -140,7 +139,6 @@ async function openDetailMode() {
 beforeEach(() => {
   vi.mocked(getBotConfig).mockResolvedValue(CONFIG)
   vi.mocked(getBotConfigSchema).mockResolvedValue(SCHEMA)
-  vi.mocked(getBotConfigRaw).mockResolvedValue('')
 })
 
 describe('(a)-⑤ · bot 域（页面默认域）的字段渲染', () => {

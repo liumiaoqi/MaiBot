@@ -166,13 +166,12 @@ const CONFIG = {
   agent_autonomy: { enabled: true, max_active_agents: 13, interjection_intent_threshold: 60 },
 }
 
+// 注：`getBotConfigRaw` / `updateBotConfigRaw` 已随 raw 端点删除（5 段），不再 mock。
 vi.mock('@/lib/config-api', () => ({
   getBotConfig: vi.fn(),
   getBotConfigSchema: vi.fn(),
-  getBotConfigRaw: vi.fn(),
   updateBotConfig: vi.fn(),
   updateBotConfigSection: vi.fn(),
-  updateBotConfigRaw: vi.fn(),
 }))
 
 // `i18n` 必须给：真实 useTranslation() 一定返回它，页面要用 i18n.language 解析 LocalizedText
@@ -184,7 +183,7 @@ vi.mock('../../hooks', () => ({
   registerAllConfigHooks: vi.fn(),
 }))
 
-import { getBotConfig, getBotConfigRaw, getBotConfigSchema } from '@/lib/config-api'
+import { getBotConfig, getBotConfigSchema } from '@/lib/config-api'
 
 function inputOf(name: string): HTMLInputElement {
   const control = screen.getByTestId(`field-${name}`).querySelector('input')
@@ -218,7 +217,6 @@ async function switchTo(domainPath: string) {
 beforeEach(() => {
   vi.mocked(getBotConfig).mockResolvedValue(CONFIG)
   vi.mocked(getBotConfigSchema).mockResolvedValue(SCHEMA)
-  vi.mocked(getBotConfigRaw).mockResolvedValue('')
 })
 
 describe('(a)-⑤ · 核心判据：约束在 UI 上真拦住（真实字段）', () => {

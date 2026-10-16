@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Save, Check } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
 import { PageShell } from '@/components/biz/page-shell'
 import { LoadingSkeleton } from '@/components/biz/loading-skeleton'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { resolveLocalizedText } from '@/lib/config-label'
-import { CodeEditor } from '../components/code-editor'
 import { DynamicConfigForm } from '../components/dynamic-config-form'
 import {
   WIRED_DOMAIN_PATHS,
@@ -21,9 +20,7 @@ import { registerAllConfigHooks } from '../hooks'
 import {
   getBotConfig,
   getBotConfigSchema,
-  getBotConfigRaw,
   updateBotConfigSection,
-  updateBotConfigRaw,
 } from '@/lib/config-api'
 
 type ConfigMode = 'core' | 'detail' | 'source'
@@ -34,7 +31,6 @@ export function BotConfigPage() {
   const queryClient = useQueryClient()
 
   const [mode, setMode] = useState<ConfigMode>('core')
-  const [savedTick, setSavedTick] = useState(false)
   // 详细模式当前选中的域。默认「基础」（本页就是 bot 主配置；它也是 `uiOrder` 最小那个，
   // 与切换器的第一个按钮一致）。⚠️ 别写成 `WIRED_DOMAIN_PATHS[0]`——那个是 `agent_autonomy`，
   // 跟 `uiOrder` 排序后的首个**不是**同一个，会让"默认选中项"和"第一个按钮"对不上。
@@ -45,7 +41,7 @@ export function BotConfigPage() {
     registerAllConfigHooks()
   }, [])
 
-  // 加载配置 + schema + raw
+  // 加载配置 + schema
   const { data: config, isLoading } = useQuery({
     queryKey: ['api', 'botConfig'],
     queryFn: getBotConfig,
@@ -54,11 +50,6 @@ export function BotConfigPage() {
   const { data: schema } = useQuery({
     queryKey: ['api', 'botConfigSchema'],
     queryFn: getBotConfigSchema,
-  })
-
-  const { data: rawConfig, isLoading: rawLoading } = useQuery({
-    queryKey: ['api', 'botConfigRaw'],
-    queryFn: getBotConfigRaw,
   })
 
   // 分节自动保存（2s 防抖）——详细模式各节编辑时触发
@@ -78,47 +69,19 @@ export function BotConfigPage() {
   // 暴露给详细模式子组件使用
   void scheduleSectionSave
 
-  // 源文件保存
-  const rawSaveMutation = useMutation({
-    mutationFn: (raw: string) => updateBotConfigRaw(raw),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api', 'botConfigRaw'] })
-      queryClient.invalidateQueries({ queryKey: ['api', 'botConfig'] })
-      setSavedTick(true)
-      setTimeout(() => setSavedTick(false), 2000)
-    },
-  })
-
-  const [rawDraft, setRawDraft] = useState('')
-  const [rawDirty, setRawDirty] = useState(false)
-
-  // 服务端数据变化时同步草稿——渲染期调整模式（React 官方——替代 effect 里 setState）
-  const [prevRawConfig, setPrevRawConfig] = useState(rawConfig)
-  if (rawConfig !== prevRawConfig) {
-    setPrevRawConfig(rawConfig)
-    if (rawConfig !== undefined) {
-      setRawDraft(rawConfig)
-      setRawDirty(false)
-    }
-  }
-
-  const handleRawChange = useCallback((value: string) => {
-    setRawDraft(value)
-    setRawDirty(true)
-  }, [])
-
-  const handleRawSave = useCallback(() => {
-    rawSaveMutation.mutate(rawDraft)
-  }, [rawSaveMutation, rawDraft])
+  // ⚠️ 「源文件」模式的读取/保存已于 5 段**下线**（2026-10-16 lmq 拍板）：
+  // 它走的是 `GET|POST /config/bot/raw`，而那个端点**直出整份 TOML 原文**
+  // （含 `maim_message.auth_token` / `api_server_allowed_api_keys` 的真值），
+  // 是配置面上已知的明文密钥出站路径；端点连同兼容别名 `/api/config/raw` 已从后端移除。
+  // ⇒ 本页签保留为**说明性占位**（见下方渲染），不再有任何读写调用。
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['api', 'botConfig'] })
     queryClient.invalidateQueries({ queryKey: ['api', 'botConfigSchema'] })
-    queryClient.invalidateQueries({ queryKey: ['api', 'botConfigRaw'] })
   }, [queryClient])
 
   // ── 详细模式 · 已接入域的字段（(a)-⑤：只接**纯标量域**，清单见 `../domains/wired-domains.ts`）──
-  // 服务端数据变化时同步草稿——与 rawDraft 同一套"渲染期调整模式"。
+  // 服务端数据变化时同步草稿——"渲染期调整模式"（React 官方，替代 effect 里 setState）。
   // 比较的是 `config` 的对象引用：react-query 默认 structural sharing ⇒ 引用稳定，不会自激。
   const [domainDrafts, setDomainDrafts] = useState<Record<string, Record<string, unknown>>>({})
   const [prevConfigSource, setPrevConfigSource] = useState(config)
@@ -180,12 +143,6 @@ export function BotConfigPage() {
             <RefreshCw className="h-4 w-4 mr-1" />
             刷新
           </Button>
-          {mode === 'source' && (
-            <Button size="sm" onClick={handleRawSave} disabled={!rawDirty || rawSaveMutation.isPending} data-testid="bot-save-raw">
-              {savedTick ? <Check className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              {savedTick ? '已保存' : '保存'}
-            </Button>
-          )}
         </div>
       }
     >
@@ -294,18 +251,19 @@ export function BotConfigPage() {
             </div>
           )}
 
-          {/* 源文件模式 */}
+          {/* 源文件模式 —— 已于 5 段下线，保留**说明性占位**（不留会报错的按钮） */}
           {mode === 'source' && (
-            <div data-testid="bot-source-mode">
-              {rawLoading ? <LoadingSkeleton /> : (
-                <CodeEditor
-                  value={rawDraft}
-                  onChange={handleRawChange}
-                  language="toml"
-                  height="600px"
-                  placeholder="# 麦麦配置 TOML"
-                />
-              )}
+            <div className="rounded-lg border border-border p-4 space-y-2" data-testid="bot-source-mode">
+              <h3 className="font-semibold text-foreground">「源文件」模式已下线</h3>
+              <p className="text-sm text-muted-foreground">
+                原「源文件」页签让你在网页里直接编辑整份配置的 TOML 原文，它依赖
+                <code className="mx-1">/config/bot/raw</code>
+                端点；该端点会把整份文件（含密钥真值）原样发给浏览器，因此已于 5 段移除。
+              </p>
+              <p className="text-sm text-muted-foreground">
+                配置编辑能力没有减少：「核心」与「详细」两个模式照旧；逐字段的改动走新的按路径读写接缝。
+                若确实需要手工改 TOML 原文，请直接编辑服务器上的配置文件后重启。
+              </p>
             </div>
           )}
         </div>
