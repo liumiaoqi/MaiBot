@@ -10,6 +10,20 @@
 用法
     uv run python scripts/gen_session_id_vectors.py            # 重新生成（覆盖表）
     uv run python scripts/gen_session_id_vectors.py --check    # 与磁盘表比对（**行尾归一化**）：0 = 未过期，1 = 已过期
+    uv run python scripts/gen_session_id_vectors.py --emit-plugin-copy   # 写两份：宿主表 + 插件仓内副本（逐字节相同）
+    uv run python scripts/gen_session_id_vectors.py --check --host-only  # 只跑①支（生成物新鲜度），不查插件副本部署
+
+两份部署（同一份内容、两处落点）
+    ① 宿主表 `src/common/utils/session_id_vectors.json`；
+    ② 插件仓内副本 `plugins/maibot-team.napcat-adapter/tests/fixtures/session_id_vectors.json`
+       —— 路径**在插件仓内自足**（`tests/fixtures/...`，不写 `../../src/...`）：插件跑在独立进程、
+       读不到宿主 `src/`，它只能读自己树里这份。
+    两份由**同一个序列化器只渲染一次**产出 ⇒ 逐字节相同是构造性质（`emit_both` 写后还回读比对）；
+    默认 `--check` **两支都跑、都打印（不短路）**：① 宿主表 vs 现算 ② 插件副本 vs 宿主表；
+    副本**缺失也判红**（缺了 = 插件侧那份真源没部署 ⇒ 此后两份会各自漂移而无判据）；
+    ②支判红后另打一层**内容级对账**（`_content_drift_report`）：按 case 逐条比、**具名**报出
+    "只在宿主表（副本没跟上）：<case>" —— 判红仍是同一条（归一后逐字节不等），这一层只做**归因**；
+    两支的**行尾都归一化后再比**（副本在插件仓里、宿主表在宿主检出里，物化行尾各由自己的检出环境决定）。
 
 约定
     · 表是**生成物**：要改表就改本脚本；手改表里一行会让 `--check` 变红
@@ -45,6 +59,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.common.utils.utils_session import SessionUtils  # noqa: E402  （脚本直跑时 sys.path[0]=scripts/，须先补仓根）
 
 TABLE_PATH = PROJECT_ROOT / "src" / "common" / "utils" / "session_id_vectors.json"
+# 插件仓内副本（第二处落点）。**路径在插件仓内自足**：宿主侧前缀是"怎么走到插件仓"，
+# 插件侧看到的是 `tests/fixtures/...`（插件进程 import 不到宿主 `src/`，两份实现各读各的那份
+# ⇒ 只能靠"同一序列化器产出 + --check 第二支"来防漂移）。
+PLUGIN_COPY_PATH = (
+    PROJECT_ROOT / "plugins" / "maibot-team.napcat-adapter" / "tests" / "fixtures" / "session_id_vectors.json"
+)
 GENERATOR_VERSION = 1
 ENCODING = "utf-8"
 COMMENT = (
@@ -457,6 +477,7 @@ def _first_diff_line(disk_text: str, generated_text: str) -> str:
 
 def write_table(path: Path | None = None) -> Path:
     """把现生成的表写盘（覆盖）。`path` 缺省 = TABLE_PATH（调用时解析，便于测试改指向）。"""
+    # 默认模式**只写宿主表**，不碰插件仓 —— 要写两份得显式 `--emit-plugin-copy`（见 `emit_both`）。
     target = TABLE_PATH if path is None else path
     payload = build_payload()
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -497,14 +518,201 @@ def check_table(path: Path | None = None) -> int:
     return 1
 
 
+def _report_first_difference(left: str, right: str, *, left_label: str, right_label: str) -> None:
+    """打印首个差异行（两侧先各自行尾归一，再逐行比；前缀全同但行数不同则报行数）。
+
+    给②支（plugin-vs-host）用——标签是"副本 / 宿主表"；①支用 `_first_diff_line`（它另带
+    "首个差异字符"的兜底，见其 docstring）。
+    """
+    left_lines = _normalize_eol(left).splitlines()
+    right_lines = _normalize_eol(right).splitlines()
+    for index in range(min(len(left_lines), len(right_lines))):
+        if left_lines[index] != right_lines[index]:
+            print(f"  首个差异行：第 {index + 1} 行")
+            print(f"    {left_label}：{left_lines[index]}")
+            print(f"    {right_label}：{right_lines[index]}")
+            return
+    print(f"  行数不同：{left_label} {len(left_lines)} 行 / {right_label} {len(right_lines)} 行")
+
+
+def _content_drift_report(copy_bytes: bytes, host_bytes: bytes, *, copy_label: str, host_label: str) -> list[str]:
+    """**内容级对账**（归因层）：把两份副本按"向量条目"逐条比，**具名**报出漂移的 case。
+
+    为什么在"归一后逐字节"之外还要这一层：字节判据给的是"**红了**"，这一层给的是
+    "**红了、红在哪几条向量上**"——典型形态正是本条要钉的「宿主表加了一条向量、插件副本没跟」：
+    字节层只会说"不一致 / 首个差异行：第 N 行"，这里直接点名 `只在宿主表（副本没跟上）：<case>`
+    （14214 字节的表靠人肉 diff 是不现实的）。
+
+    ⚠️ 它**只做归因**：判红仍是②支那一条（归一后逐字节不等），不另立判据、不放松强度。
+    """
+    try:
+        copy_payload = json.loads(copy_bytes.decode(ENCODING))
+        host_payload = json.loads(host_bytes.decode(ENCODING))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        return [f"  内容级对账：跳过（有一侧不是合法 JSON：{error}）"]
+
+    copy_vectors = {vector["case"]: vector for vector in copy_payload.get("vectors", [])}
+    host_vectors = {vector["case"]: vector for vector in host_payload.get("vectors", [])}
+
+    only_host = sorted(set(host_vectors) - set(copy_vectors))
+    only_copy = sorted(set(copy_vectors) - set(host_vectors))
+    mismatched = sorted(
+        case for case in set(host_vectors) & set(copy_vectors) if host_vectors[case] != copy_vectors[case]
+    )
+
+    lines = [f"  内容级对账（按 case 逐条比，共 {len(host_vectors)} / {len(copy_vectors)} 条）："]
+    if not only_host and not only_copy and not mismatched:
+        lines.append("    向量条目完全相同 ⇒ 差异不在向量内容上（头注 / 顶层字段 / 空白或行尾形态）")
+        return lines
+    if only_host:
+        lines.append(f"    只在{host_label}（副本没跟上）：{', '.join(only_host)}")
+    if only_copy:
+        lines.append(f"    只在{copy_label}（宿主表没有）：{', '.join(only_copy)}")
+    if mismatched:
+        lines.append(f"    同 case 但条目内容不同：{', '.join(mismatched)}")
+    return lines
+
+
+def _report_content_drift(copy_bytes: bytes, host_bytes: bytes, *, copy_label: str, host_label: str) -> None:
+    """打印内容级对账（`_content_drift_report` 的输出）。"""
+    for line in _content_drift_report(copy_bytes, host_bytes, copy_label=copy_label, host_label=host_label):
+        print(line)
+
+
+def check_plugin_vs_host(copy_path: Path | None = None, host_path: Path | None = None) -> int:
+    """② 支 plugin-vs-host：插件仓内副本 vs 宿主表 —— **行尾归一化后**比对。
+
+    判据口径与①支一致（见模块 docstring 的"判据口径"）：宿主表与副本是**两处独立检出**
+    （副本在插件仓里），物化行尾各由自己的检出环境决定 ⇒ 逐字节比会把"检出环境"当成"两份漂移"
+    （2026-10-17 实测：主仓宿主表 14,601 字节 CRLF / 副本 14,214 字节 LF，归一化后 388 行逐行全同）。
+    字节不同而内容相同 ⇒ **仍判绿**，但**如实打一条说明**（不静默：让"行尾差异"看得见）。
+
+    副本**缺失也判红**（具名"副本缺失"）：缺了 = 插件侧那份真源没部署
+    （插件读不到宿主 `src/`，它只能读自己树里这份）⇒ 此后两份各自漂移、没人看得见。
+
+    判红之后另打一层**内容级对账**（`_content_drift_report`）：按 case 逐条比、**具名**报出
+    "只在宿主表（副本没跟上）：<case>" —— 判红条件**不变**（仍是"归一化后逐字节不等"），这一层只做归因。
+
+    Returns:
+        int: 0 = 两份内容一致；1 = 不一致 / 副本缺失 / 宿主表缺失。
+    """
+    copy = PLUGIN_COPY_PATH if copy_path is None else copy_path
+    host = TABLE_PATH if host_path is None else host_path
+
+    if not copy.exists():
+        print(f"[FAIL] plugin-vs-host：副本缺失 —— {copy}")
+        print("  缺副本 = 插件侧没有可读的真源（插件进程 import 不到宿主 src/）⇒ 补的办法：")
+        print("  `uv run python scripts/gen_session_id_vectors.py --emit-plugin-copy`（会写插件仓，需 lead 放行）")
+        return 1
+
+    if not host.exists():
+        print(f"[FAIL] plugin-vs-host：宿主表缺失，无法比对 —— {host}（见 host-vs-fresh 支）")
+        return 1
+
+    copy_bytes = copy.read_bytes()
+    host_bytes = host.read_bytes()
+    copy_text = _normalize_eol(copy_bytes.decode(ENCODING, errors="replace"))
+    host_text = _normalize_eol(host_bytes.decode(ENCODING, errors="replace"))
+
+    if copy_text == host_text:
+        note = ""
+        if copy_bytes != host_bytes:
+            note = (
+                f"；两处检出物化行尾不同（副本 {len(copy_bytes)} 字节 / 宿主 {len(host_bytes)} 字节）"
+                "= 检出环境差异，已归一"
+            )
+        print(f"[OK] plugin-vs-host：副本与宿主表一致 —— {copy}\n     == {host}（{len(host_text)} 字符{note}）")
+        return 0
+
+    print(f"[FAIL] plugin-vs-host：副本与宿主表不一致 —— {copy} vs {host}（行尾归一化后比对失败）")
+    _report_first_difference(copy_text, host_text, left_label="副本", right_label="宿主表")
+    # 归因层：判红照旧（上面那一条），下面这层只回答"红在哪几条向量上"
+    _report_content_drift(copy_bytes, host_bytes, copy_label="副本", host_label="宿主表")
+    return 1
+
+
+def check_both_arms(path: Path | None = None) -> int:
+    """默认 `--check`：**两支都跑、都打印**（不短路）——① host-vs-fresh + ② plugin-vs-host。
+
+    为什么要"不短路"：只让一支坏时，**另一支的结论也必须打印出来** —— 否则分不清
+    "另一支真的过了"还是"它根本没跑"（2026-10-17 教训：看着在、其实没生效）。
+    `--check --host-only` 走的是①支单跑（`check_table`）。
+
+    Returns:
+        int: 0 = 两支全通过；1 = 任一支红（打印已指明是哪一支）。
+    """
+    host_status = check_table(path)
+    copy_status = check_plugin_vs_host(host_path=path)
+    if host_status or copy_status:
+        print("[FAIL] --check：有未通过项（看上面对应的那一支：host-vs-fresh / plugin-vs-host）")
+        return 1
+    print("[OK] --check：两支全通过（宿主表 vs 现算 · 插件副本 vs 宿主表）")
+    return 0
+
+
+def emit_both(host_path: Path | None = None, copy_path: Path | None = None) -> int:
+    """写两份：宿主表 + 插件仓内副本（`--emit-plugin-copy` 的实现）。
+
+    "逐字节相同"不靠"两次调用应当一样"来保证 —— 这里**只渲染一次**，同一串字节写两个落点，
+    再**回读**两份做逐字节比对（写盘环节若改了字节：编码 / 换行 / 截断，这里当场红）。
+
+    Args:
+        host_path: 宿主表落点（缺省 = TABLE_PATH；测试改指向用）。
+        copy_path: 插件仓内副本落点（缺省 = PLUGIN_COPY_PATH；测试改指向用）。
+
+    Returns:
+        int: 0 = 两份都已写出且回读逐字节一致；1 = 写出的两份不一致。
+    """
+    host = TABLE_PATH if host_path is None else host_path
+    copy = PLUGIN_COPY_PATH if copy_path is None else copy_path
+    payload = build_payload()
+    text = render(payload)  # ← 唯一一次渲染：两份内容由构造保证相同
+    for target in (host, copy):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # newline="\n"：同 write_table，Windows 上不落 CRLF（否则两份"逐字节相同"在不同机器上不成立）
+        target.write_text(text, encoding=ENCODING, newline="\n")
+
+    host_bytes = host.read_bytes()
+    copy_bytes = copy.read_bytes()
+    print(f"[OK] 已写出两份（同一序列化器产出，{len(payload['vectors'])} 条向量，{len(host_bytes)} 字节）：")
+    print(f"  宿主表：  {host}")
+    print(f"  插件副本：{copy}")
+    if host_bytes != copy_bytes:
+        print("[FAIL] 两份写盘结果不一致（回读逐字节比对失败）—— 写盘环节改了字节，别急着提交")
+        return 1
+    print("[OK] 回读逐字节一致：两份 == 同一序列化器输出")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI：默认重新生成；`--check` 只比对不写盘（0 = 未过期；1 = 已过期）。"""
     parser = ArgumentParser(description="生成/校验 session_id 向量表（真源 = src/common/utils/utils_session.py）")
     parser.add_argument("--check", action="store_true", help="与磁盘表比对（行尾归一化）；不一致退出码 1（不写文件）")
+    parser.add_argument(
+        "--emit-plugin-copy",
+        action="store_true",
+        help="写两份：宿主表 + 插件仓内副本 tests/fixtures/session_id_vectors.json（同一序列化器产出 ⇒ 逐字节相同）",
+    )
+    parser.add_argument(
+        "--host-only",
+        action="store_true",
+        help="配合 --check：只跑①支 host-vs-fresh（生成物新鲜度），不查插件副本部署",
+    )
     args = parser.parse_args(argv)
+
+    if args.host_only and not args.check:
+        parser.error("--host-only 只与 --check 搭配（它收窄的是 --check 的检查面）")
+    if args.check and args.emit_plugin_copy:
+        parser.error("--check 与 --emit-plugin-copy 互斥（前者不写盘、后者写盘）")
+
+    if args.check and not args.host_only:
+        return check_both_arms()
 
     if args.check:
         return check_table()
+
+    if args.emit_plugin_copy:
+        return emit_both()
 
     write_table()
     return 0
