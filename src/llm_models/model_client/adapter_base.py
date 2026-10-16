@@ -5,6 +5,7 @@ import asyncio
 
 from src.common.logger import get_logger
 from src.config.model_configs import ModelInfo
+from src.llm_models import cache_corpus_tap
 
 from .base_client import (
     APIResponse,
@@ -104,6 +105,8 @@ class AdapterClient(BaseClient, ABC, Generic[RawStreamT, RawResponseT]):
         """
         stream_response_handler = self._resolve_stream_response_handler(request)
         response_parser = self._resolve_response_parser(request)
+        # cache-tap：仅当 MAIBOT_CACHE_CORPUS_DIR 设为绝对路径时落一份只读语料（不改请求）
+        cache_corpus_tap.record_response_request(request)
         response, usage_record = await self._execute_response_request(
             request,
             stream_response_handler,
