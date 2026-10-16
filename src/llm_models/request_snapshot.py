@@ -8,6 +8,7 @@ import json
 import re
 
 from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file
 from src.config.model_configs import APIProvider, ModelInfo
 from src.llm_models.model_client.base_client import AudioTranscriptionRequest, EmbeddingRequest, ResponseRequest
 from src.llm_models.payload_content.message import ImageMessagePart, Message, MessageBuilder, RoleType, TextMessagePart
@@ -15,7 +16,10 @@ from src.llm_models.payload_content.resp_format import RespFormat, RespFormatTyp
 from src.llm_models.payload_content.tool_option import ToolCall, ToolOption, normalize_tool_options
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-LLM_REQUEST_LOG_DIR = PROJECT_ROOT / "logs" / "llm_request"
+# 落盘位置走**单一来源**（`resolve_data_file` = 数据根）：原先锚在仓库里的
+# `PROJECT_ROOT / "logs"`，与 data-family 的目标正面冲突（`MAIBOT_DATA_DIR` 一生效就劈叉）。
+# 判据：**未设 env 时逐字同径**（宿主 import 实测见 .shared/research/2026-10/half_done_migrations_1017.md §六）。
+LLM_REQUEST_LOG_DIR = resolve_data_file("logs", "llm_request")
 REPLAY_SCRIPT_RELATIVE_PATH = Path("scripts") / "replay_llm_request.py"
 REPLAY_SCRIPT_PATH = PROJECT_ROOT / REPLAY_SCRIPT_RELATIVE_PATH
 FILENAME_SAFE_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
