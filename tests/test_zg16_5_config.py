@@ -45,8 +45,33 @@ class TestAuditLogPathDefault:
     """audit_log_path 默认值。"""
 
     def test_audit_log_path_default(self, port, mock_cfg_no_v2):
+        """未配置时：回落值也走唯一来源 ⇒ **绝对路径**（不再是相对字面量）。
+
+        ⚠️ 2026-10-16 口径变更（data-family 收敛）：回落值从"相对串字面量 `data/...`"改为
+        "经 `resolve_data_file` 解析后的绝对路径"。原断言钉的是旧字面量 —— 那正是"测试把旧契约
+        固化成了期望"的形态，故随口径更新；并按"只增不减"补一条"跟着数据根走"的断言（见下）。
+        """
+        from src.common.runtime_paths import resolve_data_file
+
         with patch.object(port, "_get_cfg", return_value=mock_cfg_no_v2):
-            assert port.get_audit_log_path() == "data/plugin_runtime_v2/scope_audit.log"
+            assert port.get_audit_log_path() == str(
+                resolve_data_file("plugin_runtime_v2", "scope_audit.log")
+            )
+
+    def test_audit_log_path_default_follows_data_root(
+        self, port, mock_cfg_no_v2, monkeypatch, tmp_path
+    ):
+        """设了 `MAIBOT_DATA_DIR` 时回落值跟着数据根走 —— 这正是收敛的目的（原字面量写法做不到）。
+
+        `monkeypatch.setenv` 由 pytest 自动复原环境变量，不残留。
+        """
+        from src.common.runtime_paths import resolve_data_file
+
+        monkeypatch.setenv("MAIBOT_DATA_DIR", str(tmp_path))
+        with patch.object(port, "_get_cfg", return_value=mock_cfg_no_v2):
+            resolved = port.get_audit_log_path()
+            assert resolved == str(resolve_data_file("plugin_runtime_v2", "scope_audit.log"))
+            assert str(tmp_path) in resolved, "回落值没有跟着数据根走"
 
     def test_audit_log_path_configured(self, port):
         cfg = SimpleNamespace(
