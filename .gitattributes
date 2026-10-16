@@ -24,5 +24,13 @@ docker-compose*.yml text eol=lf
 .dockerignore text eol=lf
 # 工具生成文件（uv 写出即 LF；防 checkout 转 CRLF 来回跳）—— 2026-10-15
 uv.lock text eol=lf
+# ⚠️ 显式例外：**这一条强制工作区**（与上面 `# 兜底` 那条"只归一入库、不强制工作区"的约定相反）
+# ——2026-10-17 缺陷（记账：`.shared/research/2026-10/msg_seam_p2_sessionid_1017.md` §七）：
+#   该 JSON 是**生成物**，`gen_session_id_vectors.py --check` 拿工作区字节与现生成的 LF 比。
+#   本机 `* text=auto` ⇒ 检出成 CRLF（实测 CR=387 / size=14601 vs LF 14214）⇒ 换了检出环境就假红。
+#   生成器已修为**行尾归一化后比对**（那一侧是真修）；本行是**第二道**：让工作区物化状态与
+#   生成物**不再依赖检出环境**——只靠归一化挡不住任何"用 CRLF 存盘"的编辑器再写回一次。
+#   **故此处必须 `eol=lf`；它不是要推翻上面那条约定，而是给"生成物"这一类文件的具名例外。**
+src/common/utils/session_id_vectors.json text eol=lf
 # 行尾纪律文件自身也守纪律
 .gitattributes text eol=lf

@@ -10,12 +10,18 @@
     (c) 证红①：表被改一行 ⇒ `--check` 必须红（`xfail(strict=True)` 锁住"必须红"）；
     (d) 证红②：算法被改一行（打后缀替身）⇒ `--check` 必须红（同上）；
     (e) 方向性可赋值：表 ⊇ 插件形参面的全部"支路 × route"组合；
-    (f) 表外异常边界：两个 id 都给假值 ⇒ ValueError；int 型 id ⇒ TypeError。
+    (f) 表外异常边界：两个 id 都给假值 ⇒ ValueError；int 型 id ⇒ TypeError；
+    (g) 行尾不敏感：表被**整份存成 CRLF** ⇒ `--check` 仍必须绿（判据口径 = 归一化后比对）；
+    (h) 内容敏感：表里一行 expected **真被改**（不是行尾差）⇒ 必须红。
 
-直看红（(c)(d) 两条的"必须红"只有 `--runxfail` 才看得见）：
+⚠️ (g)/(h) 是一对：判据是**行尾归一化后**比对 ⇒ 只有"行尾差异"被放过，
+   "内容差异"必须仍然红 —— 两个方向各一条，缺任一条这条判据就是假的。
+
+直看红（(c)(d)(h) 三条的"必须红"只有 `--runxfail` 才看得见）：
     uv run pytest tests/unit/common/test_session_id_vectors.py -q
     uv run pytest tests/unit/common/test_session_id_vectors.py -k corrupted_table --runxfail
     uv run pytest tests/unit/common/test_session_id_vectors.py -k changed_algorithm --runxfail
+    uv run pytest tests/unit/common/test_session_id_vectors.py -k changed_row --runxfail
 """
 
 from pathlib import Path
@@ -159,3 +165,49 @@ def test_changed_algorithm_must_be_red(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(SessionUtils, "calculate_session_id", staticmethod(shifted))
 
     assert main(["--check"]) == 0, "算法改了、表没重生成 ⇒ 必须被判过期（红）"
+
+
+def test_crlf_table_must_still_be_green(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """(g) 好样本：表被**整份存成 CRLF**（编辑器存盘 / 检出物化）⇒ `--check` **仍必须绿**。
+
+    这是 2026-10-17 缺陷的目标行为：判据 = **行尾归一化后**比对 ⇒ 行尾不是"表的内容"。
+    `newline=""` 让 `\\n` 逐字写盘（不被平台翻译成 `\\r\\n`），才算真的合成出 CRLF 文件；
+    文本取自生成器**现渲染的 LF 规范形**（不拿工作区那份——主仓那份此刻可能正是"LF 行 + CRLF 行尾"
+    的混合物化态，直接 `\\n → \\r\\n` 会把它改写坏，那就不是在测"行尾差异"了）。
+    """
+    import scripts.gen_session_id_vectors as generator
+
+    canonical = generator.render(generator.build_payload())
+    crlf = canonical.replace("\n", "\r\n")
+    assert crlf.count("\r\n") == canonical.count("\n") > 380, "坏样本没改成（应每行一个 CRLF）"
+
+    crlf_table = tmp_path / "session_id_vectors.json"
+    crlf_table.write_text(crlf, encoding="utf-8", newline="")
+    assert crlf_table.read_bytes() != canonical.encode("utf-8"), "写盘后行尾应确实不同（逐字节层面）"
+
+    monkeypatch.setattr(generator, "TABLE_PATH", crlf_table)
+
+    assert main(["--check"]) == 0, "只有行尾不同的表**不许**被判过期（否则换检出环境就假红）"
+
+
+@pytest.mark.xfail(strict=True, reason="证红：表里一行 expected 真被改（非行尾差）必须红 ⇒ `--runxfail` 看红")
+def test_table_with_changed_row_must_be_red(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """(h) 坏样本③：把某行 expected 的**内容**改一个字符（行尾保持 LF）⇒ `--check` 必须红。
+
+    与 (g) 成对：行尾归一化**只放过行尾**——"内容真被改"必须仍被抓住，否则 (b) 那条判据
+    （表与生成器一致）就被这次修法掏空了。直看红：`-k changed_row --runxfail`。
+    """
+    import scripts.gen_session_id_vectors as generator
+
+    text = TABLE.read_bytes().decode("utf-8")
+    needle = '"expected": "'
+    start = text.index(needle) + len(needle)
+    flipped = "0" if text[start + 31] != "0" else "1"
+    corrupted = text[: start + 31] + flipped + text[start + 32 :]
+    assert corrupted != text, "坏样本没改成（应差一个字符）"
+
+    broken = tmp_path / "session_id_vectors.json"
+    broken.write_text(corrupted, encoding="utf-8", newline="\n")
+    monkeypatch.setattr(generator, "TABLE_PATH", broken)
+
+    assert main(["--check"]) == 0, "内容被改一行（行尾无差异）必须被判过期（红）"

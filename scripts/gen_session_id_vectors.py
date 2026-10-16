@@ -9,11 +9,18 @@
 
 用法
     uv run python scripts/gen_session_id_vectors.py            # 重新生成（覆盖表）
-    uv run python scripts/gen_session_id_vectors.py --check    # 与磁盘表**逐字节**比对：0 = 未过期，1 = 已过期
+    uv run python scripts/gen_session_id_vectors.py --check    # 与磁盘表比对（**行尾归一化**）：0 = 未过期，1 = 已过期
 
 约定
     · 表是**生成物**：要改表就改本脚本；手改表里一行会让 `--check` 变红
       （判据在 `tests/unit/common/test_session_id_vectors.py`）。
+    · **判据口径 = "行尾归一化后比对"，不是"逐字节"**：比对前把磁盘表的 `\r\n`（以及孤立 `\r`）
+      归一成 `\n`，再与现生成的 LF 文本比。**依据**：`.gitattributes` 的 `* text=auto` 只归一
+      "入库"、**不强制工作区**（`.gitattributes:7-10`）⇒ 同一个 blob 在不同检出环境会物化成
+      不同行尾；**逐字节比会把"检出环境的行尾"当成"表的内容"**，同一份内容给出不同结论
+      （2026-10-17 缺陷：主仓检出 CRLF ⇒ 假红，而 38/38 向量逐条全同）。
+      ⚠️ 只归一**行尾**：**不改**大小写/空白/编码 ⇒ "表真被改一行"仍然红
+      （`tests/unit/common/test_session_id_vectors.py` 里有四个坏/好样本钉住这两侧）。
     · 表里**只放输入与期望**，不放算法：算法一改，期望值随之改变 ⇒ 表过期被抓住。
     · 每条向量带 `covers` 字段，逐条写明它覆盖哪个分支/边界。key 形状（插件 docstring 同款口径）：
       群聊 `platform[_account:x][_scope:x]_group_id`；私聊 `platform[_account:x][_scope:x]_user_id_private`。
@@ -39,6 +46,7 @@ from src.common.utils.utils_session import SessionUtils  # noqa: E402  （脚本
 
 TABLE_PATH = PROJECT_ROOT / "src" / "common" / "utils" / "session_id_vectors.json"
 GENERATOR_VERSION = 1
+ENCODING = "utf-8"
 COMMENT = (
     "本文件为生成物，改它请改生成器（scripts/gen_session_id_vectors.py）"
     "——手改会在‘表是否过期’检查里变红。"
@@ -394,22 +402,78 @@ def render(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
+def _normalize_eol(text: str) -> str:
+    """把行尾归一到 LF：`\\r\\n` 与孤立 `\\r` 都算行尾差异，不是内容差异。
+
+    只碰行尾这一个维度——大小写/空白/编码一律不动（动了就会把"内容真被改"也放过）。
+    """
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _byte_index_to_line(text: str, index: int) -> tuple[int, int]:
+    """字符偏移量 → (1 基行号, 1 基列号)；`splitlines(keepends=True)` 对 CRLF/孤立 CR 同样切行。"""
+    line = 1
+    column = 0
+    for character in text:
+        column += 1
+        if character in "\r\n":
+            line += 1
+            column = 0
+    return line, column
+
+
+def _first_diff_line(disk_text: str, generated_text: str) -> str:
+    """首个差异行的证据（1 基行号 + 两侧原文）。
+
+    行尾归一后仍有差异 ⇒ 这不是"行尾"问题：先逐行定位首个差异行；**行数相同却逐行全等**
+    时（归一后文本应已相等，走到这里只可能是编码/字节层面）退回首个差异**字符**位置
+    —— 绝不打印"行数不同：N 行 / N 行"这种自相矛盾的措辞。
+    """
+    disk_lines = _normalize_eol(disk_text).splitlines()
+    generated_lines = _normalize_eol(generated_text).splitlines()
+    label = "行尾归一化后比对"
+
+    for index in range(min(len(disk_lines), len(generated_lines))):
+        if disk_lines[index] != generated_lines[index]:
+            return (
+                f"  首个差异行：第 {index + 1} 行（{label}）\n"
+                f"    表上： {disk_lines[index]}\n"
+                f"    生成： {generated_lines[index]}"
+            )
+    if len(disk_lines) != len(generated_lines):
+        return f"  行数不同（{label}）：表 {len(disk_lines)} 行 / 生成 {len(generated_lines)} 行"
+
+    limit = min(len(disk_text), len(generated_text))
+    for index in range(limit):
+        if disk_text[index] != generated_text[index]:
+            line, column = _byte_index_to_line(disk_text, index)
+            return (
+                f"  首个差异字符：第 {line} 行第 {column} 列（{label}）\n"
+                f"    表上： {disk_text[index]!r}\n"
+                f"    生成： {generated_text[index]!r}"
+            )
+    return f"  前缀全等、仅在长度上分叉（{label}）：表 {len(disk_text)} 字符 / 生成 {len(generated_text)} 字符"
+
+
 def write_table(path: Path | None = None) -> Path:
     """把现生成的表写盘（覆盖）。`path` 缺省 = TABLE_PATH（调用时解析，便于测试改指向）。"""
     target = TABLE_PATH if path is None else path
     payload = build_payload()
     target.parent.mkdir(parents=True, exist_ok=True)
-    # newline="\n"：Windows 上不落 CRLF，保证与 --check 的逐字节比对跨平台一致
-    target.write_text(render(payload), encoding="utf-8", newline="\n")
+    # newline="\n"：Windows 上不落 CRLF，保证生成物跨平台一致（判据见 check_table 的行尾归一化）
+    target.write_text(render(payload), encoding=ENCODING, newline="\n")
     print(f"[OK] 已写出向量表：{target}（{len(payload['vectors'])} 条向量）")
     return target
 
 
 def check_table(path: Path | None = None) -> int:
-    """表过期检查：磁盘表 vs 按权威算法现生成 —— **逐字节**比对。
+    """表过期检查：磁盘表 vs 按权威算法现生成 —— **行尾归一化后**比对。
+
+    比对前把磁盘表的 `\\r\\n`/孤立 `\\r` 归一成 `\\n`（见模块 docstring 的"判据口径"）：
+    工作区物化行尾由检出环境决定，**不是表的内容**。其余维度一律逐字节相等才算未过期。
 
     Returns:
-        int: 0 = 未过期；1 = 已过期（已打印首个差异行）。
+        int: 0 = 未过期；1 = 已过期（已打印首个差异行/字符）。
     """
     target = TABLE_PATH if path is None else path
     generated_text = render(build_payload())
@@ -417,27 +481,26 @@ def check_table(path: Path | None = None) -> int:
         print(f"[FAIL] 表不存在：{target} —— 先跑 `uv run python scripts/gen_session_id_vectors.py` 生成")
         return 1
 
-    if target.read_bytes() == generated_text.encode("utf-8"):
-        print(f"[OK] 表未过期：{target}（{len(json.loads(generated_text)['vectors'])} 条向量，逐字节一致）")
+    disk_bytes = target.read_bytes()
+    disk_text = disk_bytes.decode(ENCODING, errors="replace")
+    generated_bytes = generated_text.encode(ENCODING)
+    eol_only = disk_bytes != generated_bytes and _normalize_eol(disk_text) == generated_text
+
+    if disk_text == generated_text or eol_only:
+        note = "（工作区行尾与生成物不同 = 检出环境差异，已归一）；" if eol_only else ""
+        count = len(json.loads(generated_text)["vectors"])
+        print(f"[OK] 表未过期：{target}（{count} 条向量，{note}行尾归一化后一致）")
         return 0
 
-    disk_lines = target.read_bytes().decode("utf-8", errors="replace").splitlines()
-    generated_lines = generated_text.splitlines()
-    print(f"[FAIL] 表已过期：{target} 与权威算法现生成的结果不一致（逐字节比对失败）")
-    for index in range(min(len(disk_lines), len(generated_lines))):
-        if disk_lines[index] != generated_lines[index]:
-            print(f"  首个差异行：第 {index + 1} 行")
-            print(f"    表上： {disk_lines[index]}")
-            print(f"    生成： {generated_lines[index]}")
-            return 1
-    print(f"  行数不同：表 {len(disk_lines)} 行 / 生成 {len(generated_lines)} 行")
+    print(f"[FAIL] 表已过期：{target} 与权威算法现生成的结果不一致（行尾归一化后比对失败）")
+    print(_first_diff_line(disk_text, generated_text))
     return 1
 
 
 def main(argv: list[str] | None = None) -> int:
     """CLI：默认重新生成；`--check` 只比对不写盘（0 = 未过期；1 = 已过期）。"""
     parser = ArgumentParser(description="生成/校验 session_id 向量表（真源 = src/common/utils/utils_session.py）")
-    parser.add_argument("--check", action="store_true", help="与磁盘表逐字节比对；不一致退出码 1（不写文件）")
+    parser.add_argument("--check", action="store_true", help="与磁盘表比对（行尾归一化）；不一致退出码 1（不写文件）")
     args = parser.parse_args(argv)
 
     if args.check:
