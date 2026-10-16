@@ -5151,7 +5151,7 @@ class LogConfig(ConfigBase):
     """最多保留多少个主日志文件。"""
 
     log_cleanup_days: int = Field(
-        default=30,
+        default=14,
         json_schema_extra={
             "label": {
                 "zh_CN": "日志保留天数",
@@ -5162,7 +5162,12 @@ class LogConfig(ConfigBase):
             "x-icon": "calendar-days",
         },
     )
-    """主日志文件超过多少天后清理。"""
+    """主日志文件超过多少天后清理。
+
+    2026-10-16 lmq 拍板：保留 **14 天**（原 30）。改的是**模板默认值**——
+    已写进用户配置的显式值不受影响（配置优先级：盘上显式值 > 模板默认值），
+    存量配置要走"改那一行 / 删那一行 / 登记一条迁移钩子"三者之一（见路线图 §6.9）。
+    """
 
     llm_request_snapshot_limit: int = Field(
         default=128,

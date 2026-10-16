@@ -418,7 +418,7 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
         "file_log_level": "INFO",  # 文件日志级别
         "log_file_max_bytes": 5 * 1024 * 1024,  # 单个日志文件最大大小
         "max_log_files": 30,  # 最多保留的日志文件数量
-        "log_cleanup_days": 30,  # 日志保留天数
+        "log_cleanup_days": 14,  # 日志保留天数（2026-10-16 lmq 拍板 30→14；与 official_configs 的字段默认同值）
         "suppress_libraries": [
             "faiss",
             "httpx",
@@ -1297,7 +1297,7 @@ def cleanup_old_logs(*, dry_run: bool = False) -> dict[str, Any]:
         "register_only": {},
     }
     try:
-        cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
+        cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 14) or 14))
         cutoff_date = datetime.now() - timedelta(days=cleanup_days)
         report["cleanup_days"] = cleanup_days
         report["cutoff"] = cutoff_date.isoformat(timespec="seconds")
