@@ -18,6 +18,12 @@
 多进程/多实例同时写同一个配置文件**不在本机制的覆盖范围**——那种部署下两个进程各自
 维护一份计数，锁会失效。跨重启不会误放行：重启后计数从 1 重新开始，而指纹比对仍会
 把"文件变过"识别出来（计数变小只会让老 ``expectedRevision`` 更容易被拒，方向是安全的）。
+
+**锁里放什么**（F13，2026-10-16）：``_REVISION_LOCK`` 只覆盖"**一致性必需**"的那点活——
+读字节 + sha256、revision 校验、以及**替换文件 + 推进 revision**（后者必须是一个原子步，
+否则读者会看到"新内容 + 旧 revision"）。解析 TOML、``to_plain``、``apply``、
+pydantic 全模型校验**一律在锁外**：它们曾是 248ms 里的大头（校验 161ms / 解析 27.5ms），
+而它们既不读共享状态也不需要被串行化。写侧与读侧（``read_snapshot``）是同一条原则。
 """
 
 from dataclasses import dataclass
@@ -121,16 +127,21 @@ class RevisionConflictError(Exception):
         namespace: 冲突的命名空间。
         expected: 客户端带的 revision。
         current: 服务端当前的 revision。
+        reason: 可选的补充说明（用于"快照内容变了"这一类——此时 expected 与 current 可能相等，
+            基础消息里的"被其他改动推进"说不清现场，必须补一句实话）。
     """
 
-    def __init__(self, *, namespace: str, expected: int, current: int) -> None:
+    def __init__(self, *, namespace: str, expected: int, current: int, reason: str = "") -> None:
         self.namespace = namespace
         self.expected = expected
         self.current = current
-        super().__init__(
+        self.reason = reason
+        base = (
             f"配置 '{namespace}' 已被其他改动推进（当前 revision={current}，"
-            f"你带的是 {expected}）；请重新读取后再提交"
+            f"你带的是 {expected}）"
         )
+        detail = f"——{reason}" if reason else ""
+        super().__init__(f"{base}{detail}；请重新读取后再提交")
 
 
 @dataclass
@@ -254,24 +265,38 @@ def commit(
     *,
     validate: Callable[[Any], None] | None = None,
 ) -> int:
-    """乐观锁保护的配置写入：**校验 → 落盘 → 推进 revision**。
+    """乐观锁保护的配置写入：**校验 revision → 落盘 → 推进 revision**（F13：重活在锁外）。
 
     顺序是判据的一部分：
 
-    1. 刷新 revision（文件被外部改过也算新版本）；与 ``expected_revision`` 不等 ⇒
-       ``RevisionConflictError``，**在动任何数据之前**就把这次写入挡掉。
-    2. 重新读**已存储的那份**文档，把 ``apply(document, baseline)`` 作用在它上面
-       —— 解析基准是存储，不是"调用者上次读到的那份"（F1）。
-       ``baseline`` 是**同一把锁里**取出来的变更前快照：秘密占位的认领基准必须是它，
-       不能在锁外先读一遍（那中间会漏进别人的写入）。
-    3. ``validate`` 不通过 ⇒ 异常上抛，**文件一个字节不动、revision 不前进**。
-    4. 落盘（``save_toml_with_format`` 内部是原子写）后才推进 revision。
+    1. **临界区一**（实测 ~0.3ms）：读字节 + sha256 + 刷新 revision + 与 ``expected_revision``
+       比对；不等 ⇒ ``RevisionConflictError``，**在动任何数据之前**就把这次写入挡掉。
+       指纹**取自同一批字节**并当场登记为当前状态 ⇒ "内容 ↔ revision" 由构造保证同源（F11 的口径）。
+    2. **锁外重活**（实测 ~0.4s，一秒都不占锁）：解析 TOML、转纯结构、``apply(document, baseline)``、
+       ``validate``。这一步是 F13 要解决的问题所在——旧实现把它整段塞在锁里。
+    3. **临界区二**（实测 ~落盘量级）：复核 revision 与快照指纹未被改动 → ``save_toml_with_format``
+       → 重算指纹 → revision 前进。**落盘必须在锁内**：两个并发 commit 交错落盘会写出
+       "谁都对不上"的内容。
+
+    **为什么锁外重活是安全的**（这是本函数唯一需要论证的地方，别只看结论）：
+
+    - ``apply`` / ``validate`` 作用的那份 ``document`` 派生自**临界区一里读到的字节**，而临界区一
+      把那批字节的指纹登记成了命名空间的当前指纹 ⇒ 此后**任何**内容变化都会让 revision 前进
+      （``_refresh_locked`` 的既有语义："本层之外有人改了文件 ⇒ 从乐观锁角度这必须是一次新版本"）。
+      于是临界区二的 revision 比对**等价于**"内容自快照以来没变过"——不需要把解析也锁住来换。
+    - ``baseline``（秘密占位认领基准）因此也合法：它同样是那批字节的纯结构，而它"不会漏进别人的
+      写入"这一点由上述同源保证，**不再**依赖"必须在锁里读一遍"（旧实现的理由，F13 起由指纹复核
+      承担同一职责）。
+    - 快照在锁内读（不是锁外）是有意的：若在锁外读、再拿旧指纹去登记，就会把**过期指纹**写成当前
+      状态（盘上已是新内容、状态却说是旧的）。锁内读+当场登记把这个窗口消掉；代价是 0.3ms。
+
+    ⚠️ **不得**为了"少做一次 I/O"把快照读挪到锁外——那正是上面那条失效的形态。
 
     Args:
         namespace: 命名空间。
         expected_revision: 客户端读到的 revision。
         apply: 在 ``tomlkit`` 文档上就地实施变更；第二参数是**变更前**的纯 Python 快照
-            （认领秘密原值用）。
+            （认领秘密原值用），与写入的基准同源。
         validate: 写入前的整体校验（收纯 Python 结构）；``None`` = 用根模型 ``from_dict``。
 
     Returns:
@@ -280,13 +305,35 @@ def commit(
     Raises:
         UnknownNamespaceError: 命名空间不存在。
         ConfigFileMissingError: 配置文件不存在。
-        RevisionConflictError: ``expected_revision`` 过期。
-        FileNotFoundError: 并发下文件被删。
+        RevisionConflictError: ``expected_revision`` 过期，或（防御分支）快照内容已被改动。
     """
     spec = namespace_spec(namespace)
     path = config_file_path(namespace)
     validator = validate if validate is not None else _default_validator(spec)
 
+    # ── 临界区一：同源快照 + 过期写入早退（约 0.3ms）────────────────────────────
+    with _REVISION_LOCK:
+        if not path.exists():
+            raise ConfigFileMissingError(namespace, path)
+        raw = path.read_bytes()
+        snapshot_fingerprint = hashlib.sha256(raw).hexdigest()
+        state = _refresh_locked(namespace, fingerprint=snapshot_fingerprint)
+        if state.revision != expected_revision:
+            raise RevisionConflictError(
+                namespace=namespace,
+                expected=expected_revision,
+                current=state.revision,
+            )
+
+    # ── 锁外重活：解析 / 转纯结构 / 变更 / 全模型校验（约 0.4s）────────────────
+    # 解析走 `_decode_config_bytes`：与 `read_snapshot` 同一套换行语义，两条路看到的配置必须
+    # 逐字段一致（真配置是 CRLF，`read_bytes().decode()` 与 `open(..., "r")` 会分叉）。
+    document = tomlkit.loads(_decode_config_bytes(raw))
+    baseline = to_plain(document)
+    apply(document, baseline)
+    validator(to_plain(document))
+
+    # ── 临界区二：复核 → 落盘 → 推进 revision（约落盘量级）──────────────────────
     with _REVISION_LOCK:
         state = _refresh_locked(namespace)
         if state.revision != expected_revision:
@@ -295,16 +342,44 @@ def commit(
                 expected=expected_revision,
                 current=state.revision,
             )
-
-        document = load_document(namespace)
-        baseline = to_plain(document)
-        apply(document, baseline)
-        validator(to_plain(document))
+        _assert_snapshot_unchanged(namespace, state, snapshot_fingerprint, expected_revision)
 
         save_toml_with_format(document, str(path))
         state.fingerprint = _fingerprint(path)
         state.revision += 1
         return state.revision
+
+
+def _assert_snapshot_unchanged(
+    namespace: str,
+    state: _RevisionState,
+    snapshot_fingerprint: str,
+    expected_revision: int,
+) -> None:
+    """复核"盘上内容还是我们快照的那份"——**不变量的自检**，不是常规判据。
+
+    为什么**推理上不可达**（写清楚，免得后人以为漏了用例）：临界区一刚把
+    ``state.fingerprint`` 置为快照指纹；而 ``state.fingerprint`` 只在锁内被改，且
+    ``_refresh_locked`` 每次把指纹从"快照那份"改成别的，**同一次调用里必然让 revision 前进**
+    ⇒ "内容变了"一定先被上面的 revision 比对拦下（``expected`` 那份号已经过期）。
+
+    那它为什么还留着：它是"内容 ↔ revision 同源"这条不变量的**最后一道自检**。哪天有人把快照读
+    挪到锁外、或让 ``_REVISION_STATES`` 绕过锁更新，revision 比对会**静默通过**并按旧内容落盘，
+    而这一行会当场出声。行为由注入式用例锁定（``pytests/webui/test_config_commit_lock_scope.py``）。
+
+    Raises:
+        RevisionConflictError: 快照指纹与当前状态不符（正常情况下永不触发）。
+    """
+    if state.fingerprint == snapshot_fingerprint:
+        return
+    raise RevisionConflictError(
+        namespace=namespace,
+        expected=expected_revision,
+        current=state.revision,
+        reason=(
+            "盘上内容在你读出快照之后被改动过（本次写入基于过期内容，已放弃而不是重算覆盖）"
+        ),
+    )
 
 
 def schema_field_info(namespace: str, tokens: Sequence[PathToken]) -> Any | None:

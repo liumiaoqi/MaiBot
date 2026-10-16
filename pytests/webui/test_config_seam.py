@@ -1692,12 +1692,29 @@ def _run_contention_reader(reader_fn, *, iterations: int, seconds: float = 3.0) 
     不变式：写者每次 commit 把 ``chat.max_context_size`` 设成它带的 ``expected_revision``，
     commit 之后 revision = 值 + 1 ⇒ **一致的快照必须满足 ``值 == revision - 1``**。
     读者观察到别的组合，就是撕裂。
+
+    ⚠️ **该不变式只在首个 commit 真正落地之后成立**（夹具初值 42 配初始 revision 1 是"同源但不满足
+    不变式"的初始视图），所以这里**等首个 commit 的 Event**，不再睡固定时长。
+
+    【为什么改掉 `time.sleep(0.05)`（2026-10-16，F13 收窄 `commit` 锁范围时实测）】——
+    旧写法的充分性**依赖"读者会被写者的整段 commit 挡住"**：F13 之前 ``commit`` 全程持锁，
+    读者进 `read_snapshot` 就得排到写者后面 ⇒ 首读必然落在首个 commit 之后。
+    收窄之后读者不再被挡（**这正是收窄的目的**）⇒ 首读落在写者第一个 commit **在途**时，
+    读到的是 **(42, 1)**——**同源的一致视图**（revision 由同一批字节的指纹派生），
+    只是不变式此刻还不适用。
+
+    实测（`cfg-lock` 树，收窄后）：本文件那条"零撕裂"用例 3/3 次报红，撕裂样本**全是** `(42, 1)`；
+    同期把 120 个样本逐条分类：**真撕裂（revision>1 且 内容 != revision-1）0 条**，
+    形如 `(42,1)` 的 34 条，其余全部满足不变式 ⇒ 报红来自**前置条件的时序假设**，
+    不是不变式被破坏。结构化判据（"重活在锁外、落盘与推进 revision 在同一个临界区"）
+    与"写者在落盘期间读者拿不到快照"的确定性证明见
+    `pytests/webui/test_config_commit_lock_scope.py`。
     """
     import threading
-    import time
 
     namespace = config_store.NAMESPACE_BOT
     stop = threading.Event()
+    first_commit = threading.Event()
     seen: List[tuple[int, int]] = []
 
     def writer() -> None:
@@ -1709,13 +1726,16 @@ def _run_contention_reader(reader_fn, *, iterations: int, seconds: float = 3.0) 
                     document["chat"]["max_context_size"] = revision
 
                 config_store.commit(namespace, revision, _apply)
+                first_commit.set()
             except config_store.RevisionConflictError:
                 continue
 
     worker = threading.Thread(target=writer, daemon=True)
     worker.start()
     try:
-        time.sleep(0.05)  # 让写者先跑起来（首轮 commit 之后不变式才开始成立）
+        # 等"首个 commit 已落地"，而不是睡一个猜出来的时长——判据强度不变
+        # （此后每一次不一致都仍然是真撕裂），但不再依赖时序运气。
+        assert first_commit.wait(timeout=seconds), "写者未能在超时内完成首个 commit（并发实验没跑起来）"
         for _ in range(iterations):
             seen.append(reader_fn())
     finally:
