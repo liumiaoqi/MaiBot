@@ -278,6 +278,21 @@ class TestValidateHello:
         assert not accept
         assert reason == "SDK_VERSION_MISMATCH"
 
+    def test_same_major_over_ceiling_is_named_but_accepted(self, caplog):
+        """**（新判据 2026-10-17 `version-floor-soften`）同主版本越上界 ⇒ 握手放行 + 具名 warning**。
+
+        旧意图：落在 `[4.0.0, 5.0.0)` 之外即 `SDK_VERSION_MISMATCH`（把**号段**当兼容判据）；
+        新意图（lmq 裁）：**我们根本没法用版本号定兼容性** ⇒ 号段只作提示 ⇒
+        **同主版本**越界 ⇒ 出声放行；**跨主版本**仍拒（见上一条 `3.0.0`）。
+        ⚠️ 必须能看见那条**具名 warning** —— 别把"降级"做成"静默"。
+        """
+        servicer = _make_servicer()
+        with caplog.at_level("WARNING"):
+            accept, reason, _ = servicer._validate_hello(_make_hello(sdk_version="5.0.0"))
+        assert accept, f"同主版本越上界被拒了（新判据要求放行）：{reason!r}"
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("5.0.0" in m and "兼容模式" in m for m in messages), f"没有具名 warning：{messages}"
+
     def test_token_invalid(self):
         token_svc = MagicMock()
         token_svc.validate_session.return_value = (False, "")

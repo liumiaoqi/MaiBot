@@ -1158,7 +1158,18 @@ class ManifestValidator:
 
         Args:
             manifest: 已通过结构校验的强类型 Manifest。
+
+        ⚠️ **兼容性判据（2026-10-17 `version-floor-soften` 线；lmq 判断：我们根本没法用版本号定兼容性）**
+        我们的号段与生态脱节——插件普遍声明 `1.0.0 - 1.99.99`，而宿主自报 `0.1.0` ⇒ 按号段拒绝会让
+        市场面板上**每个插件都显示"不兼容"**。⇒ **号段只作出声依据，不作拒绝依据**；
+        真正的兼容判据 = **manifest schema 可解析 + 所需 API 在位 + 起得来**。
+        落到下面两处比对上：
+          ① **下界高于实际**（插件要求更高的宿主/SDK）⇒ **具名 warning + 照常加载**（宿主更新即可满足）；
+          ② **上界被跨越但同主版本** ⇒ warning + 兼容模式加载（原有行为，保留）；
+          ③ **上界被跨越且跨主版本** ⇒ **仍然拒绝** —— 这是"**显式声明的不兼容**"，不是按号段猜；
+             （`manifest_version` 本身不被支持那条在结构校验处拦，见本文件 `:977`，与这里无关。）
         """
+
         host_ok, host_message = VersionComparator.is_in_range(
             self._host_version,
             manifest.host_application.min_version,
@@ -1170,11 +1181,23 @@ class ManifestValidator:
                 manifest.host_application.max_version,
             ):
                 self.warnings.append(
-                    f"当前版本 {self._host_version} 以兼容模式加载"
+                    f"[{manifest.id}] 当前版本 {self._host_version} 以兼容模式加载"
                     f"{VersionComparator.normalize_version(manifest.host_application.max_version)} 版本的插件"
                 )
+            elif self._is_below_declared_floor(
+                self._host_version, manifest.host_application.min_version
+            ):
+                # ① 下界高于实际 ⇒ **只出声、不拒**（本线的核心改动）
+                self.warnings.append(
+                    f"[{manifest.id}] 宿主版本低于插件声明下界，按兼容模式加载："
+                    f"声明 host_application.min_version={manifest.host_application.min_version}，"
+                    f"实际 Host={self._host_version}（{host_message}）"
+                )
             else:
-                self.errors.append(f"Host 版本不兼容: {host_message} (当前 Host: {self._host_version})")
+                self.errors.append(
+                    f"[{manifest.id}] Host 版本不兼容（上界被跨越且跨主版本）: {host_message}"
+                    f" (当前 Host: {self._host_version})"
+                )
 
         sdk_ok, sdk_message = VersionComparator.is_in_range(
             self._sdk_version,
@@ -1182,10 +1205,47 @@ class ManifestValidator:
             manifest.sdk.max_version,
         )
         if not sdk_ok:
-            self.errors.append(f"SDK 版本不兼容: {sdk_message} (当前 SDK: {self._sdk_version})")
+            if VersionComparator.is_same_major_higher_version(
+                self._sdk_version,
+                manifest.sdk.max_version,
+            ):
+                # ② SDK 侧原来**没有**这条兼容模式口子（只有 Host 侧有）⇒ 本线补齐，两侧对称
+                self.warnings.append(
+                    f"[{manifest.id}] SDK 版本高于声明上界但同主版本，按兼容模式加载："
+                    f"声明 sdk.max_version={manifest.sdk.max_version}，实际 SDK={self._sdk_version}"
+                )
+            elif self._is_below_declared_floor(self._sdk_version, manifest.sdk.min_version):
+                # ① 同理：声明下界高于实际 ⇒ 只出声
+                self.warnings.append(
+                    f"[{manifest.id}] SDK 版本低于插件声明下界，按兼容模式加载："
+                    f"声明 sdk.min_version={manifest.sdk.min_version}，"
+                    f"实际 SDK={self._sdk_version}（{sdk_message}）"
+                )
+            else:
+                self.errors.append(
+                    f"[{manifest.id}] SDK 版本不兼容（上界被跨越且跨主版本）: {sdk_message}"
+                    f" (当前 SDK: {self._sdk_version})"
+                )
 
         if self._validate_python_package_dependencies:
             self._validate_python_package_dependencies_against_runtime(manifest)
+
+    @staticmethod
+    def _is_below_declared_floor(actual: str, declared_min: str) -> bool:
+        """实际版本是否**低于**声明的下界（= 插件要求更高的宿主/SDK）。
+
+        ⚠️ 这条**不作为拒绝依据**（判据见 `_validate_runtime_compatibility` 的兼容性段）：
+        号段与生态脱节 ⇒ 只出声。**没写下界 ⇒ 不算"低于"**（不设下界 = 不限制）。
+        """
+        if not declared_min:
+            return False
+        return (
+            VersionComparator.compare(
+                VersionComparator.normalize_version(actual),
+                VersionComparator.normalize_version(declared_min),
+            )
+            < 0
+        )
 
     def _validate_python_package_dependencies_against_runtime(self, manifest: PluginManifest) -> None:
         """校验 Python 包依赖与主程序运行环境是否冲突。

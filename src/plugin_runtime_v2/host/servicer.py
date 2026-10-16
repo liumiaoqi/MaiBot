@@ -55,6 +55,43 @@ def _check_sdk_version(sdk_version: str) -> bool:
     return lo <= v < hi
 
 
+def _sdk_version_verdict(sdk_version: str) -> str | None:
+    """握手期 SDK 版本判定（2026-10-17 `version-floor-soften` 线 · 第 4 道闸门）。
+
+    **与 v1 `src/plugin_runtime/host/rpc_server.py::_sdk_version_verdict` 同一判据**（两侧对齐）。
+
+    **旧意图**：runner 自报 `sdk_version` 落在 `[4.0.0, 5.0.0)` 之外 ⇒ `SDK_VERSION_MISMATCH`（拒握手）。
+    **新意图**（lmq 裁）：**我们根本没法用版本号定兼容性**（号段与生态脱节）
+    ⇒ **同主版本**越过 ⇒ **具名 warning + 放行**；**跨主版本**（显式不兼容）⇒ **仍拒**。
+    **判据根** = manifest 可解析 + 所需 API 在位 + 起得来。
+
+    Returns:
+        ``None`` = 放行（同主版本越界时已打过具名 warning）；否则为**协议里的具名拒绝原因**。
+        ⚠️ 拒绝原因**保持既有协议码**（`SDK_VERSION_MISMATCH`）不改串：它是握手响应的机器可读码，
+        细节走 warning 日志（改串会让既有调用方/测试对不上）。
+    """
+    v = _parse_version_tuple(sdk_version)
+    lo = _parse_version_tuple(_MIN_SDK_VERSION)
+    hi = _parse_version_tuple(_MAX_SDK_VERSION)
+    if not v:
+        return "SDK_VERSION_MISMATCH"
+    if lo <= v < hi:
+        return None
+
+    reference = hi if v >= hi else lo
+    if v[0] != reference[0]:
+        return "SDK_VERSION_MISMATCH"
+
+    logger.warning(
+        "runner 自报 sdk_version=%s 越过宿主 SDK 区间 [%s, %s) 但**同主版本** ⇒ 按兼容模式放行"
+        "（只出声、不拒；判据 = manifest 可解析 + 所需 API 在位 + 起得来）",
+        sdk_version,
+        _MIN_SDK_VERSION,
+        _MAX_SDK_VERSION,
+    )
+    return None
+
+
 # ── ZG16-5: 加载时 scopes 缺失告警 ──
 
 
@@ -441,8 +478,10 @@ class _PluginHostServicer(PluginHostServicer):
             return False, "MISSING_REQUIRED_FIELD: session_token", ""
         if self._registry.has(hello.runner_id):
             return False, "RUNNER_ALREADY_CONNECTED", ""
-        if not _check_sdk_version(hello.sdk_version):
-            return False, "SDK_VERSION_MISMATCH", ""
+        # 2026-10-17 `version-floor-soften`：**跨主版本才拒**，同主版本只出声（判据见 `_sdk_version_verdict`）
+        version_verdict = _sdk_version_verdict(hello.sdk_version)
+        if version_verdict is not None:
+            return False, version_verdict, ""
         plugin_id = ""
         if self._token_service is not None and hello.session_token:
             valid, plugin_id = self._token_service.validate_session(hello.session_token)

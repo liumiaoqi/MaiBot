@@ -10,6 +10,16 @@
 
 外加两条：**方向性**（低于下界**不拒** —— 宿主更新就能满足最小要求）、
 **具名回落**（manifest 没写这个键 ⇒ 按宿主下界处理并出声，且要能与"显式写了 4.0.0"区分）。
+
+## ⚠️ 意图变更（2026-10-17 `version-floor-soften` 线 · lmq 裁）—— 读到这里的人别把它当回归
+- **旧意图**：*"声明了要更高 SDK ⇒ 拒"*（当时把**号段**当兼容判据）；
+- **新意图**：**"我们根本没法用版本号定兼容性"** —— 号段与生态脱节（宿主自报 `0.1.0`、
+  SDK 区间 `[4.0.0, 5.0.0)`，而插件普遍写 `1.x–1.99.99` / `4.0.0`）；
+  ⇒ **下界只作提示、不作门**：越上界但**同主版本** ⇒ **具名 warning + 放行**；
+  **跨主版本**（= 显式声明的不兼容）⇒ **仍拒**；
+  ⇒ 判据根 = **manifest 可解析 + 所需 API 在位 + 起得来**，不是号段比较。
+- **故本文件的期望随之改**：原"收"用例拿 `5.0.0`（与上界 `5.0.0` **同主版本**）当样本 ⇒ 现在应当**放行**，
+  样本已换成 **`6.0.0`（跨主版本）**；同主版本那一格**新立一条用例**（必须看到**具名 warning**）。
 """
 
 import asyncio
@@ -41,17 +51,40 @@ def _with_sdk_min(tmp_path: Path, value: object) -> str:
 # ── 一发一收（本任务的鉴别力判据）────────────────────────────────────────────
 
 
-def test_declared_min_above_host_ceiling_is_rejected(tmp_path: Path) -> None:
-    """**收**：声明一个高于宿主可提供版本的 `min_version` ⇒ 必须被拒，且**具名**。"""
+def test_declared_min_above_host_ceiling_in_another_major_is_rejected(tmp_path: Path) -> None:
+    """**收（跨主版本）**：声明**跨主版本**地高于宿主可提供版本的 `min_version` ⇒ 仍必须被拒，且**具名**。
 
-    reason = _check_manifest_sdk_min_version(_with_sdk_min(tmp_path, "5.0.0"), "r1")
+    ⚠️ 2026-10-17（`version-floor-soften`）：本条原本拿 `5.0.0` 当样本，而它与宿主上界 `5.0.0`
+    **同主版本** ⇒ 按新判据（下界只作提示）应当**放行** ⇒ 样本已换成 **`6.0.0`（跨主版本）**；
+    意图不变：**显式声明的不兼容仍拒**。
+    """
 
-    assert reason is not None, "声明 5.0.0（≥ 宿主上界）却放过了 —— 守卫没生效"
-    assert "5.0.0" in reason, f"具名消息里没有**要求值**：{reason}"
+    reason = _check_manifest_sdk_min_version(_with_sdk_min(tmp_path, "6.0.0"), "r1")
+
+    assert reason is not None, "声明 6.0.0（跨主版本且 ≥ 宿主上界）却放过了 —— 守卫没生效"
+    assert "6.0.0" in reason, f"具名消息里没有**要求值**：{reason}"
     assert "4.0.0" in reason and "5.0.0" in reason.split("宿主支持")[-1], (
         f"具名消息里没有**宿主支持区间**（实际值）：{reason}"
     )
     assert reason.startswith("SDK_MIN_VERSION_UNSATISFIED")
+    assert "跨主版本" in reason, f"拒因没写清是'跨主版本的不兼容'：{reason}"
+
+
+def test_declared_min_same_major_above_ceiling_is_named_but_allowed(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """**（新判据）同主版本越上界 ⇒ 只出声、不拒** —— 号段不作门，兼容性靠 capability。
+
+    旧意图："声明了要更高 SDK ⇒ 拒"；新意图（lmq 裁）：**我们根本没法用版本号定兼容性**。
+    ⚠️ 必须能看见那条**具名 warning** —— 别把"降级"做成"静默"。
+    """
+
+    with caplog.at_level("WARNING"):
+        reason = _check_manifest_sdk_min_version(_with_sdk_min(tmp_path, "5.0.0"), "r1")
+
+    assert reason is None, f"同主版本越上界被拒了（新判据要求放行）：{reason}"
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("5.0.0" in m and "兼容模式" in m for m in messages), f"没有具名 warning：{messages}"
 
 
 def test_declared_min_equal_host_floor_passes(tmp_path: Path) -> None:
@@ -113,7 +146,11 @@ def test_explicit_floor_is_distinguishable_from_missing(
 
 
 def test_spawn_refuses_to_launch_runner_when_unsatisfied(tmp_path: Path) -> None:
-    """守卫要真的**拦在 spawn 上**：不满足 ⇒ 抛具名异常，且**不创建进程**。"""
+    """守卫要真的**拦在 spawn 上**：不满足 ⇒ 抛具名异常，且**不创建进程**。
+
+    ⚠️ 本条用 `9.9.9` —— 与宿主上界 `5.0.0` **跨主版本** ⇒ 新判据下**仍然拒** ✓
+    （同主版本那一格见 `test_declared_min_same_major_above_ceiling_is_named_but_allowed`）。
+    """
 
     plugin_dir = _with_sdk_min(tmp_path, "9.9.9")
     spawner = RunnerSpawner(host_listen_address="127.0.0.1:0", config=RunnerSpawnerConfig())
