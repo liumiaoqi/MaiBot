@@ -1,0 +1,387 @@
+{
+  "_comment": "本文件为生成物，改它请改生成器（scripts/gen_session_id_vectors.py）——手改会在‘表是否过期’检查里变红。",
+  "generator_version": 1,
+  "generated_by": "scripts/gen_session_id_vectors.py",
+  "vectors": [
+    {
+      "case": "unicode-group_id中文",
+      "covers": "群支 group_id 中文同上（编码路径与私聊支同一条）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": null,
+      "group_id": "测试群",
+      "expected": "118217e469ecdf6d75b14ec66954c0ab"
+    },
+    {
+      "case": "unicode-platform含中文",
+      "covers": "platform 中文照抄（platform 无校验）",
+      "platform": "qq中文",
+      "account_id": null,
+      "scope": null,
+      "user_id": "42",
+      "group_id": null,
+      "expected": "e1463d63ae8fe8da3e0832323abb25f0"
+    },
+    {
+      "case": "unicode-scope中文",
+      "covers": "route 段内中文照抄 ⇒ 'scope:网页端' 是一个整段",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "网页端",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "854fcaf719adf139e0f6110bcbdb5d62"
+    },
+    {
+      "case": "unicode-user_id中文",
+      "covers": "非 ASCII 走 md5 前的 utf-8 编码路径（encode() 默认 utf-8 ⇒ 中文按 3 字节/字进 hash）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "张三",
+      "group_id": null,
+      "expected": "772b0fb1f61a4d9f3832f9a66a8edaf5"
+    },
+    {
+      "case": "unicode-user_id含emoji",
+      "covers": "emoji 落在基本多文种平面外（4 字节 utf-8 序列）⇒ 与中文同一编码路径",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "麦麦🙂",
+      "group_id": null,
+      "expected": "4890f681309d25e0db7f198549f5cd4c"
+    },
+    {
+      "case": "两id都给-群支优先-无account-无scope",
+      "covers": "user_id 与 group_id 同时给 ⇒ 群支优先、user_id 不参与拼接；必须与'群聊-无account-无scope'同值",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "42",
+      "group_id": "88888",
+      "expected": "1061ffc1005b88bf74e328ac7e71538e"
+    },
+    {
+      "case": "两id都给-群支优先-无account-有scope",
+      "covers": "群支优先 + scope 段；必须与'群聊-无account-有scope'同值（user_id 被忽略）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "webui",
+      "user_id": "42",
+      "group_id": "88888",
+      "expected": "f87c0ed3af99d104d7988dadaaea1112"
+    },
+    {
+      "case": "两id都给-群支优先-有account-无scope",
+      "covers": "群支优先 + account 段；必须与'群聊-有account-无scope'同值（user_id 被忽略）",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": null,
+      "user_id": "42",
+      "group_id": "88888",
+      "expected": "d7937030e43e0e3ce7b77bf9cef7c75b"
+    },
+    {
+      "case": "两id都给-群支优先-有account-有scope",
+      "covers": "群支优先 + route 两段；必须与'群聊-有account-有scope'同值（user_id 被忽略）",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": "webui",
+      "user_id": "42",
+      "group_id": "88888",
+      "expected": "66f81931c3dec20306aa29f50ac91069"
+    },
+    {
+      "case": "分隔符-account_id含下划线",
+      "covers": "account 段内的下划线照抄（account:x_y 是一个整段）",
+      "platform": "qq",
+      "account_id": "acc_1",
+      "scope": null,
+      "user_id": "42",
+      "group_id": null,
+      "expected": "5f64effbdd6302972b0a0e051b7b1530"
+    },
+    {
+      "case": "分隔符-group_id含下划线",
+      "covers": "群支 group_id 内的下划线照抄 ⇒ 与 platform/route 段之间仍只有一条 '_' 相隔（形状歧义留档）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": null,
+      "group_id": "g_1",
+      "expected": "15e9e5b1ce984644a562ee36bcc60ff5"
+    },
+    {
+      "case": "分隔符-scope含冒号",
+      "covers": "route 段内的冒号照抄 ⇒ 'scope:a:b' 整体是一个段，不会被拆成两段",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "a:b",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "52f3800d548c7476972206fad90b5c6a"
+    },
+    {
+      "case": "分隔符-user_id含下划线",
+      "covers": "下划线是 key 分隔符：id 内的字面下划线照抄 ⇒ 私聊 key 的段数比常规多（形状歧义留档）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "a_b",
+      "group_id": null,
+      "expected": "19fda3a2adc071ee809fef4a601a0575"
+    },
+    {
+      "case": "分隔符-user_id含冒号",
+      "covers": "冒号只属于 route 段的字面格式（account:/scope:）：id 内的冒号照抄、不被再解释",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "a:b",
+      "group_id": null,
+      "expected": "61b1df7ff518ca621b8be27a6410f0b1"
+    },
+    {
+      "case": "数字型-account_id字符串",
+      "covers": "account 段内的数字字符串照抄（route 段不再做类型转换）",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": null,
+      "user_id": "123",
+      "group_id": null,
+      "expected": "7000a9a25d1c9ceffb52c0eb7022530b"
+    },
+    {
+      "case": "数字型-group_id前导零",
+      "covers": "前导零保留、不做数值规整 ⇒ '007' 与 '7' 是不同 key（本行只钉 '007'）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": null,
+      "group_id": "007",
+      "expected": "00bcd5ae3964837926bdb8eb00198569"
+    },
+    {
+      "case": "数字型-user_id字符串123",
+      "covers": "数字**字符串**按 str 原样拼（对照：int 123 会 TypeError，见 _self_check ② 的探针，不落表）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "123",
+      "group_id": null,
+      "expected": "d9606854b388710c5a0634aa1477be94"
+    },
+    {
+      "case": "歧义-group_id字面private",
+      "covers": "群支 group_id 恰为 'private' ⇒ key 尾只有一段 private；与上一条（两段）对照，两者 hash 不同",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": null,
+      "group_id": "private",
+      "expected": "9827d2e9fb68da12836dcb8780a9891b"
+    },
+    {
+      "case": "歧义-user_id字面private",
+      "covers": "user_id 恰好等于私聊后缀 ⇒ key 尾出现两段 'private'（形状歧义留档，不改算法、只钉值）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "private",
+      "group_id": null,
+      "expected": "7165cd281fa8f8c0b4bdb9e20b835587"
+    },
+    {
+      "case": "私聊-无account-无scope",
+      "covers": "私聊支：group_id 为假 ⇒ key 尾接字面量 'private'；account/scope 皆假 ⇒ route 段整体缺席",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "42",
+      "group_id": null,
+      "expected": "27701e99f5a472c7243eff0c8dae6aa0"
+    },
+    {
+      "case": "私聊-无account-有scope",
+      "covers": "私聊支 + route 只有 scope 段（account 假）⇒ 形状 platform_scope:x_user_private",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "webui",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "ae00bb29c01b19d8da6f223ab360c8d5"
+    },
+    {
+      "case": "私聊-有account-无scope",
+      "covers": "私聊支 + route 只有 account 段（scope 假）⇒ 形状 platform_account:x_user_private",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": null,
+      "user_id": "42",
+      "group_id": null,
+      "expected": "903ba617617f8235570091dd9f4ae59f"
+    },
+    {
+      "case": "私聊-有account-有scope",
+      "covers": "私聊支 + route 两段齐全，钉住顺序 = account 在前、scope 在后",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": "webui",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "bd5d6ed32d5dc2ecc0a44e210b01c452"
+    },
+    {
+      "case": "空串account-等价于None-群",
+      "covers": "空串 account_id 是假值 ⇒ 与 None 等价、不进 route；必须与'群聊-无account-无scope'同值",
+      "platform": "qq",
+      "account_id": "",
+      "scope": null,
+      "user_id": null,
+      "group_id": "88888",
+      "expected": "1061ffc1005b88bf74e328ac7e71538e"
+    },
+    {
+      "case": "空串account与scope-等价于None-私聊",
+      "covers": "route 两段都给空串 ⇒ route 整体缺席（插件构造默认 account_id='' scope='' 走的就是这条路径）",
+      "platform": "qq",
+      "account_id": "",
+      "scope": "",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "27701e99f5a472c7243eff0c8dae6aa0"
+    },
+    {
+      "case": "空串scope-等价于None-私聊",
+      "covers": "空串 scope 是假值 ⇒ 与 None 等价；必须与'私聊-无account-无scope'同值",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "27701e99f5a472c7243eff0c8dae6aa0"
+    },
+    {
+      "case": "空串user_id-群支不参与",
+      "covers": "空串 user_id 是假值：既不触发守卫（group_id 为真），也不参与拼接；必须与'群聊-无account-无scope'同值",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "",
+      "group_id": "88888",
+      "expected": "1061ffc1005b88bf74e328ac7e71538e"
+    },
+    {
+      "case": "空白-platform含下划线",
+      "covers": "platform 是位置参数：含下划线照抄，key 首段形状随之变形（无校验、无规范化）",
+      "platform": "qq_sandbox",
+      "account_id": null,
+      "scope": null,
+      "user_id": "42",
+      "group_id": null,
+      "expected": "364fa512ab457af6201cc55acfcf8284"
+    },
+    {
+      "case": "空白-user_id含首尾空格",
+      "covers": "id 不做 strip：首尾空格进 key ⇒ 与 '42' 不同 hash（本行只钉 ' 42 ' 这一支）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": " 42 ",
+      "group_id": null,
+      "expected": "73c787a17e7727d42dca40d477ff5a7c"
+    },
+    {
+      "case": "空白-user_id纯空格",
+      "covers": "纯空格是**真值** ⇒ 不进守卫分支（守卫只判假值），私聊支照常拼 '   ' 与 'private'",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "   ",
+      "group_id": null,
+      "expected": "5e2617d3f44d1f0e95613b188bee92bd"
+    },
+    {
+      "case": "群聊-无account-无scope",
+      "covers": "群支：group_id 为真 ⇒ key 尾**直接**接 group_id，不追加 'private'；route 段缺席",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": null,
+      "group_id": "88888",
+      "expected": "1061ffc1005b88bf74e328ac7e71538e"
+    },
+    {
+      "case": "群聊-无account-有scope",
+      "covers": "群支 + route 只有 scope 段 ⇒ 形状 platform_scope:x_group",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "webui",
+      "user_id": null,
+      "group_id": "88888",
+      "expected": "f87c0ed3af99d104d7988dadaaea1112"
+    },
+    {
+      "case": "群聊-有account-无scope",
+      "covers": "群支 + route 只有 account 段 ⇒ 形状 platform_account:x_group",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": null,
+      "user_id": null,
+      "group_id": "88888",
+      "expected": "d7937030e43e0e3ce7b77bf9cef7c75b"
+    },
+    {
+      "case": "群聊-有account-有scope",
+      "covers": "群支 + route 两段齐全（群侧重合私聊侧的顺序断言）",
+      "platform": "qq",
+      "account_id": "10001",
+      "scope": "webui",
+      "user_id": null,
+      "group_id": "88888",
+      "expected": "66f81931c3dec20306aa29f50ac91069"
+    },
+    {
+      "case": "超长-group_id300字符",
+      "covers": "群支超长同样不截断（与私聊支共用编码路径，差异只在支路拼法）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": null,
+      "group_id": "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+      "expected": "b65ce9c67a34db165fe6b4984e79f1b9"
+    },
+    {
+      "case": "超长-scope200字符",
+      "covers": "route 段超长不截断（route 段与 id 段拼接方式相同）",
+      "platform": "qq",
+      "account_id": null,
+      "scope": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+      "user_id": "42",
+      "group_id": null,
+      "expected": "e56c42124f34f69f33fc686446467af6"
+    },
+    {
+      "case": "超长-user_id220字符",
+      "covers": "≥200 字符不截断：hash 前无长度分支 ⇒ 只钉'原样进 hash'这一条",
+      "platform": "qq",
+      "account_id": null,
+      "scope": null,
+      "user_id": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+      "group_id": null,
+      "expected": "aabf4c6dbadba6e792671f093e4337a4"
+    },
+    {
+      "case": "跨平台-同id不同platform",
+      "covers": "platform 是 key 首段、必然参与 ⇒ 同 id 不同平台必须得到不同 hash（与'私聊-无account-无scope'对照）",
+      "platform": "telegram",
+      "account_id": null,
+      "scope": null,
+      "user_id": "42",
+      "group_id": null,
+      "expected": "ff34b4d3e3030421beef6999a445d15b"
+    }
+  ]
+}
