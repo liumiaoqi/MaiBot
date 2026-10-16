@@ -129,17 +129,44 @@ class EventDeclaration(_message.Message):
     event_schema: str
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., event_schema: _Optional[str] = ...) -> None: ...
 
+class MessageGatewayDeclaration(_message.Message):
+    __slots__ = ("name", "platform", "protocol", "supports_send", "supports_receive", "route_type", "metadata")
+    class MetadataEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    PLATFORM_FIELD_NUMBER: _ClassVar[int]
+    PROTOCOL_FIELD_NUMBER: _ClassVar[int]
+    SUPPORTS_SEND_FIELD_NUMBER: _ClassVar[int]
+    SUPPORTS_RECEIVE_FIELD_NUMBER: _ClassVar[int]
+    ROUTE_TYPE_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    platform: str
+    protocol: str
+    supports_send: bool
+    supports_receive: bool
+    route_type: str
+    metadata: _containers.ScalarMap[str, str]
+    def __init__(self, name: _Optional[str] = ..., platform: _Optional[str] = ..., protocol: _Optional[str] = ..., supports_send: _Optional[bool] = ..., supports_receive: _Optional[bool] = ..., route_type: _Optional[str] = ..., metadata: _Optional[_Mapping[str, str]] = ...) -> None: ...
+
 class RegisterComponentsRequest(_message.Message):
-    __slots__ = ("plugin_id", "plugin_version", "tools", "events")
+    __slots__ = ("plugin_id", "plugin_version", "tools", "events", "message_gateways")
     PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     PLUGIN_VERSION_FIELD_NUMBER: _ClassVar[int]
     TOOLS_FIELD_NUMBER: _ClassVar[int]
     EVENTS_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_GATEWAYS_FIELD_NUMBER: _ClassVar[int]
     plugin_id: str
     plugin_version: str
     tools: _containers.RepeatedCompositeFieldContainer[ToolDeclaration]
     events: _containers.RepeatedCompositeFieldContainer[EventDeclaration]
-    def __init__(self, plugin_id: _Optional[str] = ..., plugin_version: _Optional[str] = ..., tools: _Optional[_Iterable[_Union[ToolDeclaration, _Mapping]]] = ..., events: _Optional[_Iterable[_Union[EventDeclaration, _Mapping]]] = ...) -> None: ...
+    message_gateways: _containers.RepeatedCompositeFieldContainer[MessageGatewayDeclaration]
+    def __init__(self, plugin_id: _Optional[str] = ..., plugin_version: _Optional[str] = ..., tools: _Optional[_Iterable[_Union[ToolDeclaration, _Mapping]]] = ..., events: _Optional[_Iterable[_Union[EventDeclaration, _Mapping]]] = ..., message_gateways: _Optional[_Iterable[_Union[MessageGatewayDeclaration, _Mapping]]] = ...) -> None: ...
 
 class RegisterComponentsResponse(_message.Message):
     __slots__ = ("accepted", "reasons")

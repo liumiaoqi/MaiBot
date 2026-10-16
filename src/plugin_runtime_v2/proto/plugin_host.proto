@@ -123,6 +123,12 @@ message MessageGatewayDeclaration {
   bool supports_send = 4;      // 是否支持发送（默认 true）
   bool supports_receive = 5;   // 是否支持接收（默认 false）
   string route_type = 6;       // 路由类型（可选）
+  // 声明面扩展（P1②：让"声明的工具名"真的过得来）。
+  // 此前本消息**没有** metadata ⇒ 插件声明的 `tool_name` 过不来 ⇒ 主机 `gateway_registrar.py`
+  // 只能硬编码 `"napcat.send_text"` —— "声明面宽于传输面"的典型。
+  // 值是字符串：主机侧按 `metadata["tool_name"]` 读。
+  // **加字段是向后兼容的**：旧插件不带此 map ⇒ 空 map ⇒ 主机走"具名回落"（见 registrar）。
+  map<string, string> metadata = 7;
 }
 
 // 组件注册请求

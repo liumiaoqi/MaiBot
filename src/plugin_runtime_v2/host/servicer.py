@@ -524,6 +524,8 @@ class _PluginHostServicer(PluginHostServicer):
                     supports_send=gw.supports_send,
                     supports_receive=gw.supports_receive,
                     route_type=gw.route_type,
+                    # P1②：声明面的 metadata 从传输面接回来（旧插件无此 map ⇒ 空 dict）。
+                    metadata=dict(gw.metadata),
                 )
                 for gw in request.message_gateways
             ]

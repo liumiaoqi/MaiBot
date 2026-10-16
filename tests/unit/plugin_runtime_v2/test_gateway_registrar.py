@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.plugin_runtime_v2.host.gateway_registrar import V2GatewayRegistrar
+from src.plugin_runtime_v2.host.gateway_registrar import _FALLBACK_TOOL_NAME, V2GatewayRegistrar
 from src.plugin_runtime_v2.host.gateway_registry import GatewayRegistry
 from src.plugin_runtime_v2.sdk.decorators import MessageGatewayDeclaration
 
@@ -370,3 +370,123 @@ class TestV2GatewayRegistrar:
         # 两个网关的绑定都被移除
         assert mock_pio.send_route_table.remove_bindings_by_driver.call_count >= 2
         assert mock_pio.receive_route_table.remove_bindings_by_driver.call_count >= 2
+
+
+class TestToolNameComesFromDeclaration:
+    """**P1② 鉴别力判据**：插件声明的 `tool_name` 真的过得来，主机不再硬编码。
+
+    为什么要有这一条：`plugin_host.proto` 的 `MessageGatewayDeclaration` 此前**没有 metadata
+    字段** ⇒ 声明面宽于传输面 ⇒ 插件声明得再准，主机也收不到，只能硬编码 `"napcat.send_text"`。
+    所以本类的判据必须是"**把插件声明的名字改掉，主机跟着变**"——而不是"主机恰好用了那个名字"
+    （后者在硬编码下也成立，证明不了任何事）。
+    """
+
+    @pytest.fixture
+    def setup(self):
+        registry = GatewayRegistry()
+        scope_store = _make_mock_scope_store({"message:send:text"})
+        summary = _make_mock_startup_summary()
+        registrar = V2GatewayRegistrar(
+            gateway_registry=registry,
+            scope_store=scope_store,
+            startup_summary=summary,
+        )
+        return registrar, registry, scope_store, summary
+
+    @pytest.mark.asyncio
+    async def test_tool_name_comes_from_declaration(self, setup):
+        """声明了一个**明显不等于回落值**的名字 ⇒ 主机必须用它（硬编码实现会红）。"""
+
+        registrar, registry, _, _ = setup
+        declared = "probe.declared.tool_name"  # 故意 ≠ 回落值：否则这条判据证明不了任何事
+        assert declared != _FALLBACK_TOOL_NAME
+        registry.register_declarations("p1", [_make_gateway_decl(metadata={"tool_name": declared})])
+        mock_pio = _make_mock_platform_io()
+
+        with (
+            patch(
+                "src.plugin_runtime_v2.host.gateway_registrar.get_platform_io_manager",
+                return_value=mock_pio,
+            ),
+            patch("src.plugin_runtime_v2.host.gateway_registrar.V2GatewaySupervisor") as supervisor_cls,
+        ):
+            await registrar.on_gateway_ready(
+                plugin_id="p1",
+                gateway_name="qq_gw",
+                platform="qq",
+                runner_listen_address="127.0.0.1:50051",
+            )
+
+        assert supervisor_cls.call_args.kwargs["tool_name"] == declared, (
+            "主机没用插件声明的 tool_name（声明没过得来）："
+            f"{supervisor_cls.call_args.kwargs.get('tool_name')!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_name_falls_back_named_when_not_declared(self, setup, caplog):
+        """**兼容性判据**：旧插件（不声明 metadata）仍能工作，但必须**具名回落**、日志看得见。"""
+
+        registrar, registry, _, _ = setup
+        registry.register_declarations("p1", [_make_gateway_decl(metadata={})])
+        mock_pio = _make_mock_platform_io()
+
+        with (
+            patch(
+                "src.plugin_runtime_v2.host.gateway_registrar.get_platform_io_manager",
+                return_value=mock_pio,
+            ),
+            patch("src.plugin_runtime_v2.host.gateway_registrar.V2GatewaySupervisor") as supervisor_cls,
+        ):
+            await registrar.on_gateway_ready(
+                plugin_id="p1",
+                gateway_name="qq_gw",
+                platform="qq",
+                runner_listen_address="127.0.0.1:50051",
+            )
+
+        # 旧插件仍能跑（回落值可用）
+        assert supervisor_cls.call_args.kwargs["tool_name"] == _FALLBACK_TOOL_NAME
+        # 但**不许静默**：必须有一条具名警告说明"你在靠回落跑"
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("tool_name" in m and "未声明" in m for m in messages), (
+            f"缺具名回落日志（回落不许静默）：{messages}"
+        )
+
+
+def test_declaration_metadata_survives_the_wire():
+    """**P1② 真正改动的那一半**：声明面的 `metadata` 必须能**过线**。
+
+    上面 `TestToolNameComesFromDeclaration` 只覆盖**主机侧读取**（那段在本次改动前就已经在读
+    `decl.metadata` 了 —— 它两边都过，**证明不了传输层**）。传输层此前缺的是：
+    `plugin_host.proto` 的 `MessageGatewayDeclaration` **没有 metadata 字段**。
+    本用例直接钉住那条缝隙：字段在不在、是不是 map、值能不能过序列化往返。
+    """
+
+    from src.plugin_runtime_v2.proto import plugin_host_pb2
+    from src.plugin_runtime_v2.sdk.decorators import MessageGatewayDeclaration as SdkDeclaration
+
+    # ① 字段必须存在，且是 map（不是字符串/字节）
+    field = plugin_host_pb2.MessageGatewayDeclaration.DESCRIPTOR.fields_by_name.get("metadata")
+    assert field is not None, (
+        "proto 又丢了 metadata 字段 ⇒ 插件声明的 tool_name 过不来，主机只能硬编码"
+    )
+    assert field.message_type.GetOptions().map_entry, "metadata 必须是 map<string,string>"
+
+    # ② 值必须真的过线（序列化 → 反序列化 → 仍在）
+    declared = "probe.transport.tool_name"
+    sdk_decl = SdkDeclaration(name="g", platform="qq", protocol="onebot11", metadata={"tool_name": declared})
+    wire_decl = plugin_host_pb2.MessageGatewayDeclaration(
+        name=sdk_decl.name,
+        platform=sdk_decl.platform,
+        protocol=sdk_decl.protocol,
+        supports_send=sdk_decl.supports_send,
+        supports_receive=sdk_decl.supports_receive,
+        route_type=sdk_decl.route_type,
+        metadata=dict(sdk_decl.metadata),
+    )
+    request = plugin_host_pb2.RegisterComponentsRequest(plugin_id="p1", message_gateways=[wire_decl])
+    landed = plugin_host_pb2.RegisterComponentsRequest.FromString(request.SerializeToString())
+
+    assert dict(landed.message_gateways[0].metadata).get("tool_name") == declared, (
+        "metadata 没能过线 —— 声明面又变成宽于传输面了"
+    )

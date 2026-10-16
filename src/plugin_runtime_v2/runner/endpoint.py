@@ -486,6 +486,9 @@ class RunnerEndpoint:
                         supports_send=gw.supports_send,
                         supports_receive=gw.supports_receive,
                         route_type=gw.route_type,
+                        # P1②：把声明面的 metadata 一起送到主机（protobuf map<string,string>；
+                        # 值必须是 str —— 非字符串值在这里就会被 protobuf 拒掉，别在这层悄悄 str()）。
+                        metadata=dict(gw.metadata),
                     )
                     for gw in self._gateway_declarations
                 ],

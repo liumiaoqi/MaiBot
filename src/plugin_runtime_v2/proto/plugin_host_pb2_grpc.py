@@ -6,7 +6,7 @@ import warnings
 from src.plugin_runtime_v2.proto import common_pb2 as common__pb2
 from src.plugin_runtime_v2.proto import plugin_host_pb2 as plugin__host__pb2
 
-GRPC_GENERATED_VERSION = '1.83.0'
+GRPC_GENERATED_VERSION = '1.84.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
