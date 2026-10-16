@@ -15,7 +15,15 @@ import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "MaiBot.db"
+# ⑤：本脚本要读 `MaiBot.db`（**data 域**）⇒ 走唯一来源。
+# 旧写法 `PROJECT_ROOT / "data" / "MaiBot.db"` 是自推 data 路径：`MAIBOT_DATA_DIR` 一生效，
+# 它就打开仓根下那个库（= "宿主侧多出来的那个库"），而家族其余站点已经挂到数据根上。
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.common.runtime_paths import resolve_data_file  # noqa: E402
+
+DEFAULT_DB_PATH = resolve_data_file("MaiBot.db")
 
 
 @dataclass(frozen=True)
