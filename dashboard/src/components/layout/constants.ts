@@ -2,7 +2,6 @@ import {
   Activity,
   Bot,
   Box,
-  Brain,
   Database,
   FileText,
   Gauge,
@@ -38,7 +37,6 @@ const PromptIcon = createStreamlineIcon('script-1-remix', FileText)
 const EmojiIcon = createStreamlineIcon('happy-face-remix', Smile)
 const ExpressionIcon = createStreamlineIcon('chat-bubble-square-write-remix', MessageSquare)
 const JargonIcon = createStreamlineIcon('sign-hashtag-solid', Hash)
-const BehaviorIcon = createStreamlineIcon('cyborg-solid', Brain)
 const KnowledgeIcon = createStreamlineIcon('user-sticker-square-remix', Database)
 const PluginConfigIcon = createStreamlineIcon('application-add-remix', Puzzle)
 const PluginMarketIcon = createStreamlineIcon('store-2-solid', Store)
@@ -104,9 +102,6 @@ export const menuSections: MenuSection[] = [
         label: 'sidebar.menu.slangManagement',
         path: '/resource/jargon',
         searchDescription: 'search.items.jargonDesc',
-      },
-      {
-        icon: BehaviorIcon,
       },
       {
         icon: KnowledgeIcon,
