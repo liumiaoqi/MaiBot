@@ -445,6 +445,31 @@ class TestRealCheckChatSessionStore:
             assert result.status == HealthStatus.DOWN
 
 
+def _runner_status(
+    runner_id: str,
+    *,
+    failures: int = 0,
+    recovering: bool = False,
+):
+    """造**真实**的 `RunnerBridgeStatus`（不健康基线见 `runner_health_bridge.py` 的构造点）。
+
+    为什么不用 `MagicMock`：MagicMock 什么属性都能造 ⇒ 会给检查器喂真实类型产不出的形状，
+    从而掩盖"读不存在的字段"这类缺陷（2026-10-16 实例：`is_healthy`）。
+    """
+    from src.core.watchdog.types import DetectionSource, RunnerBridgeStatus
+
+    return RunnerBridgeStatus(
+        runner_id=runner_id,
+        component_id=f"plugin_run_{runner_id}",
+        last_detection_source=DetectionSource.HEARTBEAT,
+        last_consecutive_failures=failures,
+        cooldown_until=0.0,
+        total_report_count=0,
+        last_report_time=0.0,
+        is_recovering=recovering,
+    )
+
+
 class TestRealCheckWatchdogRunnerHealth:
     """v2：watchdog.runner_health 检查器测试。"""
 
@@ -475,13 +500,21 @@ class TestRealCheckWatchdogRunnerHealth:
 
     @pytest.mark.asyncio
     async def test_up_when_all_healthy(self):
+        """两只新注册基线（failures=0、不在恢复）⇒ UP。
+
+        ⚠️ 2026-10-16 改：本测试原用 `MagicMock()` + `mock_status.is_healthy = True` —— **MagicMock
+        什么属性都能造**，于是它给检查器喂了一个**真实 `RunnerBridgeStatus` 永远产不出的形状**
+        （那个类型没有 `is_healthy` 字段），掩盖了"检查器读不存在的字段 ⇒ 恒判不健康 ⇒ 聚合永久 DOWN"
+        这个真缺陷。现改为**真实类型**（`_runner_status`）。
+        """
         from unittest.mock import patch, MagicMock
         from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
 
         mock_port = MagicMock()
-        mock_status = MagicMock()
-        mock_status.is_healthy = True
-        mock_port.list_runner_bridge_status.return_value = [mock_status, mock_status]
+        mock_port.list_runner_bridge_status.return_value = [
+            _runner_status("a"),
+            _runner_status("b"),
+        ]
         with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
             check = WatchdogRunnerHealthCheck()
             result = await check.check()
@@ -493,9 +526,10 @@ class TestRealCheckWatchdogRunnerHealth:
         from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
 
         mock_port = MagicMock()
-        mock_status = MagicMock()
-        mock_status.is_healthy = False
-        mock_port.list_runner_bridge_status.return_value = [mock_status, mock_status]
+        mock_port.list_runner_bridge_status.return_value = [
+            _runner_status("a", failures=2),
+            _runner_status("b", failures=1),
+        ]
         with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
             check = WatchdogRunnerHealthCheck()
             result = await check.check()
@@ -507,11 +541,10 @@ class TestRealCheckWatchdogRunnerHealth:
         from src.core.health_checks.watchdog_runner_health import WatchdogRunnerHealthCheck
 
         mock_port = MagicMock()
-        healthy = MagicMock()
-        healthy.is_healthy = True
-        unhealthy = MagicMock()
-        unhealthy.is_healthy = False
-        mock_port.list_runner_bridge_status.return_value = [healthy, unhealthy]
+        mock_port.list_runner_bridge_status.return_value = [
+            _runner_status("ok"),
+            _runner_status("bad", failures=1),
+        ]
         with patch("src.core.watchdog_port_registry.get_watchdog_port", return_value=mock_port):
             check = WatchdogRunnerHealthCheck()
             result = await check.check()
