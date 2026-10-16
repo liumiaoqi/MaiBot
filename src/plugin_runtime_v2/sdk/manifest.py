@@ -9,6 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.common.sdk_version_range import V2_MIN_SDK_VERSION
+
 
 class AuthorInfo(BaseModel):
     """作者信息。"""
@@ -25,9 +27,13 @@ class HostAppRequirement(BaseModel):
 
 
 class SDKRequirement(BaseModel):
-    """SDK 版本要求。"""
+    """SDK 版本要求。
 
-    min_version: str = "4.0.0"
+    ⚠️ 默认下界 = **v2 区间下界**（单一来源 `src.common.sdk_version_range`；2026-10-17 收口）。
+    它与 v2 runner 的自报默认值**同源** ⇒ "新插件默认声明"落在 v2 宿主能给的范围内（不是假下界）。
+    """
+
+    min_version: str = V2_MIN_SDK_VERSION
     max_version: str = ""
 
 

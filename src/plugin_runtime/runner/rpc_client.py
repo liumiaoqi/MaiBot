@@ -7,6 +7,7 @@ import contextlib
 import uuid
 
 from src.common.logger import get_logger
+from src.common.sdk_version_range import V1_SDK_VERSION_FALLBACK
 from src.plugin_runtime.local_sdk import read_local_sdk_version
 from src.plugin_runtime.protocol.codec import Codec, MsgPackCodec
 from src.plugin_runtime.protocol.envelope import (
@@ -46,7 +47,8 @@ def _get_sdk_version() -> str:
         if port is not None:
             port.report(ErrorLevel.WARNING, 'SDK 版本读取失败', exception=exc)
         logger.warning("SDK 版本读取失败: %s", exc)
-        return "1.0.0"
+        # ⚠️ **单一来源**（2026-10-17 `sdk-range-consolidate`）：兜底 = v1 区间的下界，别再写字面量
+        return V1_SDK_VERSION_FALLBACK
 
 
 SDK_VERSION = _get_sdk_version()
