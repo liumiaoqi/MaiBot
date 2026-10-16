@@ -26,6 +26,30 @@ class _GatewaySupervisorProtocol(Protocol):
         """调用插件声明的消息网关方法。"""
 
 
+def _extract_outbound_text(message: "SessionMessage") -> tuple[str, bool]:
+    """取出站消息里的**文本分量**拼接，并报告是否存在非文本分量。
+
+    为什么不让调用方直接用 ``processed_plain_text``：那是"给人看的摘要"——图片会被写成
+    ``"[图片]"``（见 `services/send_service.py` 的 `_build_processed_plain_text`），
+    当正文发出去就是把占位符当消息内容。网关声明的那个工具
+    （``napcat.send_text``）参数表只有 ``session_id`` + ``text``，所以这里只认真正的文本分量。
+
+    Returns:
+        ``(文本, 是否有非文本分量)``。文本为空时调用方应当**拒发**（而不是发一条空消息）。
+    """
+    from src.common.data_models.message_component_data_model import TextComponent
+
+    components = list(getattr(getattr(message, "raw_message", None), "components", []) or [])
+    parts: list[str] = []
+    has_non_text = False
+    for component in components:
+        if isinstance(component, TextComponent):
+            parts.append(component.text)
+        else:
+            has_non_text = True
+    return "".join(parts).strip(), has_non_text
+
+
 class PluginPlatformDriver(PlatformIODriver):
     """面向插件消息网关链路的 Platform IO 驱动。"""
 
@@ -111,12 +135,56 @@ class PluginPlatformDriver(PlatformIODriver):
                 error="插件消息网关驱动缺少 plugin_id",
             )
 
+        # ⚠️ **载荷形状是对接契约的一部分**（"能听不能说"第三层：路由已通、形状不对）。
+        # 插件侧证据 `plugins/maibot-team.napcat-adapter/plugin.py:313-318`：
+        #     @Tool(name="napcat.send_text", ...)
+        #     async def tool_send_text(self, args): session_id = args["session_id"]; text = args["text"]
+        # 而 host 侧 `plugin_runtime_v2/host/gateway_supervisor.py:75-80` 把我们的 `args`
+        # **原样** json.dumps 进 `InvokeToolRequest.args` ⇒ 少一个键就是插件侧 KeyError。
+        # 真机现场：`RuntimeError: 网关 Tool 调用失败: … tool=napcat.send_text error=EXECUTION_ERROR: KeyError: 'session_id'`
+        # 网关声明把发送**钉在一个工具**上（`decl.metadata["tool_name"]`，见 `gateway_registrar.py:100`），
+        # 那个工具的参数表是 `session_id` + `text` ⇒ 这两个键必须由我们平铺提供。
+        #
+        # session_id **不许自行计算**（`AGENTS §五`）：正常路径上它由上游用**真实聊天流**填好
+        # （`services/send_service.py:525` `outbound_message.session_id = session_info.session_id`）；
+        # 这里取不到就是"上游没解析到真实聊天流" ⇒ **出声**并让这次发送失败得可诊断，
+        # 不编一个顶上（编出来的 ID 插件反查不到 QQ 号，发出去也是错的）。
+        session_id = str(getattr(message, "session_id", "") or "").strip()
+        if not session_id:
+            reason = (
+                "消息未携带 session_id（上游未解析到真实聊天流）——拒绝投递给插件网关："
+                "插件的发送 Tool 要用它反查平台账号/群号，编一个只会发错人或发不出去"
+            )
+            return self._refuse(reason, message=message, route_key=route_key)
+
+        text, has_non_text = _extract_outbound_text(message)
+        if not text:
+            # 有分量但不是文本（纯图片/表情/转发…）⇒ 网关照旧发不出去：声明的工具是**纯文本**参数表。
+            # 这里明确拒绝并写清原因，胜过把占位符（"[图片]"）当正文发出去。
+            return self._refuse(
+                "消息没有可发送的文本分量（网关声明的工具 napcat.send_text 是纯文本参数表；"
+                "图片/表情/转发/混合分量的出站今天表达不了）",
+                message=message,
+                route_key=route_key,
+            )
+        if has_non_text:
+            # 部分保真要说出来：文本照发，但非文本分量会被丢掉（同一条消息里的图片/@ 等）。
+            logger.warning(
+                "网关发送只承载文本分量，消息中的非文本分量被丢弃: driver=%s message_id=%s",
+                self.driver_id, message.message_id,
+            )
+
         try:
             message_dict = PluginMessageUtils._session_message_to_dict(message)
             response = await self._supervisor.invoke_message_gateway(
                 plugin_id=plugin_id,
                 component_name=self._component_name,
                 args={
+                    # 插件 Tool 的参数表（平铺）：session_id + text
+                    "session_id": session_id,
+                    "text": text,
+                    # 完整消息与路由照旧带上：别的网关插件按 `message`/`route` 取值，
+                    # 多给的键对"只读 session_id/text"的工具无害。
                     "message": message_dict,
                     "route": {
                         "platform": route_key.platform,
@@ -219,4 +287,31 @@ class PluginPlatformDriver(PlatformIODriver):
             status=DeliveryStatus.SENT,
             driver_id=self.driver_id,
             driver_kind=self.descriptor.kind,
+        )
+
+    def _refuse(
+        self, reason: str, *, message: "SessionMessage", route_key: RouteKey
+    ) -> DeliveryReceipt:
+        """拒发并**双通道出声**（日志 + 错误上报口），返回失败回执（`AGENTS §七` #7）。
+
+        为什么不是"返回一个静默的失败回执"：这类拒绝全是"接缝形状/寻址对不上"，
+        现场只留一条 `[SendService] Platform IO 发送失败: … error=<reason>` 不够——
+        原因要同时进日志与上报口，否则排障只能靠猜。
+        """
+        logger.error("Platform IO 插件驱动拒绝发送: driver=%s reason=%s", self.driver_id, reason)
+
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, f"插件网关拒发: driver={self.driver_id} reason={reason}")
+
+        return DeliveryReceipt(
+            internal_message_id=message.message_id,
+            route_key=route_key,
+            status=DeliveryStatus.FAILED,
+            driver_id=self.driver_id,
+            driver_kind=self.descriptor.kind,
+            error=reason,
         )
