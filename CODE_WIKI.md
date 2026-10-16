@@ -1,8 +1,11 @@
 # MaiBot Code Wiki
 
-> **版本**: v1.0.11  
+> **历史快照**：本文档基于 **2026-07-12** 时点的源码生成（当时版本 **v1.0.11**），此后代码已大幅演进，正文仅供参考。  
+> 当前版本线见 [`pyproject.toml`](pyproject.toml) 与 [`changelogs/`](changelogs/)。
+>
+> **版本**: v1.0.11（历史值）  
 > **文档生成日期**: 2026-07-12  
-> **项目仓库**: [Mai-with-u/MaiBot](https://github.com/MaiM-with-u/MaiBot)
+> **项目仓库**: [Mai-with-u/MaiBot](https://github.com/MaiM-with-u/MaiBot)（上游）
 
 ---
 
