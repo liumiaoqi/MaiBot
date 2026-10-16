@@ -26,6 +26,7 @@
 
 > **本仓库是 [刘妙奇 @liumiaoqi](https://github.com/liumiaoqi) 的独立分支** ——
 > 基于 [Mai-with-u/MaiBot](https://github.com/Mai-with-u/MaiBot) 深度改造、独立维护。
+> ☕ 如果这个方向对你有用，可以 [请麦麦喝杯奶茶](https://afdian.com/a/liumiaoqi)。
 
 <br>
 
