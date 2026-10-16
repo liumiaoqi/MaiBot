@@ -54,6 +54,7 @@ __all__ = [
     "resolve_project_root",
     "resolve_data_root",
     "resolve_data_file",
+    "resolve_data_path",
     "resolve_host_side_alternate_root",
     "describe_data_root",
 ]
@@ -100,6 +101,35 @@ def resolve_data_file(*parts: str) -> Path:
     调用点**不要**自己拼 `"data"` —— 那是旧的"各推各的"写法。
     """
     return resolve_data_root().joinpath(*parts)
+
+
+def resolve_data_path(raw_path: str | Path) -> Path:
+    """把**配置里的路径**解析成绝对路径：绝对值原样；相对值按**数据根**解释。
+
+    为什么需要它（批 5 的口径）：配置值层（`official_configs.py` 的默认值、用户手写的串）
+    **不能**写死绝对路径 —— 那会把机器相关路径写进用户配置文件。但旧代码把这些相对串交给
+    **CWD** 或**仓根**：CWD 一变就漂，`MAIBOT_DATA_DIR` 一生效就劈叉（"看起来已经统一了"
+    的那种劈叉，最难发现）。
+
+    约定（与历史配置值兼容）：
+    - 绝对路径 ⇒ 原样 `resolve()`；
+    - `data/xxx` ⇒ **去掉 `data/` 前缀再挂到数据根**：数据根本身就是 `data/`
+      ⇒ 未设 env 时与旧行为**逐字同径**，设了 env 时**一起跟动**；
+    - 其它相对值 ⇒ 直接挂数据根。
+
+    Raises:
+        ValueError: 传入空串 —— 调用方该先判空；静默返回数据根会把"没配"变成"配到了根目录"。
+    """
+    text = str(raw_path).strip()
+    if not text:
+        raise ValueError("resolve_data_path 不接受空路径（请先判空，别把'没配'当成'配到根'）")
+    candidate = Path(text).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+    parts = candidate.parts
+    if parts and parts[0] == _DATA_DIRNAME:
+        candidate = Path(*parts[1:]) if len(parts) > 1 else Path()
+    return (resolve_data_root() / candidate).resolve()
 
 
 def resolve_host_side_alternate_root() -> Path | None:

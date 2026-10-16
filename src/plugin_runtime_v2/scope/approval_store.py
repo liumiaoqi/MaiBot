@@ -7,10 +7,9 @@
 
 import json
 import time
-from pathlib import Path
 
 from src.common.logger import get_logger
-from src.common.runtime_paths import resolve_data_file
+from src.common.runtime_paths import resolve_data_file, resolve_data_path
 from src.plugin_runtime_v2.scope.vocabulary import ScopeVocabulary
 
 logger = get_logger("plugin_runtime_v2.scope.approval_store")
@@ -23,9 +22,12 @@ class ScopeApprovalStore:
     """
 
     def __init__(self, file_path: str | None = None) -> None:
-        # 数据根只从唯一来源取（旧默认值是相对 CWD 的 `"data/plugin_runtime_v2/scope_approvals.json"`）；
-        # 显式传 `file_path` 的调用方（`bootstrap.py` 的配置值、测试隔离）语义不变。
-        self._file_path = Path(file_path) if file_path else resolve_data_file("plugin_runtime_v2", "scope_approvals.json")
+        # 数据根只从唯一来源取。显式传 `file_path` 的调用方（`bootstrap.py` 的**配置值**、测试隔离）
+        # 走 `resolve_data_path`：配置里的相对串（如默认的 `"data/scope_approvals.json"`）按**数据根**
+        # 解释 ⇒ 未设 env 时与旧行为同径、设了 env 时跟动；旧写法 `Path(file_path)` 是**相对 CWD** 的。
+        self._file_path = (
+            resolve_data_path(file_path) if file_path else resolve_data_file("plugin_runtime_v2", "scope_approvals.json")
+        )
         self._approvals: dict[str, dict] = {}
 
     def load(self) -> None:

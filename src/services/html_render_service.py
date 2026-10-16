@@ -22,8 +22,8 @@ import shutil
 import sys
 import time
 
-from src.common.logger import PROJECT_ROOT, get_logger
-from src.common.runtime_paths import resolve_data_file
+from src.common.logger import get_logger
+from src.common.runtime_paths import resolve_data_file, resolve_data_path
 from src.core.app_config_port_registry import get_app_config_port
 from src.config.official_configs import PluginRuntimeRenderConfig
 
@@ -570,10 +570,10 @@ class HTMLRenderService:
         if not configured_path:
             # 数据根只从唯一来源取（旧写法 PROJECT_ROOT/"data"/… 自己又拼了一次 "data"）
             return resolve_data_file("playwright-browsers")
-        candidate_path = Path(configured_path).expanduser()
-        if candidate_path.is_absolute():
-            return candidate_path.resolve()
-        return (PROJECT_ROOT / candidate_path).resolve()
+        # 配置值这一层**不能**写死绝对路径（会把机器相关路径写进用户配置），所以相对值的正确语义是
+        # "**相对数据根**"：`data/playwright-browsers` 去掉 `data/` 前缀 ⇒ 未设 env 时与旧行为逐字同径、
+        # 设了 env 时一起跟动。旧写法锚在**仓根**（`PROJECT_ROOT / candidate_path`）⇒ 那处收敛"打不到"。
+        return resolve_data_path(configured_path)
 
     def _get_browser_state_path(self) -> Path:
         """获取托管浏览器状态文件路径。
