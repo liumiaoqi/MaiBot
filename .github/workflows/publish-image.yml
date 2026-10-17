@@ -113,6 +113,14 @@ jobs:
   # ── job 2：arm64（**原生** arm64 runner，无 QEMU）—— 只推 digest，不打 tag ──────
   build-arm64:
     runs-on: ubuntu-24.04-arm
+    # ⚠️ **已知降级**（2026-10-17 用户拍板 C：x86 先出货、arm64 不阻塞）
+    #    arm64 红在 Dockerfile:39 的 `uv sync --frozen --no-dev`：
+    #      × Failed to build `qiskit-aer==0.17.2`
+    #      ⇒ ERROR: Invalid setting '15' is not a valid 'settings.compiler.version' ⇒ Conan install failed
+    #    ⇒ **arm64 上 qiskit-aer 没有预编译 wheel** ⇒ 回落源码编译 ⇒ conan 不认 gcc-15。
+    #    （对照：**build-amd64 这次 3m10s 成功** —— 那边有 wheel、不编译 ⇒ 不是方案错，是这条依赖链在 arm64 过不去。）
+    #    ⇒ 等 qiskit-aer 上游出 arm64 wheel 再**摘掉本行**；摘之前 merge 的架构断言走"只有 amd64"的降级档（绿 + warning）。
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -173,6 +181,11 @@ jobs:
   # ── job 3：合并 manifest list（打 tag） + ⭐ 验收判据 ────────────────────────────
   merge:
     needs: [build-amd64, build-arm64]
+    # ⚠️ `if: always()` 是**降级出货的前提**：arm64 现在带 continue-on-error，但 GitHub 仍会把
+    #    "失败的 needs" 当作下游不可跑 ⇒ 不加这行，arm64 一红 merge 就被 skip ⇒ **x86 也出不来**。
+    #    （digest 侧已核：`pattern: digests-*` + `merge-multiple: true` 在**只有 amd64 一个 artifact**
+    #     时照常工作 —— 带 pattern 时至少命中一个即不报错；两个都缺才会红，那是另一回事。）
+    if: always()
     runs-on: ubuntu-24.04
     steps:
       - name: 取回两个 digest
@@ -202,7 +215,7 @@ jobs:
             -t "$IMAGE:${{ inputs.tag }}" \
             $(printf "$IMAGE@sha256:%s " *)
 
-      - name: ⭐ 验收判据：inspect 必须看到 **2 条** manifest（amd64 + arm64）
+      - name: ⭐ 验收判据：inspect 必须含 amd64（arm64 允许降级）
         run: |
           set -euo pipefail
           # 人眼可读的那份（内容进 run summary，方便翻）
@@ -215,13 +228,29 @@ jobs:
           import sys
 
           manifests = json.load(open("/tmp/manifests.json"))
-          archs = sorted(m["platform"]["architecture"] for m in manifests)
+          archs = sorted({m["platform"]["architecture"] for m in manifests})
           print("platforms:", archs)
-          expected = ["amd64", "arm64"]
-          if archs != expected:
-              print(f"::error::期望 {expected} 两条 manifest，实际 {archs}", file=sys.stderr)
+
+          # 口径（2026-10-17 改三档：允许 arm64 **降级**，但⛔ 不许"一个都没有"也放过）：
+          #   ① 有 amd64 + arm64 ⇒ 双架构，正常
+          #   ② 只有 amd64      ⇒ 降级出货：::warning:: 说明 + 绿
+          #   ③ 没有 amd64      ⇒ **红**（含"一个都没有"与"只有 arm64"）
+          allowed = {"amd64", "arm64"}
+          if not archs or not set(archs).issubset(allowed):
+              print(f"::error::manifest 架构集非法：{archs}（应**非空**且 ⊆ {sorted(allowed)}）", file=sys.stderr)
               sys.exit(1)
-          print("✅ manifest list 含 amd64 + arm64 两条")
+          if "amd64" not in archs:
+              print(f"::error::缺 amd64 —— 本次发布不可用（amd64 才是出货目标）；实际 {archs}", file=sys.stderr)
+              sys.exit(1)
+          if "arm64" not in archs:
+              print(
+                  "::warning title=arm64 本次未出货::manifest list 仅含 amd64。"
+                  "arm64 降级原因见 build-arm64 的红"
+                  "（qiskit-aer 无 arm64 wheel ⇒ 源码编译在 gcc-15 上过不了 conan）。"
+              )
+              print("⚠️ 仅 amd64（arm64 降级，见 build-arm64 的失败原因）")
+          else:
+              print("✅ manifest list 含 amd64 + arm64 两条")
           PY
           {
             echo "### 已发布（双架构 manifest list）"
