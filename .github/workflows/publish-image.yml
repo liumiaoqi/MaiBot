@@ -41,8 +41,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: mingtang/pnpm-lock.yaml
+          # ⚠️ 刻意**不启用** setup-node 的 pnpm 缓存（2026-10-17 实测）：
+          #    仓内 `mingtang/.npmrc` 写死了 `store-dir=E:\pnpm-store`（Windows 绝对路径），而 setup-node 在 **setup 那一刻**
+          #    就用 `pnpm store path` 算出缓存目录 ⇒ Linux runner 上**该目录不存在** ⇒ 后置步骤
+          #    `Path(s) specified in the action for caching do(es) not exist` **每跑必红**。
+          #    ⚠️ 红在**缓存保存**、不在构建 ⇒ 但 job 仍被判红 ⇒ `verify-anonymous`（needs 本 job）被 skip。
+          #    （L54 那句 `pnpm config set store-dir $RUNNER_TEMP/...` 是**之后**才覆盖的，对 setup-node 太晚。）
+          #    本 job 前端只 build 一次，缓存收益很小 ⇒ 删两行；**根因另件议**（`.npmrc` 写死 Windows 路径会坑所有 Linux/macOS 开发者）。
 
       - name: 前端构建（镜像自足的前置）
         working-directory: mingtang
