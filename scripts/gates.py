@@ -50,14 +50,20 @@ python scripts/gates.py quick --dry-run    # 只列门表，不执行（也用�
 本门用 `--extend-exclude` 排除；1 条 F811 在 `tests/webui/conftest.py`，同函数内重复 import，
 加门前已删）。理由逐字：**这两条规则就是'静默运行时错'的门；它们现在为 0，所以这条门有干净基线**。
 
+**排除面 = 主仓面（不含 gitlink 子模块：`lab/`、`.shared/`）**：`lab/`（自己的实验区）与
+`.shared/`（协作区）都是子模块，`ruff .` 从主仓会走进去——`main 6792d4d97` 实测带进
+F401 11 条 / F821 1 条，**都不是本仓的改动**；所以本门命令与 changed-files 规则的
+「全仓基线」判据都按这条面排（只排 `scripts/embedding_finetune` 会把 gitlink 放回来）。
+
 为什么不是 changed-files：这两个 bug 在 `main` 上活了 **71 天**才被发现——只看改动文件的门，
 对「已经躺着的历史」天生失明；而这两条规则的全仓检查成本 ~1s，跑得起。F821 = 未定义名
 （运行时 NameError，或永远走不到的假分支），F811 = 重复定义或遮蔽（后一个悄悄顶掉前一个）。
 
 ## quick 的 changed-files 门：只放「全仓基线 = 0」的规则
 
-入门判据（**唯一条件**）：该规则在**全仓主仓面**（`--extend-exclude scripts/embedding_finetune`）
-跑出来 = **0**。理由：changed-files 门查的是「这次改动」——只有当历史里一条都没有时，
+入门判据（**唯一条件**）：该规则在**全仓主仓面**
+（`--extend-exclude "scripts/embedding_finetune,lab/**,.shared/**"`）跑出来 = **0**。
+理由：changed-files 门查的是「这次改动」——只有当历史里一条都没有时，
 任何一条命中才**必然**是这次引入的；带存量的规则放进来，门就会被历史红淹没（一碰就红），
 变成噪声。当前放 `F821,F811,F401`（**全仓主仓面都是 0**）：`F401` 于 **2026-10-17**
 清到 0（`main 3eb4b04cb` 清 95 条 + 收尾 15 条 = 110 → 0；其中
@@ -133,7 +139,7 @@ RUFF_OUTSIDE_PREFIXES = (
 )
 
 #: changed-files 门允许的规则集：**判据 = 该规则全仓主仓面（--extend-exclude
-#: scripts/embedding_finetune）基线为 0**。加规则前先跑全仓；非 0 不许进
+#: "scripts/embedding_finetune,lab/**,.shared/**"）基线为 0**。加规则前先跑全仓；非 0 不许进
 #: （历史红会把门淹成噪声）。F821/F811 = 0；F401 于 2026-10-17 清到 0 后进门。
 CHANGED_FILES_RULES = "F821,F811,F401"
 
@@ -222,11 +228,12 @@ def quick_gates() -> list[Gate]:
                 "--select",
                 "F821,F811",
                 "--extend-exclude",
-                "scripts/embedding_finetune",
+                "scripts/embedding_finetune,lab/**,.shared/**",
                 ".",
             ),
             what=(
-                "全仓主仓面（排除 scripts/embedding_finetune 隔离实验区）；"
+                "全仓主仓面（排除 scripts/embedding_finetune 隔离实验区 + gitlink 子模块 "
+                "lab/、.shared/）；"
                 "F821=未定义名 / F811=重复定义或遮蔽：这两条规则就是'静默运行时错'的门；"
                 "它们现在为 0，所以这条门有干净基线"
             ),
