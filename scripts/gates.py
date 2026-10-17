@@ -54,13 +54,29 @@ python scripts/gates.py quick --dry-run    # 只列门表，不执行（也用�
 对「已经躺着的历史」天生失明；而这两条规则的全仓检查成本 ~1s，跑得起。F821 = 未定义名
 （运行时 NameError，或永远走不到的假分支），F811 = 重复定义或遮蔽（后一个悄悄顶掉前一个）。
 
+## quick 的 changed-files 门：只放「全仓基线 = 0」的规则
+
+入门判据（**唯一条件**）：该规则在**全仓主仓面**（`--extend-exclude scripts/embedding_finetune`）
+跑出来 = **0**。理由：changed-files 门查的是「这次改动」——只有当历史里一条都没有时，
+任何一条命中才**必然**是这次引入的；带存量的规则放进来，门就会被历史红淹没（一碰就红），
+变成噪声。当前放 `F821,F811,F401`（**全仓主仓面都是 0**）：`F401` 于 **2026-10-17**
+清到 0（`main 3eb4b04cb` 清 95 条 + 收尾 15 条 = 110 → 0；其中
+`docs/archive/officeArtWorks/ppt_to_pdf.py` 1 条是此前「109 = 95 + 14」记账的漏项），
+按本判据进门；以后谁把存量加回来（全仓非 0），先把它请出去再清。
+
+分工（**两笔账，别混**）：
+
+- **changed-files 门 = 零基线规则**：命中即「这次引入的」，必须修；不承担存量债。
+- **full / 全仓面 = 默认规则集**（E/F/B/TID…）：有存量红，判据只能是「新增 = 0」
+  （基线差），**能容红**；它不要求全绿，也永远不该把存量算到某一次改动头上。
+
 ## 如实声明
 
 - **`uv run ruff check`（全仓）在本仓从来就不是绿的**：`main` `322023712` 实测红 **1208 条**
   （1049 在 `scripts/embedding_finetune/` 隔离实验区；159 在 `src/tests/pytests/scripts`），
   不是本档引入的。**本季所有"ruff 干净"都是逐文件口径**——这句话必须带范围
   （哪几个文件 / 全仓），否则就是"账目会腐"。所以 quick 只查「本次改动文件」，
-  并在档首显式打印「本档不含」。
+  **且只查零基线规则子集**（见上节），并在档首显式打印「本档不含」。
   **例外**：quick 的第一道门是全仓 `F821,F811` 子集（见上节）——主仓面它本来就是 0，
   与「默认规则集全仓」不是一笔账。
 - **quick 不含全量 pytest / 前端三绿**：前者归 full，后者尚未接入 Python 门（P2/P3 再说）。
@@ -102,7 +118,8 @@ FAIL_LINE = re.compile(r"^(?:FAILED|ERROR)\s+(?P<nodeid>\S.*?)(?:\s+-\s+.*)?$")
 QUICK_CUTS = (
     "全仓 ruff —— 从来不是绿的：main 322023712 实测红 1208 条（1049 在"
     " scripts/embedding_finetune，159 在 src/tests/pytests/scripts；非本档引入）"
-    " ⇒ 本档只查本次改动文件（逐文件口径）；「ruff 干净」必须带范围（哪几个文件 / 全仓）",
+    " ⇒ 本档只查本次改动文件（逐文件口径），且只查零基线规则子集（见档首分工）；"
+    "「ruff 干净」必须带范围（哪几个文件 / 全仓）",
     "全量 pytest（归 full 档）",
     "前端 lint / test / build（本仓 Python 门暂未接）",
 )
@@ -114,6 +131,11 @@ RUFF_OUTSIDE_PREFIXES = (
     "plugins/",
     ".shared/",
 )
+
+#: changed-files 门允许的规则集：**判据 = 该规则全仓主仓面（--extend-exclude
+#: scripts/embedding_finetune）基线为 0**。加规则前先跑全仓；非 0 不许进
+#: （历史红会把门淹成噪声）。F821/F811 = 0；F401 于 2026-10-17 清到 0 后进门。
+CHANGED_FILES_RULES = "F821,F811,F401"
 
 #: quick 的「件 A」目标：插件兼容桥接件的 (甲)/(乙) 单测三例。
 #: ⚠️ 任务书写的「件 A」在本仓文本里没有逐字出处；按 e2e 用例注释里自己写的
@@ -187,7 +209,7 @@ def changed_python_files() -> list[str]:
 
 
 def quick_gates() -> list[Gate]:
-    """提交前档：全仓 F821/F811 + 改动文件 ruff + 目标套（件 A 三条 / A_memorix 单元 / 关系反馈）。"""
+    """提交前档：全仓 F821/F811 + 改动文件的零基线规则 + 目标套（件 A 三条 / A_memorix 单元 / 关系反馈）。"""
     changed = changed_python_files()
     gates: list[Gate] = [
         Gate(
@@ -213,9 +235,12 @@ def quick_gates() -> list[Gate]:
     if changed:
         gates.append(
             Gate(
-                name="ruff (changed files)",
-                command=("uv", "run", "ruff", "check", *changed),
-                what=f"本次改动 {len(changed)} 个 .py（提交前口径）",
+                name=f"ruff changed files（零基线规则 {CHANGED_FILES_RULES}）",
+                command=("uv", "run", "ruff", "check", "--select", CHANGED_FILES_RULES, *changed),
+                what=(
+                    f"本次改动 {len(changed)} 个 .py，只查零基线规则 {CHANGED_FILES_RULES}"
+                    "（命中即这次引入的）；默认规则集/存量红不归这道门"
+                ),
             )
         )
     else:
