@@ -228,7 +228,24 @@ jobs:
           import sys
 
           manifests = json.load(open("/tmp/manifests.json"))
-          archs = sorted({m["platform"]["architecture"] for m in manifests})
+
+          # ⚠️ manifest list 里**不止有镜像**：build-push-action 默认附带 SBOM/provenance，
+          #    它以一条 **attestation-manifest** 的形式出现，platform **天生就是 `unknown/unknown`**
+          #    （2026-10-17 真跑：手算 archs 得到 ['amd64','unknown'] ⇒ 被当成"非法架构"红掉，而镜像本身是好的）。
+          #    判据是**注解**：`vnd.docker.reference.type == "attestation-manifest"`（它另带
+          #    `vnd.docker.reference.digest` 指向被证明的那个镜像 digest）。
+          #    ⛔ **不要**改成"排除 architecture == unknown" —— 那会把"真的解析不出来"也一起吞掉。
+          #    ⛔ 也不要为这条去关 provenance/SBOM（`provenance: false`）：该教断言认它，不是砍掉它。
+          attestations = [
+              m
+              for m in manifests
+              if (m.get("annotations") or {}).get("vnd.docker.reference.type") == "attestation-manifest"
+          ]
+          images = [m for m in manifests if m not in attestations]
+          print(f"attestation 已过滤：{len(attestations)} 条（剩余镜像 manifest {len(images)} 条）")
+
+          # platform 缺失时给 "unknown" ⇒ 落到下面"非 ⊆ allowed"分支 ⇒ 红（真的解析不出来就该红）
+          archs = sorted({(m.get("platform") or {}).get("architecture", "unknown") for m in images})
           print("platforms:", archs)
 
           # 口径（2026-10-17 改三档：允许 arm64 **降级**，但⛔ 不许"一个都没有"也放过）：
