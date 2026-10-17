@@ -1,4 +1,5 @@
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,66 @@ from ..personality.inner_voice_processor import InnerVoiceProcessor
 from ..personality.personality_registry import PersonalityRegistry
 
 logger = get_logger("MemoryField")
+
+# ── 心跳发起者：访问即续命（tier touch）───────────────
+# B3：1h 节流窗，与 memory_maintenance 的 1.0h 周期对齐
+_TOUCH_THROTTLE_SECONDS = 3600
+
+# B5：节流状态**单一来源**=本模块级；**per-进程**语义 —— key=(subject, session)，
+# 进程重启即重置（C4：wall-clock（time.time）· 重启重置）。
+# ⚠️ 本仓 recall 路径上只有 agent_id（无 session 维度）⇒ 实参 subject=agent_id、session="tier"（见调用点）。
+_touch_throttle_state: dict[tuple[str, str], float] = {}
+# B4：跳过量必须可观测（计数），否则"节流生效"与"钩子没接"现象一模一样
+_touch_skip_count = 0
+
+
+def _touch_accessed_tier(
+    lifecycle_manager: LifecycleManager,
+    subject: str,
+    session: str,
+    episode_ids: list[int],
+    saga_ids: list[int],
+) -> None:
+    """访问即续命——刷新本次真正命中的 episode/saga 的 last_accessed_at。
+
+    B7：同一节流窗内对同一 (subject, session) 只续命一次（touch_episode / touch_saga 各调一次）。
+    C2：touch_* 每次新开 sqlite3.connect + commit（narrative/episode_store.py:288-293）
+        ⇒ 同步 IO，必离热路径 —— 节流不是优化，是必需；整段异常隔离，**绝不改变 recall 的返回**。
+        ⭐ **异常隔离 ≠ 静默吞**：logger.warning + escalation port 双通道，且具名（subject/session/原因）。
+    C5：不吞 CancelledError —— 它继承 BaseException，`except Exception` 捕不到。
+    """
+    global _touch_skip_count
+
+    # 什么都没命中 = 无可续命对象：不占窗、不记 skip
+    if not episode_ids and not saga_ids:
+        return
+
+    key = (subject, session)
+    now = time.time()
+    last = _touch_throttle_state.get(key)
+    if last is not None and now - last < _TOUCH_THROTTLE_SECONDS:
+        _touch_skip_count += 1
+        logger.debug("tier 续命跳过（节流窗内）：agent=%s tier=%s", subject, session)
+        return
+
+    try:
+        for episode_id in episode_ids:
+            lifecycle_manager.touch_episode(episode_id)
+        for saga_id in saga_ids:
+            lifecycle_manager.touch_saga(saga_id)
+    except Exception as exc:
+        # 失败不占窗：下次访问仍会重试
+        logger.warning(
+            "tier 续命失败：agent=%s tier=%s 原因=%s", subject, session, exc,
+        )
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(ErrorLevel.WARNING, "记忆 tier 续命失败", exception=exc)
+        return
+
+    _touch_throttle_state[key] = now
 
 
 class MemoryField:
@@ -187,6 +248,16 @@ class MemoryField:
         """recall + intuition 合并：概念激活 + 认知和叙事深度"""
         recall_items = self.recall(seeds, agent_id, min_weight, max_results)
         intuition = self.get_intuition(context_text, agent_id, max_tokens)
+        # C7：挂点在底层 ⇒ 三条消费者（heuristic_injector.py:94 · agent_interaction/memory/adapter.py:156-165 ·
+        #     agent_autonomy/orchestrator.py:1760）都会触发 ⇒ **节流是必需的，不是优化**
+        # ⚠️ 本方法签名里只有 agent_id（无 session 维度）⇒ subject=agent_id，session 维取常量 "tier"
+        _touch_accessed_tier(
+            self._lifecycle_manager,
+            agent_id,
+            "tier",
+            [episode["id"] for episode in intuition.get("triggered_episodes", [])],
+            [saga["id"] for saga in intuition.get("triggered_sagas", [])],
+        )
         return {
             "recall_items": recall_items,
             "intuition": intuition,
