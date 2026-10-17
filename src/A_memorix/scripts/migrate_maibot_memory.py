@@ -1476,7 +1476,7 @@ class MigrationRunner:
             return
 
         now_ts = time.time()
-        empty_meta_blob = pickle.dumps({})
+        empty_meta_blob = json.dumps({}, ensure_ascii=False)
 
         conn = self.metadata_store.get_connection()
 
