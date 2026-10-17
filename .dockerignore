@@ -15,6 +15,7 @@ docs/
 .tmp_*/
 node_modules/
 dashboard/node_modules/
+mingtang/node_modules/
 data/
 logs/
 temp/

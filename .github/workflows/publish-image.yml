@@ -1,0 +1,127 @@
+# 镜像发布（GHCR）—— **手动触发**，只推明确版本，⛔ 不打 latest
+#
+# 为什么这样设计（完整决策见 .shared/decisions/publish_image_line.md）：
+#   ① **自足**：镜像里必须有 `mingtang/dist`（compose 的 healthcheck 检查的就是 `/MaiMBot/mingtang/dist/index.html`）
+#      ⇒ 先在 CI 里构建前端，再 docker build（`.dockerignore` 未排除 `mingtang/dist` ⇒ `COPY . .` 会带上它，
+#      Dockerfile 里加了构建期断言把这件事钉死）。compose L64 的挂载在开发场景仍可覆盖。
+#   ② **手动**：`on: push: tags` 有个坏形态——构建失败时 **tag 已存在而镜像没有**（半发布）。
+#      先手动跑通、验证过，再考虑挂 tag（挂的时候要么"失败即删 tag"，要么"先推镜像成功再打 tag"）。
+#   ③ **匿名验证**：登录过的 runner 证明不了"别人拉得到"⇒ 另开一个 **从不登录** 的 job，按 **digest** 拉。
+#      这步就是本 workflow 的验收判据——"绿的 workflow 可能推上去一个别人拉不到/跑不起来的镜像"。
+name: Publish Image (GHCR)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "镜像标签（明确版本，如 v0.1.0；⚠️ 不要 latest）"
+        required: true
+        default: "v0.1.0"
+
+permissions:
+  contents: read
+  packages: write # 推 GHCR 必需
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/maibot
+  PNPM_VERSION: "11.28.5" # 与本机实测版本一致（pin 住，避免 runner 默认版本漂移）
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: mingtang/pnpm-lock.yaml
+
+      - name: 前端构建（镜像自足的前置）
+        working-directory: mingtang
+        run: |
+          set -euo pipefail
+          # ⚠️ 仓内 `mingtang/.npmrc` 写死了 Windows 绝对路径 `store-dir=E:\pnpm-store`：
+          #    Linux runner 上必须覆盖，否则会在构建上下文里造出名为 `E:\pnpm-store` 的目录，
+          #    而它会被 `COPY . .` 一起带进镜像。
+          pnpm config set store-dir "$RUNNER_TEMP/pnpm-store"
+          pnpm install --frozen-lockfile
+          pnpm run build
+          # 自足性**前置**断言：构建上下文里没有前端产物就别往下走（红在这里比红在 healthcheck 便宜）
+          test -f dist/index.html
+          echo "前端产物：$(find dist -type f | wc -l) 个文件"
+
+      - name: 登录 GHCR（**只在本 job**；verify-anonymous 另开 job ⇒ 那边是真匿名）
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送（只 amd64 · 只明确版本 · 不打 latest）
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ inputs.tag }}
+
+      - name: 把 digest 写进 run summary（**可核对的锚**——同名 tag 重推后它才分得清哪份是哪份）
+        run: |
+          {
+            echo "### 已推送"
+            echo ""
+            echo "- 镜像：\`${{ env.IMAGE }}:${{ inputs.tag }}\`"
+            echo "- **digest**：\`${{ steps.build.outputs.digest }}\`"
+            echo "- 按 digest 拉（可复算原子）：\`docker pull ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 尝试把包设为 public（best-effort；失败**不许静默**）
+        continue-on-error: true # 判据不在这步 —— 真正的判据是下面那个匿名 job
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          pkg="maibot"
+          owner="${{ github.repository_owner }}"
+          if gh api --method PATCH "/user/packages/container/$pkg" -f visibility=public >/dev/null 2>&1; then
+            echo "✅ 包可见性已设为 public"
+          else
+            echo "::error title=需要人工设可见性::GHCR 新推的包**默认 private**，自动设置失败。请到 https://github.com/users/$owner/packages/container/$pkg/settings → Danger Zone → Change visibility → Public 点一下；否则匿名拉取会被 denied（仓库本身是 public 也没用）。"
+            exit 1
+          fi
+
+  # ⭐ 本 workflow 的**验收判据**：换一个"从不登录"的 runner，按 digest 匿名拉 + 起容器 + 断言前端在位
+  verify-anonymous:
+    needs: build-and-push
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 匿名拉取（本 job 全程不登录 ⇒ 这就是"别人拉得到吗"）
+        env:
+          REF: ${{ env.IMAGE }}@${{ needs.build-and-push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker pull "$REF"
+
+      - name: 自足性冒烟：起容器 + 断言 healthcheck 检查的那个文件
+        env:
+          REF: ${{ env.IMAGE }}@${{ needs.build-and-push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # 覆盖 entrypoint（不在 CI 里真启动 bot：它要配置/数据库），保持容器活着以便 exec
+          cid=$(docker run -d --entrypoint sleep "$REF" 3600)
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          test -f /MaiMBot/mingtang/dist/index.html # 下面这步的本地前置，失败信息更清楚
+          docker exec "$cid" test -f /MaiMBot/mingtang/dist/index.html
+          echo "✅ 镜像内 /MaiMBot/mingtang/dist/index.html 存在（= compose healthcheck 的那个文件）"
+          # 容器不立刻退出（entrypoint 被覆盖成 sleep，这里看的是镜像本身能起）
+          docker inspect -f '状态={{.State.Status}} 退出码={{.State.ExitCode}}' "$cid"
+          echo "digest=${{ needs.build-and-push.outputs.digest }}"

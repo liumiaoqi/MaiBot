@@ -54,6 +54,13 @@ RUN python -m playwright install-deps chromium \
 # Copy project source
 COPY . .
 
+# WebUI 静态资源（**镜像自足**，2026-10-17 publish-image 线补；决策见 .shared/decisions/publish_image_line.md）
+# `.dockerignore` 没有排除 `mingtang/dist` ⇒ 上面 `COPY . .` 已经把它带进镜像了（compose L64 的
+# `./mingtang/dist:/MaiMBot/mingtang/dist:ro` 在**开发**场景仍可覆盖）。这里只加**构建期断言**：
+#   构建上下文里没有前端产物时**立刻失败**，而不是推一个 "healthcheck 永远红" 的镜像出去。
+# 判据来源：compose `healthcheck.test = ["CMD","test","-f","/MaiMBot/mingtang/dist/index.html"]`。
+RUN test -f /MaiMBot/mingtang/dist/index.html
+
 RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 EXPOSE 8000 8001
