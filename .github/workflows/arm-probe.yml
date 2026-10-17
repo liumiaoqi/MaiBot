@@ -1,8 +1,0 @@
-# 一次性探针（用完即删）：核实 `ubuntu-24.04-arm` 原生 runner 在本仓是否可用
-# 判据：绿 + 打印 aarch64 ⇒ 可用；红（no runner matching）⇒ 不可用，退回 QEMU 单 job 方案
-on: workflow_dispatch
-jobs:
-  probe:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - run: uname -m && nproc && docker version --format '{{.Server.Arch}}'

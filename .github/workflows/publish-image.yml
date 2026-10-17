@@ -6,8 +6,16 @@
 #      Dockerfile 里加了构建期断言把这件事钉死）。compose L64 的挂载在开发场景仍可覆盖。
 #   ② **手动**：`on: push: tags` 有个坏形态——构建失败时 **tag 已存在而镜像没有**（半发布）。
 #      先手动跑通、验证过，再考虑挂 tag（挂的时候要么"失败即删 tag"，要么"先推镜像成功再打 tag"）。
-#   ③ **匿名验证**：登录过的 runner 证明不了"别人拉得到"⇒ 另开一个 **从不登录** 的 job，按 **digest** 拉。
+#   ③ **匿名验证**：登录过的 runner 证明不了"别人拉得到"⇒ 另开一个 **从不登录** 的 job，按 **tag** 拉
+#      （双架构后按 tag 拉 = 拉 manifest list，docker 会自动选本机架构那一条）。
 #      这步就是本 workflow 的验收判据——"绿的 workflow 可能推上去一个别人拉不到/跑不起来的镜像"。
+#   ④ **原生双架构**（2026-10-17）：`ubuntu-24.04-arm` 是**真 arm64 机器**（探针实测 `aarch64` /
+#      `docker version --format '{{.Server.Arch}}'` = `arm64`，**无 QEMU**）⇒ 两个平台**各自原生构建**、
+#      再从两个 digest 合并成 manifest list。**不用 QEMU 模拟**（那会把 arm64 构建拖成十几分钟且偶发非法指令）。
+#      ⇒ 因此是 **两个 build job + 一个 merge job**（buildx 官方"多 runner"形态）：
+#        · build-* 只推 **by digest**（不带 tag）——避免两个 job 抢同一个 tag
+#        · merge 用 `imagetools create` 把两个 digest 合成 tag
+#        · ⭐ merge 里的 `imagetools inspect` + 架构断言 = **本件的验收判据**（必须看到 amd64 + arm64 两条 manifest）
 name: Publish Image (GHCR)
 
 on:
@@ -27,10 +35,9 @@ env:
   PNPM_VERSION: "11.28.5" # 与本机实测版本一致（pin 住，避免 runner 默认版本漂移）
 
 jobs:
-  build-and-push:
+  # ── job 1：amd64（原生 x86_64 runner）—— 只推 digest，不打 tag ─────────────────
+  build-amd64:
     runs-on: ubuntu-24.04
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,9 +52,10 @@ jobs:
           #    仓内 `mingtang/.npmrc` 写死了 `store-dir=E:\pnpm-store`（Windows 绝对路径），而 setup-node 在 **setup 那一刻**
           #    就用 `pnpm store path` 算出缓存目录 ⇒ Linux runner 上**该目录不存在** ⇒ 后置步骤
           #    `Path(s) specified in the action for caching do(es) not exist` **每跑必红**。
-          #    ⚠️ 红在**缓存保存**、不在构建 ⇒ 但 job 仍被判红 ⇒ `verify-anonymous`（needs 本 job）被 skip。
-          #    （L54 那句 `pnpm config set store-dir $RUNNER_TEMP/...` 是**之后**才覆盖的，对 setup-node 太晚。）
-          #    本 job 前端只 build 一次，缓存收益很小 ⇒ 删两行；**根因另件议**（`.npmrc` 写死 Windows 路径会坑所有 Linux/macOS 开发者）。
+          #    ⚠️ 红在**缓存保存**、不在构建 ⇒ 但 job 仍被判红 ⇒ 下游 job 被 skip。
+          #    （前端构建那段里 `pnpm config set store-dir $RUNNER_TEMP/...` 是**之后**才覆盖的，对 setup-node 太晚。）
+          #    **两个 build job 都保持现状：不加 `cache: pnpm`。** 根因另件议
+          #    （`.npmrc` 写死 Windows 路径会坑所有 Linux/macOS 开发者）。
 
       - name: 前端构建（镜像自足的前置）
         working-directory: mingtang
@@ -63,30 +71,155 @@ jobs:
           test -f dist/index.html
           echo "前端产物：$(find dist -type f | wc -l) 个文件"
 
-      - name: 登录 GHCR（**只在本 job**；verify-anonymous 另开 job ⇒ 那边是真匿名）
+      - name: 登录 GHCR（只在本 job；verify-anonymous 另开 job ⇒ 那边是真匿名）
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 构建并推送（只 amd64 · 只明确版本 · 不打 latest）
+      - name: 构建并**按 digest 推送**（amd64 · 不打 tag）
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
-          push: true
-          tags: ${{ env.IMAGE }}:${{ inputs.tag }}
+          # ⭐ 只推 digest：两个 build job 抢同一个 tag 会互相覆盖；tag 由 merge 统一打
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
-      - name: 把 digest 写进 run summary（**可核对的锚**——同名 tag 重推后它才分得清哪份是哪份）
+      - name: 把 digest 落成文件（artifact 传递用；文件名就是 digest，去掉 `sha256:` 前缀）
         run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          test -n "$digest" || { echo "::error::build 没给出 digest（push-by-digest 下不该为空）"; exit 1; }
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-amd64
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── job 2：arm64（**原生** arm64 runner，无 QEMU）—— 只推 digest，不打 tag ──────
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          # 同上：**不加 `cache: pnpm`**（理由见 build-amd64 里那段注释，写全了一处，此处不重复）
+
+      - name: 前端构建（镜像自足的前置）
+        working-directory: mingtang
+        run: |
+          set -euo pipefail
+          # 同上：覆盖仓内 `.npmrc` 的 Windows 绝对 store-dir
+          pnpm config set store-dir "$RUNNER_TEMP/pnpm-store"
+          pnpm install --frozen-lockfile
+          pnpm run build
+          test -f dist/index.html
+          echo "前端产物：$(find dist -type f | wc -l) 个文件"
+
+      - name: 登录 GHCR（只在本 job；verify-anonymous 另开 job ⇒ 那边是真匿名）
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并**按 digest 推送**（arm64 · 不打 tag · **原生**，不是 QEMU）
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: 把 digest 落成文件（artifact 传递用）
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          test -n "$digest" || { echo "::error::build 没给出 digest（push-by-digest 下不该为空）"; exit 1; }
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-arm64
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── job 3：合并 manifest list（打 tag） + ⭐ 验收判据 ────────────────────────────
+  merge:
+    needs: [build-amd64, build-arm64]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 取回两个 digest
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          # ⚠️ 必须 merge-multiple：带 pattern 时每个 artifact 会落进**自己的子目录**，
+          #    不加这条下面的 `*` 会 glob 到目录而不是 digest 文件。
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录 GHCR（推 manifest list 需要写权限）
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⭐ 合并两个 digest 成 manifest list（打 tag）
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          set -euo pipefail
+          ls -l
+          docker buildx imagetools create \
+            -t "$IMAGE:${{ inputs.tag }}" \
+            $(printf "$IMAGE@sha256:%s " *)
+
+      - name: ⭐ 验收判据：inspect 必须看到 **2 条** manifest（amd64 + arm64）
+        run: |
+          set -euo pipefail
+          # 人眼可读的那份（内容进 run summary，方便翻）
+          docker buildx imagetools inspect "$IMAGE:${{ inputs.tag }}" | tee /tmp/inspect.txt
+          # 机器可判的那份：断言两个架构都在（这才是"双架构真的成立"的唯一证据）
+          docker buildx imagetools inspect "$IMAGE:${{ inputs.tag }}" \
+            --format '{{json .Manifest.Manifests}}' > /tmp/manifests.json
+          python3 - <<'PY'
+          import json
+          import sys
+
+          manifests = json.load(open("/tmp/manifests.json"))
+          archs = sorted(m["platform"]["architecture"] for m in manifests)
+          print("platforms:", archs)
+          expected = ["amd64", "arm64"]
+          if archs != expected:
+              print(f"::error::期望 {expected} 两条 manifest，实际 {archs}", file=sys.stderr)
+              sys.exit(1)
+          print("✅ manifest list 含 amd64 + arm64 两条")
+          PY
           {
-            echo "### 已推送"
+            echo "### 已发布（双架构 manifest list）"
             echo ""
             echo "- 镜像：\`${{ env.IMAGE }}:${{ inputs.tag }}\`"
-            echo "- **digest**：\`${{ steps.build.outputs.digest }}\`"
-            echo "- 按 digest 拉（可复算原子）：\`docker pull ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}\`"
+            echo "- 架构：\`amd64\` + \`arm64\`（**各自原生构建**，无 QEMU）"
+            echo ""
+            echo '```'
+            cat /tmp/inspect.txt
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 尝试把包设为 public（best-effort；失败**不许静默**）
@@ -104,29 +237,30 @@ jobs:
             exit 1
           fi
 
-  # ⭐ 本 workflow 的**验收判据**：换一个"从不登录"的 runner，按 digest 匿名拉 + 起容器 + 断言前端在位
+  # ⭐ 本 workflow 的**验收判据**：换一个"从不登录"的 runner，按 **tag** 匿名拉（docker 自选本机架构）
+  #    —— 拉 manifest list + 起容器 + 断言前端在位。两个架构各自都能跑，靠的是 merge 那步的架构断言。
   verify-anonymous:
-    needs: build-and-push
+    needs: merge
     runs-on: ubuntu-24.04
     steps:
       - name: 匿名拉取（本 job 全程不登录 ⇒ 这就是"别人拉得到吗"）
         env:
-          REF: ${{ env.IMAGE }}@${{ needs.build-and-push.outputs.digest }}
+          REF: ${{ env.IMAGE }}:${{ inputs.tag }}
         run: |
           set -euo pipefail
+          # 按 tag 拉 = 拉 manifest list（不是 digest）：这同时验证了 tag→manifest list 这条链
           docker pull "$REF"
 
       - name: 自足性冒烟：起容器 + 断言 healthcheck 检查的那个文件
         env:
-          REF: ${{ env.IMAGE }}@${{ needs.build-and-push.outputs.digest }}
+          REF: ${{ env.IMAGE }}:${{ inputs.tag }}
         run: |
           set -euo pipefail
           # 覆盖 entrypoint（不在 CI 里真启动 bot：它要配置/数据库），保持容器活着以便 exec
           cid=$(docker run -d --entrypoint sleep "$REF" 3600)
           trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
-          test -f /MaiMBot/mingtang/dist/index.html # 下面这步的本地前置，失败信息更清楚
           docker exec "$cid" test -f /MaiMBot/mingtang/dist/index.html
           echo "✅ 镜像内 /MaiMBot/mingtang/dist/index.html 存在（= compose healthcheck 的那个文件）"
           # 容器不立刻退出（entrypoint 被覆盖成 sleep，这里看的是镜像本身能起）
           docker inspect -f '状态={{.State.Status}} 退出码={{.State.ExitCode}}' "$cid"
-          echo "digest=${{ needs.build-and-push.outputs.digest }}"
+          echo "tag=${{ inputs.tag }}"
