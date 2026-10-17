@@ -78,6 +78,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ⭐ 必须换成 container builder：`push-by-digest=true` **在 docker driver 上不实现**
+      #    （2026-10-17 实跑红：`push-by-digest is currently not implemented for docker driver,
+      #    please create a new builder instance`；日志里 Builder info 的 `"driver": "docker"` 就是证据）。
+      #    ⚠️ 别给这个 action 传 `driver: docker`（那会退回原状）；**默认就是 docker-container** ✓。
+      #    ⚠️ container driver 建出来的镜像**不再自动 load 进本机 docker** —— 而下游
+      #    `verify-anonymous` 是**从 registry 拉 tag** 的，所以无影响 ✓。
+      - uses: docker/setup-buildx-action@v3
+
       - name: 构建并**按 digest 推送**（amd64 · 不打 tag）
         id: build
         uses: docker/build-push-action@v6
@@ -134,6 +142,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ⭐ 同 build-amd64：`push-by-digest` 在 docker driver 上不实现 ⇒ 必须 container builder。
+      #    默认即 docker-container；**不要**传 `driver: docker`。
+      - uses: docker/setup-buildx-action@v3
 
       - name: 构建并**按 digest 推送**（arm64 · 不打 tag · **原生**，不是 QEMU）
         id: build
