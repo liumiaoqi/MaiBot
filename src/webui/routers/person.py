@@ -20,7 +20,7 @@ from src.webui.services.person_service_web import (
     PersonListResponse,
     PersonUpdateRequest,
     PersonUpdateResponse,
-    batch_delete_persons,
+    batch_delete_persons as _batch_delete_persons,
     delete_person as _delete_person,
     get_person_detail as _get_person_detail,
     get_person_list as _get_person_list,
@@ -174,7 +174,7 @@ async def batch_delete_persons(
             raise HTTPException(status_code=400, detail="未提供要删除的人物ID")
 
         with get_db_session() as session:
-            deleted_count, failed_count, failed_ids = batch_delete_persons(session, request.person_ids)
+            deleted_count, failed_count, failed_ids = _batch_delete_persons(session, request.person_ids)
 
         message = f"成功删除 {deleted_count} 个人物"
         if failed_count > 0:

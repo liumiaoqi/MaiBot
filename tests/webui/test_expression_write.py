@@ -74,6 +74,19 @@ class TestExpressionWrite:
         data = r.json()
         assert data["success"] is True
 
+    def test_update_expression_review_status(self, auth_client, db_isolation, seed_expression):
+        """PATCH /expression/{id}/review-status — 切换人工审核状态（回归：曾漏 import ⇒ 恒 500）"""
+        if seed_expression is None:
+            pytest.skip("seed_expression 创建失败")
+
+        r = auth_client.patch(f"/api/webui/expression/{seed_expression}/review-status", json={
+            "approved": True,
+        })
+        assert r.status_code == 200, f"审核状态更新失败: {r.text}"
+        data = r.json()
+        assert data["success"] is True
+        assert data["data"]["checked"] is True
+
     def test_delete_expression(self, auth_client, db_isolation, seed_expression):
         """DELETE /expression/{id} — 删除表达方式"""
         if seed_expression is None:
