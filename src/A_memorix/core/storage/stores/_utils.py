@@ -5,7 +5,6 @@
 """
 
 import json
-import pickle
 from typing import Any, Dict, List, Optional, Sequence
 
 from src.common.logger import get_logger
@@ -25,25 +24,42 @@ def encode_metadata(metadata: Any) -> str:
     return json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
 
 
+class MetadataDecodeError(ValueError):
+    """metadata 字段无法按 JSON 解码（读侧不再回退 pickle）。"""
+
+
+def _metadata_first_byte_hex(value: Any) -> str:
+    """取 value 首字节的 hex（str 按 UTF-8 编码）；无内容返回「无」。"""
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value[:1]).hex() or "无"
+    if isinstance(value, str):
+        return value[:1].encode("utf-8").hex() or "无"
+    return "无"
+
+
 def decode_metadata(value: Any) -> Dict[str, Any]:
     """解码 metadata 字段（P2 批3.1 安全修复）。
 
-    优先 JSON 解析（新数据）；JSON 失败时 fallback 到 pickle（兼容旧数据，加警告日志）。
-    旧 pickle 数据应在下次写入时自动迁移为 JSON。
+    仅接受 JSON（新数据）；JSON 解析失败或非 JSON 输入抛 MetadataDecodeError，
+    不再回退 pickle。旧 pickle 数据的迁移不在本函数职责内。
     """
-    if value in {None, ""}:
+    if value is None or value == "":
         return {}
     if isinstance(value, dict):
         return dict(value)
-    if isinstance(value, (str, bytes, bytearray)):
+    if not isinstance(value, (str, bytes, bytearray)):
+        raise MetadataDecodeError(
+            f"metadata 解码失败: type={type(value).__name__}, "
+            f"首字节={_metadata_first_byte_hex(value)}, 原异常=None（输入类型不受支持，不再回退 pickle）"
+        )
+    try:
         text = value.decode("utf-8") if isinstance(value, (bytes, bytearray)) else value
-        try:
-            decoded = json.loads(text)
-            if isinstance(decoded, dict):
-                return decoded
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            pass
-    decoded = pickle.loads(value)
+        decoded = json.loads(text)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise MetadataDecodeError(
+            f"metadata 解码失败: type={type(value).__name__}, "
+            f"首字节={_metadata_first_byte_hex(value)}, 原异常={type(exc).__name__}"
+        ) from exc
     if not isinstance(decoded, dict):
         raise TypeError("metadata 字段必须解码为 dict")
     return decoded
@@ -176,7 +192,7 @@ def iter_sql_batches(items: Sequence[str], batch_size: int = 900) -> List[List[s
 # ---------------------------------------------------------------------------
 
 def row_to_dict(row: Any, _row_type: str = "") -> Dict[str, Any]:
-    """将 sqlite3.Row 转换为字典，自动解码 metadata 字段（JSON 优先，pickle 兼容旧数据）。"""
+    """将 sqlite3.Row 转换为字典，自动解码 metadata 字段（仅 JSON；非 JSON 会降级保留原值并记 warning）。"""
     import sqlite3
 
     if isinstance(row, sqlite3.Row):
