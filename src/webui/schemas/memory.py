@@ -197,6 +197,12 @@ class V5ActionRequest(BaseModel):
     strength: Optional[float] = Field(default=None, ge=0.0)
     reason: str = ""
     updated_by: str = "webui"
+    # 0004 真值回路：**人的判断**（`raise` / `lower` / `neutral`）。
+    # ⚠️ 键名是 `decision` 而**不是** `action`：`action` 在 v5 分发那层是**路由键**
+    # （`A_memorix/core/runtime/admin/v5.py` 的 `act = self._str_action(action)`）⇒
+    # 同一个键在两层各指一物会让下一个人误读。
+    # 默认留空 ⇒ 由 handler 判空并**具名拒绝**（不静默当 neutral）。
+    decision: str = ""
 
 class DeleteActionRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')

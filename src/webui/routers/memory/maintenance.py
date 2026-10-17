@@ -83,6 +83,10 @@ async def _v5_action(action: str, payload: V5ActionRequest) -> dict:
     }
     if payload.strength is not None:
         kwargs["strength"] = payload.strength
+    # 0004 真值回路：**必须**把 `decision` 透传下去 ——
+    # 少这一行，请求照样 200，但 handler 只会收到空值（"三段都接了、其实一段没接"）。
+    if payload.decision:
+        kwargs["decision"] = payload.decision
     return await memory_service.v5_admin(action=action, **kwargs)
 
 
@@ -177,3 +181,17 @@ async def forget_memory_episode(id: str, payload: V5ActionRequest):
 async def restore_memory_episode(id: str, payload: V5ActionRequest):
     payload.target = id
     return await _v5_action("restore", payload)
+
+
+# ---------------------------------------------------------------------------
+# 关系真值回路（0004）端点
+# ---------------------------------------------------------------------------
+# ⚠️ 刻意**不落**上面那段「v5 退役端点」：新功能不该出生在一个自称退役的段落里，
+#    也不该让前端契约泄露内部版本名（故路径里不带 `v5`）。
+# ⚠️ 它**必须**靠 `_v5_action` 把 `decision` 透传下去 —— 少那一行，handler 只收到空值。
+
+@router.post("/relations/feedback")
+async def relation_feedback_memory(payload: V5ActionRequest):
+    """0004 真值回路：人给一个显式判断（更亲 / 更疏 / 中立 + 备注）。"""
+
+    return await _v5_action("relation_feedback", payload)
