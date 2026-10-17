@@ -3,10 +3,9 @@
 覆盖 spec 5.3.1：指针解析 → find_messages 拉原文 → token 截断 → 格式化。
 """
 
-import json
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

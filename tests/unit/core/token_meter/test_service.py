@@ -8,11 +8,6 @@ from src.core.token_meter.service import (
     _set_instance,
     get_token_meter,
 )
-from src.core.token_meter.types import (
-    TokenMeasurement,
-    TokenMeasurementBaseline,
-    TokenSurfaceNode,
-)
 
 
 @pytest.fixture

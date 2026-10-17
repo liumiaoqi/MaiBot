@@ -4,10 +4,8 @@
 session_id 过滤 + 条数上限 + embedding 缺失跳过 + 失败降级。
 """
 
-import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.maisaka.memory.mid_term import _collect_mid_term_memory_recall_candidates
 from tests.test_zh1_1b_recall._helpers import make_summary_record

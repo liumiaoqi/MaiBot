@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from src.A_memorix.core.storage.graph_store import GraphStore
 

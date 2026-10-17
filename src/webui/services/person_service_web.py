@@ -5,7 +5,6 @@ router 层退化为薄包装：HTTP 解析 + session 管理 + 响应包装。
 """
 
 import json
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, BaseModel

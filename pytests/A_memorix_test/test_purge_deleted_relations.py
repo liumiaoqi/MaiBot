@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from src.A_memorix.core.storage.metadata_store import MetadataStore
 from src.A_memorix.core.runtime.services.maintenance import MaintenanceService

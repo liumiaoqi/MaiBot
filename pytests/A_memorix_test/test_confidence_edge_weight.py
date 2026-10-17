@@ -1,7 +1,6 @@
 """P2 confidence 边权重 + 安全护栏测试（ZG-30）。"""
 
 from dataclasses import dataclass
-from typing import List
 
 from src.A_memorix.core.retrieval.confidence_guard import ConfidenceGuard
 

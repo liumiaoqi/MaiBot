@@ -9,25 +9,18 @@ from pathlib import Path
 import pytest
 
 from src.maisaka.memory.mid_term import (
-    MID_TERM_MEMORY_RECALL_CONTEXT_MESSAGE_LIMIT,
-    RecallConfig,
     _build_mid_term_memory_recall_query_text,
     _cosine_similarity,
-    _fetch_original_messages_for_candidate,
     _format_mid_term_memory_reference,
-    _get_recall_config,
     _is_mid_term_memory_candidate_already_recalled,
     _log_recall_observation,
     _parse_candidate_pointer,
     _select_best_recall_candidate,
-    _select_top_k_recall_candidates,
     _truncate_original_messages,
     build_mid_term_memory_message,
     build_mid_term_memory_message_from_record,
-    build_mid_term_memory_reference_message,
     insert_mid_term_memory_message,
     is_mid_term_memory_message,
-    is_mid_term_memory_reference_message,
 )
 
 

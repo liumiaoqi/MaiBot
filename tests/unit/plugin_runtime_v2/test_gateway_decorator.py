@@ -241,11 +241,10 @@ class TestRunnerEndpointReportReady:
 
     def test_report_gateway_ready_sends_payload(self):
         import asyncio
-        from unittest.mock import AsyncMock, MagicMock, PropertyMock
+        from unittest.mock import AsyncMock, MagicMock
 
         from src.plugin_runtime_v2.host.connection import ConnectionState
         from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
-        from src.plugin_runtime_v2.proto import common_pb2
 
         endpoint = RunnerEndpoint.__new__(RunnerEndpoint)
         endpoint._state = ConnectionState.READY

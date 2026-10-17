@@ -8,7 +8,6 @@
 import inspect
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 from src.maisaka.agent_interaction.bootstrap import get_interaction_engine

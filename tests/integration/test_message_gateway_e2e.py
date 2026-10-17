@@ -11,11 +11,10 @@
 import sys
 import types
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.platform_io import DriverKind, RouteBinding, RouteKey, get_platform_io_manager
+from src.platform_io import DriverKind, RouteKey, get_platform_io_manager
 from src.plugin_runtime_v2.host.gateway_registrar import V2GatewayRegistrar
 from src.plugin_runtime_v2.host.gateway_registry import GatewayRegistry
 from src.plugin_runtime_v2.host.gateway_startup_summary import (

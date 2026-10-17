@@ -13,14 +13,12 @@ from src.common.logger import get_logger
 from src.webui.dependencies import require_auth
 from src.webui.services.jargon_service_web import (
     BatchDeleteRequest,
-    ChatInfoResponse,
     ChatListResponse,
     JargonCreateRequest,
     JargonCreateResponse,
     JargonDeleteResponse,
     JargonDetailResponse,
     JargonListResponse,
-    JargonResponse,
     JargonStatsResponse,
     JargonUpdateRequest,
     JargonUpdateResponse,

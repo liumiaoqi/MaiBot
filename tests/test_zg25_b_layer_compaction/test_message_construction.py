@@ -5,9 +5,8 @@
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-import pytest
 
 from src.llm_models.payload_content.message import Message, RoleType, TextMessagePart
 from src.maisaka.context.compaction import compact_selected_history

@@ -1,7 +1,6 @@
 """Git 镜像源服务 - 支持多镜像源、错误重试、Git 克隆和 Raw 文件获取"""
 
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

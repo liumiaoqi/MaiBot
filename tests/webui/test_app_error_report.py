@@ -8,7 +8,6 @@
 import inspect
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 class TestAppErrorReportSource:

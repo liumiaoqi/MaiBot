@@ -2,7 +2,6 @@
 
 import math
 
-import pytest
 
 from src.core.token_meter.estimate import (
     BLOCK_OVERHEAD,

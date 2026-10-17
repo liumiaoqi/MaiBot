@@ -1,7 +1,6 @@
 """P0-5 并发写可复现测试——threading.Lock 保护写（ZG-30）。"""
 
 import asyncio
-import sqlite3
 from pathlib import Path
 
 from src.A_memorix.core.storage.metadata_store import MetadataStore

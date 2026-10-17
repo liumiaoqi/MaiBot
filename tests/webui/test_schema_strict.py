@@ -1,6 +1,5 @@
 """Schema 严格化测试：验证 extra='forbid' 生效，多余字段触发 400。"""
 
-from tests.webui.conftest import assert_api_error
 
 
 class TestSchemaStrict:

@@ -4,10 +4,7 @@
 """
 
 from datetime import datetime
-from types import SimpleNamespace
-from unittest.mock import patch
 
-import pytest
 
 from src.maisaka.memory.mid_term import (
     MID_TERM_MEMORY_REFERENCE_MARKER,

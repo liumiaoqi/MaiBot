@@ -22,8 +22,6 @@ from src.webui.routers.memory_helpers import (
     _format_memory_relation,
     _memory_timeline,
     _query_memory_rows,
-    _safe_float,
-    _trim_memory_text,
 )
 
 router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(require_auth)])

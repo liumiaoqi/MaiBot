@@ -7,11 +7,9 @@
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 _MAIN_PY = Path("src/main.py")
 _EMOJI_MANAGER_PY = Path("src/emoji_system/emoji_manager.py")

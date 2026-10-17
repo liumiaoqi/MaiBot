@@ -1,10 +1,7 @@
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Callable
-
-if TYPE_CHECKING:
-    from src.maisaka.agent_interaction.engine import InteractionEngine
+from typing import Any, Callable
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port

@@ -2,7 +2,6 @@
 
 import asyncio
 
-import pytest
 
 from src.core.softirq_batcher import SchedulingStrategy, SoftirqBatcher
 

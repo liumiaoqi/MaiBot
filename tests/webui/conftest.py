@@ -125,8 +125,6 @@ def db_isolation():
     )
     SQLModel.metadata.create_all(in_memory_engine)
 
-    from sqlalchemy.orm import sessionmaker
-
     in_memory_session_factory = sessionmaker(
         autocommit=False,
         autoflush=False,

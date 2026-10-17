@@ -4,18 +4,12 @@ v3 精化：验证检查 1 排除规则（dataclass/Pydantic/Enum/Protocol 等�
 索引范围扩展（scripts/）+ 间接构造识别（注册表模式）。
 """
 
-import ast
-import json
 from pathlib import Path
-from unittest.mock import patch
 
-import pytest
 
 from scripts.n1_wiring_checker import (
     _build_call_index,
     _scan_class_check,
-    _scan_file,
-    WhitelistRule,
 )
 
 

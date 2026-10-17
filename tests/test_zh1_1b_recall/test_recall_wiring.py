@@ -5,11 +5,8 @@ AGENTS.md 硬性规则：生产路径测试必须验证 chat_loop_service 调用
 """
 
 import inspect
-from datetime import datetime
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from src.maisaka.memory.mid_term import build_mid_term_memory_reference_message
 from tests.test_zh1_1b_recall._helpers import make_mock_app_config_port, make_user_msg

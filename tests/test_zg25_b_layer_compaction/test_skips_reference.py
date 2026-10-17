@@ -5,7 +5,6 @@
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock
 
 from src.maisaka.context.compaction import compact_selected_history
 from src.maisaka.context.messages import (

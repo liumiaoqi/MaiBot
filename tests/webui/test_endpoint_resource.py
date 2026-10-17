@@ -1,6 +1,5 @@
 """端点资源化测试：验证旧路径返回 404，新路径可访问，purge cascade 语义。"""
 
-import pytest
 
 
 class TestEndpointResource:

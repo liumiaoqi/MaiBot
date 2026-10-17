@@ -3,9 +3,7 @@
 依赖 config_file_isolation fixture，测试后真实 bot_config.toml 内容不变。
 """
 
-import pytest
 
-from tests.webui.conftest import assert_api_success
 
 
 class TestConfigWrite:

@@ -1,17 +1,14 @@
 """WebSocket 日志推送模块"""
 
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List
 
 import json
 from collections import deque
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from src.common.logger import get_logger
 from src.common.logger_color_and_mapping import MODULE_COLORS
-from src.webui.core import get_token_manager
-from src.webui.routers.websocket.auth import verify_ws_token
 from src.webui.routers.websocket.manager import websocket_manager
 
 logger = get_logger("webui.logs_ws")

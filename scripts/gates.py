@@ -43,6 +43,17 @@ python scripts/gates.py quick --dry-run    # 只列门表，不执行（也用�
 - 这本来就是我们手工反复在做的事（逐条比对、报"新增 0 / 缺失 0"）⇒ 该把它写成工具，
   而不是人肉流程。
 
+## quick 的第一道门：F821 / F811（全仓，不做 changed-files）
+
+`ruff check --select F821,F811 .` —— **主仓面实测 0**（`main 057c1e3d6` 全仓 4 条：3 条在
+`scripts/embedding_finetune/` 的片段脚本里，该区全仓 ruff 共 1049 条、从来不在主仓门内，
+本门用 `--extend-exclude` 排除；1 条 F811 在 `tests/webui/conftest.py`，同函数内重复 import，
+加门前已删）。理由逐字：**这两条规则就是'静默运行时错'的门；它们现在为 0，所以这条门有干净基线**。
+
+为什么不是 changed-files：这两个 bug 在 `main` 上活了 **71 天**才被发现——只看改动文件的门，
+对「已经躺着的历史」天生失明；而这两条规则的全仓检查成本 ~1s，跑得起。F821 = 未定义名
+（运行时 NameError，或永远走不到的假分支），F811 = 重复定义或遮蔽（后一个悄悄顶掉前一个）。
+
 ## 如实声明
 
 - **`uv run ruff check`（全仓）在本仓从来就不是绿的**：`main` `322023712` 实测红 **1208 条**
@@ -50,6 +61,8 @@ python scripts/gates.py quick --dry-run    # 只列门表，不执行（也用�
   不是本档引入的。**本季所有"ruff 干净"都是逐文件口径**——这句话必须带范围
   （哪几个文件 / 全仓），否则就是"账目会腐"。所以 quick 只查「本次改动文件」，
   并在档首显式打印「本档不含」。
+  **例外**：quick 的第一道门是全仓 `F821,F811` 子集（见上节）——主仓面它本来就是 0，
+  与「默认规则集全仓」不是一笔账。
 - **quick 不含全量 pytest / 前端三绿**：前者归 full，后者尚未接入 Python 门（P2/P3 再说）。
 - **full 的指纹**在测试全量跑完后打印；失败时也打印（记录"跑的是什么状态"，便于复现），
   但它不是一道门，不改变"失败即停"对**门**的语义。
@@ -174,9 +187,29 @@ def changed_python_files() -> list[str]:
 
 
 def quick_gates() -> list[Gate]:
-    """提交前档：改动文件 ruff + 目标套（件 A 三条 / A_memorix 单元 / 关系反馈）。"""
+    """提交前档：全仓 F821/F811 + 改动文件 ruff + 目标套（件 A 三条 / A_memorix 单元 / 关系反馈）。"""
     changed = changed_python_files()
-    gates: list[Gate] = []
+    gates: list[Gate] = [
+        Gate(
+            name="ruff F821,F811（全仓 · 静默运行时错门）",
+            command=(
+                "uv",
+                "run",
+                "ruff",
+                "check",
+                "--select",
+                "F821,F811",
+                "--extend-exclude",
+                "scripts/embedding_finetune",
+                ".",
+            ),
+            what=(
+                "全仓主仓面（排除 scripts/embedding_finetune 隔离实验区）；"
+                "F821=未定义名 / F811=重复定义或遮蔽：这两条规则就是'静默运行时错'的门；"
+                "它们现在为 0，所以这条门有干净基线"
+            ),
+        ),
+    ]
     if changed:
         gates.append(
             Gate(

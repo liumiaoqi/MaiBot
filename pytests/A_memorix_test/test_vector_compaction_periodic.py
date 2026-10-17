@@ -1,10 +1,8 @@
 """ZG-29 T5: 向量 compaction 周期化测试。"""
 
 import asyncio
-import time
 from unittest.mock import MagicMock
 
-import pytest
 
 from src.A_memorix.core.runtime.services.maintenance import MaintenanceService
 

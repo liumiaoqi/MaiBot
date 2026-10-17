@@ -13,7 +13,7 @@
 4. 提供 ``is_recently_sent`` 只读查询，供 reply 重试幂等检查使用
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import heapq

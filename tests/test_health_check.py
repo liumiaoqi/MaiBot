@@ -10,7 +10,6 @@ from src.core.health_check import (
     HealthService,
     HealthStatus,
     aggregate_pessimistic,
-    get_health_service,
     reset_health_service,
 )
 

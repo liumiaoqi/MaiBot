@@ -25,14 +25,11 @@ from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.session_port_registry import (
-    get_existing_session_info,
     get_session_info,
     get_session_name as _get_session_name_via_port,
     get_session_query_port,
 )
 from src.learners.expression_review_store import (
-    append_manual_rescue_log,
-    get_ai_review_log,
     get_recent_ai_review_logs,
 )
 from src.maisaka.replyer.expression_vector_index import normalize_text, resolve_project_path

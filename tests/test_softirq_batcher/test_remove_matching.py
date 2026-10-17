@@ -1,6 +1,5 @@
 """SoftirqBatcher remove_matching 测试：按谓词移除队列中未处理条目。"""
 
-import asyncio
 
 from src.core.softirq_batcher import SoftirqBatcher
 

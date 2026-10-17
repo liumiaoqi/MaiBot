@@ -3,7 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from src.A_memorix.core.storage.metadata_store import MetadataStore
 from src.A_memorix.core.utils.relation_write_service import RelationWriteService
