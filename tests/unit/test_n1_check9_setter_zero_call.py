@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from scripts.n1_wiring_checker import (
     WhitelistRule,
