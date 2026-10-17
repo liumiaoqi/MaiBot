@@ -1558,5 +1558,40 @@
         "vectorRebuild": "Vector Rebuild"
       }
     }
+  },
+  "memoryRelations": {
+    "domain": "Memory",
+    "title": "Relation Ground-Truth Loop",
+    "description": "An explicit human judgment changes relation strength (±0.1) and writes an audit record; nothing is inferred automatically.",
+    "form": {
+      "title": "Submit a judgment",
+      "target": "Relation hash",
+      "targetPlaceholder": "Relation hash (relations.hash)",
+      "decision": "Your judgment",
+      "decisions": {
+        "raise": "Closer",
+        "lower": "More distant",
+        "neutral": "Stay neutral"
+      },
+      "reason": "Note",
+      "reasonPlaceholder": "Optional: why you judge so",
+      "updatedBy": "Operator",
+      "submit": "Submit judgment",
+      "submitting": "Submitting…"
+    },
+    "errors": {
+      "targetRequired": "Please enter a relation hash",
+      "decisionRequired": "Please choose your judgment first (closer / more distant / neutral)",
+      "submitFailed": "Submit failed"
+    },
+    "result": {
+      "title": "Latest result",
+      "success": "Judgment written",
+      "action": "Judgment",
+      "delta": "Strength change",
+      "confidenceAfter": "Current confidence",
+      "eventId": "Audit event ID",
+      "neutralHint": "Neutral only leaves a record; it does not change relation strength."
+    }
   }
 }

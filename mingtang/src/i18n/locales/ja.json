@@ -1558,5 +1558,40 @@
         "vectorRebuild": "ベクトル再構築"
       }
     }
+  },
+  "memoryRelations": {
+    "domain": "記憶",
+    "title": "関係グラウンドトゥルース・ループ",
+    "description": "人間の明示的な判断が関係の強さ（±0.1）を変え、台帳に記録されます。システムによる自動推論は行いません。",
+    "form": {
+      "title": "判断を送信",
+      "target": "関係ハッシュ",
+      "targetPlaceholder": "関係ハッシュ（relations.hash）",
+      "decision": "あなたの判断",
+      "decisions": {
+        "raise": "より親しく",
+        "lower": "より疎遠に",
+        "neutral": "中立を保つ"
+      },
+      "reason": "メモ",
+      "reasonPlaceholder": "任意：その判断の理由",
+      "updatedBy": "操作者",
+      "submit": "判断を送信",
+      "submitting": "送信中…"
+    },
+    "errors": {
+      "targetRequired": "関係ハッシュを入力してください",
+      "decisionRequired": "先に判断を選択してください（より親しく / より疎遠に / 中立）",
+      "submitFailed": "送信に失敗しました"
+    },
+    "result": {
+      "title": "最新の結果",
+      "success": "判断を記録しました",
+      "action": "判断",
+      "delta": "強さの変化",
+      "confidenceAfter": "現在の信頼度",
+      "eventId": "台帳イベント番号",
+      "neutralHint": "中立は記録のみで、関係の強さは変わりません。"
+    }
   }
 }

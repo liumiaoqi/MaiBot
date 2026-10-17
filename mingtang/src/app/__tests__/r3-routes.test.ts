@@ -12,6 +12,8 @@ const r3ImplementedPaths = [
   '/chat-management',
   '/reasoning-process',
   '/resource/knowledge-graph',
+  // 阶段 3 补页：关系真值回路（0004 的人工判断入口）
+  '/relations',
 ]
 
 const r3PlaceholderPaths = [
@@ -19,7 +21,7 @@ const r3PlaceholderPaths = [
 ]
 
 describe('R3 路由回归', () => {
-  it('R3 实现的 4 条路由均在路由定义中', () => {
+  it('R3 实现的 5 条路由均在路由定义中', () => {
     const allPaths = routeDefinitions.map((r) => r.path)
     r3ImplementedPaths.forEach((path) => {
       expect(allPaths).toContain(path)
@@ -33,17 +35,18 @@ describe('R3 路由回归', () => {
     })
   })
 
-  it('R3 实现的路由总数 = 4（chat + chat-management + reasoning-process + knowledge-graph）', () => {
-    expect(r3ImplementedPaths).toHaveLength(4)
+  it('R3 实现的路由总数 = 5（chat + chat-management + reasoning-process + knowledge-graph + relations）', () => {
+    expect(r3ImplementedPaths).toHaveLength(5)
   })
 
-  it('memory 域 3 条路由全部在路由定义中（reasoning-process + knowledge-graph + focus）', () => {
+  it('memory 域 4 条路由全部在路由定义中（reasoning-process + knowledge-graph + focus + relations）', () => {
     const memoryRoutes = routeDefinitions.filter((r) => r.domain === 'memory')
-    expect(memoryRoutes).toHaveLength(3)
+    expect(memoryRoutes).toHaveLength(4)
     const memoryPaths = memoryRoutes.map((r) => r.path)
     expect(memoryPaths).toContain('/reasoning-process')
     expect(memoryPaths).toContain('/resource/knowledge-graph')
     expect(memoryPaths).toContain('/focus')
+    expect(memoryPaths).toContain('/relations')
   })
 
   it('chat 域 3 条路由全部在路由定义中（chat + chat-embed + chat-management）', () => {
@@ -55,14 +58,14 @@ describe('R3 路由回归', () => {
     expect(chatPaths).toContain('/chat-management')
   })
 
-  it('R3 4 条路由 id 唯一', () => {
+  it('R3 5 条路由 id 唯一', () => {
     const r3Ids = routeDefinitions
       .filter((r) => r3ImplementedPaths.includes(r.path))
       .map((r) => r.id)
     expect(new Set(r3Ids).size).toBe(r3Ids.length)
   })
 
-  it('R3 4 条路由 pageName 非空', () => {
+  it('R3 5 条路由 pageName 非空', () => {
     const r3Routes = routeDefinitions.filter((r) => r3ImplementedPaths.includes(r.path))
     r3Routes.forEach((r) => {
       expect(r.pageName).toBeTruthy()

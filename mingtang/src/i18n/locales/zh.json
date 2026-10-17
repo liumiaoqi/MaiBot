@@ -1556,5 +1556,40 @@
         "vectorRebuild": "向量重建"
       }
     }
+  },
+  "memoryRelations": {
+    "domain": "记忆",
+    "title": "关系真值回路",
+    "description": "人的一次显式判断会直接改变关系强度（±0.1）并写入账本；系统不做任何自动推断。",
+    "form": {
+      "title": "提交一次判断",
+      "target": "关系哈希",
+      "targetPlaceholder": "关系 hash（relations.hash）",
+      "decision": "你的判断",
+      "decisions": {
+        "raise": "更亲近",
+        "lower": "更疏远",
+        "neutral": "保持中立"
+      },
+      "reason": "备注",
+      "reasonPlaceholder": "可选：为什么这样判断",
+      "updatedBy": "操作人",
+      "submit": "提交判断",
+      "submitting": "提交中…"
+    },
+    "errors": {
+      "targetRequired": "请填写关系哈希",
+      "decisionRequired": "请先选择你的判断（更亲 / 更疏 / 中立）",
+      "submitFailed": "提交失败"
+    },
+    "result": {
+      "title": "最近一次结果",
+      "success": "判断已写入",
+      "action": "判断",
+      "delta": "强度变化",
+      "confidenceAfter": "当前置信度",
+      "eventId": "账本事件号",
+      "neutralHint": "中立只留痕，不改变关系强度。"
+    }
   }
 }

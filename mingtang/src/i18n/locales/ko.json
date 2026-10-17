@@ -1550,5 +1550,40 @@
         "vectorRebuild": "벡터 재구축"
       }
     }
+  },
+  "memoryRelations": {
+    "domain": "기억",
+    "title": "관계 진값 루프",
+    "description": "사람의 명시적 판단이 관계 강도(±0.1)를 바꾸고 원장에 기록됩니다. 시스템은 자동 추론을 하지 않습니다.",
+    "form": {
+      "title": "판단 제출",
+      "target": "관계 해시",
+      "targetPlaceholder": "관계 해시(relations.hash)",
+      "decision": "당신의 판단",
+      "decisions": {
+        "raise": "더 가까이",
+        "lower": "더 멀리",
+        "neutral": "중립 유지"
+      },
+      "reason": "메모",
+      "reasonPlaceholder": "선택 사항: 이렇게 판단한 이유",
+      "updatedBy": "작업자",
+      "submit": "판단 제출",
+      "submitting": "제출 중…"
+    },
+    "errors": {
+      "targetRequired": "관계 해시를 입력하세요",
+      "decisionRequired": "먼저 판단을 선택하세요(더 가까이 / 더 멀리 / 중립)",
+      "submitFailed": "제출에 실패했습니다"
+    },
+    "result": {
+      "title": "최근 결과",
+      "success": "판단이 기록되었습니다",
+      "action": "판단",
+      "delta": "강도 변화",
+      "confidenceAfter": "현재 신뢰도",
+      "eventId": "원장 이벤트 번호",
+      "neutralHint": "중립은 기록만 남기고 관계 강도를 바꾸지 않습니다."
+    }
   }
 }

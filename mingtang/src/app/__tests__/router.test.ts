@@ -7,10 +7,10 @@ import {
   type RouteDomain,
 } from '../route-definitions'
 
-describe('R4-4b：40 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补页 2 + auth 新增）', () => {
-  it('路由总数 = 40', () => {
-    expect(ROUTE_COUNT).toBe(40)
-    expect(routeDefinitions).toHaveLength(40)
+describe('R4-4b：41 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补页 2 + auth 新增 + 关系真值回路 1）', () => {
+  it('路由总数 = 41', () => {
+    expect(ROUTE_COUNT).toBe(41)
+    expect(routeDefinitions).toHaveLength(41)
   })
 
   it('8 功能域全部覆盖', () => {
@@ -25,7 +25,7 @@ describe('R4-4b：40 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补�
   it('各域页面数符合蓝皮书 §一（config 域 R2 新增 /appearance = 9 页）', () => {
     expect(getRoutesByDomain('config')).toHaveLength(9)
     expect(getRoutesByDomain('chat')).toHaveLength(3)
-    expect(getRoutesByDomain('memory')).toHaveLength(3)
+    expect(getRoutesByDomain('memory')).toHaveLength(4)
     expect(getRoutesByDomain('resource')).toHaveLength(4)
     expect(getRoutesByDomain('monitor')).toHaveLength(7)
     expect(getRoutesByDomain('agent')).toHaveLength(2)
@@ -64,6 +64,7 @@ describe('R4-4b：40 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补�
       '/reasoning-process',
       '/resource/knowledge-graph',
       '/focus',
+      '/relations',
       '/resource/emoji',
       '/resource/expression',
       '/resource/jargon',
@@ -91,7 +92,7 @@ describe('R4-4b：40 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补�
       '/survey/maibot-feedback',
       '*',
     ]
-    expect(dashboardPaths).toHaveLength(40)
+    expect(dashboardPaths).toHaveLength(41)
 
     const routePaths = routeDefinitions.map((r) => r.path)
     dashboardPaths.forEach((p) => {
@@ -99,11 +100,11 @@ describe('R4-4b：40 页路由表登记（R4-4a 38 页 - setup 砍除 + P2 补�
     })
   })
 
-  it('40 页按蓝皮书 §一 8 域归属 features/<domain>/', () => {
+  it('41 页按蓝皮书 §一 8 域归属 features/<domain>/', () => {
     const domainPages: Record<RouteDomain, string[]> = {
       config: ['config/bot', 'config/model', 'config/prompts', 'config/mcp-settings', 'config/model-presets', 'config/prompt-generator', 'config/pack-market', 'config/pack-detail', 'config/appearance'],
       chat: ['chat/chat', 'chat/chat-embed', 'chat/chat-management'],
-      memory: ['memory/reasoning-process', 'memory/memory', 'memory/focus'],
+      memory: ['memory/reasoning-process', 'memory/memory', 'memory/focus', 'memory/relations'],
       resource: ['resource/emoji', 'resource/expression', 'resource/jargon', 'resource/knowledge-base'],
       monitor: ['monitor/deepseek', 'monitor/emotion', 'monitor/relationship', 'monitor/subagent', 'monitor/system', 'monitor/logs', 'monitor/maisaka'],
       agent: ['agent/agent', 'agent/person'],

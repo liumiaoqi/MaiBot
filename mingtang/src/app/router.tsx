@@ -20,6 +20,7 @@ import { ChatPage } from '../features/chat'
 import { ChatManagementPage } from '../features/chat/chat-management'
 import { ChatEmbedPage } from '../features/chat/embed'
 import { ReasoningProcessPage } from '../features/memory/reasoning-process'
+import { MemoryRelationsPage } from '../features/memory/relations'
 import { DeepSeekMonitorPage } from '../features/monitor/deepseek-monitor'
 import { EmotionMonitorPage } from '../features/monitor/emotion-monitor'
 import { RelationshipMonitorPage } from '../features/monitor/relationship-monitor'
@@ -73,6 +74,7 @@ const actualPageComponents: Record<string, () => React.ReactElement> = {
   '/chat/embed': () => <ChatEmbedPage />,
   '/chat-management': () => <ChatManagementPage />,
   '/reasoning-process': () => <ReasoningProcessPage />,
+  '/relations': () => <MemoryRelationsPage />,
   '/resource/knowledge-graph': () => <KnowledgeGraphPage />,
   '/resource/knowledge-base': () => <KnowledgeBasePage />,
   '/resource/emoji': () => <EmojiCuratedPage />,
@@ -124,7 +126,7 @@ function createPlaceholderRoute(def: RouteDefinition) {
   })
 }
 
-// 创建 40 页路由
+// 创建 41 页路由
 const routes = routeDefinitions.map(createPlaceholderRoute)
 
 // 提取各路由引用（按定义顺序）
@@ -144,6 +146,7 @@ const [
   memoryReasoningProcessRoute,
   memoryMemoryRoute,
   memoryFocusRoute,
+  memoryRelationsRoute,
   resourceEmojiRoute,
   resourceExpressionRoute,
   resourceJargonRoute,
@@ -190,6 +193,7 @@ const routeTree = rootRoute.addChildren([
     memoryReasoningProcessRoute,
     memoryMemoryRoute,
     memoryFocusRoute,
+    memoryRelationsRoute,
     resourceEmojiRoute,
     resourceExpressionRoute,
     resourceJargonRoute,

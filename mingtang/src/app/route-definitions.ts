@@ -39,10 +39,11 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'chat/chat-management', domain: 'chat', path: '/chat-management', pageName: 'ChatManagement' },
   { id: 'chat/chat-embed', domain: 'chat', path: '/chat/embed', pageName: 'ChatEmbed' },
 
-  // memory（3 页）
+  // memory（4 页——阶段 3 新增 /relations 关系真值回路）
   { id: 'memory/reasoning-process', domain: 'memory', path: '/reasoning-process', pageName: 'ReasoningProcess' },
   { id: 'memory/memory', domain: 'memory', path: '/resource/knowledge-graph', pageName: 'Memory' },
   { id: 'memory/focus', domain: 'memory', path: '/focus', pageName: 'Focus' },
+  { id: 'memory/relations', domain: 'memory', path: '/relations', pageName: 'MemoryRelations' },
 
   // resource（4 页）
   { id: 'resource/emoji', domain: 'resource', path: '/resource/emoji', pageName: 'EmojiManagement' },
@@ -80,7 +81,7 @@ export const routeDefinitions: RouteDefinition[] = [
   { id: 'home/404', domain: 'home', path: '*', pageName: 'NotFound' },
 ]
 
-/** 路由总数（验收：= 40） */
+/** 路由总数（验收：= 41） */
 export const ROUTE_COUNT = routeDefinitions.length
 
 /** 8 功能域列表 */
