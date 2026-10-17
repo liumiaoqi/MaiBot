@@ -16,7 +16,7 @@ import os
 import sys
 
 from pptx import Presentation
-from pptx.util import Cm, Pt, Emu
+from pptx.util import Cm, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 

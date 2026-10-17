@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from src.common.logger import WebSocketLogHandler
 

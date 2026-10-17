@@ -7,7 +7,7 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Optional, Sequence
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -30,7 +30,6 @@ from src.A_memorix.core.runtime.services.compaction.surface import SurfaceReplac
 from src.A_memorix.core.runtime.services.compaction.tool_pairing import ToolPairingBalancer
 from src.A_memorix.core.runtime.services.compaction.types import (
     AbortSignal,
-    CompactionAbortedError,
     CompactionEndEvent,
     CompactionId,
     CompactionRange,
@@ -39,8 +38,6 @@ from src.A_memorix.core.runtime.services.compaction.types import (
     CompactionSummaryEvent,
     CorruptSurfaceError,
     IdleStateUnqueryableError,
-    LockResult,
-    LockStateUnqueryableError,
     ManualCompactionError,
     ModelRoute,
     SummaryNotSmallerError,
