@@ -58,6 +58,14 @@ def _local_face_attr(name: str) -> Optional[Any]:
         if spec is None or spec.loader is None:
             return None
         module = importlib.util.module_from_spec(spec)
+        # ⭐ exec 前必须注册进 `sys.modules`（`component-bridge` 实测的加载器缺陷）：
+        # 按路径 exec 的模块若不登记，**模块顶层用到的任何"回头查自己"的标准库机制都会崩** ——
+        # 实测形态：`@dataclasses.dataclass` 抛
+        #     `AttributeError: 'NoneType' object has no attribute '__dict__'`
+        # （`dataclasses._is_type` → `sys.modules.get(cls.__module__)` 得 None）。
+        # 症状最坏的地方在**它不像加载器的问题**：表现是"兜底面装载失败 ⇒ 老插件又变成
+        # `No module named 'src.plugin_system'`"，与"兜底面压根没写"一模一样。
+        sys.modules[spec.name] = module
         spec.loader.exec_module(module)
     except Exception:  # noqa: BLE001 - (丙)：出声交给调用方，不在这里吞
         return None
@@ -700,6 +708,10 @@ class PluginLoader:
                 logger.warning("本地兜底面无法建立模块 spec（不阻断）: %s", face_path)
                 return ""
             module = importlib.util.module_from_spec(spec)
+            # ⭐ 同 `_local_face_attr`：exec 前注册进 `sys.modules`（按路径 exec 的模块若不登记，
+            # 其顶层 `@dataclass` 会在装饰期崩 —— 实测 `AttributeError: 'NoneType' object has no
+            # attribute '__dict__'`，而症状呈现为"兜底面装载失败"，看着像面写错了）。
+            sys.modules[spec.name] = module
             spec.loader.exec_module(module)
             mode = module.install_local_face()
             counts = module.coverage()

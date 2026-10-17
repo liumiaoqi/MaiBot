@@ -28,6 +28,8 @@ def _load_face(face_file: Path):
     if spec is None or spec.loader is None:
         raise SystemExit(f"无法建立本地面 spec：{face_file}")
     module = importlib.util.module_from_spec(spec)
+    # ⭐ exec 前先注册进 sys.modules：按路径 exec 的模块若不登记，其顶层 @dataclass 会在装饰期崩（实测 AttributeError: 'NoneType' object has no attribute '__dict__'）
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 

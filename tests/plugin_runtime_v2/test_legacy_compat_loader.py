@@ -226,13 +226,19 @@ def test_adapter_missing_names_the_reason_and_does_not_raise(poisoned_compat: No
 
 
 def test_local_adapter_forwards_lifecycle_and_exposes_runner_contract() -> None:
-    """**adapter 契约面**：逐条对 `runner_main.py` 的调用点（转发生命周期 / 面齐全 / 空集不抛）。"""
+    """**adapter 契约面**：逐条对 `runner_main.py` 的调用点（转发生命周期 / 面齐全 / **缺口具名出声**）。
+
+    ⚠️ **面契约已改（2026-10-17，插件 `61021af` 起）**：旧实例没有 `get_plugin_components()` 时，
+    本地面**不再返回空集**，而是抛具名缺口 `LocalFaceGapError`（「不许静默」那条纪律）。
+    ⇒ 本条断言随之改（**改期望、不改面**）：断那个具名异常与原因，而不是断空集。"""
 
     face_file = FACE_PATH_EXPECTED
     assert face_file.is_file(), f"本地面不在：{face_file}（这是条件②，缺了就测不了这条）"
     spec = importlib.util.spec_from_file_location("_unit_face_probe", face_file)
     assert spec is not None and spec.loader is not None
     face = importlib.util.module_from_spec(spec)
+    # ⭐ 同上：按路径 exec 前先注册（本文件 exec 的正是含顶层 @dataclass 的 legacy_face.py）
+    sys.modules[spec.name] = face
     spec.loader.exec_module(face)
 
     calls: list[str] = []
@@ -257,6 +263,10 @@ def test_local_adapter_forwards_lifecycle_and_exposes_runner_contract() -> None:
     asyncio.run(adapter.on_config_update("self", {"k": 1}, "2"))
     assert calls == ["on_load", "on_unload", "on_config_update:2"], calls
 
-    assert adapter.get_components() == [], "本地面 adapter 的组件集是**空集**（旧版组件桥接不在本件范围）"
+    with pytest.raises(face.LocalFaceGapError) as excinfo:
+        adapter.get_components()
+    assert "get_plugin_components" in str(excinfo.value), (
+        f"缺口出声必须具名（要能看出缺的是哪个方法）：{excinfo.value}"
+    )
     assert adapter.get_config_reload_subscriptions() == ["model"], "只认 bot/model（bogus 必须被滤掉）"
     adapter._set_context(object())  # Runner 注入上下文这一步不许抛
