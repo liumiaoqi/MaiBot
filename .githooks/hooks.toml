@@ -1,0 +1,68 @@
+# .githooks/hooks.toml —— 提交钩子清单（本仓提交门的**单一真源**）
+#
+# 钩子本体：`.githooks/pre-commit`（core.hooksPath = .githooks；本文件不改变这一接入方式）
+#
+# 谁读它：
+#   · `.githooks/pre-commit`：每次提交从 [pre-commit] 段读文件类型与索引路径，
+#     并校验 gate 集；门的执行逻辑仍在 sh 里，清单声明「有哪些门 / 查什么 / 按什么文件生效」。
+#   · `sh .githooks/pre-commit --check`：校验清单里的 gate 段与脚本里的 `# gate:<id>` 标记一致。
+#
+# 改这里的规矩：
+#   1. 改「文件类型 / 索引路径」= 直接改提交门行为（pre-commit 运行时读取，无需改脚本）。
+#   2. 增删门 = 清单 [pre-commit.gate.<id>] 与脚本 `# gate:<id>` 标记**同一提交**改，
+#      否则 --check 与每次提交都会红（清单与脚本不一致）。
+#   3. 每个 gate 段必须写 name / checks / files（--check 会验）。
+#   4. 本文件必须 LF（.gitattributes: `.githooks/** text eol=lf`）。
+#
+# 校验：sh .githooks/pre-commit --check
+
+version = 1
+
+[pre-commit]
+# 门⓪ 自动修跳过的二进制/非文本扩展名（case 模式，用 | 分隔，不能有空格）
+binary_globs = "*.pdf|*.png|*.jpg|*.jpeg|*.gif|*.zip|*.gz|*.bin|*.apk|*.jar|*.exe|*.so|*.dll|*.xlsx|*.xls|*.docx|*.doc|*.pptx|*.ppt|*.ico|*.ttf|*.woff|*.woff2"
+# Markdown：行尾两个空格是硬换行 ⇒ 门⓪ 不修、门① 放行。
+# 形状约束：目前只支持单个 `*.<ext>`（门① 要拿后缀过滤 diff 输出）；--check 会校验。
+md_globs = "*.md"
+# 门②③④ 作用的索引文件（空格分隔；空串 = 本仓无索引，门②③④ 自动跳过）
+index_paths = "decisions/INDEX.md postmortems/INDEX.md"
+
+# ── 门 ─────────────────────────────────────────────────────────────
+# id = 提交门标签（⓪=0 … ⑤=5）；脚本里用 `# gate:<id>` 标记声明实现位置。
+# 每个门写清三件事：查什么（checks）/ 对哪些文件生效（files）/ 自动修什么（fix，可空）。
+
+[pre-commit.gate.0]
+name = "autofix"
+checks = "CRLF/单独 CR→LF；行尾空格（.md 除外）；末尾多余空行压成恰好一个换行"
+files = "暂存文本（跳过 binary_globs）；仅当暂存内容 == 工作区"
+fix = "机械修复后重新 git add；随后门① 仍会复检"
+
+[pre-commit.gate.1]
+name = "whitespace"
+checks = "git diff --cached --check：行尾空格 / CRLF / 多余空行；*.md 行尾空格放行"
+files = "暂存全部（*.md 的行尾空格例外）"
+fix = ""
+
+[pre-commit.gate.2]
+name = "index-registered"
+checks = "本次新增的索引目录内正文必须在索引里出现"
+files = "暂存新增 *.md，且位于 index_paths 的目录"
+fix = ""
+
+[pre-commit.gate.3]
+name = "index-links"
+checks = "索引里的仓内相对链接目标必须存在（跳过 URL / 绝对路径 / 盘符）"
+files = "暂存改到 index_paths 时，检查索引自身"
+fix = ""
+
+[pre-commit.gate.4]
+name = "index-net-decrease"
+checks = "索引条目净减少且没删任何正文 ⇒ 疑似旧副本覆盖"
+files = "暂存改到 index_paths 时，检查索引自身"
+fix = ""
+
+[pre-commit.gate.5]
+name = "identity"
+checks = "作者/提交者邮箱不得是 @local / @localhost / 空"
+files = "提交身份（每次提交）"
+fix = ""

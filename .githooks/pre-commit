@@ -1,9 +1,12 @@
 #!/bin/sh
 # 提交门（2026-09-24 立 ｜ 2026-09-25 加决策索引 ②③④ ｜ 2026-09-26 泛化成"有索引才生效"）
 #
-# ⭐ 这一份文件在多个仓里**字节一致**（`sha256` 相同 ⇒ 行为一致，一处改动一处核实）。
-#    **没有索引文件的仓**：门②③④ 自动跳过（不是死代码，而是"将来长出索引即生效"）。
-#    校验方式：`sha256sum .githooks/pre-commit` 各仓相同；行为判据见下。
+# ⭐ 本仓（2026-10-17 P2 起）把「有哪些门 / 各自查什么 / 按什么文件类型生效」提进
+#    `.githooks/hooks.toml`（**本仓单一真源**）。本脚本运行时从清单读
+#    文件类型（binary_globs / md_globs）与索引路径（index_paths），
+#    并用 `sh .githooks/pre-commit --check` 校验 gate 集与清单一致。
+#    ⇒ 因此本仓这一份与其它仓的旧副本**不再要求字节一致**；判据是「清单 + --check」。
+#    **没有索引文件的仓**：index_paths 写空串，门②③④ 自动跳过。
 #
 # 设计原则（照 dsh 的做法，但去掉 lefthook 依赖）：
 #   ① 零依赖：纯 POSIX sh，不 require node_modules / 不 require 外部二进制
@@ -49,8 +52,117 @@
 #     ⇒ 修法：改成**从行首取每行【第一个】链接**（`^[^]]*](…`）—— 行首那个才是该条目的身份。
 #     ⇒ 教训：**判据要问"哪个才是这条记录的身份"** —— 一行里有多个链接时，"最后一个"不是默认答案。
 
+# ── 清单（单一真源，2026-10-17 P2）：文件类型 / 索引路径 / gate 集
+#    · `.githooks/hooks.toml` 声明有哪些门、各自查什么、按什么文件类型生效。
+#    · 运行时只读 [pre-commit] 段的三个键（binary_globs / md_globs / index_paths）；
+#      gate 段是给人读的「查什么」，其与脚本的一致性由 gate 集校验保证。
+#    · ⚠️ 清单缺失/不全 ⇒ 拒绝提交（静默跳过检查比报错更危险）。
+hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
+manifest="$hook_dir/hooks.toml"
+self="$hook_dir/pre-commit"
+
+mget() {
+    sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"\(.*\)\"[[:space:]]*$/\1/p" "$manifest" 2>/dev/null | head -n 1
+}
+
+# 清单 gate 段 ↔ 脚本 `# gate:<id>` 标记：集合必须相等（顺序无关）。
+gate_sets() {
+    _declared=$(sed -n 's/^\[pre-commit\.gate\.\([0-9][0-9]*\)\][[:space:]]*$/\1/p' "$manifest" | sort -n | tr '\n' ' ')
+    _implemented=$(sed -n 's/^[[:space:]]*# gate:\([0-9][0-9]*\)[[:space:]].*/\1/p' "$self" | sort -n -u | tr '\n' ' ')
+    [ "$_declared" = "$_implemented" ]
+}
+
+# --check：只读校验（不进提交路径）
+if [ "${1:-}" = "--check" ]; then
+    chk=0
+    if [ ! -f "$manifest" ]; then
+        echo "[hooks --check] ✗ 缺少清单：$manifest" >&2
+        exit 1
+    fi
+    for k in binary_globs md_globs; do
+        if [ -z "$(mget "$k")" ]; then
+            echo "[hooks --check] ✗ 清单缺少必填键（或值为空）：$k" >&2
+            chk=1
+        fi
+    done
+    if ! grep -q '^[[:space:]]*index_paths[[:space:]]*=' "$manifest"; then
+        echo "[hooks --check] ✗ 清单缺少键：index_paths（无索引的仓写空串）" >&2
+        chk=1
+    fi
+    mdg=$(mget md_globs)
+    case "$mdg" in
+        \*.*) case "${mdg#\*}" in ''|*' '*|*'*'*|*'|'*) echo "[hooks --check] ✗ md_globs 只支持单个 *.<ext>：$mdg" >&2; chk=1 ;; esac ;;
+        *) echo "[hooks --check] ✗ md_globs 形状非法（要 *.<ext>）：$mdg" >&2; chk=1 ;;
+    esac
+    missing=$(awk '
+        /^\[pre-commit\.gate\.[0-9]+\][[:space:]]*$/ {
+            if (id != "" && !(nm && ck && fl)) print id
+            id = $0; sub(/^\[pre-commit\.gate\./, "", id); sub(/\].*/, "", id)
+            nm = 0; ck = 0; fl = 0; next
+        }
+        /^\[/ { if (id != "" && !(nm && ck && fl)) print id; id = "" }
+        id != "" && /^name[[:space:]]*=/   { nm = 1 }
+        id != "" && /^checks[[:space:]]*=/ { ck = 1 }
+        id != "" && /^files[[:space:]]*=/  { fl = 1 }
+        END { if (id != "" && !(nm && ck && fl)) print id }
+    ' "$manifest")
+    if [ -n "$missing" ]; then
+        echo "[hooks --check] ✗ 以下 gate 段缺 name/checks/files：$(printf '%s' "$missing" | tr '\n' ' ')" >&2
+        chk=1
+    fi
+    if ! gate_sets; then
+        echo "[hooks --check] ✗ 清单与脚本的 gate 集不一致" >&2
+        echo "    清单: ${_declared:-<空>}" >&2
+        echo "    脚本: ${_implemented:-<空>}" >&2
+        chk=1
+    fi
+    if [ "$chk" -eq 0 ]; then
+        echo "[hooks --check] OK：$(printf '%s' "$_declared" | wc -w | tr -d ' ') 个 gate 与 pre-commit 标记一致（gate: ${_declared% }）" >&2
+    fi
+    exit "$chk"
+fi
+
+binary_globs=$(mget binary_globs)
+md_globs=$(mget md_globs)
+index_paths=$(mget index_paths)
+if [ -z "$binary_globs" ] || [ -z "$md_globs" ]; then
+    echo "  [提交门·清单] ✗ 清单不完整（$manifest）：binary_globs / md_globs 不能为空" >&2
+    exit 1
+fi
+# index_paths 允许空串（无索引的仓），但键必须存在 —— 防"删键 = 静默关掉门②③④"
+if ! grep -q '^[[:space:]]*index_paths[[:space:]]*=' "$manifest"; then
+    echo "  [提交门·清单] ✗ 清单缺少键：index_paths（无索引的仓写空串）" >&2
+    exit 1
+fi
+# gate 集每次提交也验：清单与脚本必须同一提交改，否则拒绝（避免清单腐成第二套真相）
+if ! gate_sets; then
+    echo "  [提交门·清单] ✗ 清单 gate 段与脚本标记不一致：清单=[${_declared:-}] 脚本=[${_implemented:-}]" >&2
+    echo "     处理：同一提交里改 .githooks/hooks.toml 与 pre-commit 的 \`# gate:<id>\` 标记；" >&2
+    echo "           详情跑 sh .githooks/pre-commit --check；确认无误可 git commit --no-verify" >&2
+    exit 1
+fi
+md_suffix=${md_globs#\*}
+case "$md_suffix" in
+    ''|*' '*|*'*'*|*'|'*) echo "  [提交门·清单] ✗ md_globs 形状非法（要单个 *.<ext>）：$md_globs" >&2; exit 1 ;;
+esac
+md_re=$(printf '%s' "$md_suffix" | sed 's/^\./[.]/')
+
+is_binary() {
+    _f=$1
+    _ifs=$IFS
+    IFS='|'
+    for _p in $binary_globs; do
+        case "$_f" in
+            $_p) IFS=$_ifs; return 0 ;;
+        esac
+    done
+    IFS=$_ifs
+    return 1
+}
+
 fail=0
 
+# gate:0 autofix
 # ⚠️⚠️ 2026-09-30 加【门⓪ 自动修】—— lmq 要求："有些小细节被拦了，直接由门改掉就好，节省 token"
 #   动机：一天里因为「末尾多一个空行」被拦两次、因「CRLF」被拦一次 ⇒ 每次都是一个来回。
 #   只修**机械可逆、无语义变化**的三类：
@@ -63,10 +175,7 @@ fail=0
 #     ③ 修完**重新 `git add`**；随后 ① **再查一遍**，① 仍报错 ⇒ **仍拦**（自动修不是放行的理由）
 autofixed=""
 for f in $(git diff --cached --name-only --diff-filter=ACMR); do
-    case "$f" in
-        *.pdf|*.png|*.jpg|*.jpeg|*.gif|*.zip|*.gz|*.bin|*.apk|*.jar|*.exe|*.so|*.dll|\
-        *.xlsx|*.xls|*.docx|*.doc|*.pptx|*.ppt|*.ico|*.ttf|*.woff|*.woff2|*.pdf) continue ;;
-    esac
+    if is_binary "$f"; then continue; fi
     [ -f "$f" ] || continue
     # ① 暂存内容必须与工作区一致（否则自动修会把未暂存的改动一并提交）
     git diff --quiet -- "$f" || continue
@@ -82,9 +191,9 @@ for f in $(git diff --cached --name-only --diff-filter=ACMR); do
         tr -d '\r' < "$f" > "$f.docgen-fix" && mv "$f.docgen-fix" "$f" && did="$did CRLF→LF"
     fi
 
-    # 行尾空格（跳过 .md：那是 Markdown 的硬换行）
+    # 行尾空格（跳过 md_globs：那是 Markdown 的硬换行）
     case "$f" in
-        *.md) ;;
+        $md_globs) ;;
         *) if grep -q '[[:space:]]$' "$f" 2>/dev/null; then
                sed 's/[[:space:]]*$//' "$f" > "$f.docgen-fix" && mv "$f.docgen-fix" "$f" && did="$did 行尾空格"
            fi ;;
@@ -109,6 +218,7 @@ if [ -n "$autofixed" ]; then
     echo "     ⚠️ 只改了机械项：CRLF→LF / 行尾空格（.md 除外）/ 末尾多余空行。内容一个字没动。" >&2
 fi
 
+# gate:1 whitespace
 # ── 门 ①：暂存内容的空白/行尾（dsh 同款）
 # 覆盖：行尾空格、多余空行、CRLF 混入（git 的 whitespace 规则集）
 # ⚠️ 先跑门⓪ 自动修；这里查的是**自动修没覆盖到**的问题 ⇒ 仍拦
@@ -117,11 +227,11 @@ fi
 #     实测：加了门⓪ 之后，b.md 的两处硬换行仍被 ① 拦下 ⇒ 两边自相矛盾（对照组测出来的）。
 check_raw=$(git diff --cached --check 2>&1)
 check_rc=$?
-md_hits=$(printf '%s\n' "$check_raw" | grep -c '\.md:[0-9]*: ')
+md_hits=$(printf '%s\n' "$check_raw" | grep -c "${md_re}:[0-9]*: ")
 # ⚠️ 过滤必须**带状态**：`git diff --cached --check` 的输出除了 `文件:行: 原因` 还有**紧跟着的内容行**
 #   （形如 `+# 标题  `）⇒ 只滤报告行会把内容行漏下来、照样判"有问题"（第一次就是这么错的，对照组测出来）。
-check_out=$(printf '%s\n' "$check_raw" | awk '
-    /\.md:[0-9]+: / { skip = 1; next }     # .md 的报告行：连同它后面紧跟的 + 内容行一起跳过
+check_out=$(printf '%s\n' "$check_raw" | awk -v md="$md_re" '
+    $0 ~ md ":[0-9]+: " { skip = 1; next }     # md_globs 的报告行：连同它后面紧跟的 + 内容行一起跳过
     skip && /^\+/   { next }
     { skip = 0 }
     /^$/            { next }
@@ -144,6 +254,7 @@ if [ "${md_hits:-0}" -gt 0 ] && [ -z "$check_out" ]; then
     echo "  [提交门·①] 放行 $md_hits 处 *.md 行尾空格（Markdown 硬换行语法；门⓪ 也刻意不修它）" >&2
 fi
 
+# gate:5 identity
 # ── 门 ⑤：作者身份（2026-09-29 加）
 #    顺序说明：① 与 ⑤ 每次都跑（它们查的是"提交本身"），②③④ 只在暂存动到某个索引所在目录时跑。
 #    编号是加入顺序，不是执行顺序。
@@ -198,10 +309,10 @@ for who_email in "作者:$author_email" "提交者:$committer_email"; do
 done
 
 # ── 门②③④：索引一致性（对每个存在的索引跑；没索引的仓自动跳过）
-#    ⭐ 加一个新索引 = 往下面这行列表里加一个路径（正文目录 = 索引所在目录）
+#    ⭐ 加一个新索引 = 改 .githooks/hooks.toml 的 index_paths（单一真源；正文目录 = 索引所在目录）
 staged=$(git diff --cached --name-only)
 
-for idxpath in decisions/INDEX.md postmortems/INDEX.md; do
+for idxpath in $index_paths; do
     dir=$(dirname "$idxpath")
 
     # 只在本次暂存动到【该索引所在目录】时才跑这个索引
@@ -210,6 +321,7 @@ for idxpath in decisions/INDEX.md postmortems/INDEX.md; do
     idx=$(git show ":$idxpath" 2>/dev/null)
     idx_old=$(git show "HEAD:$idxpath" 2>/dev/null)
 
+    # gate:2 index-registered
     # 门②：本次【新增】的目录内正文必须在该索引里登记
     for f in $(git diff --cached --name-only --diff-filter=A -- "$dir/*.md" | grep -v "^$idxpath\$"); do
         b=$(basename "$f")
@@ -222,6 +334,7 @@ for idxpath in decisions/INDEX.md postmortems/INDEX.md; do
 
     if printf '%s\n' "$staged" | grep -q "^$idxpath\$"; then
 
+        # gate:3 index-links
         # 门③：索引里【仓内相对】的链接目标必须存在（跳过 URL / 绝对路径 / 盘符路径）
         #   ⚠️ 取【每行第一个】链接（行首那个才是该条目的身份）；贪婪取最后一个会捡到摘要里的内联链接
         #      —— 实测：`postmortems/INDEX.md` L49 的摘要里有 `[0029](0029-….md)` 这种仓内短写，
@@ -244,6 +357,7 @@ for idxpath in decisions/INDEX.md postmortems/INDEX.md; do
             fi
         done
 
+        # gate:4 index-net-decrease
         # 门④：索引条目【净减少】却没删任何正文 ⇒ 疑似旧副本覆盖（台账 I-104）
         #   ⚠️ 不能用「diff 里有 -| 行」判：修改一行在 diff 里同样是「删+增」⇒ 会误报（bug ③）
         rows_before=$(printf '%s\n' "$idx_old" | grep -c '^| \[')
