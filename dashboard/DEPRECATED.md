@@ -6,12 +6,18 @@
 ## 本目录是什么
 
 - **dashboard/** = MaiBot 老前端（React 19.2 / TS ~5.9.3 / Vite 7.2 / ESLint 9.39）
-- **当前生产仍挂载其 dist**：docker-compose `MAIBOT_WEBUI_USE_LOCAL_DASHBOARD=1` + `src/webui/app.py:300` 静态路径
+- ⚠️ **生产已不挂载它**（2026-08-24 切至 `mingtang/dist`；旧变量 `MAIBOT_WEBUI_USE_LOCAL_DASHBOARD` **已删除**）。
+  现行口径 = `MAIBOT_WEBUI_STATIC_DIR`（`src/webui/app.py:28` 默认 `mingtang/dist`）；
+  回退只需把它设为 `dashboard/dist`。
+  > ⛔ **本行原文写的是「当前生产仍挂载其 dist」——那是 2026-08 前的状态，已过期近两个月**
+  > （2026-10-19 核实：compose L30 = `mingtang/dist`、app.py:28 = `mingtang/dist`、
+  > healthcheck 检查 `mingtang/dist/index.html`、`dashboard/dist` 停留在 07-13 未动）。
+  > 保留这段更正记录，是因为**它就是"文档是断言不是事实"的活样本**：读文档得结论前，先回代码核对。
 
 ## 废弃状态（重要）
 
 - ⚠️ **新功能开发一律禁止进 dashboard**——新功能一律进 `mingtang/`（新前端，主战场）
-- 🔧 dashboard **只做修复不做新功能**（生产还在用，bug 要修）
+- 🔧 dashboard **只做修复不做新功能**（⚠️ 仅**回退期间**才有修的意义——平时它不承载生产流量）
 - 🗓️ **废弃处置（2026-10-15 更新 → 不删除）**：R4 债 ✅ / 三绿 ✅ / 后端挂载 ✅ 均已达成；**本目录不再计划物理删除**——保留作回退（compose 回退旧前端时仍可用）。「功能对照验收」降级为可选质量检查。
 
 ## 替代者
