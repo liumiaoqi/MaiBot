@@ -1524,3 +1524,25 @@ deg50 保留图 S = **0.8880**（≡ probe29 参照A / probe31 M1）· deg85 保
 **口径注明**：L-gap（对称归一化）与 probe28 的 P-gap 同族非同数——量级对照有效，精确比对留待同口径重算。
 
 **产出**：`probe38_realgraph.py` · `probe38_output.txt` · `probe38b_fix.py` · `probe38b_output.txt`
+
+## probe34：Fortran 复刻作为审计手段——LIF 神经元的「库语义陷阱」（2026-10-21）
+
+**起因**：lmq「把 maibot 的算法尽可能交给 Fortran 怎么样，同时也算一次内部检查」。
+**对象**：`snn_behavior/exp0_lif_basics.py`（2026-08-17）＋ `snntorch` 的 `Leaky`（`_neurons/leaky.py`）。
+**装置**：`C:\hub\.scratch\lif_cmp\`（Fortran 复刻 ＋ 逐位对拍；Python 侧用实验区 `.venv`）。
+
+**三问三答**
+
+| # | 问题 | 读数 | 判定 |
+|---|---|---|---|
+| Q1 | **数学身份**：`Heaviside` 到底按 `≥` 还是 `>` 放电？ | 文档 `surrogate.py` 写 `S=1 if U ≥ U_thr`；代码 `out = (input_ > 0)` = **严格大于**。构造 `beta=0, thr=1.0, x=1.0` ⇒ mem 恰为 1.0 ⇒ 实跑 **spk=0** | ⚠️ **文档与实现不一致**（边界上） |
+| Q2 | **逐位对拍**：朴素递推与库等价吗？ | 同输入（beta 0.9 / thr 1.0 / 恒定 0.2 / 50 步）：Python 放电 **6** 次 `[6,13,21,28,35,43]`；Fortran **7** 次 `[6,13,20,27,34,41,48]` | ❌ **不等价** |
+| Q3 | **分歧在哪** | 放电那一步返回的 mem：Python **1.0434（未复位）** vs Fortran **0.0434（已复位）**，下一步起分岔。根因在 `leaky.py` forward：`self.reset = self.mem_reset(self.mem)` 吃的是**更新前**的 mem（注释写 "if mem > threshold"），随后 `do_reset = spk - self.reset`（注释 `avoid double reset`），再加 `reset_delay` 开关 ⇒ **复位是三段状态机，不是一行减法** | ✅ 分歧在**复位记账**，非浮点精度 |
+
+**判词**：**「朴素递推 ≠ 库行为」**。这类**状态机型**算法不能按公式移植——文档给的递推式只是主板，真正的语义藏在复位掩码、`graded_spikes_factor`、`reset_delay` 这几层开关里。
+⇒ **推论（指导后续 Fortran 化）**：优先迁 **纯函数型**内核（STDP 指数窗 · 遗忘曲线衰减 · 余弦/top-k · 归一化）——公式即语义，逐位对拍能干净收敛；
+**状态机型（LIF 等）**须先读状态机再复刻，工作量高一个数量级。
+
+**未闭合**：step 7 的读数（py mem=0.1390 / spk=0）用已读到的分支推不出唯一解 ⇒ 还有一层未读到的分支。**标未闭合，别当结论引用。**
+
+**顺带**：`snntorch` 这条文档/代码不一致如要上报，需先确认版本（本机 `.venv` 内的 `leaky.py` / `surrogate.py` 实读）。
