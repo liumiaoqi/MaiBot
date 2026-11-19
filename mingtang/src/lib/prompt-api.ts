@@ -1,47 +1,20 @@
 import { backendApi } from '@/lib/http'
+import type {
+  PromptCatalog,
+  PromptFileContent,
+  PromptFileInfo,
+  PromptValidationResult,
+  PromptVersionInfo,
+} from '@/lib/contract'
 
 const API_BASE = '/api/webui/config/prompts'
 
-export interface PromptFileInfo {
-  name: string
-  size: number
-  modified_at: number
-  display_name: string
-  advanced: boolean
-  description: string
-  customized: boolean
-  custom_version_count: number
-}
-
-export interface PromptValidationResult {
-  valid: boolean
-  missing_placeholders: string[]
-  extra_placeholders: string[]
-  message: string
-}
-
-export interface PromptVersionInfo {
-  id: string
-  label: string
-  created_at: number
-  modified_at: number
-  size: number
-  active: boolean
-}
-
-export interface PromptCatalog {
-  languages: string[]
-  files: Record<string, PromptFileInfo[]>
-}
-
-export interface PromptFileContent {
-  language: string
-  filename: string
-  content: string
-  customized: boolean
-  active_version_id: string | null
-  versions: PromptVersionInfo[]
-  validation: PromptValidationResult
+export type {
+  PromptCatalog,
+  PromptFileContent,
+  PromptFileInfo,
+  PromptValidationResult,
+  PromptVersionInfo,
 }
 
 export interface PromptUpdateOptions {

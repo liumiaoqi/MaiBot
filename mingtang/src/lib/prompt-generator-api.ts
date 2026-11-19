@@ -1,4 +1,12 @@
 import { ApiError, backendApi } from '@/lib/http'
+import type {
+  PromptGeneratorApplyResponse,
+  PromptGeneratorChatPrompt,
+  PromptGeneratorConfigBlock,
+  PromptGeneratorRequest,
+  PromptGeneratorResponse,
+  PromptGeneratorResult,
+} from '@/lib/contract'
 
 const PROMPT_GENERATOR_METHOD_NOT_ALLOWED_MESSAGE =
   '生成失败：可能是模型不支持或前后端版本不匹配，请换用文本聊天模型，或刷新并重启 WebUI 后再试。'
@@ -14,53 +22,13 @@ function normalizePromptGeneratorError(error: unknown): never {
   throw error
 }
 
-export interface PromptGeneratorChatPrompt {
-  platform: string
-  item_id: string
-  rule_type: string
-  prompt: string
-}
-
-export interface PromptGeneratorConfigBlock {
-  id: string
-  section: string
-  field: string
-  title: string
-  description: string
-  value: unknown
-  toml: string
-}
-
-export interface PromptGeneratorResult {
-  personality: string
-  reply_style: string
-  multiple_reply_style: string[]
-  group_chat_prompt: string
-  private_chat_prompts: string
-  chat_prompts: PromptGeneratorChatPrompt[]
-  notes: string[]
-}
-
-export interface PromptGeneratorRequest {
-  model_name: string
-  source_text: string
-  target_scene: string
-  language: string
-  extra_requirements: string
-  temperature: number
-  max_tokens: number
-}
-
-export interface PromptGeneratorResponse {
-  model_name: string
-  result: PromptGeneratorResult
-  config_blocks: PromptGeneratorConfigBlock[]
-  toml_snippet: string
-  raw_response: string
-  reasoning: string
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
+export type {
+  PromptGeneratorApplyResponse,
+  PromptGeneratorChatPrompt,
+  PromptGeneratorConfigBlock,
+  PromptGeneratorRequest,
+  PromptGeneratorResponse,
+  PromptGeneratorResult,
 }
 
 export async function generatePromptPersona(
@@ -76,11 +44,6 @@ export async function generatePromptPersona(
   }
 }
 
-export interface PromptGeneratorApplyResponse {
-  message: string
-  applied_blocks: number
-  sections: string[]
-}
 
 export async function applyPromptGeneratorBlocks(
   blocks: PromptGeneratorConfigBlock[]

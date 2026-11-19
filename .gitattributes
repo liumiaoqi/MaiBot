@@ -34,3 +34,6 @@ uv.lock text eol=lf
 src/common/utils/session_id_vectors.json text eol=lf
 # 行尾纪律文件自身也守纪律
 .gitattributes text eol=lf
+# 契约层生成物（快照 + 类型产物）——必须 LF，且标记为生成文件（2026-11-19 WebUI 契约层）
+mingtang/openapi/openapi.json text eol=lf linguist-generated
+mingtang/src/lib/contract/api-schema.d.ts text eol=lf linguist-generated

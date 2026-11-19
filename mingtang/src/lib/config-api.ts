@@ -7,6 +7,7 @@
  */
 
 import { ApiError, backendApi } from '@/lib/http'
+import type { ModelTestResult, ModelTestToolCall } from '@/lib/contract'
 import type { ConfigSchema } from '@/types/config-schema'
 
 const API_BASE = '/api/webui/config'
@@ -297,32 +298,7 @@ export interface TestConnectionResult {
   http_status: number | null
 }
 
-/**
- * 单个模型测试返回的工具调用摘要
- */
-export interface ModelTestToolCall {
-  id: string
-  name: string
-  arguments: Record<string, unknown>
-}
-
-/**
- * 单个模型测试结果
- */
-export interface ModelTestResult {
-  success: boolean
-  model_name: string
-  visual_tested: boolean
-  tool_call_ok: boolean
-  response: string
-  reasoning: string
-  tool_calls: ModelTestToolCall[]
-  latency_ms: number | null
-  error: string | null
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
-}
+export type { ModelTestResult, ModelTestToolCall }
 
 /**
  * 测试提供商连接状态（通过提供商名称）

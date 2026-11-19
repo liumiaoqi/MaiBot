@@ -1,0 +1,12 @@
+{
+  "byteLength": 535588,
+  "fetchedAt": "2026-11-19T08:40:58.121Z",
+  "normalizedSha256": "08e84918f5d6ea579fd615a1cd21cd1387566a28a8bd1e06bf7cb7faffa0b077",
+  "openapiVersion": "3.1.0",
+  "operationCount": 448,
+  "pathCount": 405,
+  "schemaCount": 339,
+  "sourceId": "snapshot:openapi/openapi.json",
+  "sourceKind": "snapshot",
+  "warnings": []
+}

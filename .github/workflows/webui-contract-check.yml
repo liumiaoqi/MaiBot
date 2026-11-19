@@ -1,0 +1,55 @@
+name: WebUI 契约层一致性检查
+
+on:
+  pull_request:
+    paths:
+      - mingtang/src/lib/**
+      - mingtang/src/types/**
+      - mingtang/scripts/contract/**
+      - mingtang/openapi/**
+      - mingtang/package.json
+      - mingtang/pnpm-lock.yaml
+
+jobs:
+  contract-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: 配置 pnpm store（先于 install，规避 mingtang/.npmrc 的本地路径）
+        run: pnpm config set store-dir "$RUNNER_TEMP/pnpm-store"
+
+      - name: 安装依赖
+        working-directory: mingtang
+        run: pnpm install --frozen-lockfile
+
+      - name: 契约一致性检查（只读快照，不访问后端）
+        working-directory: mingtang
+        run: node scripts/contract/cli.mjs check --source snapshot
+
+      - name: 写入 step summary（结论 + 分工说明）
+        if: always()
+        working-directory: mingtang
+        run: |
+          {
+            echo '### WebUI 契约层检查'
+            echo ''
+            if [ -f openapi/last-check.json ]; then
+              node -e "const r=require('./openapi/last-check.json');console.log('- verdict: \`'+r.verdict+'\`');console.log('- '+r.message)"
+            else
+              echo '- 未生成 last-check.json'
+            fi
+            echo ''
+            sed -n '/^## CI 与后端漂移的分工$/,/^## /p' openapi/coverage-report.md | sed '$d'
+          } >> "$GITHUB_STEP_SUMMARY"
