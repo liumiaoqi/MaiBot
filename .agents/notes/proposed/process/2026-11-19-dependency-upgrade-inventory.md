@@ -31,18 +31,31 @@ Dependabot 在 `liumiaoqi/MaiBot` 上开着 268 条告警，但其中 209 条（
 
 同时删掉或重新生成 `requirements.txt`。
 
-### 第一批：自家包（契约相关，优先于任何第三方）
+### 第一批：唯一仍在用的自家包
 
-自家包跳的 minor 最多，直接影响插件契约：
+三个「自家包」里只有一个还在用：
 
-| 包 | 当前 | 最新 |
-|---|---|---|
-| `maibot-plugin-sdk` | 2.13.0 | 2.23.0 |
-| `maibot-dashboard` | 1.9.2 | 1.10.7 |
-| `maim-message` | 0.6.8 | 0.7.5 |
+| 包 | 当前 | 最新 | 使用方 |
+|---|---|---|---|
+| `maim-message` | 0.6.8 | 0.7.5 | `plugins/maibot-team.napcat-adapter/maim_message_bridge.py` |
 
-`plugins/` 是独立仓库（napcat-adapter、v1-compat 两个），SDK 跳 10 个 minor
-可能已经改了接口，应先看 changelog 再动。
+它是 MaiBot 生态的消息协议库，定义标准消息格式并提供基于 WebSocket 的通信机制，
+用来解耦核心服务、平台适配器与插件。主仓代码不直接 import，只在 `src/common/logger.py`
+里接管它的日志，所以它是通过插件间接使用的。升级时要连带确认 napcat-adapter 那边。
+
+### 第一批附：两个已废弃的自家包，应当移除而不是升级
+
+| 包 | 当前 | 最新 | 状态 |
+|---|---|---|---|
+| `maibot-plugin-sdk` | 2.13.0 | 2.23.0 | 已废弃，除非做兼容模式否则不用 |
+| `maibot-dashboard` | 1.9.2 | 1.10.7 | 已废弃，前端早已换成 `mingtang/` |
+
+两者仍留在 `pyproject.toml`（`maibot-dashboard>=1.5.4`、`maibot-plugin-sdk>=2.7.0`），
+`src/` 里对 dashboard 零引用，对 plugin-sdk 只通过 `src/plugin_runtime/local_sdk.py`
+走本地路径加载。
+
+**留着它们只会让告警数虚高，而且每次出新版都白算一次落后。** 移除比升级彻底，
+但要先确认 `local_sdk.py` 的本地路径回退逻辑在没有这个 pip 包时仍然成立。
 
 ### 第二批：安全补丁（零风险，先做）
 
@@ -159,8 +172,17 @@ Dependabot 在 `liumiaoqi/MaiBot` 上开着 268 条告警，但其中 209 条（
 
 ### Why not 只升有 CVE 的 9 个包？
 
-那会留下一个更大的隐患：`maibot-plugin-sdk` 落后 10 个 minor，插件契约可能已经漂移。
-CVE 是外部报告的、有编号的；契约漂移是自己造成的、没人报告的。后者更该先看。
+这是本文最初的倾向之一，后来被推翻了两次。
+
+第一版理由是「自家包契约漂移比 CVE 更该先看」。查过实际使用情况后发现，三个自家包里
+两个已废弃、一个是通过插件间接使用的，这个理由不成立。
+
+但「只升 CVE」仍然不是最优，因为它漏掉了两种本该处理的东西：一是废弃包留在依赖里，
+每次出新版都白算一次落后，应该移除而不是放着；二是 `mcp`、`Pillow`、`google-genai`
+这些跨大版本的包，即使当下没有 CVE，落后太多之后升级成本只会更高。
+
+所以正确的切法不是「按有没有 CVE」，而是「按能不能独立验证」——能一条命令验证完的成批做，
+需要逐个确认的单独做。
 
 ### Why not 让 Dependabot 开自动 PR？
 
@@ -177,6 +199,10 @@ CVE 是外部报告的、有编号的；契约漂移是自己造成的、没人�
 
 第零批完成的标准：Dependabot 打开告警数从 268 降到 59 上下，且 `dashboard/`、
 `scripts/embedding_finetune/`、`docs/archive/` 三处不再产生告警；`requirements.txt` 不再是错误日志。
+
+废弃包移除的标准：`pyproject.toml` 里不再有 `maibot-dashboard` 与 `maibot-plugin-sdk`，
+且移掉之后 `src/plugin_runtime/local_sdk.py` 的本地路径加载仍然工作、
+容器重建后 healthy、`plugins/` 两个子仓仍能加载。
 
 每批升级完成的标准：`uv lock` 或 `pnpm install` 成功，容器重建后 healthy，
 `mingtang` 的 `pnpm build` 与 `pnpm test` 全绿，告警数按预期下降。
