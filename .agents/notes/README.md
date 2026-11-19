@@ -21,3 +21,4 @@
 | 2026-11-19 | [模型配置按「格式」分层，而不是按「厂商」堆超集](proposed/architecture/2026-11-19-model-config-format-layer.md) | proposed |
 | 2026-11-19 | [依赖升级清单与分批计划](proposed/process/2026-11-19-dependency-upgrade-inventory.md) | proposed |
 | 2026-11-19 | [WebUI 契约层：从 OpenAPI 生成前端类型，只补一层不重构](implemented/architecture/2026-11-19-webui-contract-layer.md) | implemented |
+| 2026-11-19 | [Phase 3 六项收尾决策（raw 下线 / 旧读两步走 / Git 留档 / F13 / 104 域 / 数据侧）](proposed/process/2026-11-19-phase3-config-decisions.md) | proposed（已拍板，待实施） |
