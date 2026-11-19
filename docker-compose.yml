@@ -40,7 +40,15 @@ services:
 #      - EULA_AGREE=8e6e7d647f7f82d6ea98456b73908656 # 同意EULA
 #      - PRIVACY_AGREE=91e5db7659c560bc3545e63859b6ebc0 # 同意隐私条款
     ports:
-      - "18001:8001" # webui端口
+      # 靶机模式（2026-11-19）：绑 127.0.0.1，不再暴露到 0.0.0.0。
+      # 为什么不是绑 ZeroTier IP：Docker Desktop on Windows 的端口发布只可靠支持
+      # 0.0.0.0 与 127.0.0.1；绑 10.x 时 TCP 握手成功但 HTTP 转发失败（2026-11-19 实测）。
+      # ⚠️ ZeroTier 侧目前【尚未】打通。要让攻击方从虚拟网接入，需在宿主加一条转发
+      #    （管理员权限）：
+      #    netsh interface portproxy add v4tov4 listenaddress=10.143.170.43 ^
+      #      listenport=18002 connectaddress=127.0.0.1 connectport=18001
+      #    然后攻击方访问 10.143.170.43:18002。删掉用 delete 同参数。
+      - "127.0.0.1:18001:8001" # webui端口
 #      - "18121:8121" # QQ用户记忆插件WebUI端口
 #      - "28001:28001" # 主动对话插件WebUI端口
 #      - "8000:8000"
