@@ -31,6 +31,15 @@ Status: proposed（2026-11-19 立项讨论，明确非当务之急）
 
 克隆库其他项目也未找到通用实现。通用生态（Pkl / CUE / Jsonnet / Helm overlay / Spring profiles）要么引入新语言，要么绑定特定生态，与"借 Git 设施"不重合。
 
+### Git 仓的实操口径（`C:\Users\lmq\.dsh`，可直接照搬）
+
+用户侧 `.dsh` 已经在用这套做法（2026-09-27 建仓），要点：
+
+- **无远程**（用户明确：不需要远程仓库）。
+- **建仓前做一次密钥扫描**：1281 个候选文件，`gh[pousr]_` / `AKIA` / 私钥头三类 0 命中；两处命中被 `.gitignore` 挡住（`.credentials.yaml`、`secrets/github.pat`）。
+- **只追踪"了解的少数文件"**，不是 `git add -A`：实际 `git ls-files` 只有 `profiles/`、`preset-bundles/`、`skills/`、`README.md`、`.gitignore`。
+- 黑名单挡住：凭据（`.credentials.yaml`、`secrets/`、`*.pat/*.key/*.pem`、`.env*`）、备份/会话/存储（`_backup-*/`、`_session-dump/`、`sessions/`、`storages/`）、导入残留（`settings.yaml.imported`）、依赖（`**/node_modules/`）。
+
 ## Proposal（C 形态）
 
 ```
@@ -45,6 +54,7 @@ config/
 
 - **组合器放应用层**（约 150–250 行）：按清单顺序 `mergeLayers`；对象递归、数组整体替换、`undefined` 不覆盖；类型冲突显式报错，不静默强转。
 - **Git 只做版本与方案存储**：分支/标签/diff 存这些文件；**不做 `git merge` 组合**（文本级合并对 TOML 不可靠）。
+- **追踪口径照 `.dsh`**：只 add `base.toml`、`overlays/`、`profiles/`、`active-profile` 这类已知文件；不 add 备份/日志/缓存/临时文件；建仓前先扫密钥；无远程。
 - **切换方案**：改 `active-profile` 指针 + reload，不 `checkout` 运行中的工作区。
 
 ## 必须先定的架构选择
@@ -73,6 +83,7 @@ config/
 
 ## Risks
 
+- **前置条件（不是可选项）**：MaiBot 的 `bot_config.toml` 本身含明文密钥，与 `.dsh` 的 `cordis.patch.yml` 不同（后者密钥在 `.credentials.yaml`，已被挡住）。若整文件进白名单，历史仍保留明文；要么先把密钥改为**引用**（env / secret provider），要么把该文件排除在历史外——但后者就没有配置历史。这决定 C 形态能否成立。
 - 密钥历史放大：Git 每版留一份明文；必须走"引用 + 脱敏"或加密。
 - 运行期文件真空：Git/组合器故障时要有降级，不能既无 `.bak` 又无提交。
 - bind mount 上的 Git 性能与仓库膨胀：需定义 gc 策略。
