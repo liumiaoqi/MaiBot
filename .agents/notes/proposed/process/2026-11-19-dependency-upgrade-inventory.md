@@ -24,12 +24,50 @@ Dependabot 在 `liumiaoqi/MaiBot` 上开着 268 条告警，但其中 209 条（
 
 先砍噪音，再按风险分批升级。当前实际过期：Python 47 个，Node 22 个。
 
-### 第零批：砍掉噪音（不动代码）
+### 第零批：先做净简化（不动代码）
+
+这一批不减一个包、不升一个版本，但它是六批里收益最大的，因为它处理的是「本来就不该存在」的东西。
+
+#### 0.1 砍掉噪音源（209 条）
 
 删 `docs/archive/officeArtWorks/uv.lock`（归档目录不该有 lock），确认 `dashboard/` 与
 `scripts/embedding_finetune/` 是否还在维护。这三处合计 209 条，处理完告警从 268 降到 59。
 
+`scripts/embedding_finetune/` 值得单独说明：它是个独立项目，自己的 `pyproject.toml` 写着
+`requires-python = ">=3.12,<3.13"`（主项目是 3.14）、描述是「与主项目隔离」。
+它有自己的 `uv.lock` 就必然进依赖图，所以那 70 条告警是结构性的，不是配置问题。
+要么在 `.github/dependabot.yml` 里排除该路径，要么把它移出主仓。
+
 同时删掉或重新生成 `requirements.txt`。
+
+#### 0.2 按「体积 vs 引用」重新分层
+
+容器里 `site-packages` 的体积分布很不均匀，但体积最大的不等于最该留：
+
+| 包 | 体积 | `src/` 引用 | 判定 |
+|---|---|---|---|
+| `pyarrow` | 162 MB | **1 个文件**（`A_memorix/scripts/convert_lpmm.py`，一次性转换脚本） | 删 |
+| `playwright` | 137 MB | 1 个文件（`services/html_render_service.py`） | **保留，有真实用途** |
+| `scipy` + `.libs` | 113 MB | 2 个文件，含核心的 `A_memorix/core/storage/graph_store.py` | **保留，有真实用途** |
+| `jieba` | 42 MB | 词表就是它的价值 | 保留 |
+| `pandas` | 41 MB | **零引用** | 删或移入 extra |
+| `qiskit` + `qiskit-aer` | 68 MB | **主代码零引用**，只在 `scripts/embedding_finetune/trading/` 的 94 个脚本里 | **移入 optional extra** |
+
+**判据：体积不等于必要性，看引用落在哪。**
+
+`qiskit` 这一项不是「删」，因为量子实验有计划接进 MaiBot。正确的位置是可选依赖：
+
+```toml
+[project.optional-dependencies]
+quantum = ["qiskit>=2.5", "qiskit-aer>=0.17"]
+```
+
+默认 `uv sync` 不装，做实验时 `uv sync --extra quantum`。这样计划保留，默认镜像不背 68 MB
+加传递依赖。真接进核心之后再挪回主依赖，那是升级决定，不是默认状态。
+
+`pyarrow` 与 `pandas` 若是同一批实验脚本在用，可一并归入 extra 而不是直接删。
+
+另有一处可合并：`httpx` 用在 4 个文件，`aiohttp` 只用 1 个，统一到 httpx 能少一整套 HTTP 客户端栈。
 
 ### 第一批：唯一仍在用的自家包
 
@@ -199,6 +237,11 @@ Dependabot 在 `liumiaoqi/MaiBot` 上开着 268 条告警，但其中 209 条（
 
 第零批完成的标准：Dependabot 打开告警数从 268 降到 59 上下，且 `dashboard/`、
 `scripts/embedding_finetune/`、`docs/archive/` 三处不再产生告警；`requirements.txt` 不再是错误日志。
+
+依赖分层完成的标准：`qiskit` 与 `qiskit-aer` 从主依赖移入 `[project.optional-dependencies]`，
+默认 `uv sync` 后镜像里 `site-packages` 不含 `qiskit*`，镜像体积相应下降；
+`uv sync --extra quantum` 能装上并跑通 `scripts/embedding_finetune/trading/` 里的一个实验脚本。
+`pandas` 与 `pyarrow` 若判定为实验专用，同样归入 extra。
 
 废弃包移除的标准：`pyproject.toml` 里不再有 `maibot-dashboard` 与 `maibot-plugin-sdk`，
 且移掉之后 `src/plugin_runtime/local_sdk.py` 的本地路径加载仍然工作、
