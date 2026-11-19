@@ -51,6 +51,10 @@ docker-config/
 # agent 工具目录（163M，绝不进构建上下文）
 .codeartsdoer/
 .codemate/
+# agent 决策记录与 worktree 目录（2026-11-19 补）
+# worktree 里含各分支的 node_modules 与 .pytest_cache，体量大且含 Access denied 的目录，
+# 进了构建上下文会让 docker build 在 load build context 阶段直接失败。
+.agents/
 # 上游遗产（fork 不再使用）
 requirements.txt
 crowdin.yml
