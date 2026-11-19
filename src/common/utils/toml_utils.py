@@ -5,10 +5,39 @@ TOML 工具函数
 """
 
 import re
+import tomllib
+from collections.abc import Mapping
 from typing import Any
 
 import tomlkit
-from tomlkit.items import AoT, Array, Table
+from tomlkit.items import AoT, Array, InlineTable, Table
+
+from src.common.logger import get_logger
+
+logger = get_logger("toml_utils")
+
+
+def _to_toml_value(value: Any, *, inline: bool = False) -> Any:
+    """把纯 Python 值转为 TOML 节点。
+
+    ``inline=True`` 时只产出行内结构（InlineTable / Array），不会生成 Table 或 AoT。
+    这是「按目标节点类型写入」的构造器：行内表里放 dict 时，必须是行内表而不是表段。
+    """
+    if isinstance(value, Mapping):
+        if inline:
+            table = tomlkit.inline_table()
+            for key, item in value.items():
+                table[key] = _to_toml_value(item, inline=True)
+            return table
+        return tomlkit.item(dict(value))
+
+    if isinstance(value, list):
+        array = tomlkit.array()
+        for item in value:
+            array.append(_to_toml_value(item, inline=True))
+        return array
+
+    return tomlkit.item(value)
 
 
 def _format_toml_value(obj: Any, threshold: int, depth: int = 0) -> Any:
@@ -50,9 +79,19 @@ def _format_toml_value(obj: Any, threshold: int, depth: int = 0) -> Any:
     return obj
 
 
-def _update_toml_doc(target: Any, source: Any) -> None:
-    """
-    递归合并字典，将 source 的值更新到 target 中，保留 target 的注释和格式。
+def _update_toml_doc(target: Any, source: Any, _prefix: str = "") -> None:
+    """递归合并字典，按目标既有节点类型写入，保留注释与格式。
+
+    判定顺序（先判具体类型，再判 Table/Array 的父类）：
+    1. ``None`` → 跳过并记录键路径（保留磁盘现值）；
+    2. 既有 InlineTable + Mapping → 递归；
+    3. 既有 InlineTable + 非 Mapping → 行内构造；
+    4. 既有 AoT → ``tomlkit.item``（保持表数组语义）；
+    5. 既有 Array（非 AoT）→ 行内构造（数组元素是行内表）；
+    6. 既有 Table + Mapping → 递归；
+    7. 新键且父为 InlineTable → 行内构造；
+    8. 新键且父为普通 Table → ``tomlkit.item``；
+    9. 其他 → ``tomlkit.item``。
     """
     if isinstance(source, list) or not isinstance(source, dict) or not isinstance(target, dict):
         return
@@ -60,20 +99,45 @@ def _update_toml_doc(target: Any, source: Any) -> None:
     for key, value in source.items():
         if key == "version":
             continue
-        if key in target:
-            target_value = target[key]
-            if isinstance(value, dict) and isinstance(target_value, dict):
-                _update_toml_doc(target_value, value)
+
+        key_path = f"{_prefix}.{key}" if _prefix else key
+
+        if value is None:
+            logger.warning(f"配置合并跳过 None 值：{key_path}（保留磁盘现值）")
+            continue
+
+        if key not in target:
+            if isinstance(target, InlineTable):
+                target[key] = _to_toml_value(value, inline=True)
             else:
-                try:
-                    target[key] = tomlkit.item(value)
-                except (TypeError, ValueError):
-                    target[key] = value
-        else:
-            try:
                 target[key] = tomlkit.item(value)
-            except (TypeError, ValueError):
-                target[key] = value
+            continue
+
+        target_value = target[key]
+
+        if isinstance(target_value, InlineTable):
+            if isinstance(value, Mapping):
+                _update_toml_doc(target_value, value, key_path)
+            else:
+                target[key] = _to_toml_value(value, inline=True)
+            continue
+
+        if isinstance(target_value, AoT):
+            target[key] = tomlkit.item(value)
+            continue
+
+        if isinstance(target_value, Array):
+            target[key] = _to_toml_value(value, inline=True)
+            continue
+
+        if isinstance(target_value, Table):
+            if isinstance(value, Mapping):
+                _update_toml_doc(target_value, value, key_path)
+            else:
+                target[key] = tomlkit.item(value)
+            continue
+
+        target[key] = tomlkit.item(value)
 
 
 def save_toml_with_format(
@@ -109,10 +173,14 @@ def save_toml_with_format(
     try:
         tomlkit.loads(output)
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"配置写入被拒绝：生成内容不是合法 TOML——{e}")
+        logger.error(f"配置写入被拒绝：生成内容不是合法 TOML——{e}")
         raise ValueError(f"配置写入被拒绝：生成内容不是合法 TOML——{e}") from e
+
+    try:
+        tomllib.loads(output)
+    except Exception as e:
+        logger.error(f"配置写入被拒绝：tomllib 校验失败——{e}")
+        raise ValueError(f"配置写入被拒绝：生成内容不是合法 TOML（tomllib）——{e}") from e
 
     import os
 
@@ -123,9 +191,7 @@ def save_toml_with_format(
 
             shutil.copy2(file_path, file_path + ".bak")
         except OSError as backup_error:
-            import logging
-
-            logging.getLogger(__name__).warning(f"配置备份失败（继续写入）：{backup_error}")
+            logger.warning(f"配置备份失败（继续写入）：{backup_error}")
 
     tmp_path = file_path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
