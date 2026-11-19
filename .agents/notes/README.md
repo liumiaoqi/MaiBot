@@ -15,3 +15,6 @@
 | 日期 | 决策 | 状态 |
 |---|---|---|
 | 2026-10-17 | [版本线：主版本号从 0 起钉](2026-10-17-version-line-decision.md) | accepted |
+| 2026-10-17 | [向 dsh 看齐的路线图（构建/门禁/文档不腐）](proposed/process/2026-10-17-dsh-alignment-roadmap.md) | proposed |
+| 2026-10-17 | [轨二阶段 D 的前置：记忆子系统当前是关闭的](proposed/process/2026-10-17-stage-d-blocked-memory-disabled.md) | proposed |
+| 2026-11-19 | [通道能力契约：让上层知道当前通道能做什么](proposed/architecture/2026-11-19-channel-capability-contract.md) | proposed |
