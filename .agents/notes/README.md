@@ -19,3 +19,4 @@
 | 2026-10-17 | [轨二阶段 D 的前置：记忆子系统当前是关闭的](proposed/process/2026-10-17-stage-d-blocked-memory-disabled.md) | proposed |
 | 2026-11-19 | [通道能力契约：让上层知道当前通道能做什么](proposed/architecture/2026-11-19-channel-capability-contract.md) | proposed |
 | 2026-11-19 | [模型配置按「格式」分层，而不是按「厂商」堆超集](proposed/architecture/2026-11-19-model-config-format-layer.md) | proposed |
+| 2026-11-19 | [依赖升级清单与分批计划](proposed/process/2026-11-19-dependency-upgrade-inventory.md) | proposed |

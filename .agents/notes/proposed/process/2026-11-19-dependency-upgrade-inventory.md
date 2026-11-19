@@ -1,0 +1,197 @@
+# Agent Note: 依赖升级清单与分批计划
+
+Status: proposed
+
+## Problem
+
+Dependabot 在 `liumiaoqi/MaiBot` 上开着 268 条告警，但其中 209 条（78%）来自本不该被扫描的路径：
+
+| manifest | 条数 | 情况 |
+|---|---|---|
+| `dashboard/pnpm-lock.yaml` + `package.json` | 96 | 旧前端。compose 默认用 `mingtang/dist`，`dashboard/dist` 只是回退 |
+| `scripts/embedding_finetune/uv.lock` | 70 | 独立实验脚本，自带 lock |
+| `docs/archive/officeArtWorks/uv.lock` | 43 | 归档目录，按 `docs/AGENTS.md` 的规矩本就该冻结 |
+| `uv.lock`（主仓） | 50 | 真正要紧的 |
+| `mingtang/pnpm-lock.yaml` | 9 | 当前前端 |
+
+告警数量因此不能作为判断依据。真正要看的是「哪些包落后了、落后多少」，而这份清单此前没有。
+
+另有一处仓库卫生问题：`requirements.txt` 不是依赖清单，是 1775 行、UTF-16 编码的错误日志
+（内容是某次 `uv export --no-dev > requirements.txt 2>&1` 失败后的输出）。它已被 `.dockerignore`
+排除，但仍留在仓库里，任何按它装依赖的人都会失败。
+
+## Proposal
+
+先砍噪音，再按风险分批升级。当前实际过期：Python 47 个，Node 22 个。
+
+### 第零批：砍掉噪音（不动代码）
+
+删 `docs/archive/officeArtWorks/uv.lock`（归档目录不该有 lock），确认 `dashboard/` 与
+`scripts/embedding_finetune/` 是否还在维护。这三处合计 209 条，处理完告警从 268 降到 59。
+
+同时删掉或重新生成 `requirements.txt`。
+
+### 第一批：自家包（契约相关，优先于任何第三方）
+
+自家包跳的 minor 最多，直接影响插件契约：
+
+| 包 | 当前 | 最新 |
+|---|---|---|
+| `maibot-plugin-sdk` | 2.13.0 | 2.23.0 |
+| `maibot-dashboard` | 1.9.2 | 1.10.7 |
+| `maim-message` | 0.6.8 | 0.7.5 |
+
+`plugins/` 是独立仓库（napcat-adapter、v1-compat 两个），SDK 跳 10 个 minor
+可能已经改了接口，应先看 changelog 再动。
+
+### 第二批：安全补丁（零风险，先做）
+
+这些都是解析库或证书包，升级只换数据不改 API：
+
+| 包 | 当前 | 最新 | 说明 |
+|---|---|---|---|
+| `certifi` | 2026.7.22 | 2026.10.23 | emSign 根证书被攻破，影响 TLS 信任链 |
+| `pyasn1` | 0.6.4 | 0.6.5 | quadratic DoS |
+| `opentelemetry-api` | 1.45.1 | 1.45.2 | DoS |
+
+### 第三批：Python 补丁级（17 个）
+
+| 包 | 当前 | 最新 | 备注 |
+|---|---|---|---|
+| `annotated-doc` | 0.0.5 | 0.0.7 |  |
+| `click` | 8.5.0 | 8.5.1 |  |
+| `google-auth` | 2.62.0 | 2.62.2 |  |
+| `json-repair` | 0.64.0 | 0.64.9 |  |
+| `msgpack` | 1.2.3 | 1.2.4 |  |
+| `numpy` | 2.5.4 | 2.5.5 |  |
+| `opentelemetry-api` | 1.45.1 | 1.45.2 | **有 CVE** |
+| `pyarrow` | 26.0.0 | 26.0.1 |  |
+| `pyasn1` | 0.6.4 | 0.6.5 | **有 CVE** |
+| `pydantic` | 2.14.1 | 2.14.3 |  |
+| `pydantic-core` | 2.50.1 | 2.50.4 |  |
+| `pydantic-settings` | 2.16.0 | 2.16.3 |  |
+| `python-multipart` | 0.0.32 | 0.0.34 |  |
+| `sqlalchemy` | 2.1.4 | 2.1.9 |  |
+| `sqlmodel` | 0.0.48 | 0.0.50 |  |
+| `tomlkit` | 0.15.1 | 0.15.2 |  |
+| `typing-inspection` | 0.4.4 | 0.4.5 |  |
+
+### 第四批：Python 小版本（24 个）
+
+| 包 | 当前 | 最新 | 备注 |
+|---|---|---|---|
+| `anyio` | 4.15.1 | 4.16.0 |  |
+| `certifi` | 2026.7.22 | 2026.10.23 | **有 CVE** |
+| `faiss-cpu` | 1.15.1 | 1.16.0 |  |
+| `fastapi` | 0.143.1 | 0.165.0 |  |
+| `grpcio` | 1.84.0 | 1.85.3 |  |
+| `grpcio-reflection` | 1.84.0 | 1.85.3 |  |
+| `httpcore2` | 2.13.1 | 2.16.2 |  |
+| `httpx2` | 2.13.1 | 2.16.2 |  |
+| `jiter` | 0.17.0 | 0.19.0 |  |
+| `maibot-dashboard` | 1.9.2 | 1.10.7 | **自家包** |
+| `maibot-plugin-sdk` | 2.13.0 | 2.23.0 | **自家包** |
+| `maim-message` | 0.6.8 | 0.7.5 | **自家包** |
+| `markdown-it-py` | 4.2.0 | 4.3.0 |  |
+| `multidict` | 7.1.0 | 7.2.1 |  |
+| `openai` | 3.31.0 | 3.55.1 |  |
+| `pandas` | 3.0.6 | 3.1.1 |  |
+| `playwright` | 1.64.0 | 1.65.2 |  |
+| `pycparser` | 3.11 | 3.12 |  |
+| `qiskit` | 2.5.2 | 2.6.2 |  |
+| `qiskit-aer` | 0.17.2 | 0.18.4 |  |
+| `sse-starlette` | 3.5.0 | 3.7.0 |  |
+| `starlette` | 1.8.0 | 1.10.0 |  |
+| `stevedore` | 5.9.1 | 5.10.0 |  |
+| `tenacity` | 9.1.4 | 9.2.1 |  |
+
+### 第五批：Python 大版本（6 个）
+
+| 包 | 当前 | 最新 | 备注 |
+|---|---|---|---|
+| `google-genai` | 2.31.0 | 3.6.1 |  |
+| `mcp` | 1.30.0 | 2.3.0 | **MCP 协议大版本** |
+| `pillow` | 12.3.0 | 13.0.0 | **有 CVE** · **跨大版本** |
+| `pyee` | 14.0.0 | 16.1.0 |  |
+| `python-dateutil` | 2.9.0.post0 | 4.0.0 | **可疑，跳到 4.0 不合常理** |
+| `websockets` | 16.1.1 | 17.4 |  |
+
+### 第六批：Node（22 个）
+
+大版本 4 个：
+
+| 包 | 当前 | 最新 | 类型 | 备注 |
+|---|---|---|---|---|
+| `@xyflow/react` | 12.12.0 | 13.0.2 | prod |  |
+| `i18next` | 26.4.4 | 27.1.5 | prod |  |
+| `jsdom` | 30.1.2 | 31.0.1 | dev |  |
+| `react-i18next` | 17.0.16 | 18.0.2 | prod |  |
+
+小版本与补丁 18 个：
+
+| 包 | 当前 | 最新 | 类型 | 备注 |
+|---|---|---|---|---|
+| `@tailwindcss/vite` | 4.3.3 | 4.3.5 | dev |  |
+| `@tanstack/react-query` | 5.104.2 | 5.108.0 | prod |  |
+| `@tanstack/react-router` | 1.170.44 | 1.170.46 | prod |  |
+| `@testing-library/user-event` | 14.6.8 | 14.6.12 | dev |  |
+| `@typescript-eslint/parser` | 8.71.2 | 8.73.0 | dev |  |
+| `@vitejs/plugin-react` | 6.1.2 | 6.3.0 | dev |  |
+| `eslint` | 10.12.0 | 10.15.0 | dev |  |
+| `eslint-plugin-security` | 4.2.0 | 4.2.1 | dev |  |
+| `i18next-browser-languagedetector` | 8.2.1 | 8.3.1 | prod |  |
+| `katex` | 0.19.0 | 0.19.1 | prod | **有 CVE** |
+| `lucide-react` | 1.57.0 | 1.75.0 | prod |  |
+| `prettier` | 3.9.10 | 3.10.1 | dev |  |
+| `react` | 19.3.0 | 19.3.1 | prod |  |
+| `react-dom` | 19.3.0 | 19.3.1 | prod |  |
+| `tailwindcss` | 4.3.3 | 4.3.5 | prod |  |
+| `typescript-eslint` | 8.71.2 | 8.73.0 | dev |  |
+| `vite` | 8.3.4 | 8.3.8 | dev |  |
+| `vitest` | 5.0.4 | 5.1.1 | dev |  |
+
+## Alternatives considered
+
+### Why not 一次性把所有包升到 latest？
+
+两件事会同时发生：Pillow 从 12.3 跳到 13.0、mcp 从 1.30 跳到 2.3、google-genai 从 2.31 跳到 3.6。
+三者互相独立，出问题时无法归因到哪一个。分批的价值不在稳妥，在于**失败时能定位**。
+
+### Why not 只升有 CVE 的 9 个包？
+
+那会留下一个更大的隐患：`maibot-plugin-sdk` 落后 10 个 minor，插件契约可能已经漂移。
+CVE 是外部报告的、有编号的；契约漂移是自己造成的、没人报告的。后者更该先看。
+
+### Why not 让 Dependabot 开自动 PR？
+
+268 条告警里 209 条来自不该扫的目录，自动 PR 会把噪音变成 PR 洪水。
+第零批不做完，自动化只会放大混乱。
+
+### Why not 现在就把六批全跑完？
+
+改依赖会动 `uv.lock` 与 `pnpm-lock.yaml`，而 CA 正在同一工作区推进
+`.codeartsdoer/specs/webui_contract`。两个 lock 文件同时被两边改动会很难合。
+先落清单，等边界清楚再执行。
+
+## Acceptance criteria
+
+第零批完成的标准：Dependabot 打开告警数从 268 降到 59 上下，且 `dashboard/`、
+`scripts/embedding_finetune/`、`docs/archive/` 三处不再产生告警；`requirements.txt` 不再是错误日志。
+
+每批升级完成的标准：`uv lock` 或 `pnpm install` 成功，容器重建后 healthy，
+`mingtang` 的 `pnpm build` 与 `pnpm test` 全绿，告警数按预期下降。
+
+第五批（大版本）的额外标准：每个包单独一次提交，且提交信息写明升了哪个、依据是什么。
+`mcp` 放在最后，因为它会改变 MCP 客户端的协议行为。
+
+## Risks
+
+`python-dateutil` 显示 2.9.0.post0 到 4.0.0，不符合该包的正常版本线（2.9.x 是当前线）。
+这是 `uv pip list --outdated` 的已知盲区：别名包与同名不同源的包会被混在一起。
+这一项必须人工核实，不能照表升。
+
+`Pillow` 跨大版本且带 CVE，是清单里唯一「必须升但升了可能坏」的包。应先扫一遍代码里
+用到的 Pillow API（`pyproject.toml` 现在写的是 `pillow>=12.3.0`，升级要一并改约束）。
+
+两个 lock 文件（`uv.lock`、`mingtang/pnpm-lock.yaml`）与 CA 的工作区重叠，这是本文停在
+proposed 的直接原因。
