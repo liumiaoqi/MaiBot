@@ -23,3 +23,4 @@
 | 2026-11-19 | [WebUI 契约层：从 OpenAPI 生成前端类型，只补一层不重构](implemented/architecture/2026-11-19-webui-contract-layer.md) | implemented |
 | 2026-11-19 | [Phase 3 六项收尾决策（raw 下线 / 旧读两步走 / Git 留档 / F13 / 104 域 / 数据侧）](proposed/process/2026-11-19-phase3-config-decisions.md) | proposed（已拍板，待实施） |
 | 2026-11-19 | [配置组合系统（自由组合 + 多级管理）](proposed/architecture/2026-11-19-config-composition-system.md) | proposed（非当务之急，先登记） |
+| 2026-11-19 | [MaiBot 缓慢 Rust 化方向（边缘优先 / 旁路替代 / 不重写核心）](proposed/process/2026-11-19-rust-migration-direction.md) | proposed（方向登记，非当务之急） |
