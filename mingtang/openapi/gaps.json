@@ -1,0 +1,1406 @@
+[
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/config",
+    "prefixGroup": "/api/config"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/config/auto_save",
+    "prefixGroup": "/api/config"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/config/auto_save",
+    "prefixGroup": "/api/config"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/config/schema",
+    "prefixGroup": "/api/config"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/config/schema/bot",
+    "prefixGroup": "/api/config"
+  },
+  {
+    "method": "DELETE",
+    "missing": "response",
+    "path": "/api/edge",
+    "prefixGroup": "/api/edge"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/edge",
+    "prefixGroup": "/api/edge"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/edge/weight",
+    "prefixGroup": "/api/edge"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/episodes",
+    "prefixGroup": "/api/episodes"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/episodes/process_pending",
+    "prefixGroup": "/api/episodes"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/episodes/rebuild",
+    "prefixGroup": "/api/episodes"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/episodes/status",
+    "prefixGroup": "/api/episodes"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/episodes/{episode_id}",
+    "prefixGroup": "/api/episodes"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/graph",
+    "prefixGroup": "/api/graph"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/guide",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/lpmm_convert",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/lpmm_openie",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/maibot_migration",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/paste",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/path_aliases",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/raw_scan",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/resolve_path",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/settings",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/tasks",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/lpmm_convert",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/lpmm_openie",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/maibot_migration",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/paste",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/raw_scan",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/temporal_backfill",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/import/tasks/upload",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/tasks/{task_id}",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/import/tasks/{task_id}/cancel",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/tasks/{task_id}/chunks/{file_id}",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/import/tasks/{task_id}/files/{file_id}/chunks",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/{task_id}/retry",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/tasks/{task_id}/retry_failed",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/import/temporal_backfill",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/import/upload",
+    "prefixGroup": "/api/import"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/memory/freeze",
+    "prefixGroup": "/api/memory"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/memory/protect",
+    "prefixGroup": "/api/memory"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/memory/recycle_bin",
+    "prefixGroup": "/api/memory"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/memory/reinforce",
+    "prefixGroup": "/api/memory"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/memory/restore",
+    "prefixGroup": "/api/memory"
+  },
+  {
+    "method": "DELETE",
+    "missing": "response",
+    "path": "/api/node",
+    "prefixGroup": "/api/node"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/node",
+    "prefixGroup": "/api/node"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/node/rename",
+    "prefixGroup": "/api/node"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/person_profile/list",
+    "prefixGroup": "/api/person_profile"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/person_profile/override",
+    "prefixGroup": "/api/person_profile"
+  },
+  {
+    "method": "DELETE",
+    "missing": "both",
+    "path": "/api/person_profile/override/{person_id}",
+    "prefixGroup": "/api/person_profile"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/person_profile/query",
+    "prefixGroup": "/api/person_profile"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/person_profile/search",
+    "prefixGroup": "/api/person_profile"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/query/aggregate",
+    "prefixGroup": "/api/query"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/profile",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/retrieval_tuning/profile/apply",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/profile/export",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/profile/export_toml",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/profile/rollback",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/settings",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/tasks",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/retrieval_tuning/tasks",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/tasks/{task_id}",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/retrieval_tuning/tasks/{task_id}/apply-best",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/retrieval_tuning/tasks/{task_id}/apply_best",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/tasks/{task_id}/cancel",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/tasks/{task_id}/report",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/retrieval_tuning/tasks/{task_id}/rounds",
+    "prefixGroup": "/api/retrieval_tuning"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/runtime/self_check",
+    "prefixGroup": "/api/runtime"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/runtime/self_check/refresh",
+    "prefixGroup": "/api/runtime"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/runtime/vectors/rebuild",
+    "prefixGroup": "/api/runtime"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/save",
+    "prefixGroup": "/api/save"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/source/batch_delete",
+    "prefixGroup": "/api/source"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/source/delete",
+    "prefixGroup": "/api/source"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/source/list",
+    "prefixGroup": "/api/source"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/autonomy-logs",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/autonomy/active/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/autonomy/intents/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/autonomy/interjection-events/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/autonomy/primary/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/autonomy/speaker-changes/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/agent/autonomy/switch-speaker",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/agent/autonomy/trigger-interjection",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/batch/emotion",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/batch/relationships",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/batch/sessions",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/batch/subagent-latest",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "PUT",
+    "missing": "response",
+    "path": "/api/webui/agent/binding/batch",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/binding/group",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "PUT",
+    "missing": "response",
+    "path": "/api/webui/agent/binding/group",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "both",
+    "path": "/api/webui/agent/binding/group/{group_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "both",
+    "path": "/api/webui/agent/binding/session/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/binding/session/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "PUT",
+    "missing": "response",
+    "path": "/api/webui/agent/binding/session/{session_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "both",
+    "path": "/api/webui/agent/binding/session/{session_id}/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/emotion-behavior-rules/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/emotion/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/interactions/config",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/interactions/history",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/interactions/hotspots",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/interactions/recent",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/agent/interactions/trigger",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/interactions/{event_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/list",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/migration/states",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/agent/migration/{plugin_id}/advance",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/monologue/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/profile/{observer_id}/{target_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/relationship/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/agent/reload",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/sessions/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/state-awareness",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/subagent/records",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/subagent/stats",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/vitality",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agent/{agent_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/agents/interactions/hotspots",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/avatar",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/config/bot",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/config/bot",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/config/bot/section/{section_name}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/config/get",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/config/maisaka-prompt-preview",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/config/model",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/config/model",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/config/model/section/{section_name}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/config/mutate",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/config/schema/bot",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/config/schema/model",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/config/schema/section/{section_name}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/emoji/{emoji_id}/thumbnail",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/config",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "PUT",
+    "missing": "response",
+    "path": "/api/webui/memory/config",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/config/raw",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "PUT",
+    "missing": "response",
+    "path": "/api/webui/memory/config/raw",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/config/schema",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/delete/operations",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/delete/operations/{operation_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/delete/preview",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/delete/restore",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/episodes",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/episodes/process-pending",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/episodes/rebuild",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/episodes/status",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/episodes/{episode_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "response",
+    "path": "/api/webui/memory/episodes/{id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/episodes/{id}/delete",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/episodes/{id}/restore",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/graph",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "response",
+    "path": "/api/webui/memory/graph/edge",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/graph/edge",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/graph/edge-detail",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/graph/edge/weight",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "response",
+    "path": "/api/webui/memory/graph/node",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/graph/node",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/graph/node-detail",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/graph/node/rename",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/graph/paragraph-detail",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/graph/search",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/import/guide",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/lpmm-convert",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/lpmm-openie",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/maibot-migration",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/paste",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/import/path-aliases",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/raw-scan",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/resolve-path",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/import/settings",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/import/tasks",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/import/tasks/{task_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/memory/import/tasks/{task_id}/cancel",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/import/tasks/{task_id}/chunks/{file_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/tasks/{task_id}/retry",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/import/temporal-backfill",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/memory/import/upload",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/maintenance/freeze",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/maintenance/protect",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/maintenance/purge",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/maintenance/recycle-bin",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/maintenance/reinforce",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/maintenance/restore",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/profiles",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/profiles/override",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "both",
+    "path": "/api/webui/memory/profiles/override/{person_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/profiles/query",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/profiles/search",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/profiles/{person_id}/evidence",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/profiles/{person_id}/evidence/correct",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/query/aggregate",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/relations/feedback",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/profile",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/retrieval_tuning/profile/apply",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/profile/export",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/profile/rollback",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/settings",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/tasks",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/retrieval_tuning/tasks",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/tasks/{task_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/retrieval_tuning/tasks/{task_id}/apply-best",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/tasks/{task_id}/cancel",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/tasks/{task_id}/report",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/retrieval_tuning/tasks/{task_id}/rounds",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/runtime/auto-save",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/runtime/auto-save",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/runtime/config",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/memory/runtime/save",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/runtime/self-check",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/memory/runtime/self-check/refresh",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/runtime/vectors/rebuild",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "response",
+    "path": "/api/webui/memory/sources",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/sources",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "DELETE",
+    "missing": "both",
+    "path": "/api/webui/memory/sources/{id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/memory/status",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/v5/reinforce",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/v5/remember-forever",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/memory/v5/weaken",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/models/client-types",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/models/list",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/models/list-by-url",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/models/test-connection",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/models/test-connection-by-name",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/plugins/icon/{plugin_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/plugins/stats-proxy/stats/dislike",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/plugins/stats-proxy/stats/download",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/plugins/stats-proxy/stats/like",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "response",
+    "path": "/api/webui/plugins/stats-proxy/stats/rate",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/plugins/stats-proxy/stats/summary",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/plugins/stats-proxy/stats/user-state",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/plugins/stats-proxy/stats/{plugin_id}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/reasoning-process/html",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/statistics/export",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/system/local-cache/images/preview",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/system/maisaka-monitor/media/{media_kind}/{media_hash}",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "POST",
+    "missing": "both",
+    "path": "/api/webui/system/reload-config",
+    "prefixGroup": "/api/webui"
+  },
+  {
+    "method": "GET",
+    "missing": "both",
+    "path": "/api/webui/ws-token",
+    "prefixGroup": "/api/webui"
+  }
+]

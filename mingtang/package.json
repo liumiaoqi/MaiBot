@@ -8,7 +8,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:ui": "vitest --ui",
-    "check:color": "bash scripts/check-no-hardcoded-color.sh"
+    "check:color": "bash scripts/check-no-hardcoded-color.sh",
+    "contract:snapshot": "node scripts/contract/cli.mjs snapshot",
+    "contract:generate": "node scripts/contract/cli.mjs generate",
+    "contract:check": "node scripts/contract/cli.mjs check",
+    "contract:report": "node scripts/contract/cli.mjs report"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -70,6 +74,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-security": "^4.2.0",
     "jsdom": "^30.1.2",
+    "openapi-typescript": "7.13.0",
     "prettier": "^3.9.10",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.71.2",
