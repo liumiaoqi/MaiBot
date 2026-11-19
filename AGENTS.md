@@ -195,7 +195,7 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 **设计派发/SSD/调研文档必须标注参考源码来源：**
 
 1. **系统类**（OS 化/治理/资源/调度/容错）→ Linux 内核源码：`E:\Users\lmq\importantClone\linuxclone\linux\`（标注对应机制文件）
-2. **智能体类**（agent/记忆/自主性/工具链）→ dsh 源码：`E:\Users\lmq\importantClone\DEEPSEEKCLONE\deepseek-harness\`（标注对应包）
+2. **智能体类**（agent/记忆/自主性/工具链）→ dsh 源码：`E:\Users\lmq\deepseek-harness\`（**新版**；旧镜像 `importantClone\DEEPSEEKCLONE\deepseek-harness` 已弃用，2026-11-19 lmq 定）（标注对应包）
 3. **理由**：MaiBot 底模 = DeepSeek；dsh 是它的 harness——模型特化向 harness 看齐；ZG 计划对标 Linux——系统机制翻内核真实现。**不标注=设计无据**
 4. **插件哲学**：重点从 dsh 学习——Cordis 47 包架构（生命周期/依赖/作用域/上下文注入）是第一参考
 5. **dsh 参考地图**（做设计前先翻说明书再翻源码）：`docs/architecture.md` + `cordis-primer.md`；`capability-seams.md`（一切皆插件）；`config-catalog.md`（配置分层）；`tool-catalog.md` + `tool-execution-pipeline.md`；**`defensive-patterns.md`（写生命周期/并发/子进程前必读）**；`event-producer-consumer.md` / `agent-lifecycle.md`；团队 skill `.agents/skills/`（11 个）
