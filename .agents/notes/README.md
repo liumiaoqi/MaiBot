@@ -18,3 +18,4 @@
 | 2026-10-17 | [向 dsh 看齐的路线图（构建/门禁/文档不腐）](proposed/process/2026-10-17-dsh-alignment-roadmap.md) | proposed |
 | 2026-10-17 | [轨二阶段 D 的前置：记忆子系统当前是关闭的](proposed/process/2026-10-17-stage-d-blocked-memory-disabled.md) | proposed |
 | 2026-11-19 | [通道能力契约：让上层知道当前通道能做什么](proposed/architecture/2026-11-19-channel-capability-contract.md) | proposed |
+| 2026-11-19 | [模型配置按「格式」分层，而不是按「厂商」堆超集](proposed/architecture/2026-11-19-model-config-format-layer.md) | proposed |
