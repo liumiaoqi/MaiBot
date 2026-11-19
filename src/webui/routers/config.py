@@ -592,6 +592,18 @@ def _coerce_config_numeric_values(data: Dict[str, Any], config_type: type[Config
     return data
 
 
+def _coerce_section_payload(section_name: str, section_data: Any, config_cls: type[ConfigBase]) -> Any:
+    """按目标节的字段注解修正类型；无对应字段时原样返回。
+
+    节路由不再把整份 plain 结构回写落盘（那会丢节点类型），因此原先由
+    ``_coerce_config_numeric_values`` 顺带完成的「数字纠正」必须在这里补回。
+    """
+    if section_name not in config_cls.model_fields or not isinstance(section_data, dict):
+        return section_data
+    annotation = config_cls.model_fields[section_name].annotation
+    return _coerce_value_by_annotation(copy.deepcopy(section_data), annotation)
+
+
 def _collect_orphaned_model_api_providers(config_data: Dict[str, Any]) -> Dict[str, str]:
     """收集引用了不存在 API Provider 的模型。"""
     providers = config_data.get("api_providers", [])
@@ -1844,6 +1856,7 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
             _toml_to_plain_dict(config_data[section_name]),
             config_store.secret_field_paths(config_store.NAMESPACE_BOT),
         )
+        section_data = _coerce_section_payload(section_name, section_data, Config)
 
         # 使用递归合并保留注释（对于字典类型）
         # 对于数组类型（如 platforms, aliases），直接替换
@@ -1872,9 +1885,7 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
             logger.warning(f"配置数据验证失败: {e}")
             raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
-        config_data = plain_config_data
-
-        # 保存配置（格式化数组为多行，保留注释）
+        # 落盘源 = 带节点类型的文档；plain 仅用于上面的 Config.from_dict 校验
         save_toml_with_format(config_data, config_path)
         hot_reload = await _reload_config_or_report(f"POST /config/bot/section/{section_name}")
 
@@ -1926,6 +1937,7 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
             _toml_to_plain_dict(config_data[section_name]),
             config_store.secret_field_paths(config_store.NAMESPACE_MODEL),
         )
+        section_data = _coerce_section_payload(section_name, section_data, ModelConfig)
 
         # 使用递归合并保留注释（对于字典类型）
         # 对于数组表（如 [[models]], [[api_providers]]），直接替换
@@ -1985,9 +1997,7 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
             if not allow_orphaned_provider_save:
                 raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
-        config_data = plain_config_data
-
-        # 保存配置（格式化数组为多行，保留注释）
+        # 落盘源 = 带节点类型的文档；plain 仅用于上面的 ModelConfig.from_dict 校验与 orphaned 判定
         save_toml_with_format(config_data, config_path)
         hot_reload = await _reload_config_or_report(f"POST /config/model/section/{section_name}")
 
