@@ -23,6 +23,7 @@ from src.maisaka.agent.config import AgentConfig
 from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_autonomy.butler_closure import (
     ActionKind,
+    BudgetDecision,
     ButlerClosureConfig,
     OpeningDraft,
     OpeningOutcome,
@@ -101,6 +102,7 @@ class Butler:
         )
         self._ledger = TopicLedger(session_id=session_id, config=self._closure_config)
         self._last_spoken_text = ""
+        self._last_budget_decision: BudgetDecision | None = None
 
         self._resident_briefs: list[dict] = []
         self._resident_ids: list[str] = []
@@ -193,6 +195,11 @@ class Butler:
     def last_spoken_text(self) -> str:
         """管家最近一次成功出站的原始文本（不含说话人前缀）。"""
         return self._last_spoken_text
+
+    @property
+    def last_budget_decision(self) -> BudgetDecision | None:
+        """最近一次预算扣减结果（供编排层判断是否耗尽）。"""
+        return self._last_budget_decision
 
     # ── 发言权转移状态管理 ──────────────────────────────
 
@@ -910,6 +917,7 @@ class Butler:
     ) -> SummonRequest | None:
         """预算内选一个在场目标；无在场者或预算耗尽时返回 None 并记账。"""
         if not present_ids:
+            self._last_budget_decision = None
             await self._ledger.record_action(
                 topic.topic_id,
                 ActionKind.SUMMON_DROPPED,
@@ -919,6 +927,7 @@ class Butler:
             return None
 
         decision = await self._ledger.try_consume(topic.topic_id, ActionKind.SUMMON)
+        self._last_budget_decision = decision
         if not decision.granted:
             await self._ledger.record_action(
                 topic.topic_id,
@@ -957,6 +966,7 @@ class Butler:
     ) -> bool:
         """代说的预算化包装：先扣预算，再走既有 speak_and_send。"""
         decision = await self._ledger.try_consume(topic.topic_id, ActionKind.SPEAK_FOR)
+        self._last_budget_decision = decision
         if not decision.granted:
             await self._ledger.record_action(
                 topic.topic_id,
@@ -994,6 +1004,7 @@ class Butler:
         if topic.closure_used:
             return False
         decision = await self._ledger.try_consume(topic.topic_id, ActionKind.CLOSURE)
+        self._last_budget_decision = decision
         if not decision.granted:
             await self._ledger.record_action(
                 topic.topic_id,

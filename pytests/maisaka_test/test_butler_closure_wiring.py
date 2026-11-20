@@ -20,7 +20,8 @@ from src.maisaka.agent_autonomy import butler as butler_module
 from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
 
-T0 = datetime.now().replace(microsecond=0)
+def _now_base() -> datetime:
+    return datetime.now().replace(microsecond=0)
 SESSION_ID = "session-wiring-test"
 
 
@@ -121,7 +122,9 @@ def _agent_config(agent_id: str, name: str, *, is_butler: bool = False):
     )
 
 
-def _message(text="今天好累", message_id="m1", at=T0, *, is_notify=False):
+def _message(text="今天好累", message_id="m1", at: datetime | None = None, *, is_notify=False):
+    if at is None:
+        at = _now_base()
     return SimpleNamespace(
         processed_plain_text=text,
         message_id=message_id,
@@ -202,7 +205,7 @@ def make_orchestrator(monkeypatch):
         monkeypatch.setattr(
             butler_module,
             "_now",
-            lambda: T0,
+            lambda: _now_base(),
         )
         monkeypatch.setattr(
             "src.core.message_port_registry.get_message_port_v2",
@@ -262,6 +265,7 @@ def make_orchestrator(monkeypatch):
             llm=fake_llm,
             error_port=fake_error_port,
             config=config,
+            t0=_now_base(),
         )
 
     yield _make
@@ -325,9 +329,9 @@ async def test_new_topic_on_silence_gap(make_orchestrator):
         ],
     )
 
-    await env.orchestrator.handle_message(_message(message_id="m1", at=T0))
+    await env.orchestrator.handle_message(_message(message_id="m1", at=env.t0))
     await env.orchestrator.handle_message(
-        _message(message_id="m2", at=T0 + timedelta(minutes=31)),
+        _message(message_id="m2", at=env.t0 + timedelta(minutes=31)),
     )
 
     rows = _topic_rows()
@@ -345,9 +349,9 @@ async def test_no_new_topic_within_threshold(make_orchestrator):
         ],
     )
 
-    await env.orchestrator.handle_message(_message(message_id="m1", at=T0))
+    await env.orchestrator.handle_message(_message(message_id="m1", at=env.t0))
     await env.orchestrator.handle_message(
-        _message(message_id="m2", at=T0 + timedelta(minutes=29)),
+        _message(message_id="m2", at=env.t0 + timedelta(minutes=29)),
     )
 
     assert len(_topic_rows()) == 1
@@ -399,12 +403,12 @@ async def test_budget_exhausted_stops_output(make_orchestrator):
         budget_limit=1,
     )
 
-    await env.orchestrator.handle_message(_message(message_id="m1", at=T0))
+    await env.orchestrator.handle_message(_message(message_id="m1", at=env.t0))
     first_count = len(env.port.sent)
     llm_calls = env.llm.calls
 
     await env.orchestrator.handle_message(
-        _message(message_id="m2", at=T0 + timedelta(minutes=1)),
+        _message(message_id="m2", at=env.t0 + timedelta(minutes=1)),
     )
 
     assert len(env.port.sent) == first_count
@@ -456,7 +460,7 @@ async def test_closure_round_once_per_topic(make_orchestrator):
     assert env.orchestrator._closure_used_topic_id
 
     await env.orchestrator.handle_message(
-        _message(text="那到底要不要？", message_id="m2", at=T0 + timedelta(minutes=1)),
+        _message(text="那到底要不要？", message_id="m2", at=env.t0 + timedelta(minutes=1)),
     )
 
     assert _action_count("closure") == 1

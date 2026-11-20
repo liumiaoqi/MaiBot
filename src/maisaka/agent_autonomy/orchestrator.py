@@ -1205,6 +1205,41 @@ class AgentOrchestrator:
         except Exception as exc:
             logger.warning(f"[agent_autonomy] 话题可见时间更新失败: error={exc}")
 
+    def _is_budget_exhausted(self) -> bool:
+        """本次预算扣减是否因耗尽被拒绝。"""
+        if self._butler is None:
+            return False
+        decision = self._butler.last_budget_decision
+        return decision is not None and not decision.granted and decision.exhausted
+
+    def _save_budget_exhausted_compat_record(self) -> None:
+        """预算耗尽兼容记录（design §4.4）：仅此一条写入旧发言权表。"""
+        if self._topic is None or self._butler is None:
+            return
+        decision = self._butler.last_budget_decision
+        used = decision.used if decision is not None else self._topic.budget_used
+        limit = decision.limit if decision is not None else self._topic.budget_limit
+        try:
+            self._activity_store.save_speaker_change(
+                session_id=self._session_id,
+                from_agent_id=self._butler._butler_id,
+                to_agent_id="",
+                change_type="butler_budget_exhausted",
+                change_reason=(
+                    f"topic={self._topic.topic_id}; used={used}/{limit}; "
+                    "reason=budget_exhausted"
+                ),
+                transfer_type="none",
+                decision_source="rule",
+            )
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "预算耗尽兼容记录写入失败", exception=exc)
+            logger.warning(f"[agent_autonomy] 预算耗尽兼容记录写入失败: error={exc}")
+
     async def _prepare_topic_for_message(self, message: Any) -> None:
         """话题起点判定与开场；任何失败都不得阻断主回复。"""
         butler = self._ensure_butler()
@@ -1224,6 +1259,10 @@ class AgentOrchestrator:
                 session_last_active_at=self._session_last_active_at(),
             )
             self._topic = topic
+            logger.info(
+                f"[agent_autonomy] 话题就绪: session={self._session_name} "
+                f"topic={topic.topic_id} is_new={topic.is_new} trigger={topic.trigger.value}"
+            )
             if topic.is_new:
                 present_ids = self._present_agent_ids()
                 scene = butler.build_scene(present_ids, self._emotion_hints(present_ids))
@@ -1365,6 +1404,7 @@ class AgentOrchestrator:
                     if self._topic is None:
                         return ""
 
+                    budget_exhausted = False
                     summon = await self._butler.summon_or_fallback(
                         topic=self._topic,
                         present_ids=present_ids,
@@ -1383,6 +1423,8 @@ class AgentOrchestrator:
                             await self._butler.note_summon_dropped(
                                 self._topic, reason="target_not_active",
                             )
+                    elif self._is_budget_exhausted():
+                        budget_exhausted = True
 
                     butler_sent = await self._butler.speak_for(
                         topic=self._topic,
@@ -1418,6 +1460,8 @@ class AgentOrchestrator:
                                         f"to={upgrade.target_agent_id} session={self._session_name}"
                                     )
                         return ""
+                    if self._is_budget_exhausted():
+                        budget_exhausted = True
 
                     # 代说无结果 → 补回合（疑问/引导结尾 + 每话题一次 + 预算内）
                     if (
@@ -1435,6 +1479,10 @@ class AgentOrchestrator:
                             await self._trigger_interjection_for(
                                 target, content, trigger_reason="butler_closure",
                             )
+                        elif self._is_budget_exhausted():
+                            budget_exhausted = True
+                    if budget_exhausted:
+                        self._save_budget_exhausted_compat_record()
                     return ""
                 except Exception as exc:
                     from src.core.error_escalation.types import ErrorLevel
