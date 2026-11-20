@@ -11,6 +11,9 @@ from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent, BehaviorI
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
+from src.maisaka.agent_autonomy.butler_closure import ButlerClosureConfig
+from src.maisaka.agent_autonomy.closure_signal import ClosureSignal, detect_closure_signal
+from src.maisaka.agent_autonomy.topic_ledger import TopicLedger
 from src.maisaka.agent_autonomy.orchestrator_strategy import (
     BaseOrchestratorStrategy,
     DefaultOrchestratorStrategy,
@@ -50,4 +53,8 @@ __all__ = [
     "register_strategy",
     "create_strategy",
     "list_strategies",
+    "TopicLedger",
+    "ButlerClosureConfig",
+    "detect_closure_signal",
+    "ClosureSignal",
 ]

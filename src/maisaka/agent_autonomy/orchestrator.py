@@ -27,6 +27,7 @@ from src.maisaka.agent_autonomy.state_awareness.rule_engine import StateAwareRul
 from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
 from src.maisaka.agent_autonomy.state_awareness.visibility_rule import StateVisibilityRule
 from src.maisaka.agent_autonomy.butler import Butler
+from src.maisaka.agent_autonomy.butler_closure import ButlerClosureConfig, TopicContext
 from src.maisaka.agent_autonomy.log_utils import fmt_butler, fmt_transfer
 from src.maisaka.agent_autonomy.speaker_transfer import (
     SpeakerTransferType,
@@ -86,6 +87,17 @@ class AgentOrchestrator:
         if self._thinking_organ_factory.chat_loop_adapter is None:
             self._thinking_organ_factory.set_chat_loop_adapter(chat_loop_adapter)
         self._config = get_app_config_port().get_agent_autonomy_config()
+        self._closure_config = ButlerClosureConfig(
+            opening_enabled=self._config.butler_scene_opening_enabled,
+            silence_threshold_minutes=self._config.butler_opening_silence_minutes,
+            budget_limit=self._config.butler_topic_budget,
+            opening_max_chars=self._config.butler_opening_max_chars,
+            opening_timeout_seconds=self._config.butler_opening_timeout_seconds,
+            closure_enabled=self._config.butler_closure_round_enabled,
+        )
+        self._topic: TopicContext | None = None
+        self._last_visible_text = ""
+        self._closure_used_topic_id = ""
         self._activity_store = AgentActivityStore()
         self._lifecycle_manager = AgentLifecycleManager(self._activity_store)
 
@@ -374,7 +386,7 @@ class AgentOrchestrator:
         agent_id: str,
         context: str,
         trigger_reason: str = "butler_interjection",
-    ) -> None:
+    ) -> bool:
         """管家协调的插话——直接触发目标智能体的 ThinkingOrgan。
 
         管家已经做了三层过滤，不需要策略再过滤。
@@ -383,11 +395,11 @@ class AgentOrchestrator:
         if agent_id not in self._active_agents:
             activated = await self.activate_agent(agent_id, "butler_interjection")
             if not activated:
-                return
+                return False
 
         agent = self._active_agents.get(agent_id)
         if agent is None:
-            return
+            return False
 
         logger.info(
             f"[agent_autonomy] 管家插话执行: agent={agent_id} "
@@ -414,6 +426,7 @@ class AgentOrchestrator:
 
         source = "interjection_borrow" if trigger_reason == "interjection_borrow" else "butler_interjection"
 
+        replied = False
         if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
             from src.core.message_port_registry import get_message_port_v2
@@ -441,13 +454,20 @@ class AgentOrchestrator:
                         f"[agent_autonomy] 管家插话发送: agent={agent_id} "
                         f"text_len={len(result.text)} source={source} session={self._session_name}"
                     )
+                    replied = True
+                    self._last_visible_text = result.text
+                    await self._touch_topic_visible(datetime.now())
         elif result.action == ThinkAction.REPLY and result.reply_sent:
             logger.info(
                 f"[agent_autonomy] 管家插话跳过(reply已发送): agent={agent_id} "
                 f"session={self._session_name}"
             )
+            replied = True
+            self._last_visible_text = result.text or ""
+            await self._touch_topic_visible(datetime.now())
 
         self._cooldown_manager.record_interjection(self._session_id, agent_id)
+        return replied
 
     def _try_write_experience(
         self, agent_id: str, result: Any, emotion_state: Any = None
@@ -769,6 +789,7 @@ class AgentOrchestrator:
                 self._butler = Butler(
                     primary_agent_id=agent_id,
                     session_id=self._session_id,
+                    closure_config=self._closure_config,
                 )
                 self._butler.reminder_manager.load_session(self._session_id)
                 self._start_reminder_tick()
@@ -833,6 +854,7 @@ class AgentOrchestrator:
                 self._butler = Butler(
                     primary_agent_id=agent_id,
                     session_id=self._session_id,
+                    closure_config=self._closure_config,
                 )
                 self._butler.reminder_manager.load_session(self._session_id)
                 self._start_reminder_tick()
@@ -1009,6 +1031,7 @@ class AgentOrchestrator:
             primary_reply_text = ""
             should_reply = not message.is_notify or notice_kind == NoticeKind.INTERACTION
             if should_reply and self._primary_agent_id is not None:
+                await self._prepare_topic_for_message(message)
                 primary_reply_text = await self._schedule_primary_reply(message)
 
             # 管家：尝试从用户消息中创建提醒
@@ -1114,6 +1137,149 @@ class AgentOrchestrator:
             )
             self._degraded = True
 
+    def _ensure_butler(self) -> Butler | None:
+        """确保管家已创建（延迟装配辅助，非 setter）。
+
+        `handle_message` 的开场准备与 `_schedule_primary_reply` 共用这一条装配链，
+        避免「开场需要 Butler，但此刻尚未创建」。
+        """
+        if self._butler is not None:
+            return self._butler
+        if not self._primary_agent_id:
+            return None
+
+        self._butler = Butler(
+            primary_agent_id=self._primary_agent_id,
+            session_id=self._session_id,
+            closure_config=self._closure_config,
+        )
+        self._butler.reminder_manager.load_session(self._session_id)
+        self._start_reminder_tick()
+        self._start_desire_tick()
+        logger.info(
+            f"[agent_autonomy] 管家延迟初始化: "
+            f"primary={self._primary_agent_id} session={self._session_name}"
+        )
+        return self._butler
+
+    def _present_agent_ids(self) -> list[str]:
+        """当前在场角色快照（含主智能体）。"""
+        return list(self._active_agents.keys())
+
+    def _emotion_hints(self, agent_ids: list[str]) -> dict[str, str]:
+        """逐 id 取情绪快照文本；取不到的 id 不进 dict。"""
+        hints: dict[str, str] = {}
+        for agent_id in agent_ids:
+            agent = self._active_agents.get(agent_id)
+            if agent is None:
+                continue
+            state = agent.get_emotion_state()
+            if state is None:
+                continue
+            try:
+                text = state.to_prompt_text()
+            except Exception as exc:
+                from src.core.error_escalation.types import ErrorLevel
+                from src.core.error_escalation_port_registry import get_error_escalation_port
+                port = get_error_escalation_port()
+                if port is not None:
+                    port.report(ErrorLevel.WARNING, f"情绪快照读取失败: agent={agent_id}", exception=exc)
+                logger.warning(f"[agent_autonomy] 情绪快照读取失败: agent={agent_id} error={exc}")
+                continue
+            if text:
+                hints[agent_id] = text
+        return hints
+
+    def _session_last_active_at(self) -> datetime | None:
+        """会话最后活跃时间（兜底输入；主判据仍是话题行 last_visible_at）。"""
+        from src.core.session_port_registry import get_existing_session_info
+        info = get_existing_session_info(self._session_id)
+        return info.last_active_timestamp if info is not None else None
+
+    async def _touch_topic_visible(self, at: datetime) -> None:
+        """把最后可见时间写回当前话题；失败不影响主链路。"""
+        if self._topic is None or self._butler is None:
+            return
+        try:
+            await self._butler.touch_topic_visible(self._topic, at)
+        except Exception as exc:
+            logger.warning(f"[agent_autonomy] 话题可见时间更新失败: error={exc}")
+
+    def _is_budget_exhausted(self) -> bool:
+        """本次预算扣减是否因耗尽被拒绝。"""
+        if self._butler is None:
+            return False
+        decision = self._butler.last_budget_decision
+        return decision is not None and not decision.granted and decision.exhausted
+
+    def _save_budget_exhausted_compat_record(self) -> None:
+        """预算耗尽兼容记录（design §4.4）：仅此一条写入旧发言权表。"""
+        if self._topic is None or self._butler is None:
+            return
+        decision = self._butler.last_budget_decision
+        used = decision.used if decision is not None else self._topic.budget_used
+        limit = decision.limit if decision is not None else self._topic.budget_limit
+        try:
+            self._activity_store.save_speaker_change(
+                session_id=self._session_id,
+                from_agent_id=self._butler._butler_id,
+                to_agent_id="",
+                change_type="butler_budget_exhausted",
+                change_reason=(
+                    f"topic={self._topic.topic_id}; used={used}/{limit}; "
+                    "reason=budget_exhausted"
+                ),
+                transfer_type="none",
+                decision_source="rule",
+            )
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "预算耗尽兼容记录写入失败", exception=exc)
+            logger.warning(f"[agent_autonomy] 预算耗尽兼容记录写入失败: error={exc}")
+
+    async def _prepare_topic_for_message(self, message: Any) -> None:
+        """话题起点判定与开场；任何失败都不得阻断主回复。"""
+        butler = self._ensure_butler()
+        if butler is None:
+            return
+
+        message_at = getattr(message, "timestamp", None)
+        if not isinstance(message_at, datetime):
+            message_at = datetime.now()
+        message_id = getattr(message, "message_id", "") or ""
+
+        try:
+            self._last_visible_text = message.processed_plain_text or ""
+            topic = await butler.ensure_topic(
+                message_id=message_id,
+                message_at=message_at,
+                session_last_active_at=self._session_last_active_at(),
+            )
+            self._topic = topic
+            logger.info(
+                f"[agent_autonomy] 话题就绪: session={self._session_name} "
+                f"topic={topic.topic_id} is_new={topic.is_new} trigger={topic.trigger.value}"
+            )
+            if topic.is_new:
+                present_ids = self._present_agent_ids()
+                scene = butler.build_scene(present_ids, self._emotion_hints(present_ids))
+                if await butler.try_opening(
+                    topic, scene, message.processed_plain_text or "",
+                ):
+                    self._last_visible_text = butler.last_spoken_text
+            else:
+                await butler.touch_topic_visible(topic, message_at)
+        except Exception as exc:
+            from src.core.error_escalation.types import ErrorLevel
+            from src.core.error_escalation_port_registry import get_error_escalation_port
+            port = get_error_escalation_port()
+            if port is not None:
+                port.report(ErrorLevel.WARNING, "话题开场准备失败，主回复照常进行", exception=exc)
+            logger.warning(f"[agent_autonomy] 话题开场准备失败: error={exc}")
+
     async def _schedule_primary_reply(self, message: Any) -> str:
         """调度主智能体回复——消息入队、去重、触发思考。
 
@@ -1124,18 +1290,7 @@ class AgentOrchestrator:
             return ""
 
         # 延迟创建 butler（session_recovery 可能绕过 activate_agent）
-        if self._butler is None and self._primary_agent_id:
-            self._butler = Butler(
-                primary_agent_id=self._primary_agent_id,
-                session_id=self._session_id,
-            )
-            self._butler.reminder_manager.load_session(self._session_id)
-            self._start_reminder_tick()
-            self._start_desire_tick()
-            logger.info(
-                f"[agent_autonomy] 管家延迟初始化: "
-                f"primary={self._primary_agent_id} session={self._session_name}"
-            )
+        self._ensure_butler()
 
         content = message.processed_plain_text or ""
         sender_name = ""
@@ -1180,6 +1335,8 @@ class AgentOrchestrator:
                     f"[agent_autonomy] 主回复发送: agent={self._primary_agent_id} "
                     f"text_len={len(result.text)} session={self._session_name}"
                 )
+                self._last_visible_text = result.text
+                await self._touch_topic_visible(datetime.now())
             # 主智能体回复 → 重置沉默/接管计数器，更新连续回应追踪
             if self._butler is not None:
                 self._butler.update_primary_status("reply", responder_id=self._primary_agent_id)
@@ -1191,6 +1348,8 @@ class AgentOrchestrator:
             )
             if self._butler is not None:
                 self._butler.update_primary_status("reply", responder_id=self._primary_agent_id)
+            self._last_visible_text = result.text or ""
+            await self._touch_topic_visible(datetime.now())
             return result.text or ""
         elif result.action == ThinkAction.WAIT:
             logger.info(
@@ -1240,13 +1399,42 @@ class AgentOrchestrator:
                                 return ""
                             # 转移失败，继续评估
 
-                    # 无永久转移 → 管家接管
-                    butler_sent = await self._butler.speak_and_send(
+                    # 无永久转移 → 唤起（预算内）→ 代说（预算化）→ 补回合
+                    present_ids = self._present_agent_ids()
+                    if self._topic is None:
+                        return ""
+
+                    budget_exhausted = False
+                    summon = await self._butler.summon_or_fallback(
+                        topic=self._topic,
+                        present_ids=present_ids,
+                        user_text=content,
+                    )
+                    if summon is not None:
+                        if summon.target_agent_id in self._active_agents:
+                            replied = await self._trigger_interjection_for(
+                                summon.target_agent_id,
+                                content,
+                                trigger_reason="butler_summon",
+                            )
+                            if replied:
+                                return ""
+                        else:
+                            await self._butler.note_summon_dropped(
+                                self._topic, reason="target_not_active",
+                            )
+                    elif self._is_budget_exhausted():
+                        budget_exhausted = True
+
+                    butler_sent = await self._butler.speak_for(
+                        topic=self._topic,
                         user_text=content,
                         agent_text="",
                         context_hint="主智能体沉默了，需要你接管回复",
                     )
                     if butler_sent:
+                        self._last_visible_text = self._butler.last_spoken_text
+                        await self._touch_topic_visible(datetime.now())
                         self._butler.update_primary_status("butler_takeover")
                         logger.info(fmt_butler(
                             "接管回复", butler_id=self._butler._butler_id,
@@ -1272,6 +1460,30 @@ class AgentOrchestrator:
                                         f"to={upgrade.target_agent_id} session={self._session_name}"
                                     )
                         return ""
+                    if self._is_budget_exhausted():
+                        budget_exhausted = True
+
+                    # 代说无结果 → 补回合（疑问/引导结尾 + 每话题一次 + 预算内）
+                    if (
+                        self._topic is not None
+                        and self._closure_used_topic_id != self._topic.topic_id
+                        and self._butler.should_close(self._last_visible_text, self._topic)
+                        and present_ids
+                    ):
+                        target = present_ids[0]
+                        if (
+                            target in self._active_agents
+                            and await self._butler.try_closure(self._topic)
+                        ):
+                            self._closure_used_topic_id = self._topic.topic_id
+                            await self._trigger_interjection_for(
+                                target, content, trigger_reason="butler_closure",
+                            )
+                        elif self._is_budget_exhausted():
+                            budget_exhausted = True
+                    if budget_exhausted:
+                        self._save_budget_exhausted_compat_record()
+                    return ""
                 except Exception as exc:
                     from src.core.error_escalation.types import ErrorLevel
                     from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -1279,14 +1491,17 @@ class AgentOrchestrator:
                     if port is not None:
                         port.report(ErrorLevel.ERROR, "发言权转移评估失败", exception=exc)
                     logger.warning(f"[agent_autonomy] 发言权转移评估异常: error={exc}")
-                    # 降级：管家接管
-                    if self._butler is not None and content:
+                    # 降级：管家接管（预算化）
+                    if self._butler is not None and content and self._topic is not None:
                         try:
-                            butler_sent = await self._butler.speak_and_send(
+                            butler_sent = await self._butler.speak_for(
+                                topic=self._topic,
                                 user_text=content, agent_text="",
                                 context_hint="主智能体沉默了，需要你接管回复",
                             )
                             if butler_sent:
+                                self._last_visible_text = self._butler.last_spoken_text
+                                await self._touch_topic_visible(datetime.now())
                                 self._butler.update_primary_status("butler_takeover")
                         except Exception as exc2:
                             from src.core.error_escalation.types import ErrorLevel

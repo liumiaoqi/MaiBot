@@ -193,6 +193,13 @@ class GlobalConfigAppConfigPort:
             zh1_role_drift_w_uniqueness=aa.zh1_role_drift_w_uniqueness,
             zh1_role_drift_w_emotion=aa.zh1_role_drift_w_emotion,
             zh1_role_drift_reflection_interval=aa.zh1_role_drift_reflection_interval,
+            # butler_closure：管家收尾能力
+            butler_scene_opening_enabled=aa.butler_scene_opening_enabled,
+            butler_opening_silence_minutes=aa.butler_opening_silence_minutes,
+            butler_topic_budget=aa.butler_topic_budget,
+            butler_opening_max_chars=aa.butler_opening_max_chars,
+            butler_opening_timeout_seconds=aa.butler_opening_timeout_seconds,
+            butler_closure_round_enabled=aa.butler_closure_round_enabled,
 
         )
 

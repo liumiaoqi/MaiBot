@@ -7487,6 +7487,99 @@ class AgentAutonomySectionConfig(ConfigBase):
     )
     """M5 反思节拍间隔秒数。推荐范围 1800-7200。"""
 
+    butler_scene_opening_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用管家场景开场",
+                "en_US": "Enable butler scene opening",
+                "ja_JP": "バトラーによるシーン開場を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "sunrise",
+        },
+    )
+    """丽塔在会话首条与新话题起点先说一段场景描述。"""
+
+    butler_opening_silence_minutes: int = Field(
+        default=30,
+        ge=1,
+        le=1440,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "新话题静默阈值（分钟）",
+                "en_US": "New topic silence threshold (min)",
+                "ja_JP": "新トピックの沈黙しきい値（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+        },
+    )
+    """距上次可见消息超过该时长，下一条消息视为新话题。"""
+
+    butler_topic_budget: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "话题唤起预算",
+                "en_US": "Topic summon budget",
+                "ja_JP": "トピック召喚予算",
+            },
+            "x-widget": "input",
+            "x-icon": "wallet",
+        },
+    )
+    """单个话题内唤起/代说/补回合的累计次数上限；0 表示禁用唤起类动作。"""
+
+    butler_opening_max_chars: int = Field(
+        default=120,
+        ge=20,
+        le=500,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "开场长度上限（字）",
+                "en_US": "Opening max characters",
+                "ja_JP": "開場の最大文字数",
+            },
+            "x-widget": "input",
+            "x-icon": "text",
+        },
+    )
+    """开场文本超过该长度时按句末标点收敛。"""
+
+    butler_opening_timeout_seconds: float = Field(
+        default=4.0,
+        ge=0.5,
+        le=30,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "开场生成超时（秒）",
+                "en_US": "Opening generation timeout (s)",
+                "ja_JP": "開場生成タイムアウト（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "clock",
+            "advanced": True,
+        },
+    )
+    """超过该时长即放弃开场，主回复照常进行。"""
+
+    butler_closure_round_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用补一回合",
+                "en_US": "Enable closure round",
+                "ja_JP": "クロージャーラウンドを有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "message-square",
+        },
+    )
+    """最后一条消息是疑问/引导结尾时，额外给角色一次发言机会。"""
+
 
 class WatchdogSectionConfig(ConfigBase):
     """看门狗配置类（ZG-3 事件循环阻塞检测与 Runner 健康桥接）。
