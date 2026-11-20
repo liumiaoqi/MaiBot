@@ -23,5 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - name: 安装 ripgrep（部分测试用它检索源码）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
       - name: pytest 全量（tests/ + pytests/）
         run: python3 scripts/task.py verify --only test
