@@ -30,7 +30,7 @@ def _scan_check9(path: Path, call_index: dict | None = None, whitelist: list | N
     source = path.read_text(encoding="utf-8")
     violations = []
     wl = whitelist or []
-    _check_setter_zero_call(source, path, violations, lambda c, n, l: any(r.matches(str(path), n, c) for r in wl), call_index)
+    _check_setter_zero_call(source, path, violations, lambda c, n, line_no: any(r.matches(str(path), n, c) for r in wl), call_index)
     return violations
 
 

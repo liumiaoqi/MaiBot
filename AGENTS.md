@@ -13,8 +13,7 @@
 |---|---|---|
 | `src/core/` | 微内核契约（Protocol / 适配器 / Port 注册） | `src/core/AGENTS.md` |
 | `src/A_memorix/` | 记忆子系统 | `src/A_memorix/AGENTS.md`（+ `MODIFICATION_POLICY.md`） |
-| `mingtang/` | 前端主战场 | `mingtang/AGENTS.md` |
-| `dashboard/` | 老前端（冻结保留） | `dashboard/DEPRECATED.md` |
+| `mingtang/` | 前端（唯一） | `mingtang/AGENTS.md` |
 | `scripts/embedding_finetune/` | AI 实验区 | `scripts/embedding_finetune/AGENTS.md`（+ RULES / INDEX） |
 | `docker-config/` | 部署配置（**`mmc/` 才生效**） | `docker-config/AGENTS.md` |
 | `docs/` | 文档（pitfalls 活件 + archive 冻结） | `docs/AGENTS.md` |
@@ -92,13 +91,13 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 
 **TypeScript 写前端必守**（详细版 `C:\hub\reference\toolchain\typescript_new_code_cheatsheet.md`）：
 
-> ⚠️ **版本基线**：mingtang（主战场）= React 19.2 / TS 6.0.2（typescript6）+ TS 7.0.2（native）双轨 / Vite 8.2 / ESLint 10；dashboard = TS ~5.9.3 系——**两前端版本不同，旧知识写新代码必爆红**。
+> ⚠️ **版本基线**：mingtang（唯一前端）= React 19.2 / TS 6.0.2（typescript6）+ TS 7.0.2（native）双轨 / Vite 8.2 / ESLint 10。**旧前端 dashboard 已于 2026-11-21 物理删除**——网上或旧文档里的 TS 5.9 系知识不要拿来写这个仓。
 
 - **类型优先**：新代码零 `any`；不新增 `@ts-ignore`；`@ts-expect-error` 必须带理由注释
 - **多语言文本用 `LocalizedText`**（config-label.ts 基础设施），不用裸 string
 - **schema 类型同步**：后端 `config_schema.py` 改字段 → 前端 `types/config-schema.ts` + `field-hooks.ts` 同步
 - **命名**：组件 PascalCase / hooks useXxx / 文件 kebab-case；路径别名 `@/`
-- **测试先行**（vitest）：每个实现任务先写配套测试，不凑绿（先例 `dashboard/src/lib/__tests__/`）
+- **测试先行**（vitest）：每个实现任务先写配套测试，不凑绿（先例 `mingtang/src/lib/__tests__/`）
 
 **语言**：首选简体中文（注释、日志、WebUI）。
 
@@ -112,10 +111,10 @@ cd mingtang && npm run lint && npm run test && npm run build   # 前端三绿（
 - Radix 组件不随便移出上下文
 - 修改完不急着 npm run build，开发服务固定 7999 端口
 
-## 前端状态（2026-08-21 立，2026-10-15 更新）
+## 前端状态（2026-08-21 立，2026-11-21 更新）
 
-- **mingtang/** = 新前端（**主战场**）——8 功能域（config/chat/memory/resource/monitor/agent/plugin/home/survey）；蓝图 `.shared/decisions/WebUI_Plan/mingtang_architecture_blueprint_0808.md`；验收=三绿（见 §三）
-- **dashboard/** = 老前端（📦 **冻结保留**）——新功能开发一律进 mingtang，dashboard 只做修复不做新功能；**不再计划物理删除**（lmq 2026-10-15 定：git 保底 + 保留作回退）；标识见 `dashboard/DEPRECATED.md`
+- **mingtang/** = 前端（**唯一**）——8 功能域（config/chat/memory/resource/monitor/agent/plugin/home/survey）；蓝图 `.shared/decisions/WebUI_Plan/mingtang_architecture_blueprint_0808.md`；验收=三绿（见 §三）
+- **老前端 dashboard 已于 2026-11-21 物理删除**（配置系统重写批 1；决策见 `.agents/notes/proposed/process/2026-11-20-config-rewrite-decision.md`）。git 历史里仍可查；`MAIBOT_WEBUI_STATIC_DIR` 只认 `mingtang/dist`，没有回退分支了
 
 ---
 

@@ -13,7 +13,7 @@ async def test_queue_maxsize_limits_capacity():
     # 第 33 条应抛 QueueFull
     try:
         queue.put_nowait("overflow")
-        assert False, "应抛 QueueFull"
+        raise AssertionError("应抛 QueueFull")
     except asyncio.QueueFull:
         pass
 

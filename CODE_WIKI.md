@@ -162,7 +162,6 @@ MaiBot/
 ├── agents/                     # 智能体配置（Markdown 格式）
 ├── prompts/                    # 提示词模板（zh-CN/en-US/ja-JP）
 ├── locales/                    # 国际化资源
-├── dashboard/                  # WebUI 前端（React）
 ├── plugins/                    # 插件目录
 ├── docs/                       # 文档
 ├── scripts/                    # 脚本工具
@@ -580,7 +579,7 @@ src/plugin_runtime/
 
 ### 4.8 WebUI 系统
 
-**路径**: `src/webui/`（后端） + `dashboard/`（前端）
+**路径**: `src/webui/`（后端） + `mingtang/`（前端）
 
 **后端**（FastAPI）：
 - 应用工厂模式（`create_app()`）
@@ -940,7 +939,6 @@ A_memorix (src/A_memorix/)
 | `tomlkit` | TOML 配置解析 |
 | `watchfiles` | 文件监视 |
 | `maim-message` | 消息协议库 |
-| `maibot-dashboard` | WebUI 前端包 |
 | `maibot-plugin-sdk` | 插件 SDK |
 | `mcp` | Model Context Protocol |
 | `rapidfuzz` | 模糊字符串匹配 |
@@ -1018,13 +1016,13 @@ python bot.py
 
 **后端**：随主程序启动，端口 7999（开发模式）或 8001（生产）
 
-**前端**（dashboard 目录）：
+**前端**（mingtang 目录）：
 
 ```bash
-cd dashboard
-bun install    # 或 npm install
-bun run dev    # 开发服务器
-bun run build  # 构建生产版本
+cd mingtang
+pnpm install
+pnpm dev       # 开发服务器（固定 7999）
+pnpm build     # 构建生产版本（本机需 NODE_OPTIONS=）
 ```
 
 ### 7.4 配置文件

@@ -14,9 +14,3 @@ files:
 
   - source: /prompts/zh-CN/**/*.prompt
     translation: /prompts/%locale%/**/%original_file_name%
-
-  - source: /dashboard/src/i18n/locales/zh.json
-    translation: /dashboard/src/i18n/locales/%two_letters_code%.json
-    languages_mapping:
-      two_letters_code:
-        en-US: en

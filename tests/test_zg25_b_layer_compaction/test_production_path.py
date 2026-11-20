@@ -58,7 +58,7 @@ class TestProductionPathWiring:
         assert result.returncode == 0, (
             "compact_selected_history 未在 chat_loop_service.py 命中——接线缺失"
         )
-        lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+        lines = [line for line in result.stdout.strip().split("\n") if line.strip()]
         assert len(lines) >= 2, (
             f"compact_selected_history 在 chat_loop_service.py 仅命中 {len(lines)} 行，"
             "期望 ≥ 2 行（import + 调用点）"
@@ -76,7 +76,7 @@ class TestProductionPathWiring:
         assert result.returncode == 0, (
             "_build_compaction_config 未在 chat_loop_service.py 命中——接线缺失"
         )
-        lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+        lines = [line for line in result.stdout.strip().split("\n") if line.strip()]
         assert len(lines) >= 2, (
             f"_build_compaction_config 在 chat_loop_service.py 仅命中 {len(lines)} 行，"
             "期望 ≥ 2 行（定义 + 调用点）"

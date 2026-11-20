@@ -1,4 +1,10 @@
 name: Ruff PR Check
+
+# 命令不写在这里：统一 `python3 scripts/task.py verify --only lint`，本地与 CI 同源。
+#
+# 2026-11-21 转阻断：全仓 `uv run ruff check` 已到 0 条。scripts/ 与 lab/ 的排版类规则
+# 按口径在 pyproject 放宽（保留 F821 未定义名 / B023 循环变量捕获 / B904 raise 无 from），
+# AI 实验区 scripts/embedding_finetune 是独立项目、由 extend-exclude 排除。
 on:
   pull_request:
     paths:
@@ -17,14 +23,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install Ruff and Run Checks
-        uses: astral-sh/ruff-action@v3
-        with:
-          args: "--version"
-          version: "latest"
-      - name: Run Ruff Check (No Fix)
-        run: ruff check --output-format=github
-        shell: pwsh
-      - name: Run Ruff Format Check
-        run: ruff format --check --diff
-        shell: pwsh
+      - uses: astral-sh/setup-uv@v5
+      - name: Ruff 静态检查
+        run: python3 scripts/task.py verify --only lint

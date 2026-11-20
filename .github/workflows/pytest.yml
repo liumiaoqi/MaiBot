@@ -1,0 +1,25 @@
+name: Pytest
+
+# 这条 workflow 是新增的：此前 `uv run pytest` 不在任何 CI 里——本地验收要求跑双目录全量，
+# CI 不跑。实测基线（2026-11-21，本机）：5378 passed / 50 failed / 59 skipped，
+# 50 个失败全部集中在 pytests/maisaka_test/（TokenMeter 未接线一族，既有缺陷，
+# 用 git stash 对照证明与当批改动无关）。
+#
+# 因此本期保持非阻断（continue-on-error），先让「测试有没有跑」这件事可见；
+# 待 maisaka_test 那族清零后删除该行转阻断。
+#
+# ⚠️ 命令不写在这里：统一 `python3 scripts/task.py verify --only test`，本地与 CI 同源。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04
+    continue-on-error: true  # 过渡：见上方注释
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: pytest 全量（tests/ + pytests/）
+        run: python3 scripts/task.py verify --only test

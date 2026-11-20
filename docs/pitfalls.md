@@ -183,6 +183,11 @@
    - **同族**：`#43`（扫不到 ≠ 不存在）的又一面 —— 那条是"扫描器看不见"，这条是"**输入的名字对不上**"。而这次是靠"**去核对面那一边**"（主仓）才证伪了初步误诊。
 
 54. **插件仓目录名带点且自身是包 ⇒ 任何 `test_*.py` 落在 `plugins/maibot-team.v1-compat/` 会让全仓 pytest 在收集期直接红**（2026-10-17 实测；⚠️ 这个坑会红在**整个仓库的收集期**，比普通坑严重）
-   - 现场：pytest 把该目录下的模块解成 `plugins.maibot-team.v1-compat.tests.*` ⇒ 导父包要执行 `__init__.py` ⇒ `No module named 'plugins.maibot_team'`（`importlib` 与 `prepend` 两种导入模式都试过，同样炸）。
-   - 后果：**不是"这个文件红了"，而是"全仓 pytest 在收集阶段就红"** ⇒ 一个放错位置的测试文件，能把所有人的 pytest 打红。
+    - 现场：pytest 把该目录下的模块解成 `plugins.maibot-team.v1-compat.tests.*` ⇒ 导父包要执行 `__init__.py` ⇒ `No module named 'plugins.maibot_team'`（`importlib` 与 `prepend` 两种导入模式都试过，同样炸）。
+    - 后果：**不是"这个文件红了"，而是"全仓 pytest 在收集阶段就红"** ⇒ 一个放错位置的测试文件，能把所有人的 pytest 打红。
+
+55. **配置写了 ≠ 配置生效：`model_task_config` 在 ZG-12 后不是模型选择的权威源**（2026-11-20 实测）
+    - 现场：`model_config.toml` 的 `model_task_config.replyer.model_list = ["deepseek-v4-flash"]`；`butler_filter` 传 `task_name="replyer"`；实际解析到 `deepseek-v4-pro-nonthink`，抓包确认 `"model": "deepseek-v4-pro"`。
+    - 机制：ZG-12 后模型选择走 `@model_requirement` 声明 + `capabilities` + `prefer`（`model_config_port.resolve_by_capability`）；`LLMServiceClient` 只传 `task_name`，没有把声明里的 `prefer` 带进 `resolve_by_capability`，默认策略选中了 pro。前端模型页编辑的是 `model_task_config`——**改的不是权威源，改完不生效**。
+    - 规则：① 判断「某配置是否生效」先找**消费点**（谁读它、经哪个 Port、是否被新路径覆盖），不看文件里写了什么；② 模型/任务映射类配置，先 grep `resolve_by_capability` / `@model_requirement` 确认权威源；③ 新增开关同步五处（`official_configs` / `core/types` 快照 / `app_config_port` / 模板 toml / 部署 toml），漏一处就是静默默认值。
    - 规则：**插件仓内的验证脚本一律写成独立可执行脚本**（照 `e2e_component_bridge_crossprocess.py` 先例），**不要用 `test_*.py` 命名放进带点的插件目录**；若确需 pytest，**先解决包名解析**（否则别放）。

@@ -57,19 +57,22 @@ jobs:
           #    **两个 build job 都保持现状：不加 `cache: pnpm`。** 根因另件议
           #    （`.npmrc` 写死 Windows 路径会坑所有 Linux/macOS 开发者）。
 
-      - name: 前端构建（镜像自足的前置）
+      - name: 覆盖仓内 .npmrc 的 Windows store-dir
         working-directory: mingtang
         run: |
           set -euo pipefail
           # ⚠️ 仓内 `mingtang/.npmrc` 写死了 Windows 绝对路径 `store-dir=E:\pnpm-store`：
           #    Linux runner 上必须覆盖，否则会在构建上下文里造出名为 `E:\pnpm-store` 的目录，
-          #    而它会被 `COPY . .` 一起带进镜像。
+          #    而它会被 `COPY . .` 一起带进镜像。这是环境适配、不是构建逻辑 ⇒ 留在 workflow。
           pnpm config set store-dir "$RUNNER_TEMP/pnpm-store"
-          pnpm install --frozen-lockfile
-          pnpm run build
-          # 自足性**前置**断言：构建上下文里没有前端产物就别往下走（红在这里比红在 healthcheck 便宜）
-          test -f dist/index.html
-          echo "前端产物：$(find dist -type f | wc -l) 个文件"
+
+      - name: 前端构建（镜像自足的前置）
+        run: |
+          set -euo pipefail
+          # 构建本体统一走 scripts/task.py：install + build + dist/index.html 守卫都在里面
+          # （守卫是自足性前置断言——红在这里比红在 healthcheck 便宜）
+          python3 scripts/task.py build --only web
+          echo "前端产物：$(find mingtang/dist -type f | wc -l) 个文件"
 
       - name: 登录 GHCR（只在本 job；verify-anonymous 另开 job ⇒ 那边是真匿名）
         uses: docker/login-action@v3
@@ -133,16 +136,18 @@ jobs:
           node-version: "24"
           # 同上：**不加 `cache: pnpm`**（理由见 build-amd64 里那段注释，写全了一处，此处不重复）
 
-      - name: 前端构建（镜像自足的前置）
+      - name: 覆盖仓内 .npmrc 的 Windows store-dir
         working-directory: mingtang
         run: |
           set -euo pipefail
           # 同上：覆盖仓内 `.npmrc` 的 Windows 绝对 store-dir
           pnpm config set store-dir "$RUNNER_TEMP/pnpm-store"
-          pnpm install --frozen-lockfile
-          pnpm run build
-          test -f dist/index.html
-          echo "前端产物：$(find dist -type f | wc -l) 个文件"
+
+      - name: 前端构建（镜像自足的前置）
+        run: |
+          set -euo pipefail
+          python3 scripts/task.py build --only web
+          echo "前端产物：$(find mingtang/dist -type f | wc -l) 个文件"
 
       - name: 登录 GHCR（只在本 job；verify-anonymous 另开 job ⇒ 那边是真匿名）
         uses: docker/login-action@v3

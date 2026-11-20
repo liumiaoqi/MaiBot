@@ -96,11 +96,11 @@ def test_resolve_static_path_defaults_to_mingtang_dist(monkeypatch, tmp_path) ->
 
 def test_resolve_static_path_uses_env_var_relative_path(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
-    monkeypatch.setenv(webui_app._STATIC_DIR_ENV, "dashboard/dist")
+    monkeypatch.setenv(webui_app._STATIC_DIR_ENV, "custom-webui/dist")
 
     resolved = webui_app._resolve_static_path()
 
-    assert resolved == (tmp_path / "dashboard" / "dist").resolve()
+    assert resolved == (tmp_path / "custom-webui" / "dist").resolve()
 
 
 def test_resolve_static_path_uses_env_var_absolute_path(monkeypatch, tmp_path) -> None:
@@ -111,15 +111,6 @@ def test_resolve_static_path_uses_env_var_absolute_path(monkeypatch, tmp_path) -
     resolved = webui_app._resolve_static_path()
 
     assert resolved == abs_dir.resolve()
-
-
-def test_resolve_static_path_rollback_to_dashboard_dist(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
-    monkeypatch.setenv(webui_app._STATIC_DIR_ENV, "dashboard/dist")
-
-    resolved = webui_app._resolve_static_path()
-
-    assert resolved == (tmp_path / "dashboard" / "dist").resolve()
 
 
 def test_resolve_safe_static_file_path_allows_regular_static_file(tmp_path) -> None:

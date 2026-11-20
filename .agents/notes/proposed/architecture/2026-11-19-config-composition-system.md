@@ -2,6 +2,8 @@
 
 Status: proposed（2026-11-19 立项讨论，明确非当务之急）
 
+> **2026-11-20 被取代**：lmq 拍板物理删除旧配置系统并以 Rust 纯引擎重建，A/B 形态之争不再需要（组合变成引擎的输入形状，不是架构分歧）。见 [`../process/2026-11-20-config-rewrite-decision.md`](../process/2026-11-20-config-rewrite-decision.md)。本文保留作形态记录与 dsh 参照。
+
 ## Problem
 
 现有配置体系是**单一正本 + `.bak` 覆盖**：

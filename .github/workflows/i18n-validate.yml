@@ -1,5 +1,10 @@
 name: i18n Validate
 
+# ⚠️ 命令不写在这里：统一 `python3 scripts/task.py verify --only i18n`，本地与 CI 同源。
+# 这个 workflow 此前只做 setup-python 就直接跑脚本，而 `scripts/i18n_validate.py` import
+# `src.common.prompt_i18n`（依赖 tomlkit）⇒ CI 上必然 ModuleNotFoundError。改走 task.py 后
+# 由 `uv run python` 保证依赖齐备，这条门禁才真正生效。
+
 on:
   pull_request:
     paths:
@@ -31,8 +36,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
       - name: Validate locale files
-        run: python scripts/i18n_validate.py
+        run: python3 scripts/task.py verify --only i18n

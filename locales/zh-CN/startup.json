@@ -22,7 +22,7 @@
   "startup.initialization_completed_banner": "全部系统初始化完成，{nickname} 已成功唤醒",
   "startup.initialization_completed_cycles": "初始化完成，神经元放电 {init_time} 次",
   "startup.interrupt_received": "收到中断信号，正在优雅关闭...",
-  "startup.launching_script": "正在启动MaiBot",
+  "startup.launching_script": "正在启动 {script_file}...",
   "startup.logging_shutdown_error": "关闭日志系统时出错: {error}",
   "startup.main_error": "主程序发生异常: {error}",
   "startup.opensource_free_notice": "  本项目是完全免费的开源软件，基于 GPL-3.0 协议发布",

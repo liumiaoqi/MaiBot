@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, fields
 from enum import Enum
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Protocol, TypedDict
 
 import copy
 import time
@@ -1114,3 +1114,246 @@ class MaimMessageConfigSnapshot:
     ws_server_host: str = ""
     ws_server_port: int = 0
     auth_token: tuple[str, ...] = ()
+
+
+# ============================================================================
+# 模型配置接缝的类型视图（`ModelConfigPort` 用）
+# ============================================================================
+#
+# 为什么在 core：`protocols.py` 的 `ModelConfigPort` 原先直接标注配置层的 pydantic
+# 实现类（`ModelConfig` / `APIProvider` / `ModelInfo` / `TaskConfig`）。那几行在
+# `if TYPE_CHECKING:` 下，运行时没有依赖，但**类型面**把 core 焊在了旧配置系统上——
+# 旧配置一删，Protocol 跟着编译不过。契约归 core、实现归配置层，删实现时才不用动契约。
+#
+# 为什么是 `Protocol` 而不是本文件里既有的 frozen dataclass 快照
+# （`PluginRuntimeSnapshot` 那一族）：快照会**换掉运行时对象**，而本接缝的 35 处调用点
+# 拿的是 ConfigManager 持有的活配置对象——热重载、注入客户端前的 `model_copy` 副本、
+# `BaseClient.client_instance_cache` 按 provider 名缓存，都依赖同一份对象身份。
+# 本批只允许动类型面 ⇒ 用结构化视图：真实实例天然满足，运行时零变化。
+#
+# 字段口径：**只声明本接缝的消费者实际读到的字段**，且每条都注明了消费点，便于下一批
+# 按证据收窄/迁移。pydantic 专有 API（`model_dump` / `model_copy`）刻意不声明，见
+# `APIProviderLike` 的说明。
+
+
+class TaskConfigLike(Protocol):
+    """任务配置契约 — `ModelConfigPort.get_task_config()` 的返回视图。
+
+    这里不裁字段：`TaskConfig` 的公开字段正好 6 个，且全被消费者读到
+    （`LLMRequest._build_task_config_signature` 读满 6 个；`mode_utils` /
+    `expression_selector` / `image_manager` / `chat_history_refresher` 读 `model_list`）。
+    """
+
+    model_list: list[str]
+    """模型名列表（首个为当前任务选中的模型）。"""
+
+    max_tokens: int
+    """任务最大输出 token 数。"""
+
+    temperature: float
+    """采样温度。"""
+
+    slow_threshold: float
+    """慢请求告警阈值（秒）。"""
+
+    selection_strategy: str
+    """模型选择策略（balance / random / sequential）。"""
+
+    hard_timeout: float
+    """任务硬超时（秒），到点取消请求并换下一个模型。"""
+
+
+class ModelInfoLike(Protocol):
+    """模型信息契约 — `ModelConfigPort.get_model_info()` 的返回视图。
+
+    裁掉了 `category` / `capabilities`：只有适配器 `ConfigManagerModelConfigPort._to_entry()`
+    读它们（适配器允许持有具体类，走的是 `ModelRegistry` 建索引），本接缝的消费者不读。
+    """
+
+    name: str
+    """模型名（配置里的名字，日志/用量统计用）。"""
+
+    model_identifier: str
+    """服务商侧模型标识符（请求体 `model` 字段直接用它）。"""
+
+    api_provider: str
+    """所属提供商名（再经 `get_provider()` 换连接参数）。"""
+
+    visual: bool
+    """是否支持视觉输入（multimodal replyer / planner 判定）。"""
+
+    context_window: int | None
+    """上下文窗口（token）；null 时调用方回落全局默认。"""
+
+    temperature: float | None
+    """模型级温度；null 表示不覆盖任务配置（`extra_params` 里可能还有一份）。"""
+
+    max_tokens: int | None
+    """模型级输出上限；null 表示不覆盖任务配置。"""
+
+    extra_params: dict[str, Any]
+    """额外请求参数（`temperature` / `max_tokens` 亦可写在里面作为模型级默认）。"""
+
+    force_stream_mode: bool
+    """强制流式输出（模型不支持非流式时开启）。"""
+
+    cache: bool
+    """是否启用输入缓存计费。"""
+
+    cache_price_in: float
+    """缓存命中输入价格（元 / M token），仅 `cache=True` 时使用。"""
+
+    price_in: float
+    """输入价格（元 / M token），用于成本统计。"""
+
+    price_out: float
+    """输出价格（元 / M token），用于成本统计。"""
+
+
+class APIProviderLike(Protocol):
+    """API 提供商契约 — `ModelConfigPort.get_provider()` 的返回视图。
+
+    字段没有裁减空间：`llm_models` 的客户端构造链把 18 个字段全读了一遍
+    （`openai_compat.build_openai_compatible_client_config` 读鉴权/头/查询参数，
+    `openai_client` 读推理与工具参数解析模式、org/project/timeout/max_retry，
+    `gemini_client` 读 base_url/timeout/api_key，`plugin_client` 读 timeout，
+    `request_snapshot` 读快照全字段）。再窄就是谎报契约。
+
+    **刻意未声明的两处 pydantic API（已知债，随旧配置系统一起清）**：
+
+    - `plugin_client._build_api_provider_snapshot()` 调 `model_dump(mode="json")`；
+    - `model_configs.resolve_provider_env_references()` 调 `model_copy(update=...)`。
+
+    两者都要求"provider 是一个 pydantic 模型"。把它们写进本契约等于把 pydantic 焊进
+    core，所以不声明——代价是这两处调用点在类型上不满足本契约，这正是删除旧配置前
+    必须先改掉它们的原因（改成纯数据描述符 + 在别处解析引用）。
+
+    ``api_key`` 是**盘上原文**（可能是 ``${VAR}`` 引用）：解析发生在"读出配置后、注入
+    客户端之前"（`base_client.get_client_class_instance` →
+    `resolve_provider_env_references`，且只作用在传给工厂的副本上）。**不要**在本接缝里
+    就地解析或改写——就地解析会把明文写回配置文件（3 段实测过的写回洞）。
+    """
+
+    name: str
+    """提供商名（`get_provider()` 的查询键，也是客户端实例缓存的键）。"""
+
+    base_url: str
+    """API BaseURL。"""
+
+    api_key: str
+    """盘上原文的 API 密钥（可能是 `${VAR}` 引用，解析位在注入客户端之前）。"""
+
+    client_type: str
+    """客户端类型（openai / gemini / 插件提供的类型）。"""
+
+    auth_type: str
+    """OpenAI 兼容鉴权方式（bearer / header / query / none）。"""
+
+    auth_header_name: str
+    """`auth_type=header` 时的请求头名。"""
+
+    auth_header_prefix: str
+    """`auth_type=header` 时的请求头前缀（留空表示直接发送原始密钥）。"""
+
+    auth_query_name: str
+    """`auth_type=query` 时的查询参数名。"""
+
+    default_headers: dict[str, str]
+    """所有请求默认附带的 HTTP Header。"""
+
+    default_query: dict[str, str]
+    """所有请求默认附带的查询参数。"""
+
+    organization: str | None
+    """OpenAI 官方接口可选的 organization。"""
+
+    project: str | None
+    """OpenAI 官方接口可选的 project。"""
+
+    model_list_endpoint: str
+    """模型列表端点路径（OpenAI 兼容接口探测用）。"""
+
+    reasoning_parse_mode: str
+    """推理内容解析模式（auto / native / think_tag / none）。"""
+
+    tool_argument_parse_mode: str
+    """工具调用参数解析模式（auto / strict / repair / double_decode）。"""
+
+    max_retry: int
+    """单个模型调用失败时的最大重试次数。"""
+
+    timeout: int
+    """API 调用超时（秒）。"""
+
+    retry_interval: int
+    """重试间隔（秒）。"""
+
+
+class ModelTaskConfigLike(Protocol):
+    """任务配置容器契约 — `ModelConfigLike.model_task_config` 的视图。
+
+    .. deprecated::
+        ZG-12 组件自治后任务名不再是配置键，新代码走
+        :meth:`ModelConfigPort.resolve_by_capability`。
+
+    11 个槽位都要留在契约里：消费者按任务名**动态**取用
+    （`chat_loop_service._resolve_model_task_name` 查表、`utils_model._resolve_task_config_name`
+    遍历 `dir()`），少声明一个就有一份合法配置被判成类型不符。槽位顺序沿用
+    `src.config.model_configs.ModelTaskConfig` 的定义顺序。
+    """
+
+    replyer: TaskConfigLike
+    """回复模型。"""
+
+    planner: TaskConfigLike
+    """规划模型。"""
+
+    memory: TaskConfigLike
+    """记忆模型。"""
+
+    mid_memory: TaskConfigLike
+    """聊天回想模型。"""
+
+    utils: TaskConfigLike
+    """小任务模型（概括/整理）。"""
+
+    learner: TaskConfigLike
+    """表达方式与黑话学习模型。"""
+
+    expression_use: TaskConfigLike
+    """表达方式使用模型。"""
+
+    emoji: TaskConfigLike
+    """表情包发送模型。"""
+
+    vlm: TaskConfigLike
+    """视觉模型。"""
+
+    voice: TaskConfigLike
+    """语音识别模型。"""
+
+    embedding: TaskConfigLike
+    """嵌入模型。"""
+
+
+class ModelConfigLike(Protocol):
+    """模型配置契约 — `ModelConfigPort.get_model_config()` 的返回视图。
+
+    只声明消费者读到的三个属性：`main.py` 启动期声明校验（`models` / `api_providers`）、
+    `llm_models/model_client/__init__.py`（`api_providers`）、`chat_loop_service` 与
+    `utils_model`（`model_task_config`）、`service_task_resolver` /
+    `emoji_manager` / `A_memorix`（整体透传给下游）。
+
+    注意：`get_model_config()` 是**尚未收窄的逃生舱**——22 处调用点里有相当一部分是为了
+    摸到整张配置图。它最终应被 `resolve_by_capability` / `get_effective_config` 取代，
+    本视图只是让它不再点名配置层实现类。
+    """
+
+    models: list[ModelInfoLike]
+    """模型列表。"""
+
+    model_task_config: ModelTaskConfigLike
+    """任务配置容器（deprecated，见 `ModelTaskConfigLike`）。"""
+
+    api_providers: list[APIProviderLike]
+    """API 提供商列表。"""

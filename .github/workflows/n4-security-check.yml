@@ -1,6 +1,7 @@
 # .github/workflows/n4-security-check.yml
 # ZG-N4 安全门禁检查器 — WebUI 路由安全静态 AST 扫描
 # v1：非阻断模式（continue-on-error），等 P0 认证缺失修复后改为阻断
+# ⚠️ 命令不写在这里：统一 `python3 scripts/task.py verify --only security`，本地与 CI 同源。
 name: N4 Security Check
 
 on:
@@ -28,16 +29,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run N4 Security Checker
-        run: |
-          python scripts/n4_security_checker.py \
-            --scan src/webui/routers \
-            --whitelist scripts/.n4_whitelist.json \
-            --json > n4_report.json
-          cat n4_report.json
+      - name: N4 无认证端点检查
+        run: python3 scripts/task.py verify --only security
       - name: Upload N4 Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: n4-security-report
-          path: n4_report.json
+          path: .task-out/n4_report.json

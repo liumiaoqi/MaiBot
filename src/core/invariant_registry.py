@@ -23,14 +23,15 @@
 """
 
 import asyncio
-import logging
 import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger("core.invariant_registry")
 
 
 class InvariantError(Exception):
@@ -280,7 +281,7 @@ def invariant(
         source_module = sys._getframe(1).f_globals.get("__name__", "")
         disposer = reg.register(InvariantDesc(name=name, installer=installer, source_module=source_module))
         # 挂载 disposer 到 installer 便于测试清理
-        setattr(installer, "_disposer", disposer)
+        installer._disposer = disposer
         return installer
 
     return decorator

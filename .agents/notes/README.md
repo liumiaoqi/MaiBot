@@ -24,3 +24,8 @@
 | 2026-11-19 | [Phase 3 六项收尾决策（raw 下线 / 旧读两步走 / Git 留档 / F13 / 104 域 / 数据侧）](proposed/process/2026-11-19-phase3-config-decisions.md) | proposed（已拍板，待实施） |
 | 2026-11-19 | [配置组合系统（自由组合 + 多级管理）](proposed/architecture/2026-11-19-config-composition-system.md) | proposed（非当务之急，先登记） |
 | 2026-11-19 | [MaiBot 缓慢 Rust 化方向（边缘优先 / 旁路替代 / 不重写核心）](proposed/process/2026-11-19-rust-migration-direction.md) | proposed（方向登记，非当务之急） |
+| 2026-11-19 | [管家边界：从「不说话的空间逻辑」收敛为「唤起者丽塔」（A+ 唤起者定位 + C 话题预算；B+ 仅在疑问结尾补一回合）](proposed/architecture/2026-11-19-butler-boundary-deviation.md) | proposed（按用户表态收敛，待确认边界） |
+| 2026-11-21 | [迁移到 dsh 内核：飞书优先新建接入层](proposed/architecture/2026-11-21-migrate-to-dsh-kernel.md) | proposed（方向已拍板，待形态验证） |
+| 2026-11-20 | [配置系统物理重写：删旧、留 schema 真源、Rust 纯引擎](proposed/process/2026-11-20-config-rewrite-decision.md) | proposed（已拍板方向，分四批执行） |
+| 2026-11-21 | [构建系统：三语言单一入口 `scripts/task.py`](proposed/process/2026-11-21-build-system.md) | proposed（骨架已跑通，CI 待逐条迁移） |
+| 2026-11-20 | [配置系统的系统性问题（模型配置不生效 / 前端错位 / 分层手工同步）](proposed/process/2026-11-20-config-system-systemic-issues.md) | proposed（问题登记，待排期） |

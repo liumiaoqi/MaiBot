@@ -88,12 +88,18 @@ class TestSessionBackedMessage:
         assert result.role.value == "user"
 
     def test_from_session_message_classmethod(self):
-        # 用 SimpleNamespace 模拟 SessionMessage
+        # 用 SimpleNamespace 模拟 SessionMessage，但必须补齐 MaiMessage.__init__ 恒声明的
+        # 发送方字段：from_session_message 会读 session_message.sender_type /
+        # .sender_agent_id（messages.py:678-679）。少这两个字段 = 造出生产造不出的形状
+        # （真实 SessionMessage 这两个属性永远存在，值可为 None，见
+        # mai_message_data_model.py:62-63）。
         from types import SimpleNamespace
 
         session_msg = SimpleNamespace(
             timestamp=TS,
             message_id="m1",
+            sender_type=None,
+            sender_agent_id=None,
         )
         msg = SessionBackedMessage.from_session_message(
             session_msg,

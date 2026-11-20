@@ -35,8 +35,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: 契约一致性检查（只读快照，不访问后端）
-        working-directory: mingtang
-        run: node scripts/contract/cli.mjs check --source snapshot
+        run: python3 scripts/task.py verify --only contract
 
       - name: 写入 step summary（结论 + 分工说明）
         if: always()

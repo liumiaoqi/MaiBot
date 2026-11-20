@@ -118,20 +118,26 @@ class TestConfig:
         assert config.auto is True
 
     def test_mutual_exclusion_retain_ratio_and_tokens(self):
-        cfg = lambda key, default=None: {"memory.compaction": {"retain_ratio": 0.16, "retain_tokens": 100}}.get(key, default)
+        def cfg(key, default=None):
+            return {"memory.compaction": {"retain_ratio": 0.16, "retain_tokens": 100}}.get(key, default)
+
         with pytest.raises(ConfigValidationError, match="不可同时设置"):
             resolve_compaction_config(cfg)
 
     def test_retain_tokens_above_threshold_raises(self):
-        cfg = lambda key, default=None: {
-            "memory.compaction": {"retain_tokens": 99999, "retain_ratio": None},
-            "memory.context_window": 32768,
-        }.get(key, default)
+        def cfg(key, default=None):
+            return {
+                "memory.compaction": {"retain_tokens": 99999, "retain_ratio": None},
+                "memory.context_window": 32768,
+            }.get(key, default)
+
         with pytest.raises(ConfigValidationError, match="必须低于阈值"):
             resolve_compaction_config(cfg)
 
     def test_threshold_ratio_out_of_range(self):
-        cfg = lambda key, default=None: {"memory.compaction": {"threshold_ratio": 1.5}}.get(key, default)
+        def cfg(key, default=None):
+            return {"memory.compaction": {"threshold_ratio": 1.5}}.get(key, default)
+
         with pytest.raises(ConfigValidationError, match="必须在"):
             resolve_compaction_config(cfg)
 
@@ -205,7 +211,8 @@ class TestReplayAwareCompactor:
         events = [_make_text_event(i, f"message {i}" * 100) for i in range(10)]
         store.set_surface_events("s1", events)
         signal = AbortSignal()
-        result = asyncio.run(compactor.compact_region(
+        # 返回值不断言，本用例校验其落库形态（paired events 同 tx_id）
+        asyncio.run(compactor.compact_region(
             session_id="s1", agent_id="a1", start=0, end=9,
             signal=signal, reason=CompactionReason.MANUAL,
             model_route=_make_model_route(),

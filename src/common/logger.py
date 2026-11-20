@@ -251,7 +251,7 @@ class TimestampedFileHandler(logging.Handler):
                     self.current_stream.write(msg + "\n")
                     self.current_stream.flush()
 
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
             self.handleError(record)
 
@@ -300,7 +300,7 @@ class WebSocketLogHandler(logging.Handler):
         for log_data in batch:
             try:
                 await broadcast_log(log_data)
-            except Exception as exc:
+            except Exception:
                 logger.warning("日志广播单条异常 in logger.py", exc_info=True)
 
     def emit(self, record):
@@ -346,7 +346,7 @@ class WebSocketLogHandler(logging.Handler):
             if self._softirq is not None:
                 self._softirq.raise_softirq(log_data)
 
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
             # 不要让 WebSocket 错误影响日志系统
             self.handleError(record)
@@ -543,7 +543,7 @@ class SuppressionFilter(logging.Filter):
                 result = True
             record._zg2_filter_result = result
             return result
-        except Exception as exc:
+        except Exception:
             return True  # 异常放行 + 降级（不阻断落盘/WS）
 
 
@@ -917,7 +917,7 @@ def convert_pathname_to_module(logger, method_name, event_dict):
             event_dict["module"] = module_path
             # 移除原始的 pathname 字段
             del event_dict["pathname"]
-        except Exception as exc:
+        except Exception:
             # 子进程初始化期间 logger 可能为 None，不能用 logger.warning()
             # 直接 fallback：删除 pathname，用文件名作 module 备选
             if "pathname" in event_dict:

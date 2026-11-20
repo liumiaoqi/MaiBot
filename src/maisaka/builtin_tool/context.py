@@ -21,7 +21,6 @@ from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.protocols import MemoryServicePort
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult
-from src.plugin_runtime.integration import get_plugin_runtime_manager
 
 from src.maisaka.context.messages import SessionBackedMessage
 from src.maisaka.context.message_adapter import format_speaker_content
@@ -396,11 +395,6 @@ class BuiltinToolRuntimeContext:
         if not sequences:
             return self.post_process_reply_message_sequences(original_reply_text)
         return sequences
-
-    def get_runtime_manager(self) -> Any:
-        """获取插件运行时管理器。"""
-
-        return get_plugin_runtime_manager()
 
     def _should_include_planner_chat_id(self) -> bool:
         """当前上下文写入规划器历史时是否需要保留聊天流 ID。"""

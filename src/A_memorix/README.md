@@ -186,26 +186,8 @@ python src/A_memorix/scripts/process_knowledge.py
 
 ### WebUI 验证脚本
 
-仓库内提供了一套可重复执行的 Electron 验证脚本，用来回归这条真实链路：
+> 旧的 Electron 驱动脚本 `scripts/verify_a_memorix_webui.sh` 已随老前端（`dashboard/`）在 2026-11-21 删除——它依赖 `dashboard/node_modules/electron` 与 `dashboard/scripts/a_memorix_electron_validate.cjs`，且只支持 macOS。要重建这条截图回归链，请基于 `mingtang/` + Playwright 新写一份。
 
-- 登录页可访问
-- 长期记忆控制台可打开
-- 通过 WebUI 以 `json` 模式创建导入任务
-- 长期记忆图谱可刷新并产出截图
-- 插件配置页中不再把 A_Memorix 当作插件展示
-
-执行方式：
-
-```bash
-bash scripts/verify_a_memorix_webui.sh
-```
-
-默认会把截图、任务明细和摘要结果写到 `tmp/ui-snapshots/a_memorix-electron/`。
-如果你已经手动启动了后端和 dashboard，可以加：
-
-```bash
-MAIBOT_UI_REUSE_SERVICES=1 bash scripts/verify_a_memorix_webui.sh
-```
 
 ## 常用脚本
 

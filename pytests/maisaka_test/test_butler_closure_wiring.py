@@ -57,6 +57,10 @@ _CONFIG_FIELDS = dict(
     butler_opening_max_chars=120,
     butler_opening_timeout_seconds=4.0,
     butler_closure_round_enabled=True,
+    # 2026-11-21 补：AgentAutonomySnapshot 新增的两个开关，伪造配置时漏了
+    # （orchestrator.py:100 读 context_identity_enabled）
+    context_identity_enabled=False,
+    self_narration_first_person=False,
 )
 
 

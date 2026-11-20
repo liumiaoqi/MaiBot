@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-import json
 import re
 import sys
 
@@ -11,11 +10,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.common.i18n.exceptions import (  # noqa: E402
-    DuplicateTranslationKeyError,
-    InvalidTranslationFileError,
-    LocaleNotFoundError,
-)
 from src.common.i18n.loaders import (  # noqa: E402
     DEFAULT_LOCALE,
     PLURAL_CATEGORIES,
@@ -23,7 +17,6 @@ from src.common.i18n.loaders import (  # noqa: E402
     discover_locales,
     get_locales_root,
     load_locale_catalog,
-    validate_translation_value,
 )
 from src.common.i18n.loaders import extract_placeholders  # noqa: E402
 from src.common.prompt_i18n import (  # noqa: E402
@@ -35,7 +28,6 @@ from src.common.prompt_i18n import (  # noqa: E402
 
 HAN_CHARACTER_PATTERN = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]")
 I18NEXT_PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([^\s,}]+)(?:\s*,[^}]*)?\s*\}\}")
-DASHBOARD_DEFAULT_LOCALE = "zh"
 
 
 def contains_han_characters(text: str) -> bool:
@@ -137,21 +129,6 @@ def validate_translation_pair(
             )
 
 
-def get_dashboard_locales_root(locales_root: Path | None = None) -> Path:
-    if locales_root is not None:
-        return locales_root.resolve()
-    return (PROJECT_ROOT / "dashboard" / "src" / "i18n" / "locales").resolve()
-
-
-def discover_dashboard_locales(locales_root: Path | None = None) -> list[str]:
-    root = get_dashboard_locales_root(locales_root)
-    if not root.exists():
-        return []
-
-    locale_names = [path.stem for path in root.glob("*.json") if path.is_file()]
-    return sorted(locale_names)
-
-
 def is_plural_translation_node(value: object) -> bool:
     if not isinstance(value, dict) or not value:
         return False
@@ -160,125 +137,6 @@ def is_plural_translation_node(value: object) -> bool:
         isinstance(category, str) and category in PLURAL_CATEGORIES and isinstance(category_value, str)
         for category, category_value in value.items()
     )
-
-
-def flatten_dashboard_translation_mapping(
-    value: dict[str, object],
-    file_path: Path,
-    translations: dict[str, TranslationValue],
-    parent_keys: list[str] | None = None,
-) -> None:
-    current_parent_keys = parent_keys or []
-    if not value:
-        if current_parent_keys:
-            raise InvalidTranslationFileError(
-                f"{file_path} 中的 key '{'.'.join(current_parent_keys)}' 不能为空对象"
-            )
-        raise InvalidTranslationFileError(f"{file_path} 顶层不能为空对象")
-
-    for raw_key, raw_value in value.items():
-        if not isinstance(raw_key, str):
-            raise InvalidTranslationFileError(f"{file_path} 中存在非字符串 key")
-
-        normalized_key = raw_key.strip()
-        if not normalized_key:
-            raise InvalidTranslationFileError(f"{file_path} 中存在空字符串 key")
-
-        current_key_parts = [*current_parent_keys, normalized_key]
-        current_key = ".".join(current_key_parts)
-
-        if isinstance(raw_value, str):
-            if current_key in translations:
-                raise DuplicateTranslationKeyError(f"{file_path} 中存在重复 key: '{current_key}'")
-            translations[current_key] = raw_value
-            continue
-
-        if is_plural_translation_node(raw_value):
-            if current_key in translations:
-                raise DuplicateTranslationKeyError(f"{file_path} 中存在重复 key: '{current_key}'")
-            translations[current_key] = validate_translation_value(current_key, raw_value, file_path)
-            continue
-
-        if isinstance(raw_value, dict):
-            flatten_dashboard_translation_mapping(raw_value, file_path, translations, current_key_parts)
-            continue
-
-        raise InvalidTranslationFileError(f"{file_path} 中的 key '{current_key}' 必须是字符串或对象")
-
-
-def load_dashboard_translation_file(file_path: Path) -> dict[str, TranslationValue]:
-    try:
-        raw_payload = json.loads(file_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise InvalidTranslationFileError(f"{file_path} 不是合法 JSON: {exc}") from exc
-
-    if not isinstance(raw_payload, dict):
-        raise InvalidTranslationFileError(f"{file_path} 顶层必须是 JSON object")
-
-    translations: dict[str, TranslationValue] = {}
-    flatten_dashboard_translation_mapping(raw_payload, file_path, translations)
-    return translations
-
-
-def load_dashboard_locale_catalog(
-    locale: str,
-    locales_root: Path | None = None,
-) -> dict[str, TranslationValue]:
-    locale_file = get_dashboard_locales_root(locales_root) / f"{locale}.json"
-    if not locale_file.exists():
-        raise LocaleNotFoundError(f"未找到 locale 文件: {locale_file}")
-
-    return load_dashboard_translation_file(locale_file)
-
-
-def validate_dashboard_json_locales(locales_root: Path | None = None) -> list[str]:
-    resolved_locales_root = get_dashboard_locales_root(locales_root)
-    locales = discover_dashboard_locales(resolved_locales_root)
-    errors: list[str] = []
-
-    if DASHBOARD_DEFAULT_LOCALE not in locales:
-        errors.append(f"[dashboard] 缺少默认 locale 文件: {DASHBOARD_DEFAULT_LOCALE}.json")
-        return errors
-
-    catalogs: dict[str, dict[str, TranslationValue]] = {}
-    for locale in locales:
-        try:
-            catalogs[locale] = load_dashboard_locale_catalog(locale, resolved_locales_root)
-        except Exception as exc:
-            errors.append(f"[dashboard:{locale}] 加载失败: {exc}")
-
-    source_catalog = catalogs.get(DASHBOARD_DEFAULT_LOCALE)
-    if source_catalog is None:
-        return errors
-
-    source_keys = set(source_catalog.keys())
-    for locale, catalog in catalogs.items():
-        if locale == DASHBOARD_DEFAULT_LOCALE:
-            continue
-
-        locale_label = f"dashboard:{locale}"
-        locale_keys = set(catalog.keys())
-        for key in sorted(source_keys - locale_keys):
-            errors.append(f"[{locale_label}] 缺少 key: {key}")
-        for key in sorted(locale_keys - source_keys):
-            errors.append(f"[{locale_label}] 存在多余 key: {key}")
-
-        for key in sorted(source_keys & locale_keys):
-            source_value = source_catalog[key]
-            target_value = catalog[key]
-            validate_translation_pair(
-                key,
-                source_value,
-                target_value,
-                locale,
-                errors,
-                placeholder_extractor=extract_i18next_placeholders,
-                locale_label=locale_label,
-            )
-            if isinstance(source_value, str) == isinstance(target_value, str):
-                validate_locale_content(key, source_value, target_value, locale, errors, locale_label=locale_label)
-
-    return errors
 
 
 def validate_json_locales(locales_root: Path | None = None) -> list[str]:
@@ -391,7 +249,6 @@ def _print_warnings(warnings: list[str]) -> None:
 
 def main() -> int:
     errors = validate_json_locales()
-    errors.extend(validate_dashboard_json_locales())
     prompt_errors, prompt_warnings = validate_prompt_templates()
     errors.extend(prompt_errors)
 

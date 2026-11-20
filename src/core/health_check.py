@@ -11,14 +11,15 @@
 """
 
 import asyncio
-import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Protocol, runtime_checkable
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger("core.health_check")
 
 
 class HealthStatus(IntEnum):

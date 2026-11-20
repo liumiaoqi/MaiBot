@@ -16,8 +16,7 @@ from typing import Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from src.common.data_models.message_component_data_model import MessageSequence
-    from src.config.config import ModelConfig
-    from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
+    from src.core.types import APIProviderLike, ModelConfigLike, ModelInfoLike, TaskConfigLike
     from src.llm_models.model_requirement import EffectiveResolution, ResolvedModel
     from src.common.memory_types import ProfileView, RecallItem, RecallResult, ReflectResult
     from src.common.data_models.llm_service_data_models import (
@@ -825,7 +824,7 @@ class ModelConfigPort(Protocol):
     # deprecated（ZG-12 组件自治后任务名不做配置键）：
     # 过渡期经 resolve_legacy_task_name → resolve_by_capability 兼容；
     # 新代码一律使用 resolve_by_capability / get_effective_config。
-    def get_task_config(self, task_name: str, *, agent_id: str = "") -> TaskConfig:
+    def get_task_config(self, task_name: str, *, agent_id: str = "") -> TaskConfigLike:
         """按任务名查询任务配置，支持智能体级覆盖。
 
         .. deprecated::
@@ -837,46 +836,49 @@ class ModelConfigPort(Protocol):
             agent_id: 智能体 ID，非空时应用该智能体的 model_config_override
 
         Returns:
-            TaskConfig 实例（全局配置或智能体覆盖后的配置）
+            TaskConfigLike 视图（运行时是配置层持有的 TaskConfig 实例：全局配置或
+            智能体覆盖后的配置）
 
         Raises:
             ValueError: 任务名不存在时
             RuntimeError: 配置未初始化时
         """
 
-    def get_model_info(self, model_name: str) -> ModelInfo:
+    def get_model_info(self, model_name: str) -> ModelInfoLike:
         """按模型名查询模型信息。
 
         Args:
-            model_name: 模型名称（对应 ModelInfo.name）
+            model_name: 模型名称（对应 ModelInfoLike.name）
 
         Returns:
-            ModelInfo 实例
+            ModelInfoLike 视图（运行时是配置层持有的 ModelInfo 实例）
 
         Raises:
             ValueError: 模型名不存在时
             RuntimeError: 配置未初始化时
         """
 
-    def get_provider(self, provider_name: str) -> APIProvider:
+    def get_provider(self, provider_name: str) -> APIProviderLike:
         """按提供商名查询提供商配置。
 
         Args:
-            provider_name: 提供商名称（对应 APIProvider.name）
+            provider_name: 提供商名称（对应 APIProviderLike.name）
 
         Returns:
-            APIProvider 实例
+            APIProviderLike 视图（运行时是配置层持有的 APIProvider 实例；``api_key``
+            是盘上原文，解析位在注入客户端之前，本接缝不改写它）
 
         Raises:
             ValueError: 提供商名不存在时
             RuntimeError: 配置未初始化时
         """
 
-    def get_model_config(self) -> ModelConfig:
+    def get_model_config(self) -> ModelConfigLike:
         """获取完整模型配置。
 
         Returns:
-            ModelConfig 实例（全局配置，不含智能体覆盖）
+            ModelConfigLike 视图（运行时是配置层持有的 ModelConfig 实例，
+            全局配置，不含智能体覆盖）
 
         Raises:
             RuntimeError: 配置未初始化时
@@ -920,20 +922,6 @@ class ModelConfigPort(Protocol):
 
         Raises:
             RuntimeError: 配置未初始化时
-        """
-
-    def get_all_providers(self) -> list[APIProvider]:
-        """列出全部已注册的 API provider。"""
-        ...
-
-    def get_models_by_capability(self, capability: str) -> list[ModelInfo]:
-        """按能力列出模型（供 WebUI 渲染/插件枚举）。
-
-        Args:
-            capability: 能力标签（text_generation/embedding/vision/voice/tool_calling）
-
-        Returns:
-            具备该能力的 ModelInfo 列表
         """
 
     def register_reload_callback(self, callback: Any) -> None:

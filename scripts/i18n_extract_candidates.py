@@ -9,7 +9,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXCLUDE_PARTS = {
     ".git",
     ".venv",
-    "dashboard",
     "docs",
     "docs-src",
     "locales",

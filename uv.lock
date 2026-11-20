@@ -927,7 +927,6 @@ dependencies = [
     { name = "jieba" },
     { name = "json-repair" },
     { name = "jsonschema" },
-    { name = "maibot-dashboard" },
     { name = "maibot-plugin-sdk" },
     { name = "maim-message" },
     { name = "mcp" },
@@ -981,7 +980,6 @@ requires-dist = [
     { name = "jieba", specifier = ">=0.42.1" },
     { name = "json-repair", specifier = ">=0.60.1" },
     { name = "jsonschema", specifier = ">=4.0" },
-    { name = "maibot-dashboard", specifier = ">=1.5.4" },
     { name = "maibot-plugin-sdk", specifier = ">=2.7.0" },
     { name = "maim-message", specifier = "==0.6.8" },
     { name = "mcp", specifier = ">=1.28.1,<2.0" },
@@ -1017,15 +1015,6 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff", specifier = ">=0.12.2" },
     { name = "zstandard" },
-]
-
-[[package]]
-name = "maibot-dashboard"
-version = "1.9.2"
-source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/49/74/15c06a6b38b11ba0fdeba38f5d89b58465f8c40d08e5bb05b412c5e1fc8e/maibot_dashboard-1.9.2.tar.gz", hash = "sha256:c7768a74f97e8b235b24340296b8bdc95e6c935ff0f489e529cc68c613ce610f", size = 3072174, upload-time = "2026-10-14T13:34:06.328Z" }
-wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/fa/a5/a384c82b663bc41b86077f617215736030d341ba06b3aaa7c161022867d4/maibot_dashboard-1.9.2-py3-none-any.whl", hash = "sha256:9bfef03c86813ca91a39b52bed54f5ad0eb08c893a99d1f80ba2d26f5e93ff1c", size = 3161911, upload-time = "2026-10-14T13:34:04.236Z" },
 ]
 
 [[package]]
