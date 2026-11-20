@@ -47,6 +47,13 @@ def agent_autonomy_ports():
         zh1_role_drift_w_uniqueness=0.3,
         zh1_role_drift_w_emotion=0.0,
         zh1_role_drift_reflection_interval=3600,
+        # butler_closure：管家收尾能力
+        butler_scene_opening_enabled=True,
+        butler_opening_silence_minutes=30,
+        butler_topic_budget=2,
+        butler_opening_max_chars=120,
+        butler_opening_timeout_seconds=4.0,
+        butler_closure_round_enabled=True,
     )
     app_config_port.get_agent_autonomy_config.return_value = autonomy_config
     event_bus_port = MagicMock()

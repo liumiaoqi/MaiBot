@@ -7,7 +7,7 @@
 
 import asyncio
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid7
 
 from sqlalchemy.exc import IntegrityError
@@ -31,6 +31,13 @@ __all__ = ["TopicLedger"]
 
 
 logger = get_logger("agent_autonomy.topic_ledger")
+
+
+def _as_naive_utc(value: datetime) -> datetime:
+    """把任意时区的时间归一化为 UTC-naive，避免 aware/naive 相减报错。"""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 class TopicLedger:
@@ -64,6 +71,7 @@ class TopicLedger:
 
         async with self._lock:
             with get_db_session(auto_commit=False) as session:
+                message_at_naive = _as_naive_utc(message_at)
                 latest = (
                     session.query(ButlerTopicState)
                     .filter(ButlerTopicState.session_id == self._session_id)
@@ -72,25 +80,25 @@ class TopicLedger:
                 )
 
                 if latest is not None:
-                    gap = (message_at - latest.last_visible_at).total_seconds()
+                    gap = (message_at_naive - latest.last_visible_at).total_seconds()
                     if gap < self._threshold_seconds():
                         return self._to_context(latest, is_new=False)
                     latest.ended_reason = "silence_gap"
-                    latest.updated_at = message_at
+                    latest.updated_at = message_at_naive
                     trigger = TopicTrigger.SILENCE_GAP
                     silence_seconds = max(gap, 0.0)
                 else:
                     trigger = TopicTrigger.SESSION_FIRST
                     silence_seconds = 0.0
 
-                topic_id = self._build_topic_id(message_id=message_id, message_at=message_at)
+                topic_id = self._build_topic_id(message_id=message_id, message_at=message_at_naive)
                 row = ButlerTopicState(
                     topic_id=topic_id,
                     session_id=self._session_id,
-                    started_at=message_at,
+                    started_at=message_at_naive,
                     trigger_type=trigger.value,
                     silence_seconds=silence_seconds,
-                    last_visible_at=message_at,
+                    last_visible_at=message_at_naive,
                     budget_limit=self._config.budget_limit,
                     budget_used=0,
                     closure_used=False,
@@ -237,14 +245,35 @@ class TopicLedger:
                     )
                     if row is None:
                         return
-                    row.last_visible_at = at
-                    row.updated_at = at
+                    row.last_visible_at = _as_naive_utc(at)
+                    row.updated_at = _as_naive_utc(at)
                     session.commit()
                 except Exception as exc:
                     session.rollback()
                     self._report_failure("touch_last_visible", topic_id, exc)
         except Exception as exc:
             self._report_failure("touch_last_visible", topic_id, exc)
+
+    async def mark_closure_used(self, topic_id: str) -> None:
+        """标记补回合已用（spec 6.2.4：取值只能 0/1）。"""
+        try:
+            with get_db_session(auto_commit=False) as session:
+                try:
+                    row = (
+                        session.query(ButlerTopicState)
+                        .filter(ButlerTopicState.topic_id == topic_id)
+                        .first()
+                    )
+                    if row is None:
+                        return
+                    row.closure_used = True
+                    row.updated_at = datetime.now()
+                    session.commit()
+                except Exception as exc:
+                    session.rollback()
+                    self._report_failure("mark_closure_used", topic_id, exc)
+        except Exception as exc:
+            self._report_failure("mark_closure_used", topic_id, exc)
 
     def current(self) -> TopicContext | None:
         """最近一次 resolve 得到的话题上下文。"""

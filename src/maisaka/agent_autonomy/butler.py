@@ -100,6 +100,7 @@ class Butler:
             closure_config if closure_config is not None else ButlerClosureConfig()
         )
         self._ledger = TopicLedger(session_id=session_id, config=self._closure_config)
+        self._last_spoken_text = ""
 
         self._resident_briefs: list[dict] = []
         self._resident_ids: list[str] = []
@@ -187,6 +188,11 @@ class Butler:
     @property
     def reminder_manager(self) -> ReminderManager:
         return self._reminder_manager
+
+    @property
+    def last_spoken_text(self) -> str:
+        """管家最近一次成功出站的原始文本（不含说话人前缀）。"""
+        return self._last_spoken_text
 
     # ── 发言权转移状态管理 ──────────────────────────────
 
@@ -673,6 +679,8 @@ class Butler:
         if text is None:
             return False
 
+        spoken_text = text
+
         # 添加管家名字前缀
         from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
         text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
@@ -685,6 +693,7 @@ class Butler:
             return False
         success = await self.send(text, agent_id=self._butler_id, source="butler_speak")
         if success:
+            self._last_spoken_text = spoken_text
             logger.info(fmt_butler(
                 f"发言(text_len={len(text)})", butler_id=self._butler_id,
                 butler_name=self._butler_display_name,
@@ -870,6 +879,7 @@ class Butler:
             chars=draft.chars,
             missing=scene.missing,
         )
+        self._last_spoken_text = draft.text
         await self._ledger.record_action(
             topic.topic_id,
             ActionKind.OPENING,
@@ -974,6 +984,41 @@ class Butler:
         if topic.budget_used >= topic.budget_limit:
             return False
         return detect_closure_signal(last_visible_text) is not ClosureSignal.NONE
+
+    async def touch_topic_visible(self, topic: TopicContext, at: datetime) -> None:
+        """把「最后一条可见消息时间」写回话题行。"""
+        await self._ledger.touch_last_visible(topic.topic_id, at)
+
+    async def try_closure(self, topic: TopicContext) -> bool:
+        """补回合：扣 1 次预算并标记已用；预算不足或已用返回 False。"""
+        if topic.closure_used:
+            return False
+        decision = await self._ledger.try_consume(topic.topic_id, ActionKind.CLOSURE)
+        if not decision.granted:
+            await self._ledger.record_action(
+                topic.topic_id,
+                ActionKind.BUDGET_EXHAUSTED,
+                outcome="exhausted",
+                detail=f"used={decision.used}/{decision.limit}",
+            )
+            return False
+        await self._ledger.mark_closure_used(topic.topic_id)
+        await self._ledger.record_action(
+            topic.topic_id,
+            ActionKind.CLOSURE,
+            outcome="requested",
+            detail=f"used={decision.used}/{decision.limit}",
+        )
+        return True
+
+    async def note_summon_dropped(self, topic: TopicContext, *, reason: str) -> None:
+        """记录被丢弃的唤起（不计数但须留痕）。"""
+        await self._ledger.record_action(
+            topic.topic_id,
+            ActionKind.SUMMON_DROPPED,
+            outcome="dropped",
+            detail=f"reason={reason}",
+        )
 
     def _report_opening_failure(self, reason: str, exc: Exception | None) -> None:
         """开场失败双通道：日志 + 错误上报。"""
