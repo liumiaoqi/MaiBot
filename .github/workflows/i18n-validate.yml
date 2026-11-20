@@ -36,6 +36,8 @@ jobs:
     env:
       # CI 的 uv 默认取最新 Python（3.15），但 ahocorasick-rs 的 PyO3 只支持到 3.14
       UV_PYTHON: "3.14"
+      # 项目在 pyproject 里配了清华源（国内加速），GitHub runner 在海外连不上
+      UV_INDEX_URL: https://pypi.org/simple
 
     steps:
       - uses: actions/checkout@v4
