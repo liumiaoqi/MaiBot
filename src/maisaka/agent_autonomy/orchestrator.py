@@ -96,6 +96,10 @@ class AgentOrchestrator:
             closure_enabled=self._config.butler_closure_round_enabled,
         )
         self._topic: TopicContext | None = None
+        logger.info(
+            f"[agent_autonomy] context_identity={self._config.context_identity_enabled} "
+            f"self_narration_first_person={self._config.self_narration_first_person}"
+        )
         self._last_visible_text = ""
         self._closure_used_topic_id = ""
         self._activity_store = AgentActivityStore()
@@ -954,6 +958,15 @@ class AgentOrchestrator:
             change_reason=reason,
             transfer_type=transfer_type.value,
             decision_source=decision_source.value,
+        )
+        self._activity_store.save_speaker_change(
+            session_id=self._session_id,
+            from_agent_id="",
+            to_agent_id="",
+            change_type="attribution_viewpoint",
+            change_reason=f"from={from_agent_id} to={target_agent_id}",
+            transfer_type="none",
+            decision_source="rule",
         )
 
         self._chat_loop_adapter.switch_agent_context(target_agent_id)

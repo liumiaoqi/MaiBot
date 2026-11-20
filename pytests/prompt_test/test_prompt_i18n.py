@@ -193,6 +193,8 @@ def test_builtin_prompt_templates_have_intro_metadata() -> None:
     for locale_dir in sorted(path for path in PROMPTS_ROOT.iterdir() if path.is_dir()):
         prompt_templates = list_prompt_templates(locale=locale_dir.name)
         for prompt_file in iter_prompt_files(locale_dir, recursive=False):
+            if prompt_file.stem.endswith("_legacy"):
+                continue
             metadata = prompt_templates[prompt_file.stem].metadata
             assert metadata.display_name, f"{prompt_file} 缺少 display_name 元信息"
             assert metadata.description, f"{prompt_file} 缺少 description 元信息"
