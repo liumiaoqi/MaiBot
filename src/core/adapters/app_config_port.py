@@ -200,6 +200,9 @@ class GlobalConfigAppConfigPort:
             butler_opening_max_chars=aa.butler_opening_max_chars,
             butler_opening_timeout_seconds=aa.butler_opening_timeout_seconds,
             butler_closure_round_enabled=aa.butler_closure_round_enabled,
+            # agent_context_identity：上下文发言归属 / 自述第一人称
+            context_identity_enabled=aa.context_identity_enabled,
+            self_narration_first_person=aa.self_narration_first_person,
 
         )
 

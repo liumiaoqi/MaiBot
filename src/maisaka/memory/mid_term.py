@@ -31,6 +31,7 @@ from src.maisaka.context.messages import (
     LLMContextMessage,
     ReferenceMessage,
     ReferenceMessageType,
+    SessionBackedMessage,
     build_llm_message_from_context,
 )
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
@@ -229,7 +230,7 @@ def _select_summary_source_messages(messages: Sequence[LLMContextMessage]) -> li
     return [
         message
         for message in messages
-        if message.role == "user"
+        if isinstance(message, SessionBackedMessage)
         and not is_mid_term_memory_message(message)
         and str(message.processed_plain_text or "").strip()
     ]

@@ -78,6 +78,8 @@ def _build_message_conditions(
     before_time: float | None = None,
     after_time: float | None = None,
     has_reply_to: bool | None = None,
+    sender_agent_id: str | None = None,
+    sender_type: str | None = None,
 ) -> list[Any]:
     conditions: list[Any] = [Messages.message_id != "notice"]
 
@@ -105,6 +107,13 @@ def _build_message_conditions(
         conditions.append(col(Messages.reply_to).is_not(None))
     elif has_reply_to is False:
         conditions.append(col(Messages.reply_to).is_(None))
+    if sender_agent_id is not None:
+        if sender_agent_id == "":
+            conditions.append(col(Messages.sender_agent_id).is_(None))
+        else:
+            conditions.append(Messages.sender_agent_id == sender_agent_id)
+    if sender_type is not None:
+        conditions.append(Messages.sender_type == sender_type)
 
     return conditions
 
@@ -127,6 +136,8 @@ def find_messages(
     filter_bot: bool = False,
     filter_command: bool = False,
     filter_intercept_message_level: int | None = None,
+    sender_agent_id: str | None = None,
+    sender_type: str | None = None,
 ) -> list[SessionMessage]:
     """
     根据提供的过滤器、排序和限制条件查找消息。
@@ -161,6 +172,8 @@ def find_messages(
             end_time=end_time,
             before_time=before_time,
             after_time=after_time,
+            sender_agent_id=sender_agent_id,
+            sender_type=sender_type,
         )
         if filter_bot:
             from src.core.identity import get_all_bot_accounts, get_bot_account

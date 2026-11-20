@@ -3,6 +3,10 @@ import re
 
 from src.common.logger import get_logger
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
+from src.maisaka.context.speaker_projection import (
+    _speaker_tag_pattern,
+    strip_leading_speaker_tag,
+)
 
 logger = get_logger("agent_autonomy.expression_organ")
 
@@ -12,40 +16,6 @@ _EMPTY_PAREN_ONLY = re.compile(r"^(?:[\s()（）\[\]【】{}｛｝<>《》「」
 #: 拒发计数（进程内累计，只增不清）——"计数 + 一条可区分日志"里的计数。
 _rejected_outbound_counter = _count(1)
 
-
-def _speaker_tag_pattern(tag_format: str) -> "re.Pattern[str]":
-    """把 `speaker_tag_format` 翻成"**同形**标记"的正则（**只用于首部**匹配）。
-
-    例：`【{agent_name}】` ⇒ `^【.+?】`。
-    字面量部分转义后原样；占位符（`{agent_name}` / `{agent_id}`）换成非贪婪 `.+?`。
-    ⇒ 它匹配"**任何**名字的该格式标记"，这正是"只剥同形、不剥别的"所需要的：
-    模型自写的 `【银狼】` 会被剥掉，而 `他说【这本书】很好` 里的方括号**不在首部**，不受影响。
-    """
-    parts: list[str] = []
-    for chunk in re.split(r"(\{agent_name\}|\{agent_id\})", tag_format):
-        if chunk in ("{agent_name}", "{agent_id}"):
-            parts.append(".+?")
-        elif chunk:
-            parts.append(re.escape(chunk))
-    return re.compile("^" + "".join(parts), re.DOTALL)
-
-
-def strip_leading_speaker_tag(text: str, tag_format: str) -> tuple[str, str]:
-    """剥掉模型**自写在首部**的发言标记；返回 ``(剥后文本, 被剥掉的标记)``。
-
-    只做两件事（其余一律不动）：
-
-    - **只剥首部**（允许前面有空白），正文里的方括号**一律不动**；
-    - **只剥与 `build_speaker_tag()` 同形**的那一个（同一 `speaker_tag_format` 派生的形状）。
-
-    为什么要剥：模型经常自己写一个署名（实测 `agent=bronya` 的回复署名成 `【银狼】`），
-    而这条链只"加前缀"、不做任何过滤 ⇒ **错署名原样出站**。
-    """
-    offset = len(text) - len(text.lstrip())
-    match = _speaker_tag_pattern(tag_format).match(text[offset:])
-    if match is None:
-        return text, ""
-    return text[offset + match.end() :], match.group(0)
 
 
 def verify_outbound_signature(text: str, expected_tag: str, tag_format: str) -> tuple[bool, str]:

@@ -428,6 +428,7 @@ async def handle_tool(
                     reply_to_id=reply_to_id,
                     source="guided_reply",
                     idempotency_key=retry_idempotency_key,
+                    agent_id=agent_id,
                 )
                 sent = result.success
                 if not sent:

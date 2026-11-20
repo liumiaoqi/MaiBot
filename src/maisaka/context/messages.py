@@ -13,6 +13,8 @@ import base64
 from PIL import Image as PILImage
 
 from src.core.types import SessionMessage
+from src.maisaka.context.attribution import AttributionDecision
+from src.maisaka.context.speaker_projection import project_message
 from src.common.data_models.message_component_data_model import (
     AtComponent,
     DictComponent,
@@ -598,6 +600,15 @@ class LLMContextMessage(ABC):
         """消费一次生命周期，返回是否继续保留。"""
         return True
 
+    def resolve_attribution(
+        self,
+        viewer_agent_id: str,
+        *,
+        enabled: bool = True,
+    ) -> AttributionDecision | None:
+        """返回上下文归属决策；无结构化身份的消息返回 None。"""
+        return None
+
 
 @dataclass(slots=True)
 class SessionBackedMessage(LLMContextMessage):
@@ -609,6 +620,8 @@ class SessionBackedMessage(LLMContextMessage):
     message_id: Optional[str] = None
     original_message: Optional[SessionMessage] = None
     source_kind: str = "user"
+    speaker_type: str = ""
+    speaker_agent_id: str = ""
 
     @property
     def role(self) -> str:
@@ -630,6 +643,21 @@ class SessionBackedMessage(LLMContextMessage):
             enable_visual_message=enable_visual_message,
         )
 
+    def resolve_attribution(
+        self,
+        viewer_agent_id: str,
+        *,
+        enabled: bool = True,
+    ) -> AttributionDecision | None:
+        from src.maisaka.context.attribution import decide_role
+
+        return decide_role(
+            sender_type=self.speaker_type,
+            sender_agent_id=self.speaker_agent_id,
+            viewer_agent_id=viewer_agent_id,
+            enabled=enabled,
+        )
+
     @classmethod
     def from_session_message(
         cls,
@@ -647,6 +675,8 @@ class SessionBackedMessage(LLMContextMessage):
             message_id=session_message.message_id,
             original_message=session_message,
             source_kind=source_kind,
+            speaker_type=session_message.sender_type or "",
+            speaker_agent_id=session_message.sender_agent_id or "",
         )
 
 
@@ -660,6 +690,14 @@ class ComplexSessionMessage(SessionBackedMessage):
     @property
     def source(self) -> str:
         return f"{self.source_kind}:{self.complex_message_type}"
+
+    def resolve_attribution(
+        self,
+        viewer_agent_id: str,
+        *,
+        enabled: bool = True,
+    ) -> AttributionDecision | None:
+        return None
 
     def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
         del enable_visual_message
@@ -692,6 +730,8 @@ class ComplexSessionMessage(SessionBackedMessage):
             message_id=session_message.message_id,
             original_message=session_message,
             source_kind=source_kind,
+            speaker_type=session_message.sender_type or "",
+            speaker_agent_id=session_message.sender_agent_id or "",
             prompt_text=f"{planner_prefix}{prompt_text}",
         )
 
@@ -854,7 +894,48 @@ def build_llm_message_from_context(
     context_message: LLMContextMessage,
     *,
     enable_visual_message: bool = True,
+    viewer_agent_id: str = "",
+    attribution_enabled: bool = True,
+    speaker_tag_format: str = "",
 ) -> Optional[Message]:
     """将 Maisaka 内部上下文消息转换为发给 LLM 的统一消息。"""
 
-    return context_message.to_llm_message(enable_visual_message=enable_visual_message)
+    message = context_message.to_llm_message(enable_visual_message=enable_visual_message)
+    if message is None:
+        return None
+    if not viewer_agent_id or not attribution_enabled:
+        return message
+
+    decision = context_message.resolve_attribution(viewer_agent_id, enabled=attribution_enabled)
+    if decision is None or decision.degrade_reason:
+        return message
+
+    display_name = _resolve_speaker_display_name(context_message)
+    if not display_name:
+        if message.role is not decision.role:
+            message.role = decision.role
+        return message
+
+    project_message(
+        message,
+        decision,
+        display_name=display_name,
+        tag_format=speaker_tag_format,
+    )
+    return message
+
+
+def _resolve_speaker_display_name(context_message: LLMContextMessage) -> str:
+    """解析发言者显示名；查不到返回空（调用方按降级处理）。"""
+    agent_id = getattr(context_message, "speaker_agent_id", "")
+    if not agent_id:
+        return ""
+    try:
+        from src.core.adapters.agent_config_port import get_agent_config_provider
+
+        provider = get_agent_config_provider()
+        if not provider.has_agent(agent_id):
+            return ""
+        return provider.get_agent(agent_id).display_name or agent_id
+    except Exception:
+        return ""

@@ -54,6 +54,9 @@ def agent_autonomy_ports():
         butler_opening_max_chars=120,
         butler_opening_timeout_seconds=4.0,
         butler_closure_round_enabled=True,
+        # agent_context_identity：上下文发言归属 / 自述第一人称
+        context_identity_enabled=False,
+        self_narration_first_person=False,
     )
     app_config_port.get_agent_autonomy_config.return_value = autonomy_config
     event_bus_port = MagicMock()

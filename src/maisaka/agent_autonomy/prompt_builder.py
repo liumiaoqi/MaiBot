@@ -62,9 +62,17 @@ class EmbodiedPlannerPromptBuilder:
         优先使用 maisaka_chat_embodied 模板，
         构建失败时降级为 maisaka_chat 旁观者模板。
         """
+        template_name = "maisaka_chat_embodied"
+        try:
+            from src.core.app_config_port_registry import get_app_config_port
+
+            if not get_app_config_port().get_agent_autonomy_config().self_narration_first_person:
+                template_name = "maisaka_chat_embodied_legacy"
+        except Exception:
+            template_name = "maisaka_chat_embodied_legacy"
         try:
             context = await self._build_embodied_context(tools_section)
-            return load_prompt("maisaka_chat_embodied", **context)
+            return load_prompt(template_name, **context)
         except Exception as exc:
             from src.core.error_escalation.types import ErrorLevel
             from src.core.error_escalation_port_registry import get_error_escalation_port
@@ -82,9 +90,17 @@ class EmbodiedPlannerPromptBuilder:
         """构建角色化人格提示词。
 
         Returns:
-            "你是{角色名}，你在思考如何回应" 格式的人格提示词。
+            开关开时「我是{角色名}，我正在思考如何回应」；关时保持第二人称。
         """
         agent_name = self._get_agent_display_name()
+        try:
+            from src.core.app_config_port_registry import get_app_config_port
+
+            first_person = get_app_config_port().get_agent_autonomy_config().self_narration_first_person
+        except Exception:
+            first_person = False
+        if first_person:
+            return f"我是{agent_name}，我正在思考如何回应"
         return f"你是{agent_name}，你在思考如何回应"
 
     def get_prompt_template_name(self) -> str:

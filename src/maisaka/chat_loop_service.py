@@ -936,6 +936,76 @@ class MaisakaChatLoopService:
         """设置当前 planner 请求使用的中断标记。"""
         self._interrupt_flag = interrupt_flag
 
+
+    async def _generate_with_role_fallback(
+        self,
+        *,
+        model_task_name: str,
+        message_factory,
+        capabilities: Sequence[str] | None,
+        all_tools: List[ToolDefinitionInput],
+        response_format: RespFormat | None,
+        request_type: str,
+        viewer_agent_id: str,
+        selected_history: List[LLMContextMessage],
+        enable_visual_message: bool,
+        request_kind: str,
+        injected_user_messages: Sequence[str] | None,
+        tail_user_messages: Sequence[str] | None,
+        system_prompt: Optional[str],
+    ):
+        """模型调用；供应商拒收 role 时降级关闭投影重试一次（会话级记忆）。"""
+
+        def _call(factory):
+            return self._llm_service.generate_response_with_messages(
+                model_task_name if capabilities is None else "planner",
+                factory,
+                LLMGenerationOptions(
+                    capabilities=tuple(capabilities) if capabilities is not None else None,
+                    tool_options=all_tools if all_tools else None,
+                    response_format=response_format,
+                    interrupt_flag=self._interrupt_flag,
+                ),
+                request_type=request_type,
+                session_id=self._session_id,
+            )
+
+        try:
+            return await _call(message_factory)
+        except Exception as exc:
+            attribution_enabled = get_app_config_port().get_agent_autonomy_config().context_identity_enabled
+            if (
+                not attribution_enabled
+                or self._session_id in _DEGRADED_SESSIONS
+                or not _is_role_rejection(exc)
+            ):
+                _report_attribution_failure(exc, viewer_agent_id)
+                raise
+            _DEGRADED_SESSIONS.add(self._session_id)
+            logger.warning(
+                "[context_attribution] 供应商拒收 role，降级重试一次 viewer=%s session=%s error=%s",
+                viewer_agent_id,
+                self._session_id,
+                exc,
+            )
+            rebuilt_messages = self._build_request_messages(
+                selected_history,
+                enable_visual_message=enable_visual_message,
+                include_day_boundary_time_messages=request_kind == "planner",
+                injected_user_messages=injected_user_messages,
+                tail_user_messages=tail_user_messages,
+                final_assistant_message=(
+                    self._build_planner_final_assistant_reminder() if request_kind == "planner" else None
+                ),
+                system_prompt=system_prompt,
+                viewer_agent_id="",
+            )
+
+            def _fallback_factory(_client):
+                return rebuilt_messages
+
+            return await _call(_fallback_factory)
+
     def _build_request_messages(
         self,
         selected_history: List[LLMContextMessage],
@@ -946,6 +1016,8 @@ class MaisakaChatLoopService:
         tail_user_messages: Sequence[str] | None = None,
         final_assistant_message: str | None = None,
         system_prompt: Optional[str] = None,
+        viewer_agent_id: str = "",
+        speaker_tag_format: str = "",
     ) -> List[Message]:
         """构造发给大模型的消息列表。
 
@@ -957,6 +1029,9 @@ class MaisakaChatLoopService:
         """
 
         messages: List[Message] = []
+        autonomy_config = get_app_config_port().get_agent_autonomy_config()
+        attribution_enabled = autonomy_config.context_identity_enabled
+        effective_tag_format = speaker_tag_format or autonomy_config.speaker_tag_format
         system_msg = MessageBuilder().set_role(RoleType.System)
         if system_prompt is not None:
             resolved_system_prompt = system_prompt
@@ -972,6 +1047,9 @@ class MaisakaChatLoopService:
             llm_message = build_llm_message_from_context(
                 msg,
                 enable_visual_message=enable_visual_message,
+                viewer_agent_id=viewer_agent_id,
+                attribution_enabled=attribution_enabled,
+                speaker_tag_format=effective_tag_format,
             )
             if llm_message is None:
                 continue
@@ -1023,6 +1101,7 @@ class MaisakaChatLoopService:
                 .build()
             )
 
+        _log_context_attribution(self._session_id, viewer_agent_id, messages, attribution_enabled)
         return messages
 
     async def chat_loop_step(
@@ -1037,6 +1116,7 @@ class MaisakaChatLoopService:
         system_prompt: Optional[str] = None,
         tail_user_messages: Sequence[str] | None = None,
         capabilities: Sequence[str] | None = None,
+        viewer_agent_id: str = "",
     ) -> ChatResponse:
         """执行一轮 Maisaka 规划器请求。
 
@@ -1134,6 +1214,7 @@ class MaisakaChatLoopService:
                 self._build_planner_final_assistant_reminder() if request_kind == "planner" else None
             ),
             system_prompt=system_prompt,
+            viewer_agent_id=viewer_agent_id,
         )
         if enable_visual_message:
             built_messages = limit_latest_images_in_messages(
@@ -1191,17 +1272,20 @@ class MaisakaChatLoopService:
         request_type = self._resolve_llm_request_type(request_kind)
         llm_started_at = time.perf_counter()
         # ZG-12 组件自治：capabilities 优先（主路径），否则旧 task_name（deprecated）
-        generation_result = await self._llm_service.generate_response_with_messages(
-            model_task_name if capabilities is None else "planner",
-            message_factory,
-            LLMGenerationOptions(
-                capabilities=tuple(capabilities) if capabilities is not None else None,
-                tool_options=all_tools if all_tools else None,
-                response_format=response_format,
-                interrupt_flag=self._interrupt_flag,
-            ),
+        generation_result = await self._generate_with_role_fallback(
+            model_task_name=model_task_name,
+            message_factory=message_factory,
+            capabilities=capabilities,
+            all_tools=all_tools,
+            response_format=response_format,
             request_type=request_type,
-            session_id=self._session_id,
+            viewer_agent_id=viewer_agent_id,
+            selected_history=selected_history,
+            enable_visual_message=enable_visual_message,
+            request_kind=request_kind,
+            injected_user_messages=injected_user_messages,
+            tail_user_messages=tail_user_messages,
+            system_prompt=system_prompt,
         )
         llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
         self._log_prompt_cache_usage(
@@ -1635,3 +1719,66 @@ class MaisakaChatLoopService:
         if request_kind in {"expression_selector", "reply_effect_judge"}:
             return False
         return True
+
+_CONTEXT_PREFIX_SNAPSHOTS: dict[str, tuple[str, ...]] = {}
+_DEGRADED_SESSIONS: set[str] = set()
+
+
+def _is_role_rejection(exc: Exception) -> bool:
+    """供应商 400 类拒收（role/messages/assistant 相关）。"""
+    text = f"{exc!r} {exc}".lower()
+    return any(keyword in text for keyword in ("role", "messages", "assistant"))
+
+
+def _report_attribution_failure(exc: Exception, viewer_agent_id: str) -> None:
+    """归属相关失败双通道：日志 + 错误上报。"""
+    logger.warning("[context_attribution] 归属投影失败 viewer=%s error=%s", viewer_agent_id, exc)
+    from src.core.error_escalation.types import ErrorLevel
+    from src.core.error_escalation_port_registry import get_error_escalation_port
+
+    port = get_error_escalation_port()
+    if port is not None:
+        port.report(ErrorLevel.WARNING, "归属投影失败", exception=exc)
+
+
+def _canonical_message_fingerprint(message: Message) -> str:
+    """单条请求消息的稳定指纹（不含 base64 正文）。"""
+    text = ""
+    if message.parts:
+        text = getattr(message.parts[0], "text", "")[:120]
+    return f"{message.role.value}|{message.tool_call_id or ''}|{text}|{len(message.parts)}"
+
+
+def _common_prefix_length(previous: tuple[str, ...], current: tuple[str, ...]) -> int:
+    length = 0
+    for before, after in zip(previous, current, strict=False):
+        if before != after:
+            break
+        length += 1
+    return length
+
+
+def _log_context_attribution(
+    session_id: str,
+    viewer_agent_id: str,
+    messages: List[Message],
+    attribution_enabled: bool,
+) -> None:
+    """每轮一行归属摘要 + 缓存前缀探针（进程内、不持久化）。"""
+    fingerprints = tuple(_canonical_message_fingerprint(message) for message in messages)
+    previous = _CONTEXT_PREFIX_SNAPSHOTS.get(session_id, ())
+    prefix_len = _common_prefix_length(previous, fingerprints)
+    if session_id not in _CONTEXT_PREFIX_SNAPSHOTS and len(_CONTEXT_PREFIX_SNAPSHOTS) >= 64:
+        _CONTEXT_PREFIX_SNAPSHOTS.pop(next(iter(_CONTEXT_PREFIX_SNAPSHOTS)))
+    _CONTEXT_PREFIX_SNAPSHOTS[session_id] = fingerprints
+    self_count = sum(1 for message in messages if message.role == RoleType.Assistant)
+    logger.info(
+        "[context_attribution] viewer=%s self=%d other=%d unknown=%d degrade=%s prefix_len=%d prev_prefix_len=%d",
+        viewer_agent_id,
+        self_count,
+        max(len(messages) - self_count - 1, 0),
+        0,
+        "" if attribution_enabled else "disabled",
+        prefix_len,
+        len(previous),
+    )

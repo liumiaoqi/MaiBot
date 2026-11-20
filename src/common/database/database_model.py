@@ -56,6 +56,10 @@ class Messages(SQLModel, table=True):
     additional_config: Optional[str] = Field(default=None)  # 额外配置，JSON格式存储
     reply_frequency: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
     # 消息发生时当前会话的生效回复频率；无法解析时为空
+    sender_type: Optional[str] = Field(default=None, max_length=16, nullable=True)
+    # 发送者类别：user / agent / system；NULL 表示存量或未知
+    sender_agent_id: Optional[str] = Field(default=None, max_length=64, nullable=True)
+    # 角色智能体 id；仅 sender_type=agent 时非空
 
 
 class ModelUsage(SQLModel, table=True):

@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid7
 
 from src.common.database.database import get_db_session
 from src.common.database.database_model import (
@@ -182,9 +183,7 @@ class AgentActivityStore:
         decision_source: str = "manual",
     ) -> str:
         """持久化发言权变更记录。"""
-        import time
-
-        record_id = f"sc:{session_id}:{format(int(time.time()), 'x')}"
+        record_id = f"sc:{session_id}:{uuid7()}"
         with get_db_session() as session:
             record = AgentAutonomySpeakerChangeRecord(
                 record_id=record_id,

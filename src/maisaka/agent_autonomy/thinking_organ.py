@@ -391,6 +391,7 @@ class ThinkingOrgan:
                     tool_definitions=tool_definitions if tool_definitions else None,
                     system_prompt=await self.build_system_prompt(),
                     capabilities=PLANNER_CAPABILITIES,
+                    viewer_agent_id=context.thinking_agent_id or self._agent_id,
                 )
             except Exception as exc:
                 from src.core.error_escalation.types import ErrorLevel
@@ -697,7 +698,7 @@ class ThinkingOrgan:
                 _tool_metadata["idempotency_key"] = self._retry_idempotency_key
             if self._chat_loop_adapter is not None:
                 _tool_metadata["runtime"] = getattr(self._chat_loop_adapter, "_runtime", None)
-                _tool_metadata["agent_id"] = self._chat_loop_adapter.current_agent_id
+            _tool_metadata["agent_id"] = self._agent_id
 
             execution_context = ToolExecutionContext(
                 session_id=context.session_id,
@@ -1235,4 +1236,3 @@ class ThinkingOrgan:
             if port is not None:
                 port.report(ErrorLevel.WARNING, '[thinking_organ] Prompt预览保存失败', exception=exc)
             logger.warning(f"[thinking_organ] Prompt预览保存失败: agent={self._agent_id} error={exc}")
-

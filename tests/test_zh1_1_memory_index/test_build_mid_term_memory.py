@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.maisaka.context.messages import SessionBackedMessage
+from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.maisaka.memory.mid_term import (
     MID_TERM_MEMORY_COMPLEX_TYPE,
     MID_TERM_MEMORY_SOURCE_KIND,
@@ -20,12 +22,13 @@ from src.maisaka.memory.mid_term import (
 )
 
 
-def _make_user_msg(text: str = "你好", ts: datetime | None = None) -> SimpleNamespace:
-    """构造 mock user 消息（可被 _select_summary_source_messages 选中）。"""
-    return SimpleNamespace(
-        role="user",
-        processed_plain_text=text,
+def _make_user_msg(text: str = "你好", ts: datetime | None = None) -> SessionBackedMessage:
+    """构造真实 SessionBackedMessage（可被 _select_summary_source_messages 选中）。"""
+    return SessionBackedMessage(
+        raw_message=MessageSequence([TextComponent(text or "x")]),
+        visible_text=text,
         timestamp=ts or datetime(2024, 1, 1),
+        speaker_type="user",
     )
 
 
