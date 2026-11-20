@@ -1,3 +1,6 @@
+> **本仓库已于 2026-11-21 归档。** 归档说明见 [ARCHIVE.md](ARCHIVE.md)。
+> 上游仍在活跃：[Mai-with-u/MaiBot](https://github.com/Mai-with-u/MaiBot)。
+
 <a id="-双语--bilingual"></a>
 
 <div align="center">
