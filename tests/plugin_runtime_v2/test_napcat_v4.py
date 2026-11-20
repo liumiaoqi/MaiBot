@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest as _pytest
 from pathlib import Path as _Path
 
-if not (_Path(__file__).resolve().parents[2] / "plugins" / "maibot-team.napcat-adapter").is_dir():
+if not (_Path(__file__).resolve().parents[2] / "plugins" / "maibot-team.napcat-adapter" / "_manifest.json").is_file():
     _pytest.skip("plugins/ 未就绪（独立插件仓，CI 不含）", allow_module_level=True)
 
 import hashlib
