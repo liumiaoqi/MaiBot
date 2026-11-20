@@ -49,9 +49,14 @@
 
 ## 归档之后
 
-- 代码不再更新。
+- 代码不再更新。终态 tag：`final-archive-2026-11-21`。
+- **归档前做了最后一次清理**：删掉老前端 `dashboard/`（495 个文件）、8 个 CI workflow 收敛到
+  `scripts/task.py` 单一入口、全仓 `ruff check` 归零（起点 1107 条）、全量 `pytest` 归零
+  （5434 passed / 0 failed）、GHCR 镜像构建通过（仅 amd64；arm64 因 `qiskit-aer` 无 wheel 降级）。
+  也就是说，它停在一个**全绿**的状态上，不是停在半成品。
 - 未合并的分支保留（`compat-component-loader-fix` 有 1 次提交未进 main）。
-- 新的工作在 dsh 上继续。
+- 新的工作在 dsh（DeepSeek Harness）上继续，以 bundle 形式二次开发；接入层优先飞书，
+  理由与拆解见 `.agents/notes/proposed/architecture/2026-11-21-migrate-to-dsh-kernel.md`。
 
 ---
 
