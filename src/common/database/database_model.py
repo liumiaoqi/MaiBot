@@ -692,3 +692,66 @@ class MidTermMemorySummaries(SQLModel, table=True):
         Index("ix_mid_term_summaries_session_time", "session_id", "time_range_start", "time_range_end"),
         Index("ix_mid_term_summaries_timestamp", "timestamp"),
     )
+
+class ButlerTopicState(SQLModel, table=True):
+    """管家收尾——话题状态。
+
+    每个话题一行，新话题建新行、旧行保留并回填 ended_reason；
+    这样任意历史话题都能还原「是否开场、唤起几次、是否代说、是否补回合、因何结束」。
+    """
+
+    __tablename__ = "butler_topic_states"  # type: ignore
+
+    # topic_id：tg:{session_id}:{message_id}；message_id 空时退化为 tg:{session_id}:{int(start_ts)}
+    topic_id: str = Field(primary_key=True, max_length=192)
+    session_id: str = Field(index=True, max_length=255)
+    started_at: datetime = Field(sa_column=Column(DateTime, index=True))
+    # trigger_type：session_first / silence_gap
+    trigger_type: str = Field(max_length=32)
+    # silence_seconds：仅 silence_gap 有值，由「上次可见时间」与「本条消息时间」计算
+    silence_seconds: float = Field(default=0.0, sa_column=Column(Float, default=0.0))
+    # last_visible_at：最后一次可见消息时间（用户、角色、丽塔都算）
+    last_visible_at: datetime = Field(sa_column=Column(DateTime, index=True))
+    # 建行时快照配置值，话题内不变，避免改配置导致已用超过上限
+    budget_limit: int = Field(default=0)
+    budget_used: int = Field(default=0)
+    closure_used: bool = Field(default=False)
+    # pending / sent / skipped / failed
+    opening_outcome: str = Field(default="pending", max_length=16)
+    opening_reason: str = Field(default="", max_length=200)
+    opening_chars: int = Field(default=0)
+    # 逗号分隔的缺失输入项，供降级归因
+    scene_missing: str = Field(default="", max_length=200)
+    # silence_gap / budget_exhausted / ""
+    ended_reason: str = Field(default="", max_length=32)
+    updated_at: datetime = Field(sa_column=Column(DateTime, index=True))
+
+    __table_args__ = (
+        Index("ix_butler_topic_state_session_started", "session_id", "started_at"),
+        Index("ix_butler_topic_state_session_visible", "session_id", "last_visible_at"),
+    )
+
+
+class ButlerTopicActionRecord(SQLModel, table=True):
+    """管家收尾——话题动作流水。
+
+    与话题状态分离：状态是「当前值」，事件是「发生过什么」。
+    六类动作与 spec 5.6.2 一一对应，另外记录被丢弃的唤起（不计数但须留痕）。
+    """
+
+    __tablename__ = "butler_topic_action_records"  # type: ignore
+
+    # record_id：bta:{topic_id}:{seq}，超长时退化为 bta:{uuid7}
+    record_id: str = Field(primary_key=True, max_length=128)
+    topic_id: str = Field(index=True, max_length=192)
+    session_id: str = Field(index=True, max_length=255)
+    # opening / summon / speak_for / closure / budget_exhausted / opening_failed / summon_dropped
+    kind: str = Field(max_length=32)
+    # sent / replied / no_reply / dropped / skipped
+    outcome: str = Field(default="", max_length=32)
+    budget_used_after: int = Field(default=0)
+    budget_limit: int = Field(default=0)
+    target_agent_id: str = Field(default="", max_length=64)
+    # 只写结构化短串，不写 prompt 全文与密钥
+    detail: str = Field(default="", max_length=500)
+    created_at: datetime = Field(sa_column=Column(DateTime, index=True))
