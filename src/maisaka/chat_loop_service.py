@@ -936,6 +936,7 @@ class MaisakaChatLoopService:
         """设置当前 planner 请求使用的中断标记。"""
         self._interrupt_flag = interrupt_flag
 
+
     def _build_request_messages(
         self,
         selected_history: List[LLMContextMessage],
@@ -946,6 +947,8 @@ class MaisakaChatLoopService:
         tail_user_messages: Sequence[str] | None = None,
         final_assistant_message: str | None = None,
         system_prompt: Optional[str] = None,
+        viewer_agent_id: str = "",
+        speaker_tag_format: str = "",
     ) -> List[Message]:
         """构造发给大模型的消息列表。
 
@@ -957,6 +960,9 @@ class MaisakaChatLoopService:
         """
 
         messages: List[Message] = []
+        autonomy_config = get_app_config_port().get_agent_autonomy_config()
+        attribution_enabled = autonomy_config.context_identity_enabled
+        effective_tag_format = speaker_tag_format or autonomy_config.speaker_tag_format
         system_msg = MessageBuilder().set_role(RoleType.System)
         if system_prompt is not None:
             resolved_system_prompt = system_prompt
@@ -972,6 +978,9 @@ class MaisakaChatLoopService:
             llm_message = build_llm_message_from_context(
                 msg,
                 enable_visual_message=enable_visual_message,
+                viewer_agent_id=viewer_agent_id,
+                attribution_enabled=attribution_enabled,
+                speaker_tag_format=effective_tag_format,
             )
             if llm_message is None:
                 continue
@@ -1023,6 +1032,7 @@ class MaisakaChatLoopService:
                 .build()
             )
 
+        _log_context_attribution(self._session_id, viewer_agent_id, messages, attribution_enabled)
         return messages
 
     async def chat_loop_step(
@@ -1037,6 +1047,7 @@ class MaisakaChatLoopService:
         system_prompt: Optional[str] = None,
         tail_user_messages: Sequence[str] | None = None,
         capabilities: Sequence[str] | None = None,
+        viewer_agent_id: str = "",
     ) -> ChatResponse:
         """执行一轮 Maisaka 规划器请求。
 
@@ -1134,6 +1145,7 @@ class MaisakaChatLoopService:
                 self._build_planner_final_assistant_reminder() if request_kind == "planner" else None
             ),
             system_prompt=system_prompt,
+            viewer_agent_id=viewer_agent_id,
         )
         if enable_visual_message:
             built_messages = limit_latest_images_in_messages(
@@ -1635,3 +1647,48 @@ class MaisakaChatLoopService:
         if request_kind in {"expression_selector", "reply_effect_judge"}:
             return False
         return True
+
+_CONTEXT_PREFIX_SNAPSHOTS: dict[str, tuple[str, ...]] = {}
+
+
+def _canonical_message_fingerprint(message: Message) -> str:
+    """单条请求消息的稳定指纹（不含 base64 正文）。"""
+    text = ""
+    if message.parts:
+        text = getattr(message.parts[0], "text", "")[:120]
+    return f"{message.role.value}|{message.tool_call_id or ''}|{text}|{len(message.parts)}"
+
+
+def _common_prefix_length(previous: tuple[str, ...], current: tuple[str, ...]) -> int:
+    length = 0
+    for before, after in zip(previous, current, strict=False):
+        if before != after:
+            break
+        length += 1
+    return length
+
+
+def _log_context_attribution(
+    session_id: str,
+    viewer_agent_id: str,
+    messages: List[Message],
+    attribution_enabled: bool,
+) -> None:
+    """每轮一行归属摘要 + 缓存前缀探针（进程内、不持久化）。"""
+    fingerprints = tuple(_canonical_message_fingerprint(message) for message in messages)
+    previous = _CONTEXT_PREFIX_SNAPSHOTS.get(session_id, ())
+    prefix_len = _common_prefix_length(previous, fingerprints)
+    if session_id not in _CONTEXT_PREFIX_SNAPSHOTS and len(_CONTEXT_PREFIX_SNAPSHOTS) >= 64:
+        _CONTEXT_PREFIX_SNAPSHOTS.pop(next(iter(_CONTEXT_PREFIX_SNAPSHOTS)))
+    _CONTEXT_PREFIX_SNAPSHOTS[session_id] = fingerprints
+    self_count = sum(1 for message in messages if message.role == RoleType.Assistant)
+    logger.info(
+        "[context_attribution] viewer=%s self=%d other=%d unknown=%d degrade=%s prefix_len=%d prev_prefix_len=%d",
+        viewer_agent_id,
+        self_count,
+        max(len(messages) - self_count - 1, 0),
+        0,
+        "" if attribution_enabled else "disabled",
+        prefix_len,
+        len(previous),
+    )

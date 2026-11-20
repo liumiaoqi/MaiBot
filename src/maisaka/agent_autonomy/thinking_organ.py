@@ -391,6 +391,7 @@ class ThinkingOrgan:
                     tool_definitions=tool_definitions if tool_definitions else None,
                     system_prompt=await self.build_system_prompt(),
                     capabilities=PLANNER_CAPABILITIES,
+                    viewer_agent_id=context.thinking_agent_id or self._agent_id,
                 )
             except Exception as exc:
                 from src.core.error_escalation.types import ErrorLevel
