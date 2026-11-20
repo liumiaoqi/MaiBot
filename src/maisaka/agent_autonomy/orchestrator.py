@@ -2034,6 +2034,7 @@ class AgentOrchestrator:
             prev_thought_summary=prev_thought_summary,
             time_since_last_think=time_since_last_think,
             favor_injection_text=favor_injection_text,
+            thinking_agent_id=agent.agent_id,
         )
 
     @staticmethod

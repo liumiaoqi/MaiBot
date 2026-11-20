@@ -596,6 +596,9 @@ class ThinkContext:
     favor_injection_text: str = ""
     """好感度注入文本（ZG-26 b2: 从 system prompt 后移到 injected）"""
 
+    thinking_agent_id: str = ""
+    """本次思考的发起角色 id（上下文归属判定的唯一视角）"""
+
 
 class ThinkAction(Enum):
     """思考动作类型。"""
