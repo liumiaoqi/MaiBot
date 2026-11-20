@@ -1,5 +1,5 @@
 [inner]
-version = "8.29.0"
+version = "8.29.1"
 
 [bot]
 platform = "qq" # 麦麦主账号所在的平台，例如 qq。
@@ -645,6 +645,8 @@ zh1_role_drift_w_relation = 0.2 # 关系贡献权重。
 zh1_role_drift_w_uniqueness = 0.3 # 表达独特性权重。
 zh1_role_drift_w_emotion = 0.0 # 情绪匹配权重——V2 开启，V1=0.0 预留。
 zh1_role_drift_reflection_interval = 3600 # M5 反思节拍间隔秒数。推荐范围 1800-7200。
+context_identity_enabled = false # 上下文发言归属投影灰度开关。关闭时请求形态与改动前逐字一致。
+self_narration_first_person = false # 角色自述第一人称灰度开关。关闭时加载 maisaka_chat_embodied_legacy 冻结模板。
 
 [compaction]
 version = 1 # 配置版本号。

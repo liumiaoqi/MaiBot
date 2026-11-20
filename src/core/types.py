@@ -947,6 +947,9 @@ class AgentAutonomySnapshot:
     butler_opening_max_chars: int = 120
     butler_opening_timeout_seconds: float = 4.0
     butler_closure_round_enabled: bool = True
+    # agent_context_identity：上下文发言归属 / 自述第一人称（首发 false 灰度）
+    context_identity_enabled: bool = False
+    self_narration_first_person: bool = False
 
 
 

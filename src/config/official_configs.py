@@ -7580,6 +7580,36 @@ class AgentAutonomySectionConfig(ConfigBase):
     )
     """最后一条消息是疑问/引导结尾时，额外给角色一次发言机会。"""
 
+    context_identity_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用上下文发言归属",
+                "en_US": "Enable context speaker attribution",
+                "ja_JP": "コンテキスト発言帰属を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "users",
+            "advanced": True,
+        },
+    )
+    """上下文发言归属投影灰度开关。关闭时请求形态与改动前逐字一致。"""
+
+    self_narration_first_person: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "角色自述用第一人称",
+                "en_US": "First-person self narration",
+                "ja_JP": "一人称の自己叙述",
+            },
+            "x-widget": "switch",
+            "x-icon": "user",
+            "advanced": True,
+        },
+    )
+    """角色自述第一人称灰度开关。关闭时加载 maisaka_chat_embodied_legacy 冻结模板。"""
+
 
 class WatchdogSectionConfig(ConfigBase):
     """看门狗配置类（ZG-3 事件循环阻塞检测与 Runner 健康桥接）。
