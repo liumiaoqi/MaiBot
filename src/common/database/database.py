@@ -116,6 +116,11 @@ _RUNTIME_PERFORMANCE_INDEXES = (
         "CREATE INDEX IF NOT EXISTS ix_jargons_complete_count_id "
         "ON jargons (is_complete, count DESC, id DESC)",
     ),
+    (
+        "ix_mai_messages_session_sender",
+        "CREATE INDEX IF NOT EXISTS ix_mai_messages_session_sender "
+        "ON mai_messages (session_id, sender_agent_id)",
+    ),
 )
 
 

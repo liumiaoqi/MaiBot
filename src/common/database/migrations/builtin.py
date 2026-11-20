@@ -45,6 +45,7 @@ from .v36_to_v37 import migrate_v36_to_v37
 from .v37_to_v38 import migrate_v37_to_v38
 from .v38_to_v39 import migrate_v38_to_v39
 from .v39_to_v40 import migrate_v39_to_v40
+from .v40_to_v41 import migrate_v40_to_v41
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -88,7 +89,8 @@ V37_SCHEMA_VERSION = 37
 V38_SCHEMA_VERSION = 38
 V39_SCHEMA_VERSION = 39
 V40_SCHEMA_VERSION = 40
-LATEST_SCHEMA_VERSION = 40
+V41_SCHEMA_VERSION = 41
+LATEST_SCHEMA_VERSION = 41
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -1847,6 +1849,13 @@ def build_default_migration_registry() -> MigrationRegistry:
                 name="v39_to_v40",
                 description="agent_autonomy_speaker_change_records 增加发言权移交类型字段（transfer_type）。",
                 handler=migrate_v39_to_v40,
+            ),
+            MigrationStep(
+                version_from=V40_SCHEMA_VERSION,
+                version_to=V41_SCHEMA_VERSION,
+                name="v40_to_v41",
+                description="mai_messages 增加消息发送者身份字段（sender_type, sender_agent_id）。",
+                handler=migrate_v40_to_v41,
             ),
         ]
     )

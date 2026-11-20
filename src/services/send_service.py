@@ -454,6 +454,7 @@ def _build_outbound_session_message(
     reply_message: Optional[MaiMessage] = None,
     selected_expressions: Optional[List[int]] = None,
     idempotency_key: Optional[str] = None,
+    agent_id: str = "",
 ) -> Optional[SessionMessage]:
     """根据目标会话构建待发送的内部消息对象。
 
@@ -526,6 +527,8 @@ def _build_outbound_session_message(
     outbound_message.processed_plain_text = processed_plain_text.strip() or _build_processed_plain_text(
         outbound_message
     )
+    outbound_message.sender_agent_id = agent_id.strip() or None
+    outbound_message.sender_type = "agent" if outbound_message.sender_agent_id else "system"
     outbound_message.reply_to = anchor_message.message_id if anchor_message is not None else None
     message_flags = _detect_outbound_message_flags(outbound_message.raw_message)
     outbound_message.is_emoji = message_flags["is_emoji"]
@@ -1019,6 +1022,7 @@ async def _send_to_target(
     selected_expressions: Optional[List[int]] = None,
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
+    agent_id: str = "",
 ) -> bool:
     """向指定目标构建并发送消息，并返回是否发送成功。"""
     return (
@@ -1034,6 +1038,7 @@ async def _send_to_target(
             selected_expressions=selected_expressions,
             sync_to_maisaka_history=sync_to_maisaka_history,
             maisaka_source_kind=maisaka_source_kind,
+            agent_id=agent_id,
         )
         is not None
     )
@@ -1052,6 +1057,7 @@ async def _send_to_target_with_message(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
     idempotency_key: Optional[str] = None,
+    agent_id: str = "",
 ) -> Optional[SessionMessage]:
     """向指定目标构建并发送消息。
 
@@ -1084,6 +1090,7 @@ async def _send_to_target_with_message(
             reply_message=reply_message,
             selected_expressions=selected_expressions,
             idempotency_key=idempotency_key,
+            agent_id=agent_id,
         )
         if outbound_message is None:
             return None
@@ -1213,6 +1220,7 @@ class SendServiceMessagePortV2:
                 sync_to_maisaka_history=True,
                 maisaka_source_kind=source,
                 idempotency_key=idempotency_key,
+                agent_id=agent_id,
             )
 
             if result is not None:

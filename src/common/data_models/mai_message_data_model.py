@@ -14,6 +14,7 @@ from maim_message import (
 )
 
 from src.common.database.database_model import Messages
+from src.core.identity import get_bot_account
 from src.common.data_models.message_component_data_model import MessageSequence
 from src.common.utils.utils_message import MessageUtils
 
@@ -58,6 +59,8 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
         self.session_id: str
         self.reply_to: Optional[str] = None
         self.reply_frequency: Optional[float] = None
+        self.sender_type: Optional[str] = None
+        self.sender_agent_id: Optional[str] = None
 
         self.processed_plain_text: Optional[str] = None
         self.raw_message: MessageSequence
@@ -85,6 +88,8 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
         obj.is_notify = db_record.is_notify
         obj.reply_to = db_record.reply_to
         obj.reply_frequency = getattr(db_record, "reply_frequency", None)
+        obj.sender_type = getattr(db_record, "sender_type", None)
+        obj.sender_agent_id = getattr(db_record, "sender_agent_id", None)
         obj.session_id = db_record.session_id
         obj.processed_plain_text = db_record.processed_plain_text
         obj.raw_message = MessageUtils.from_db_record_msg_to_MaiSeq(db_record.raw_content)
@@ -115,6 +120,8 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
             processed_plain_text=self.processed_plain_text,
             additional_config=additional_config,
             reply_frequency=self.reply_frequency,
+            sender_type=self.sender_type,
+            sender_agent_id=self.sender_agent_id,
         )
 
     @classmethod
@@ -155,6 +162,9 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
 
         add_cfg = msg_info.additional_config or {}
         obj.message_info = MessageInfo(user_info=user_info, group_info=group_info, additional_config=add_cfg)
+        bot_user_id = get_bot_account(platform)
+        obj.sender_type = "system" if bot_user_id and usr_info.user_id == bot_user_id else "user"
+        obj.sender_agent_id = None
         return obj
 
     async def to_maim_message(self) -> MessageBase:
