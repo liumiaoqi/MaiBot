@@ -940,6 +940,13 @@ class AgentAutonomySnapshot:
     zh1_role_drift_w_uniqueness: float = 0.3
     zh1_role_drift_w_emotion: float = 0.0
     zh1_role_drift_reflection_interval: int = 3600
+    # butler_closure：管家收尾能力
+    butler_scene_opening_enabled: bool = True
+    butler_opening_silence_minutes: int = 30
+    butler_topic_budget: int = 2
+    butler_opening_max_chars: int = 120
+    butler_opening_timeout_seconds: float = 4.0
+    butler_closure_round_enabled: bool = True
 
 
 
