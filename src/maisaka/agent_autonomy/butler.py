@@ -9,6 +9,7 @@
 """
 
 
+import asyncio
 import json
 import math
 import random
@@ -20,6 +21,17 @@ from src.common.logger import get_logger
 from src.llm_models.model_requirement import ResolutionOptions, model_requirement
 from src.maisaka.agent.config import AgentConfig
 from src.core.adapters.agent_config_port import get_agent_config_provider
+from src.maisaka.agent_autonomy.butler_closure import (
+    ActionKind,
+    ButlerClosureConfig,
+    OpeningDraft,
+    OpeningOutcome,
+    PresentAgent,
+    SceneSnapshot,
+    SummonRequest,
+    TopicContext,
+)
+from src.maisaka.agent_autonomy.closure_signal import ClosureSignal, detect_closure_signal
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
 from src.maisaka.agent_autonomy.speaker_transfer import (
     ButlerConfig,
@@ -30,6 +42,7 @@ from src.maisaka.agent_autonomy.speaker_transfer import (
 from src.core.message_port_registry import get_message_port_v2
 from src.core.protocols import MessagePortV2
 from src.maisaka.agent_autonomy.log_utils import fmt_butler
+from src.maisaka.agent_autonomy.topic_ledger import TopicLedger
 
 logger = get_logger("agent_autonomy.butler")
 
@@ -76,11 +89,17 @@ class Butler:
         session_id: str,
         reminder_manager: ReminderManager | None = None,
         message_port: MessagePortV2 | None = None,
+        *,
+        closure_config: ButlerClosureConfig | None = None,
     ) -> None:
         self._primary_agent_id = primary_agent_id
         self._session_id = session_id
         self._reminder_manager = reminder_manager or ReminderManager()
         self._message_port = message_port or get_message_port_v2()
+        self._closure_config = (
+            closure_config if closure_config is not None else ButlerClosureConfig()
+        )
+        self._ledger = TopicLedger(session_id=session_id, config=self._closure_config)
 
         self._resident_briefs: list[dict] = []
         self._resident_ids: list[str] = []
@@ -152,7 +171,11 @@ class Butler:
         logger.info(
             f"[butler] 初始化: primary={self._primary_agent_id} "
             f"butler={self._butler_id or '未配置'} "
-            f"residents={len(self._resident_briefs)} session={self._session_id}"
+            f"residents={len(self._resident_briefs)} session={self._session_id} "
+            f"closure={'on' if self._closure_config.opening_enabled else 'off'} "
+            f"budget={self._closure_config.budget_limit} "
+            f"silence={self._closure_config.silence_threshold_minutes}min "
+            f"opening_timeout={self._closure_config.opening_timeout_seconds}s"
         )
 
         # 解析发言权转移配置
@@ -668,6 +691,306 @@ class Butler:
                 extra=f"context={context_hint[:30] if context_hint else 'auto'}",
             ))
         return success
+
+    # ── 管家收尾能力（批次 4：能力就位，生产未接线）──────
+
+    async def ensure_topic(
+        self,
+        *,
+        message_id: str,
+        message_at: datetime,
+        session_last_active_at: datetime | None,
+    ) -> TopicContext:
+        """返回当前消息所属话题；由 TopicLedger 做确定性判定。"""
+        return await self._ledger.resolve(
+            message_id=message_id,
+            message_at=message_at,
+            session_last_active_at=session_last_active_at,
+        )
+
+    def build_scene(
+        self,
+        present_ids: list[str],
+        emotion_hints: dict[str, str],
+    ) -> SceneSnapshot:
+        """组装场景事实：时间真实、在场者实时、氛围缺失即 None。"""
+        now = _now()
+        now_text = f"{now.strftime('%Y年%m月%d日 %H:%M')}（星期{'一二三四五六日'[now.weekday()]}）"
+        names = {brief["id"]: brief["name"] for brief in self._resident_briefs}
+        if self._primary_agent_id and self._primary_display_name:
+            names[self._primary_agent_id] = self._primary_display_name
+
+        present: list[PresentAgent] = []
+        missing: list[str] = []
+        for agent_id in present_ids:
+            name = names.get(agent_id)
+            if name is None:
+                missing.append(agent_id)
+                continue
+            present.append(PresentAgent(agent_id=agent_id, display_name=name))
+
+        emotion_hint: str | None = None
+        if emotion_hints:
+            hints = [
+                f"{agent.display_name}：{emotion_hints[agent.agent_id]}"
+                for agent in present
+                if emotion_hints.get(agent.agent_id)
+            ]
+            emotion_hint = "；".join(hints) if hints else None
+
+        return SceneSnapshot(
+            now_text=now_text,
+            present=tuple(present),
+            emotion_hint=emotion_hint,
+            missing=tuple(missing),
+        )
+
+    def _build_opening_prompt(self, scene: SceneSnapshot, user_text: str) -> tuple[str, str]:
+        """组装开场 prompt；氛围缺失时只允许中性存在感描写。"""
+        present_text = "、".join(agent.display_name for agent in scene.present) or "（此刻没有其他人在客厅）"
+        mood_text = scene.emotion_hint if scene.emotion_hint is not None else "客厅安静着"
+
+        system_prompt = (
+            f"你是{self._butler_display_name}，彼岸居客厅的守护者。"
+            "你只负责描述此刻的场景，不替任何角色表达观点、情绪或立场。"
+        )
+        user_prompt = (
+            f"当前时间：{scene.now_text}\n"
+            f"在场者：{present_text}\n"
+            f"氛围：{mood_text}\n"
+            f"用户刚说：{user_text}\n\n"
+            "用一两句话描述此刻的客厅，让接下来的人有话可接。"
+            "不要点名要求任何人发言，不要复述用户原话。"
+            f"不要超过{self._closure_config.opening_max_chars}字。"
+            "如果此刻不适合开场，回复：NONE"
+        )
+        return system_prompt, user_prompt
+
+    async def _generate_opening(self, scene: SceneSnapshot, user_text: str) -> str:
+        from src.llm_models.payload_content.message import MessageBuilder, RoleType
+        from src.common.data_models.llm_service_data_models import LLMGenerationOptions
+        from src.core.adapters.llm_service_port import get_llm_service
+
+        system_prompt, user_prompt = self._build_opening_prompt(scene, user_text)
+
+        def message_factory(_client):
+            return [
+                MessageBuilder().set_role(RoleType.System).add_text_part(system_prompt).build(),
+                MessageBuilder().set_role(RoleType.User).add_text_part(user_prompt).build(),
+            ]
+
+        result = await get_llm_service().generate_response_with_messages(
+            "replyer",
+            message_factory,
+            LLMGenerationOptions(temperature=0.7),
+            request_type="butler_opening",
+        )
+        return (result.response or "").strip()
+
+    async def _deliver_butler_text(self, text: str, *, source: str) -> bool:
+        """加说话人前缀 → 过空内容闸 → 发送。"""
+        from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
+
+        tagged = ReplyToolContextExtender.prepend_speaker_tag_to_content(
+            text, self._butler_id, True,
+        )
+        if not ReplyToolContextExtender.guard_outbound_text(
+            tagged, agent_id=self._butler_id, source=source,
+        ):
+            return False
+        return await self.send(tagged, agent_id=self._butler_id, source=source)
+
+    async def try_opening(
+        self,
+        topic: TopicContext,
+        scene: SceneSnapshot,
+        user_text: str,
+    ) -> bool:
+        """话题起点开场：单次 LLM + 硬超时；失败即放弃，不重试。"""
+        if not self._closure_config.opening_enabled or not self._butler_config:
+            return False
+
+        try:
+            raw = await asyncio.wait_for(
+                self._generate_opening(scene, user_text),
+                timeout=self._closure_config.opening_timeout_seconds,
+            )
+        except TimeoutError:
+            await self._ledger.mark_opening(
+                topic.topic_id, OpeningOutcome.FAILED, reason="timeout",
+            )
+            await self._ledger.record_action(
+                topic.topic_id, ActionKind.OPENING_FAILED, outcome="failed", detail="reason=timeout",
+            )
+            self._report_opening_failure("timeout", None)
+            return False
+        except Exception as exc:
+            await self._ledger.mark_opening(
+                topic.topic_id, OpeningOutcome.FAILED, reason="exception",
+            )
+            await self._ledger.record_action(
+                topic.topic_id, ActionKind.OPENING_FAILED, outcome="failed", detail="reason=exception",
+            )
+            self._report_opening_failure("exception", exc)
+            return False
+
+        draft = OpeningDraft.judge_prompt(
+            raw,
+            present=scene.present,
+            user_text=user_text,
+            max_chars=self._closure_config.opening_max_chars,
+        )
+        if not draft.ok:
+            outcome = (
+                OpeningOutcome.SKIPPED
+                if draft.reject_reason == "empty"
+                else OpeningOutcome.FAILED
+            )
+            await self._ledger.mark_opening(
+                topic.topic_id, outcome, reason=draft.reject_reason,
+            )
+            await self._ledger.record_action(
+                topic.topic_id,
+                ActionKind.OPENING_FAILED,
+                outcome=outcome.value,
+                detail=f"reason={draft.reject_reason}",
+            )
+            return False
+
+        delivered = await self._deliver_butler_text(draft.text, source="butler_opening")
+        if not delivered:
+            await self._ledger.mark_opening(
+                topic.topic_id, OpeningOutcome.FAILED, reason="guard_rejected",
+            )
+            return False
+
+        await self._ledger.mark_opening(
+            topic.topic_id,
+            OpeningOutcome.SENT,
+            chars=draft.chars,
+            missing=scene.missing,
+        )
+        await self._ledger.record_action(
+            topic.topic_id,
+            ActionKind.OPENING,
+            outcome="sent",
+            detail=(
+                f"present={len(scene.present)}; "
+                f"emotion={'snapshot' if scene.emotion_hint is not None else 'neutral'}"
+            ),
+        )
+        return True
+
+    def _pick_summon_target(self, present_ids: list[str]) -> str | None:
+        """按在场顺序选目标，跳过刚发言者；不做 LLM 筛选。"""
+        recent_responder = (
+            self._consecutive_responder[0] if self._consecutive_responder else ""
+        )
+        for agent_id in present_ids:
+            if agent_id != recent_responder:
+                return agent_id
+        return present_ids[0] if present_ids else None
+
+    async def summon_or_fallback(
+        self,
+        *,
+        topic: TopicContext,
+        present_ids: list[str],
+        user_text: str,
+    ) -> SummonRequest | None:
+        """预算内选一个在场目标；无在场者或预算耗尽时返回 None 并记账。"""
+        if not present_ids:
+            await self._ledger.record_action(
+                topic.topic_id,
+                ActionKind.SUMMON_DROPPED,
+                outcome="dropped",
+                detail="present=0",
+            )
+            return None
+
+        decision = await self._ledger.try_consume(topic.topic_id, ActionKind.SUMMON)
+        if not decision.granted:
+            await self._ledger.record_action(
+                topic.topic_id,
+                ActionKind.BUDGET_EXHAUSTED,
+                outcome="exhausted",
+                detail=f"used={decision.used}/{decision.limit}",
+            )
+            return None
+
+        target = self._pick_summon_target(present_ids)
+        if target is None:
+            await self._ledger.record_action(
+                topic.topic_id,
+                ActionKind.SUMMON_DROPPED,
+                outcome="dropped",
+                detail="present=0",
+            )
+            return None
+
+        await self._ledger.record_action(
+            topic.topic_id,
+            ActionKind.SUMMON,
+            outcome="requested",
+            target_agent_id=target,
+            detail=f"used={decision.used}/{decision.limit}; text_len={len(user_text)}",
+        )
+        return SummonRequest(target_agent_id=target, reason="topic_silence")
+
+    async def speak_for(
+        self,
+        *,
+        topic: TopicContext,
+        user_text: str,
+        agent_text: str = "",
+        context_hint: str = "",
+    ) -> bool:
+        """代说的预算化包装：先扣预算，再走既有 speak_and_send。"""
+        decision = await self._ledger.try_consume(topic.topic_id, ActionKind.SPEAK_FOR)
+        if not decision.granted:
+            await self._ledger.record_action(
+                topic.topic_id,
+                ActionKind.BUDGET_EXHAUSTED,
+                outcome="exhausted",
+                detail=f"used={decision.used}/{decision.limit}",
+            )
+            return False
+
+        success = await self.speak_and_send(user_text, agent_text, context_hint)
+        await self._ledger.record_action(
+            topic.topic_id,
+            ActionKind.SPEAK_FOR,
+            outcome="sent" if success else "no_reply",
+            detail=f"used={decision.used}/{decision.limit}",
+        )
+        return success
+
+    def should_close(self, last_visible_text: str, topic: TopicContext) -> bool:
+        """补回合条件：结尾有信号 + 未用过 + 预算有余量。"""
+        if not self._closure_config.closure_enabled:
+            return False
+        if topic.closure_used:
+            return False
+        if topic.budget_used >= topic.budget_limit:
+            return False
+        return detect_closure_signal(last_visible_text) is not ClosureSignal.NONE
+
+    def _report_opening_failure(self, reason: str, exc: Exception | None) -> None:
+        """开场失败双通道：日志 + 错误上报。"""
+        from src.core.error_escalation.types import ErrorLevel
+        from src.core.error_escalation_port_registry import get_error_escalation_port
+
+        logger.warning(
+            f"[butler] 开场失败 reason={reason} session={self._session_id}",
+            exc_info=exc is not None,
+        )
+        port = get_error_escalation_port()
+        if port is not None:
+            port.report(
+                ErrorLevel.WARNING,
+                f"[butler] 开场失败 reason={reason} session={self._session_id}",
+                exception=exc,
+            )
 
     # ── 提醒流 ──────────────────────────────────────────
 
